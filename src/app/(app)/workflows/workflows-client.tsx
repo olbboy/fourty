@@ -106,7 +106,8 @@ export function WorkflowsClient() {
                 onClick={() => openRuns(w)}
                 className="text-xs text-ink-muted transition hover:text-accent-600"
               >
-                {w.runCount} runs{w.lastRunAt ? ` · last ${timeAgo(w.lastRunAt)}` : ""}
+                {w.runCount} run{w.runCount === 1 ? "" : "s"}
+                {w.lastRunAt ? ` · last ${timeAgo(w.lastRunAt)}` : ""}
               </button>
               <label className="relative inline-flex cursor-pointer items-center" title={w.enabled ? "Enabled" : "Disabled"}>
                 <input
