@@ -1,0 +1,86 @@
+import { and, desc, eq, like, type SQL } from "drizzle-orm";
+import { db, tables } from "@/db";
+import { authenticate, json, apiError, parseBody } from "@/lib/api";
+import { newId } from "@/lib/id";
+import { logActivity } from "@/lib/activity";
+import { dispatchEvent } from "@/lib/workflows/engine";
+import { dealInput } from "@/lib/validators";
+import { ensureDefaultPipeline } from "@/db/seed";
+
+export async function GET(req: Request) {
+  const auth = await authenticate(req);
+  if (!auth.ok) return auth.response;
+  const params = new URL(req.url).searchParams;
+  const q = params.get("q")?.trim();
+  const stageId = params.get("stageId");
+  const pipelineId = params.get("pipelineId");
+  const companyId = params.get("companyId");
+  const contactId = params.get("contactId");
+  const limit = Math.min(Number(params.get("limit")) || 300, 1000);
+
+  const where: SQL[] = [];
+  if (q) where.push(like(tables.deals.name, `%${q.replace(/[%_]/g, "")}%`));
+  if (stageId) where.push(eq(tables.deals.stageId, stageId));
+  if (pipelineId) where.push(eq(tables.deals.pipelineId, pipelineId));
+  if (companyId) where.push(eq(tables.deals.companyId, companyId));
+  if (contactId) where.push(eq(tables.deals.contactId, contactId));
+
+  const rows = db
+    .select()
+    .from(tables.deals)
+    .where(where.length ? and(...where) : undefined)
+    .orderBy(desc(tables.deals.updatedAt))
+    .limit(limit)
+    .all();
+  return json({ deals: rows.map((r) => ({ ...r, custom: JSON.parse(r.custom) })) });
+}
+
+export async function POST(req: Request) {
+  const auth = await authenticate(req);
+  if (!auth.ok) return auth.response;
+  const body = await parseBody(req, dealInput);
+  if (!body.ok) return body.response;
+
+  const pipelineId = body.data.pipelineId ?? ensureDefaultPipeline();
+  let stageId = body.data.stageId;
+  if (!stageId) {
+    const first = db
+      .select()
+      .from(tables.stages)
+      .where(eq(tables.stages.pipelineId, pipelineId))
+      .orderBy(tables.stages.order)
+      .limit(1)
+      .get();
+    if (!first) return apiError("Pipeline has no stages");
+    stageId = first.id;
+  } else {
+    const stage = db.select().from(tables.stages).where(eq(tables.stages.id, stageId)).get();
+    if (!stage || stage.pipelineId !== pipelineId) return apiError("Invalid stage for pipeline");
+  }
+
+  const now = Date.now();
+  const id = newId();
+  const { custom, ...fields } = body.data;
+  db.insert(tables.deals)
+    .values({
+      id,
+      ...fields,
+      pipelineId,
+      stageId,
+      ownerId: auth.user?.id ?? null,
+      stageEnteredAt: now,
+      custom: JSON.stringify(custom ?? {}),
+      createdAt: now,
+      updatedAt: now,
+    })
+    .run();
+  logActivity({ type: "created", entityType: "deal", entityId: id, actorId: auth.user?.id });
+  const row = db.select().from(tables.deals).where(eq(tables.deals.id, id)).get()!;
+  dispatchEvent({
+    event: "deal.created",
+    entityType: "deal",
+    entityId: id,
+    snapshot: { ...row, custom: undefined },
+  });
+  return json({ deal: { ...row, custom: JSON.parse(row.custom) } }, { status: 201 });
+}
