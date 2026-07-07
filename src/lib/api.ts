@@ -31,16 +31,18 @@ export async function authenticate(req: Request): Promise<AuthResult> {
   const authHeader = req.headers.get("authorization");
   if (authHeader?.startsWith("Bearer ")) {
     const key = authHeader.slice(7).trim();
-    const row = db
-      .select()
-      .from(tables.apiKeys)
-      .where(and(eq(tables.apiKeys.keyHash, sha256(key)), isNull(tables.apiKeys.revokedAt)))
-      .get();
+    const row = (
+      await db
+        .select()
+        .from(tables.apiKeys)
+        .where(and(eq(tables.apiKeys.keyHash, sha256(key)), isNull(tables.apiKeys.revokedAt)))
+        .limit(1)
+    )[0];
     if (row) {
-      db.update(tables.apiKeys)
+      await db
+        .update(tables.apiKeys)
         .set({ lastUsedAt: Date.now() })
-        .where(eq(tables.apiKeys.id, row.id))
-        .run();
+        .where(eq(tables.apiKeys.id, row.id));
       return { ok: true, user: null, viaApiKey: true };
     }
     return { ok: false, response: apiError("Invalid API key", 401) };

@@ -25,11 +25,13 @@ export async function POST(req: Request) {
 
   const body = await parseBody(req, schema);
   if (!body.ok) return body.response;
-  const user = db
-    .select()
-    .from(tables.users)
-    .where(eq(tables.users.email, body.data.email.toLowerCase().trim()))
-    .get();
+  const user = (
+    await db
+      .select()
+      .from(tables.users)
+      .where(eq(tables.users.email, body.data.email.toLowerCase().trim()))
+      .limit(1)
+  )[0];
   if (!user || !verifyPassword(body.data.password, user.passwordHash)) {
     return apiError("Invalid email or password", 401);
   }

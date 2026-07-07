@@ -8,7 +8,7 @@ import { sha256 } from "@/lib/auth";
 export async function GET(req: Request) {
   const auth = await authenticate(req);
   if (!auth.ok) return auth.response;
-  const rows = db.select().from(tables.apiKeys).orderBy(desc(tables.apiKeys.createdAt)).all();
+  const rows = await db.select().from(tables.apiKeys).orderBy(desc(tables.apiKeys.createdAt));
   return json({
     keys: rows.map((r) => ({
       id: r.id,
@@ -30,15 +30,14 @@ export async function POST(req: Request) {
 
   const secret = `frty_${newToken(24)}`;
   const id = newId();
-  db.insert(tables.apiKeys)
+  await db.insert(tables.apiKeys)
     .values({
       id,
       name: body.data.name,
       prefix: secret.slice(0, 12),
       keyHash: sha256(secret),
       createdAt: Date.now(),
-    })
-    .run();
+    });
   // The full secret is returned exactly once
   return json({ id, name: body.data.name, secret }, { status: 201 });
 }
@@ -49,6 +48,6 @@ export async function DELETE(req: Request) {
   if (auth.viaApiKey) return apiError("API keys cannot revoke API keys", 403);
   const id = new URL(req.url).searchParams.get("id");
   if (!id) return apiError("Missing id");
-  db.update(tables.apiKeys).set({ revokedAt: Date.now() }).where(eq(tables.apiKeys.id, id)).run();
+  await db.update(tables.apiKeys).set({ revokedAt: Date.now() }).where(eq(tables.apiKeys.id, id));
   return json({ ok: true });
 }

@@ -1,15 +1,12 @@
 import { beforeAll, describe, expect, it } from "vitest";
-
-process.env.FOURTY_DB_PATH = ":memory:";
+import { resetDb } from "./pg-setup";
 
 /**
- * Integration tests that drive the REAL Next.js route handlers against an
- * in-memory SQLite database, authenticated with a real API key. This is the
- * first coverage of the HTTP API surface (previously only pure logic was
- * tested) — evidence that CRUD, validation, and workflow dispatch work
- * end-to-end, not just in isolation.
+ * Integration tests that drive the REAL Next.js route handlers against real
+ * Postgres, authenticated with a real API key. Evidence that CRUD, validation,
+ * and workflow dispatch work end-to-end after the SQLite→Postgres port.
  */
-describe("REST API integration (real handlers + :memory: db)", () => {
+describe("REST API integration (real handlers + Postgres)", () => {
   const TOKEN = "frty_integration_test_key";
   let db: typeof import("@/db").db;
   let tables: typeof import("@/db").tables;
@@ -24,6 +21,7 @@ describe("REST API integration (real handlers + :memory: db)", () => {
     new Request(`http://localhost${url}`, { headers: auth, ...init });
 
   beforeAll(async () => {
+    await resetDb();
     ({ db, tables } = await import("@/db"));
     ({ sha256 } = await import("@/lib/auth"));
     ({ newId } = await import("@/lib/id"));
@@ -31,15 +29,13 @@ describe("REST API integration (real handlers + :memory: db)", () => {
     dealRoutes = await import("@/app/api/deals/route");
     dealIdRoutes = await import("@/app/api/deals/[id]/route");
 
-    db.insert(tables.apiKeys)
-      .values({
-        id: newId(),
-        name: "test",
-        prefix: TOKEN.slice(0, 8),
-        keyHash: sha256(TOKEN),
-        createdAt: Date.now(),
-      })
-      .run();
+    await db.insert(tables.apiKeys).values({
+      id: newId(),
+      name: "test",
+      prefix: TOKEN.slice(0, 8),
+      keyHash: sha256(TOKEN),
+      createdAt: Date.now(),
+    });
   });
 
   it("creates, lists, and reads a contact", async () => {
@@ -53,7 +49,6 @@ describe("REST API integration (real handlers + :memory: db)", () => {
     const { contact } = await res.json();
     expect(contact.firstName).toBe("Grace");
     expect(contact.id).toBeTruthy();
-    // score is auto-computed on create
     expect(typeof contact.score).toBe("number");
 
     const listRes = await contactRoutes.GET(req("/api/contacts"));
@@ -79,18 +74,15 @@ describe("REST API integration (real handlers + :memory: db)", () => {
   });
 
   it("creates a deal in the default pipeline and moves it through stages, firing workflows", async () => {
-    // A workflow that reacts to deal.won — proves engine dispatch over HTTP.
-    db.insert(tables.workflows)
-      .values({
-        id: newId(),
-        name: "note on won",
-        enabled: 1,
-        trigger: JSON.stringify({ event: "deal.won" }),
-        conditions: "[]",
-        actions: JSON.stringify([{ type: "add_note", body: "won {{name}}" }]),
-        createdAt: Date.now(),
-      })
-      .run();
+    await db.insert(tables.workflows).values({
+      id: newId(),
+      name: "note on won",
+      enabled: 1,
+      trigger: JSON.stringify({ event: "deal.won" }),
+      conditions: "[]",
+      actions: JSON.stringify([{ type: "add_note", body: "won {{name}}" }]),
+      createdAt: Date.now(),
+    });
 
     const createRes = await dealRoutes.POST(
       req("/api/deals", {
@@ -104,12 +96,9 @@ describe("REST API integration (real handlers + :memory: db)", () => {
     expect(deal.stageId).toBeTruthy();
     expect(deal.closedAt).toBeNull();
 
-    // Find the "Won" stage in the deal's pipeline
-    const wonStage = db
-      .select()
-      .from(tables.stages)
-      .all()
-      .find((s) => s.pipelineId === deal.pipelineId && s.type === "won")!;
+    const wonStage = (await db.select().from(tables.stages)).find(
+      (s) => s.pipelineId === deal.pipelineId && s.type === "won",
+    )!;
     expect(wonStage).toBeTruthy();
 
     const patchRes = await dealIdRoutes.PATCH(
@@ -122,22 +111,14 @@ describe("REST API integration (real handlers + :memory: db)", () => {
     expect(patchRes.status).toBe(200);
     const patched = (await patchRes.json()).deal;
     expect(patched.stageId).toBe(wonStage.id);
-    expect(patched.closedAt).toBeGreaterThan(0); // won → closed
+    expect(patched.closedAt).toBeGreaterThan(0);
 
-    // The deal.won workflow should have created a note on this deal
-    const notes = db
-      .select()
-      .from(tables.notes)
-      .all()
-      .filter((n) => n.entityId === deal.id);
+    const notes = (await db.select().from(tables.notes)).filter((n) => n.entityId === deal.id);
     expect(notes.some((n) => n.body === "won Big deal")).toBe(true);
 
-    // A stage_changed activity was logged
-    const acts = db
-      .select()
-      .from(tables.activities)
-      .all()
-      .filter((a) => a.entityId === deal.id && a.type === "stage_changed");
+    const acts = (await db.select().from(tables.activities)).filter(
+      (a) => a.entityId === deal.id && a.type === "stage_changed",
+    );
     expect(acts.length).toBe(1);
   });
 

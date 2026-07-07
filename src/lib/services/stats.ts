@@ -13,14 +13,14 @@ function monthLabel(key: string): string {
   return new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "short" });
 }
 
-export function computeDashboardStats() {
+export async function computeDashboardStats() {
   const now = Date.now();
-  const stages = db.select().from(tables.stages).all();
+  const stages = await db.select().from(tables.stages);
   const stageById = new Map(stages.map((s) => [s.id, s]));
-  const deals = db.select().from(tables.deals).all();
-  const contacts = db.select().from(tables.contacts).all();
-  const tasks = db.select().from(tables.tasks).all();
-  const activities = db.select().from(tables.activities).all();
+  const deals = await db.select().from(tables.deals);
+  const contacts = await db.select().from(tables.contacts);
+  const tasks = await db.select().from(tables.tasks);
+  const activities = await db.select().from(tables.activities);
 
   const usd = (d: { amount: number; currency: string }) => convert(d.amount, d.currency, "USD");
 
@@ -157,12 +157,12 @@ export function computeDashboardStats() {
   };
 }
 
-export function computeReportStats() {
+export async function computeReportStats() {
   const now = Date.now();
-  const stages = db.select().from(tables.stages).all();
+  const stages = await db.select().from(tables.stages);
   const stageById = new Map(stages.map((s) => [s.id, s]));
-  const deals = db.select().from(tables.deals).all();
-  const contacts = db.select().from(tables.contacts).all();
+  const deals = await db.select().from(tables.deals);
+  const contacts = await db.select().from(tables.contacts);
 
   const usd = (d: { amount: number; currency: string }) => convert(d.amount, d.currency, "USD");
   const open = deals.filter((d) => stageById.get(d.stageId)?.type === "open");

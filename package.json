@@ -10,12 +10,18 @@
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:seed": "tsx src/db/seed.ts"
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:seed": "tsx src/db/seed.ts",
+    "migrate-from-sqlite": "tsx scripts/migrate-from-sqlite.ts"
   },
   "dependencies": {
+    "@types/pg": "^8.20.0",
     "better-sqlite3": "^11.10.0",
+    "drizzle-kit": "^0.31.10",
     "drizzle-orm": "^0.45.2",
     "next": "^15.3.4",
+    "pg": "^8.22.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "recharts": "^2.15.3",

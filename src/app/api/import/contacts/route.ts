@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     return null;
   };
 
-  const companies = db.select().from(tables.companies).all();
+  const companies = await db.select().from(tables.companies);
   const companyByName = new Map(companies.map((c) => [c.name.toLowerCase(), c.id]));
 
   let created = 0;
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
 
     const email = pick(row, "email", "emailaddress");
     if (email) {
-      const dupe = db.select().from(tables.contacts).where(eq(tables.contacts.email, email)).get();
+      const dupe = (await db.select().from(tables.contacts).where(eq(tables.contacts.email, email)).limit(1))[0];
       if (dupe) {
         skipped++;
         continue;
@@ -66,9 +66,8 @@ export async function POST(req: Request) {
       companyId = companyByName.get(companyName.toLowerCase()) ?? null;
       if (!companyId) {
         companyId = newId();
-        db.insert(tables.companies)
-          .values({ id: companyId, name: companyName, ownerId: auth.user?.id ?? null, createdAt: now, updatedAt: now })
-          .run();
+        await db.insert(tables.companies)
+          .values({ id: companyId, name: companyName, ownerId: auth.user?.id ?? null, createdAt: now, updatedAt: now });
         companyByName.set(companyName.toLowerCase(), companyId);
         companiesCreated++;
       }
@@ -80,7 +79,7 @@ export async function POST(req: Request) {
       : "lead";
 
     const id = newId();
-    db.insert(tables.contacts)
+    await db.insert(tables.contacts)
       .values({
         id,
         firstName,
@@ -97,10 +96,9 @@ export async function POST(req: Request) {
         country: pick(row, "country"),
         createdAt: now,
         updatedAt: now,
-      })
-      .run();
-    logActivity({ type: "created", entityType: "contact", entityId: id, actorId: auth.user?.id, meta: { via: "csv-import" } });
-    recomputeContactScore(id);
+      });
+    await logActivity({ type: "created", entityType: "contact", entityId: id, actorId: auth.user?.id, meta: { via: "csv-import" } });
+    await recomputeContactScore(id);
     created++;
   }
 

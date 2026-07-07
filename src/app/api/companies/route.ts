@@ -1,4 +1,4 @@
-import { and, desc, eq, like, or, type SQL } from "drizzle-orm";
+import { and, desc, eq, ilike, or, type SQL } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { authenticate, json, parseBody } from "@/lib/api";
 import { newId } from "@/lib/id";
@@ -19,21 +19,20 @@ export async function GET(req: Request) {
     const pattern = `%${q.replace(/[%_]/g, "")}%`;
     where.push(
       or(
-        like(tables.companies.name, pattern),
-        like(tables.companies.domain, pattern),
-        like(tables.companies.industry, pattern),
+        ilike(tables.companies.name, pattern),
+        ilike(tables.companies.domain, pattern),
+        ilike(tables.companies.industry, pattern),
       )!,
     );
   }
   if (industry) where.push(eq(tables.companies.industry, industry));
 
-  const rows = db
+  const rows = await db
     .select()
     .from(tables.companies)
     .where(where.length ? and(...where) : undefined)
     .orderBy(desc(tables.companies.updatedAt))
-    .limit(limit)
-    .all();
+    .limit(limit);
   return json({ companies: rows.map((r) => ({ ...r, custom: JSON.parse(r.custom) })) });
 }
 
@@ -46,7 +45,7 @@ export async function POST(req: Request) {
   const now = Date.now();
   const id = newId();
   const { custom, ...fields } = body.data;
-  db.insert(tables.companies)
+  await db.insert(tables.companies)
     .values({
       id,
       ...fields,
@@ -54,11 +53,10 @@ export async function POST(req: Request) {
       custom: JSON.stringify(custom ?? {}),
       createdAt: now,
       updatedAt: now,
-    })
-    .run();
-  logActivity({ type: "created", entityType: "company", entityId: id, actorId: auth.user?.id });
-  const row = db.select().from(tables.companies).where(eq(tables.companies.id, id)).get()!;
-  dispatchEvent({
+    });
+  await logActivity({ type: "created", entityType: "company", entityId: id, actorId: auth.user?.id });
+  const row = (await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1))[0]!;
+  await dispatchEvent({
     event: "company.created",
     entityType: "company",
     entityId: id,

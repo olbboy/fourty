@@ -1,8 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
-
-process.env.FOURTY_DB_PATH = ":memory:";
+import { resetDb } from "./pg-setup";
 
 /**
  * Authorization enforcement on the public REST surface.
@@ -26,26 +25,29 @@ describe("API-key auth enforcement", () => {
     contactRoutes.GET(new Request("http://localhost/api/contacts", { headers }));
 
   beforeAll(async () => {
+    await resetDb();
     ({ db, tables } = await import("@/db"));
     ({ sha256 } = await import("@/lib/auth"));
     ({ newId } = await import("@/lib/id"));
     contactRoutes = await import("@/app/api/contacts/route");
 
-    db.insert(tables.apiKeys)
-      .values({ id: newId(), name: "good", prefix: "frty_val", keyHash: sha256(GOOD), createdAt: Date.now() })
-      .run();
+    await db.insert(tables.apiKeys).values({
+      id: newId(),
+      name: "good",
+      prefix: "frty_val",
+      keyHash: sha256(GOOD),
+      createdAt: Date.now(),
+    });
 
     revokedToken = "frty_revoked_key";
-    db.insert(tables.apiKeys)
-      .values({
-        id: newId(),
-        name: "revoked",
-        prefix: "frty_rev",
-        keyHash: sha256(revokedToken),
-        revokedAt: Date.now(),
-        createdAt: Date.now(),
-      })
-      .run();
+    await db.insert(tables.apiKeys).values({
+      id: newId(),
+      name: "revoked",
+      prefix: "frty_rev",
+      keyHash: sha256(revokedToken),
+      revokedAt: Date.now(),
+      createdAt: Date.now(),
+    });
   });
 
   it("accepts a valid API key", async () => {

@@ -12,7 +12,7 @@ export async function GET(req: Request, { params }: Params) {
   const auth = await authenticate(req);
   if (!auth.ok) return auth.response;
   const { id } = await params;
-  const row = db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).get();
+  const row = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0];
   if (!row) return apiError("Contact not found", 404);
   return json({ contact: { ...row, custom: JSON.parse(row.custom) } });
 }
@@ -21,7 +21,7 @@ export async function PATCH(req: Request, { params }: Params) {
   const auth = await authenticate(req);
   if (!auth.ok) return auth.response;
   const { id } = await params;
-  const existing = db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).get();
+  const existing = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0];
   if (!existing) return apiError("Contact not found", 404);
 
   const body = await parseBody(req, contactPatch);
@@ -31,7 +31,7 @@ export async function PATCH(req: Request, { params }: Params) {
   const changed = Object.keys(fields).filter(
     (k) => (fields as Record<string, unknown>)[k] !== (existing as Record<string, unknown>)[k],
   );
-  db.update(tables.contacts)
+  await db.update(tables.contacts)
     .set({
       ...fields,
       ...(custom !== undefined
@@ -39,11 +39,10 @@ export async function PATCH(req: Request, { params }: Params) {
         : {}),
       updatedAt: Date.now(),
     })
-    .where(eq(tables.contacts.id, id))
-    .run();
+    .where(eq(tables.contacts.id, id));
 
   if (changed.length > 0 || custom !== undefined) {
-    logActivity({
+    await logActivity({
       type: "updated",
       entityType: "contact",
       entityId: id,
@@ -51,9 +50,9 @@ export async function PATCH(req: Request, { params }: Params) {
       meta: { fields: changed },
     });
   }
-  recomputeContactScore(id);
-  const row = db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).get()!;
-  dispatchEvent({
+  await recomputeContactScore(id);
+  const row = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0]!;
+  await dispatchEvent({
     event: "contact.updated",
     entityType: "contact",
     entityId: id,
@@ -66,12 +65,11 @@ export async function DELETE(req: Request, { params }: Params) {
   const auth = await authenticate(req);
   if (!auth.ok) return auth.response;
   const { id } = await params;
-  const existing = db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).get();
+  const existing = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0];
   if (!existing) return apiError("Contact not found", 404);
-  db.delete(tables.contacts).where(eq(tables.contacts.id, id)).run();
-  db.delete(tables.notes)
-    .where(eq(tables.notes.entityId, id))
-    .run();
-  db.delete(tables.activities).where(eq(tables.activities.entityId, id)).run();
+  await db.delete(tables.contacts).where(eq(tables.contacts.id, id));
+  await db.delete(tables.notes)
+    .where(eq(tables.notes.entityId, id));
+  await db.delete(tables.activities).where(eq(tables.activities.entityId, id));
   return json({ ok: true });
 }

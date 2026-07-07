@@ -1,4 +1,4 @@
-import { and, desc, eq, like, type SQL } from "drizzle-orm";
+import { and, desc, eq, ilike, type SQL } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { authenticate, json, apiError, parseBody } from "@/lib/api";
 import { newId } from "@/lib/id";
@@ -19,19 +19,18 @@ export async function GET(req: Request) {
   const limit = Math.min(Number(params.get("limit")) || 300, 1000);
 
   const where: SQL[] = [];
-  if (q) where.push(like(tables.deals.name, `%${q.replace(/[%_]/g, "")}%`));
+  if (q) where.push(ilike(tables.deals.name, `%${q.replace(/[%_]/g, "")}%`));
   if (stageId) where.push(eq(tables.deals.stageId, stageId));
   if (pipelineId) where.push(eq(tables.deals.pipelineId, pipelineId));
   if (companyId) where.push(eq(tables.deals.companyId, companyId));
   if (contactId) where.push(eq(tables.deals.contactId, contactId));
 
-  const rows = db
+  const rows = await db
     .select()
     .from(tables.deals)
     .where(where.length ? and(...where) : undefined)
     .orderBy(desc(tables.deals.updatedAt))
-    .limit(limit)
-    .all();
+    .limit(limit);
   return json({ deals: rows.map((r) => ({ ...r, custom: JSON.parse(r.custom) })) });
 }
 
@@ -41,27 +40,26 @@ export async function POST(req: Request) {
   const body = await parseBody(req, dealInput);
   if (!body.ok) return body.response;
 
-  const pipelineId = body.data.pipelineId ?? ensureDefaultPipeline();
+  const pipelineId = body.data.pipelineId ?? (await ensureDefaultPipeline());
   let stageId = body.data.stageId;
   if (!stageId) {
-    const first = db
+    const first = (await db
       .select()
       .from(tables.stages)
       .where(eq(tables.stages.pipelineId, pipelineId))
       .orderBy(tables.stages.order)
-      .limit(1)
-      .get();
+      .limit(1))[0];
     if (!first) return apiError("Pipeline has no stages");
     stageId = first.id;
   } else {
-    const stage = db.select().from(tables.stages).where(eq(tables.stages.id, stageId)).get();
+    const stage = (await db.select().from(tables.stages).where(eq(tables.stages.id, stageId)).limit(1))[0];
     if (!stage || stage.pipelineId !== pipelineId) return apiError("Invalid stage for pipeline");
   }
 
   const now = Date.now();
   const id = newId();
   const { custom, ...fields } = body.data;
-  db.insert(tables.deals)
+  await db.insert(tables.deals)
     .values({
       id,
       ...fields,
@@ -72,11 +70,10 @@ export async function POST(req: Request) {
       custom: JSON.stringify(custom ?? {}),
       createdAt: now,
       updatedAt: now,
-    })
-    .run();
-  logActivity({ type: "created", entityType: "deal", entityId: id, actorId: auth.user?.id });
-  const row = db.select().from(tables.deals).where(eq(tables.deals.id, id)).get()!;
-  dispatchEvent({
+    });
+  await logActivity({ type: "created", entityType: "deal", entityId: id, actorId: auth.user?.id });
+  const row = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0]!;
+  await dispatchEvent({
     event: "deal.created",
     entityType: "deal",
     entityId: id,

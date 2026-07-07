@@ -9,16 +9,14 @@ export type ActivityInput = {
   meta?: Record<string, unknown>;
 };
 
-export function logActivity(input: ActivityInput): void {
-  db.insert(tables.activities)
-    .values({
-      id: newId(),
-      type: input.type,
-      entityType: input.entityType,
-      entityId: input.entityId,
-      actorId: input.actorId ?? null,
-      meta: JSON.stringify(input.meta ?? {}),
-      createdAt: Date.now(),
-    })
-    .run();
+export async function logActivity(input: ActivityInput): Promise<void> {
+  await db.insert(tables.activities).values({
+    id: newId(),
+    type: input.type,
+    entityType: input.entityType,
+    entityId: input.entityId,
+    actorId: input.actorId ?? null,
+    meta: JSON.stringify(input.meta ?? {}),
+    createdAt: Date.now(),
+  });
 }

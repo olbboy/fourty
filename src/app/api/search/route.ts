@@ -1,4 +1,4 @@
-import { like, or, sql } from "drizzle-orm";
+import { ilike, or, sql } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { authenticate, json } from "@/lib/api";
 
@@ -10,31 +10,28 @@ export async function GET(req: Request) {
   if (!q) return json({ results: [] });
   const pattern = `%${q.replace(/[%_]/g, "")}%`;
 
-  const contacts = db
+  const contacts = await db
     .select()
     .from(tables.contacts)
     .where(
       or(
-        like(sql`${tables.contacts.firstName} || ' ' || ${tables.contacts.lastName}`, pattern),
-        like(tables.contacts.email, pattern),
+        ilike(sql`${tables.contacts.firstName} || ' ' || ${tables.contacts.lastName}`, pattern),
+        ilike(tables.contacts.email, pattern),
       ),
     )
-    .limit(5)
-    .all();
+    .limit(5);
 
-  const companies = db
+  const companies = await db
     .select()
     .from(tables.companies)
-    .where(or(like(tables.companies.name, pattern), like(tables.companies.domain, pattern)))
-    .limit(5)
-    .all();
+    .where(or(ilike(tables.companies.name, pattern), ilike(tables.companies.domain, pattern)))
+    .limit(5);
 
-  const deals = db
+  const deals = await db
     .select()
     .from(tables.deals)
-    .where(like(tables.deals.name, pattern))
-    .limit(5)
-    .all();
+    .where(ilike(tables.deals.name, pattern))
+    .limit(5);
 
   return json({
     results: [

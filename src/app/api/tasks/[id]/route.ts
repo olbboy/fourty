@@ -11,7 +11,7 @@ export async function PATCH(req: Request, { params }: Params) {
   const auth = await authenticate(req);
   if (!auth.ok) return auth.response;
   const { id } = await params;
-  const existing = db.select().from(tables.tasks).where(eq(tables.tasks.id, id)).get();
+  const existing = (await db.select().from(tables.tasks).where(eq(tables.tasks.id, id)).limit(1))[0];
   if (!existing) return apiError("Task not found", 404);
 
   const body = await parseBody(req, taskPatch);
@@ -19,18 +19,18 @@ export async function PATCH(req: Request, { params }: Params) {
   const { completed, ...fields } = body.data;
 
   const justCompleted = completed === true && !existing.completedAt;
-  db.update(tables.tasks)
+  await db
+    .update(tables.tasks)
     .set({
       ...fields,
       ...(completed !== undefined ? { completedAt: completed ? Date.now() : null } : {}),
     })
-    .where(eq(tables.tasks.id, id))
-    .run();
+    .where(eq(tables.tasks.id, id));
 
-  const row = db.select().from(tables.tasks).where(eq(tables.tasks.id, id)).get()!;
+  const row = (await db.select().from(tables.tasks).where(eq(tables.tasks.id, id)).limit(1))[0]!;
   if (justCompleted) {
     if (row.entityType && row.entityId) {
-      logActivity({
+      await logActivity({
         type: "task_completed",
         entityType: row.entityType,
         entityId: row.entityId,
@@ -38,7 +38,7 @@ export async function PATCH(req: Request, { params }: Params) {
         meta: { title: row.title },
       });
     }
-    dispatchEvent({
+    await dispatchEvent({
       event: "task.completed",
       entityType: "task",
       entityId: id,
@@ -52,6 +52,6 @@ export async function DELETE(req: Request, { params }: Params) {
   const auth = await authenticate(req);
   if (!auth.ok) return auth.response;
   const { id } = await params;
-  db.delete(tables.tasks).where(eq(tables.tasks.id, id)).run();
+  await db.delete(tables.tasks).where(eq(tables.tasks.id, id));
   return json({ ok: true });
 }
