@@ -1,6 +1,6 @@
 {
   "name": "fourty",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Fourty — The open-source CRM that deploys in 30 seconds. Twice the CRM, half the complexity.",
   "scripts": {
