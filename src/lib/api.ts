@@ -12,6 +12,14 @@ export function apiError(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }
 
+/** 429 with a Retry-After header (seconds). */
+export function tooManyRequests(message: string, retryAfter: number) {
+  return NextResponse.json(
+    { error: message },
+    { status: 429, headers: { "Retry-After": String(retryAfter) } },
+  );
+}
+
 export type AuthResult =
   | { ok: true; user: SessionUser | null; viaApiKey: boolean }
   | { ok: false; response: NextResponse };
