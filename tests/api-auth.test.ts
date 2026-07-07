@@ -67,11 +67,12 @@ describe("API-key auth enforcement", () => {
 });
 
 describe("static guard: every API route authenticates", () => {
-  // Endpoints that intentionally run before a session exists.
+  // Endpoints that intentionally run without an authenticated session.
   const PUBLIC_ROUTES = new Set([
     "auth/login",
     "auth/logout",
     "auth/setup",
+    "health", // liveness probe — pings DB only, exposes no data
   ]);
 
   function routeFiles(dir: string, base = ""): { rel: string; file: string }[] {

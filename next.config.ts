@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["better-sqlite3"],
+  // Keep the Postgres driver out of the bundler (native/optional deps).
+  serverExternalPackages: ["pg"],
 };
 
 export default nextConfig;

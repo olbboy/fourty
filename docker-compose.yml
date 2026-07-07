@@ -1,0 +1,57 @@
+# Fourty — one-command self-host (ADR-006).
+#   docker compose up --build
+# Brings up Postgres, runs migrations once, then starts the app on :3000.
+# The background worker (pg-boss) arrives in Gate B4.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: fourty
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fourty}
+      POSTGRES_DB: fourty
+    volumes:
+      - fourty-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fourty -d fourty"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # One-shot: apply migrations, then exit. App waits for this to complete.
+  migrate:
+    build: .
+    command: ["npm", "run", "db:migrate"]
+    environment:
+      DATABASE_URL: postgresql://fourty:${POSTGRES_PASSWORD:-fourty}@postgres:5432/fourty
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://fourty:${POSTGRES_PASSWORD:-fourty}@postgres:5432/fourty
+      NODE_ENV: production
+      PORT: 3000
+      # Local demo runs over plain HTTP, so session cookies can't be Secure-only.
+      # Behind TLS in production, REMOVE this line so cookies are Secure.
+      FOURTY_INSECURE_COOKIE: ${FOURTY_INSECURE_COOKIE:-1}
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - node -e "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    stop_grace_period: 20s
+
+volumes:
+  fourty-pg:

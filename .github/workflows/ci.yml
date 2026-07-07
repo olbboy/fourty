@@ -8,6 +8,22 @@ on:
 jobs:
   test-and-build:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: fourty
+          POSTGRES_PASSWORD: fourty
+          POSTGRES_DB: fourty_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fourty"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://fourty:fourty@localhost:5432/fourty_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -17,7 +33,9 @@ jobs:
       - run: npm ci
       - name: Type check
         run: npx tsc --noEmit
-      - name: Unit + integration + security tests
+      - name: Migrate test database
+        run: npm run db:migrate
+      - name: Unit + integration + security tests (real Postgres)
         run: npm test
       - name: Production build
         run: npm run build
@@ -31,8 +49,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      # Fail CI on any HIGH/CRITICAL advisory. Two MODERATE transitive
-      # advisories (Next → postcss) remain and cannot be fixed without a
-      # breaking Next downgrade; they are tracked, not silenced.
+      # Fail CI on any HIGH/CRITICAL advisory. Remaining MODERATE transitive
+      # advisories (Next → postcss) can't be fixed without a breaking downgrade;
+      # tracked, not silenced.
       - name: Dependency audit (high+)
         run: npm audit --audit-level=high
