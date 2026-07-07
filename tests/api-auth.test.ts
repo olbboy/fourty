@@ -97,14 +97,35 @@ describe("static guard: every API route authenticates", () => {
     expect(files.length).toBeGreaterThan(15); // sanity: we found the routes
 
     // A data route must go through withAuth() (which authenticates AND enters the
-    // workspace RLS transaction). Bare authenticate() is allowed too for routes
-    // that don't touch tenant data.
+    // workspace RLS transaction). Bare authenticate()/getSessionUser() is allowed
+    // for routes that don't touch tenant data or predate a workspace (accept).
     const missing: string[] = [];
     for (const { rel, file } of files) {
       if (PUBLIC_ROUTES.has(rel)) continue;
       const src = readFileSync(file, "utf8");
-      if (!src.includes("withAuth(") && !src.includes("authenticate(")) missing.push(rel);
+      if (
+        !src.includes("withAuth(") &&
+        !src.includes("authenticate(") &&
+        !src.includes("getSessionUser(")
+      )
+        missing.push(rel);
     }
-    expect(missing, `routes missing withAuth()/authenticate(): ${missing.join(", ")}`).toEqual([]);
+    expect(missing, `routes missing auth: ${missing.join(", ")}`).toEqual([]);
+  });
+
+  it("every mutating route enforces RBAC via authorize()", () => {
+    const apiDir = path.resolve(__dirname, "../src/app/api");
+    const files = routeFiles(apiDir);
+    // Mutating routes exempt from authorize(): public auth endpoints and invite
+    // accept (authorized by the one-time invite token, not a workspace role).
+    const EXEMPT = new Set(["auth/login", "auth/logout", "auth/setup", "members/accept"]);
+    const missing: string[] = [];
+    for (const { rel, file } of files) {
+      if (EXEMPT.has(rel)) continue;
+      const src = readFileSync(file, "utf8");
+      const mutates = /export async function (POST|PATCH|DELETE)\b/.test(src);
+      if (mutates && !src.includes("authorize(")) missing.push(rel);
+    }
+    expect(missing, `mutating routes missing authorize(): ${missing.join(", ")}`).toEqual([]);
   });
 });

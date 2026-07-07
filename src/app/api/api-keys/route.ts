@@ -1,14 +1,17 @@
 import { z } from "zod";
 import { and, desc, eq } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { withAuth, json, apiError, parseBody } from "@/lib/api";
+import { withAuth, authorize, json, apiError, parseBody } from "@/lib/api";
 import { newId, newToken } from "@/lib/id";
 import { sha256 } from "@/lib/auth";
+import { audit } from "@/lib/audit";
 
 // api_keys is looked up by hash during auth (before a workspace is known), so it
 // is NOT RLS-protected — this route scopes it to the caller's workspace by hand.
 export async function GET(req: Request) {
   return withAuth(req, async (auth) => {
+    const denied = authorize(auth, "api-keys", "read");
+    if (denied) return denied;
     const rows = await db
       .select()
       .from(tables.apiKeys)
@@ -29,8 +32,17 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   return withAuth(req, async (auth) => {
+    const denied = authorize(auth, "api-keys", "create");
+    if (denied) return denied;
     if (auth.viaApiKey) return apiError("API keys cannot create API keys", 403);
-    const body = await parseBody(req, z.object({ name: z.string().min(1).max(100) }));
+    const body = await parseBody(
+      req,
+      z.object({
+        name: z.string().min(1).max(100),
+        // The RBAC role the key acts as (defaults to admin for back-compat).
+        role: z.enum(["admin", "member", "viewer"]).default("admin"),
+      }),
+    );
     if (!body.ok) return body.response;
 
     const secret = `frty_${newToken(24)}`;
@@ -40,9 +52,15 @@ export async function POST(req: Request) {
       id,
       workspaceId: auth.workspaceId,
       name: body.data.name,
+      role: body.data.role,
       prefix: secret.slice(0, 12),
       keyHash: sha256(secret),
       createdAt: Date.now(),
+    });
+    await audit(auth.user?.id, "api_key.created", {
+      objectType: "api_key",
+      objectId: id,
+      meta: { role: body.data.role },
     });
     // The full secret is returned exactly once
     return json({ id, name: body.data.name, secret }, { status: 201 });
@@ -51,6 +69,8 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   return withAuth(req, async (auth) => {
+    const denied = authorize(auth, "api-keys", "delete");
+    if (denied) return denied;
     if (auth.viaApiKey) return apiError("API keys cannot revoke API keys", 403);
     const id = new URL(req.url).searchParams.get("id");
     if (!id) return apiError("Missing id");
@@ -58,6 +78,7 @@ export async function DELETE(req: Request) {
       .update(tables.apiKeys)
       .set({ revokedAt: Date.now() })
       .where(and(eq(tables.apiKeys.id, id), eq(tables.apiKeys.workspaceId, auth.workspaceId)));
+    await audit(auth.user?.id, "api_key.revoked", { objectType: "api_key", objectId: id });
     return json({ ok: true });
   });
 }

@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { asc, eq } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { withAuth, json, parseBody } from "@/lib/api";
+import { withAuth, authorize, json, parseBody } from "@/lib/api";
 import { newId } from "@/lib/id";
+import { audit } from "@/lib/audit";
 
 const input = z.object({
   entity: z.enum(["contact", "company", "deal"]),
@@ -31,6 +32,8 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   return withAuth(req, async (auth) => {
+  const denied = authorize(auth, "custom-fields", "create");
+  if (denied) return denied;
   const body = await parseBody(req, input);
   if (!body.ok) return body.response;
   const existing = await db
@@ -53,6 +56,7 @@ export async function POST(req: Request) {
       order: existing.length,
       createdAt: Date.now(),
     });
+  await audit(auth.user?.id, "custom_field.created", { objectType: "custom_field", objectId: id });
   const row = (await db
     .select()
     .from(tables.customFieldDefs)

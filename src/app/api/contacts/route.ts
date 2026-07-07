@@ -1,8 +1,9 @@
 import { and, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { withAuth, json, parseBody } from "@/lib/api";
+import { withAuth, authorize, json, parseBody } from "@/lib/api";
 import { newId } from "@/lib/id";
 import { logActivity } from "@/lib/activity";
+import { audit } from "@/lib/audit";
 import { dispatchEvent } from "@/lib/workflows/engine";
 import { recomputeContactScore } from "@/lib/services/contact-score";
 import { contactInput } from "@/lib/validators";
@@ -52,6 +53,8 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   return withAuth(req, async (auth) => {
+  const denied = authorize(auth, "contacts", "create");
+  if (denied) return denied;
   const body = await parseBody(req, contactInput);
   if (!body.ok) return body.response;
 
@@ -69,6 +72,7 @@ export async function POST(req: Request) {
     });
 
   await logActivity({ type: "created", entityType: "contact", entityId: id, actorId: auth.user?.id });
+  await audit(auth.user?.id, "contact.created", { objectType: "contact", objectId: id });
   await recomputeContactScore(id);
   const row = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0]!;
   await dispatchEvent({

@@ -1,7 +1,8 @@
 import { eq } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { withAuth, json, apiError, parseBody } from "@/lib/api";
+import { withAuth, authorize, json, apiError, parseBody } from "@/lib/api";
 import { logActivity } from "@/lib/activity";
+import { audit } from "@/lib/audit";
 import { dispatchEvent } from "@/lib/workflows/engine";
 import { dealPatch } from "@/lib/validators";
 
@@ -18,6 +19,8 @@ export async function GET(req: Request, { params }: Params) {
 
 export async function PATCH(req: Request, { params }: Params) {
   return withAuth(req, async (auth) => {
+  const denied = authorize(auth, "deals", "update");
+  if (denied) return denied;
   const { id } = await params;
   const existing = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0];
   if (!existing) return apiError("Deal not found", 404);
@@ -85,18 +88,22 @@ export async function PATCH(req: Request, { params }: Params) {
       meta: { fields: Object.keys(fields) },
     });
   }
+  await audit(auth.user?.id, "deal.updated", { objectType: "deal", objectId: id });
   return json({ deal: { ...row, custom: JSON.parse(row.custom) } });
   });
 }
 
 export async function DELETE(req: Request, { params }: Params) {
   return withAuth(req, async (auth) => {
+  const denied = authorize(auth, "deals", "delete");
+  if (denied) return denied;
   const { id } = await params;
   const existing = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0];
   if (!existing) return apiError("Deal not found", 404);
   await db.delete(tables.deals).where(eq(tables.deals.id, id));
   await db.delete(tables.notes).where(eq(tables.notes.entityId, id));
   await db.delete(tables.activities).where(eq(tables.activities.entityId, id));
+  await audit(auth.user?.id, "deal.deleted", { objectType: "deal", objectId: id });
   return json({ ok: true });
   });
 }

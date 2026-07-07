@@ -1,6 +1,6 @@
 import { scryptSync, timingSafeEqual, randomBytes, createHash } from "node:crypto";
 import { cookies } from "next/headers";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { newId, newToken } from "./id";
 
@@ -137,7 +137,7 @@ export async function membershipsOf(userId: string): Promise<Membership[]> {
   return rows;
 }
 
-/** The user's role in a workspace, or null if not a member. */
+/** The user's role in a workspace, or null if not an active member (deactivated excluded). */
 export async function roleInWorkspace(userId: string, workspaceId: string): Promise<string | null> {
   const row = (
     await db
@@ -147,6 +147,7 @@ export async function roleInWorkspace(userId: string, workspaceId: string): Prom
         and(
           eq(tables.workspaceMembers.userId, userId),
           eq(tables.workspaceMembers.workspaceId, workspaceId),
+          isNull(tables.workspaceMembers.deactivatedAt),
         ),
       )
       .limit(1)

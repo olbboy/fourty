@@ -1,7 +1,8 @@
 import { eq } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { withAuth, json, apiError, parseBody } from "@/lib/api";
+import { withAuth, authorize, json, apiError, parseBody } from "@/lib/api";
 import { logActivity } from "@/lib/activity";
+import { audit } from "@/lib/audit";
 import { dispatchEvent } from "@/lib/workflows/engine";
 import { recomputeContactScore } from "@/lib/services/contact-score";
 import { contactPatch } from "@/lib/validators";
@@ -19,6 +20,8 @@ export async function GET(req: Request, { params }: Params) {
 
 export async function PATCH(req: Request, { params }: Params) {
   return withAuth(req, async (auth) => {
+  const denied = authorize(auth, "contacts", "update");
+  if (denied) return denied;
   const { id } = await params;
   const existing = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0];
   if (!existing) return apiError("Contact not found", 404);
@@ -50,6 +53,7 @@ export async function PATCH(req: Request, { params }: Params) {
     });
   }
   await recomputeContactScore(id);
+  await audit(auth.user?.id, "contact.updated", { objectType: "contact", objectId: id, meta: { fields: changed } });
   const row = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0]!;
   await dispatchEvent({
     event: "contact.updated",
@@ -63,6 +67,8 @@ export async function PATCH(req: Request, { params }: Params) {
 
 export async function DELETE(req: Request, { params }: Params) {
   return withAuth(req, async (auth) => {
+  const denied = authorize(auth, "contacts", "delete");
+  if (denied) return denied;
   const { id } = await params;
   const existing = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0];
   if (!existing) return apiError("Contact not found", 404);
@@ -70,6 +76,7 @@ export async function DELETE(req: Request, { params }: Params) {
   await db.delete(tables.notes)
     .where(eq(tables.notes.entityId, id));
   await db.delete(tables.activities).where(eq(tables.activities.entityId, id));
+  await audit(auth.user?.id, "contact.deleted", { objectType: "contact", objectId: id });
   return json({ ok: true });
   });
 }

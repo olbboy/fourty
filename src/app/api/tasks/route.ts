@@ -1,7 +1,8 @@
 import { and, asc, eq, isNull, isNotNull, type SQL } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { withAuth, json, parseBody } from "@/lib/api";
+import { withAuth, authorize, json, parseBody } from "@/lib/api";
 import { newId } from "@/lib/id";
+import { audit } from "@/lib/audit";
 import { taskInput } from "@/lib/validators";
 
 export async function GET(req: Request) {
@@ -29,12 +30,15 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   return withAuth(req, async (auth) => {
+  const denied = authorize(auth, "tasks", "create");
+  if (denied) return denied;
   const body = await parseBody(req, taskInput);
   if (!body.ok) return body.response;
   const id = newId();
   await db
     .insert(tables.tasks)
     .values({ id, ...body.data, ownerId: auth.user?.id ?? null, createdAt: Date.now() });
+  await audit(auth.user?.id, "task.created", { objectType: "task", objectId: id });
   const row = (await db.select().from(tables.tasks).where(eq(tables.tasks.id, id)).limit(1))[0]!;
   return json({ task: row }, { status: 201 });
   });

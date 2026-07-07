@@ -1,9 +1,10 @@
 import { eq } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { withAuth, json, apiError } from "@/lib/api";
+import { withAuth, authorize, json, apiError } from "@/lib/api";
 import { newId } from "@/lib/id";
 import { parseCsvObjects } from "@/lib/csv";
 import { logActivity } from "@/lib/activity";
+import { audit } from "@/lib/audit";
 import { recomputeContactScore } from "@/lib/services/contact-score";
 
 const MAX_ROWS = 5000;
@@ -15,6 +16,8 @@ const MAX_ROWS = 5000;
  */
 export async function POST(req: Request) {
   return withAuth(req, async (auth) => {
+  const denied = authorize(auth, "contacts", "create");
+  if (denied) return denied;
 
   const text = await req.text();
   if (!text.trim()) return apiError("Empty file");
@@ -101,6 +104,7 @@ export async function POST(req: Request) {
     created++;
   }
 
+  await audit(auth.user?.id, "contacts.imported", { meta: { created, skipped, companiesCreated, total: rows.length } });
   return json({ created, skipped, companiesCreated, total: rows.length });
   });
 }

@@ -18,7 +18,7 @@ benchmark numbers are published because none were measured yet.
 | **RULE #0 — ADRs** | ✅ DONE | `docs/adr/001..006` — tenancy(RLS), migrations, SQLite fate, queue, authz, deploy |
 | **B1 — Postgres foundation & migrations** | ✅ DONE | see below |
 | **B2 — Multi-tenancy + RLS + isolation suite** | ✅ DONE | `tests/tenant-isolation.test.ts` (6) — see below |
-| **B3 — RBAC + user mgmt + audit log** | ⏳ NEXT | membership roles exist; enforcement + invite + audit pending |
+| **B3 — RBAC + user mgmt + audit log** | ✅ DONE | `rbac-matrix.test.ts`, `audit-log.test.ts`, `members.test.ts`, `permissions.test.ts` — see below |
 | **B4 — Workers/queue + rate limit + observability + backup drill** | ⬜ pending | plan: `docs/roadmap-b3-b4-b5.md` |
 | **B5 — Benchmark vs Twenty (same Postgres)** | ⬜ pending | plan: `docs/roadmap-b3-b4-b5.md` |
 | **B6 — twenty-migrate + MCP server + docs** | ⬜ pending | |
@@ -71,28 +71,45 @@ scope a query, `fourty_app` + RLS returns zero rows (fail closed) rather than
 leaking. The isolation suite includes a direct-connection proof independent of
 app code.
 
-Known limits (honest): field-level permissions and RBAC *enforcement* are B3
-(membership roles exist but aren't yet checked per-action). `settings` table is
-global (unused by data routes). In-place B2 upgrade of a *populated* B1-Postgres
-DB needs a manual backfill (fresh installs + migrate-from-sqlite handle it).
+Known limits (honest): field-level permissions are still absent (B3 does
+object-level RBAC only). In-place B2/B3 upgrade of a *populated* B1-Postgres DB
+needs a manual backfill (fresh installs + migrate-from-sqlite handle it).
 
-## Gate B3 — NEXT. Concrete plan
-1. **RBAC enforcement**: a permission matrix (role × object × action) checked in a
-   route-layer guard; `viewer` read-only, `member` CRM read/write, `admin` +settings/keys/members. Generated coverage test so a new route without a matrix entry fails CI (ADR-005).
-2. **User management API + UI**: invite (email token) → membership, change role,
-   remove member, deactivate; last admin cannot remove self.
-3. **Audit log**: append-only table (actor/workspace/action/target/ts) on
-   mutations + settings + auth; export; test that rows can't be updated/deleted.
+## Gate B3 — DONE (evidence)
 
-**First command for the next session:** add a `permissions.ts` matrix + a
-`requireRole()` guard, wire it into the mutating routes, and add
-`tests/rbac-matrix.test.ts`.
+| Requirement | Status | Evidence |
+|---|---|---|
+| Permission matrix (role × object × action), pure + tested | ✅ | `src/lib/permissions.ts` (`can()`); `tests/permissions.test.ts` (admin all / member CRM-write / viewer read-only / default-deny) |
+| RBAC enforced on every mutating route + static coverage guard | ✅ | `authorize()` in `src/lib/api.ts` (role from `workspace_members`/API-key `role`); wired into all mutating handlers; `tests/api-auth.test.ts` static guard fails CI if a mutating route omits `authorize(`; `tests/rbac-matrix.test.ts` drives real handlers per role |
+| User management (invite → accept/signup, list, change role, deactivate) | ✅ | `/api/members`, `/api/members/invite`, `/api/members/accept`, `/api/members/[userId]`; **last active admin can't be demoted/removed**; `tests/members.test.ts`; Settings → Team members UI |
+| Immutable audit log | ✅ | `audit_log` table + `src/lib/audit.ts`; `0004_audit_rls` RLS + `REVOKE UPDATE,DELETE` + `DO INSTEAD NOTHING` rules; `/api/audit` (admin, +CSV); `tests/audit-log.test.ts` proves a mutation logs and rows can't be rewritten/removed |
+| `settings` scoped per workspace | ✅ | `settings` now `(workspace_id, key)` PK + RLS (`0003`/`0004`) |
+| Migrations reversible incl. B3 | ✅ | `0003_rbac_members_audit` + `0004_audit_rls` (+ downs); `tests/migration-reversibility.test.ts` full chain 0000→0004 (20 tables / 15 policies) |
+
+**Verification (this session, real Postgres 16 in Docker):** `npx vitest run` →
+**84/84 pass**; `tsc` green. Live E2E on `next dev` (app as `fourty_app`): admin
+setup → invite → **accept signs up a new user + joins as member** → member
+creates a contact (201) but is denied members/api-keys (403) → admin demotes to
+viewer → viewer create is denied (403) → audit log shows
+`member.invited/joined/role_changed` + `contact.created`, immutable.
+
+### Deliberate choices / deviations
+- **RBAC role source**: sessions resolve role from `workspace_members`
+  (deactivated members are denied); API keys carry a `role` column (default
+  `admin` for back-compat, selectable on create).
+- **Invite tokens** are `${workspaceId}.${secret}` so `accept` resolves the
+  workspace without a cross-tenant scan; `accept` also signs up a brand-new
+  invitee (the token authorizes it) since there is no open registration.
+- **audit_log immutability** is enforced two ways: `REVOKE UPDATE,DELETE` from the
+  app role AND rewrite rules, so neither the app nor a stray query can alter it.
 
 ## Environment note (for session continuity)
-A real Postgres 16 is running locally in this container (`fourty` + `fourty_test`
-DBs, roles `fourty` owner + `fourty_app` runtime for RLS). If the container was
-recycled, re-provision: `pg_ctlcluster 16 main start` then recreate roles/DBs
-(see the B2 setup) and `npm run db:migrate` for both DBs.
+Local dev (macOS) runs Postgres 16 in Docker:
+`docker run -d --name fourty-pg -e POSTGRES_USER=fourty -e POSTGRES_PASSWORD=fourty -e POSTGRES_DB=fourty -p 5432:5432 postgres:16`.
+Then create DBs `fourty_test` and `fourty_revtest`, and the runtime role
+`CREATE ROLE fourty_app LOGIN PASSWORD 'fourty_app'` (0002/0004 apply its grants).
+Env: `DATABASE_URL` = `fourty_app` (RLS-subject app role); `MIGRATE_DATABASE_URL`
+= owner `fourty`. Run `npm run db:migrate` for each DB.
 
 ## Risks / trade-offs (unchanged, restated)
 - **SQLite retired** as prod runtime; existing users migrate via

@@ -22,6 +22,20 @@
       "when": 1783412177176,
       "tag": "0002_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1783419245228,
+      "tag": "0003_rbac_members_audit",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1783419245328,
+      "tag": "0004_audit_rls",
+      "breakpoints": true
     }
   ]
 }
