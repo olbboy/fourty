@@ -1,6 +1,6 @@
 {
   "name": "fourty",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Fourty — The open-source CRM that deploys in 30 seconds. Twice the CRM, half the complexity.",
   "scripts": {
@@ -21,7 +21,7 @@
     "pg": "^8.22.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "recharts": "^2.15.3",
+    "recharts": "^3.9.2",
     "zod": "^3.25.67"
   },
   "devDependencies": {
