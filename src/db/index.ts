@@ -96,19 +96,36 @@ function createDb(): BetterSQLite3Database<typeof schema> {
   const sqlite = new Database(dbPath);
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("foreign_keys = ON");
-  // Wait for a contended write lock instead of failing immediately. During
-  // `next build`, page-data collection imports every route in parallel worker
-  // processes that each open this file and run the DDL below; without a busy
-  // timeout the concurrent writers race and throw SQLITE_BUSY.
+  // Wait for a contended write lock instead of erroring immediately, so
+  // concurrent requests within the process serialize cleanly.
   sqlite.pragma("busy_timeout = 5000");
   sqlite.exec(DDL);
   return drizzle(sqlite, { schema });
 }
 
-// Survive Next.js dev-mode HMR without leaking connections
+// Cache on globalThis so Next.js dev-mode HMR reuses one connection instead of
+// leaking a new one on every reload.
 const globalForDb = globalThis as unknown as { __fourtyDb?: BetterSQLite3Database<typeof schema> };
 
-export const db = globalForDb.__fourtyDb ?? createDb();
-if (process.env.NODE_ENV !== "production") globalForDb.__fourtyDb = db;
+function getDb(): BetterSQLite3Database<typeof schema> {
+  return (globalForDb.__fourtyDb ??= createDb());
+}
+
+/**
+ * Lazily-initialized database handle. The connection and its DDL bootstrap run
+ * on first property access, not at import time — so `next build`'s page-data
+ * collection (which imports route modules without ever invoking their handlers)
+ * never opens the file. That sidesteps the cross-process SQLITE_BUSY race the
+ * parallel build workers would otherwise hit on the shared SQLite file.
+ */
+export const db = new Proxy({} as BetterSQLite3Database<typeof schema>, {
+  get(_target, prop) {
+    const real = getDb() as unknown as Record<PropertyKey, unknown>;
+    const value = real[prop];
+    return typeof value === "function"
+      ? (value as (...args: unknown[]) => unknown).bind(real)
+      : value;
+  },
+});
 
 export * as tables from "./schema";
