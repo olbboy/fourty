@@ -140,7 +140,7 @@ export function FunnelChart({
           <LabelList
             dataKey="value"
             position="right"
-            formatter={(v: number) => formatCompact(v, "USD")}
+            formatter={(v) => formatCompact(Number(v ?? 0), "USD")}
             style={{ fontSize: 11, fill: colors.text }}
           />
         </Bar>
