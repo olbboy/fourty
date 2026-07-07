@@ -1,7 +1,8 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { withAuth, json, parseBody } from "@/lib/api";
+import { withAuth, authorize, json, parseBody } from "@/lib/api";
 import { logActivity } from "@/lib/activity";
+import { audit } from "@/lib/audit";
 import { recomputeContactScore } from "@/lib/services/contact-score";
 import { activityLogInput } from "@/lib/validators";
 
@@ -29,6 +30,8 @@ export async function GET(req: Request) {
 /** Log a manual touchpoint: email, call, or meeting. Feeds timeline + lead scoring. */
 export async function POST(req: Request) {
   return withAuth(req, async (auth) => {
+  const denied = authorize(auth, "activities", "create");
+  if (denied) return denied;
   const body = await parseBody(req, activityLogInput);
   if (!body.ok) return body.response;
   await logActivity({
@@ -39,6 +42,10 @@ export async function POST(req: Request) {
     meta: body.data.note ? { note: body.data.note } : {},
   });
   if (body.data.entityType === "contact") await recomputeContactScore(body.data.entityId);
+  await audit(auth.user?.id, "activity.logged", {
+    objectType: body.data.entityType,
+    objectId: body.data.entityId,
+  });
   return json({ ok: true }, { status: 201 });
   });
 }

@@ -1,8 +1,9 @@
 import { and, desc, eq, ilike, type SQL } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { withAuth, json, apiError, parseBody } from "@/lib/api";
+import { withAuth, authorize, json, apiError, parseBody } from "@/lib/api";
 import { newId } from "@/lib/id";
 import { logActivity } from "@/lib/activity";
+import { audit } from "@/lib/audit";
 import { dispatchEvent } from "@/lib/workflows/engine";
 import { dealInput } from "@/lib/validators";
 import { ensureDefaultPipeline } from "@/db/seed";
@@ -36,6 +37,8 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   return withAuth(req, async (auth) => {
+  const denied = authorize(auth, "deals", "create");
+  if (denied) return denied;
   const body = await parseBody(req, dealInput);
   if (!body.ok) return body.response;
 
@@ -71,6 +74,7 @@ export async function POST(req: Request) {
       updatedAt: now,
     });
   await logActivity({ type: "created", entityType: "deal", entityId: id, actorId: auth.user?.id });
+  await audit(auth.user?.id, "deal.created", { objectType: "deal", objectId: id });
   const row = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0]!;
   await dispatchEvent({
     event: "deal.created",

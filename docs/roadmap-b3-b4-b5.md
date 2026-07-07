@@ -15,7 +15,15 @@ commit.
 
 ---
 
-## Gate B3 — RBAC enforcement + user management + audit log
+## Gate B3 — RBAC enforcement + user management + audit log — ✅ DONE
+
+> **Done (2026-07-07).** Delivered per this plan: `src/lib/permissions.ts` matrix +
+> `authorize()` guard wired into every mutating route (static guard in
+> `tests/api-auth.test.ts`); members API (invite/accept-with-signup/list/role/
+> deactivate + last-admin guard) + Settings → Team UI; immutable `audit_log`
+> (`0004_audit_rls`: RLS + REVOKE + DO-INSTEAD-NOTHING rules) + `/api/audit`.
+> Evidence: `permissions`/`rbac-matrix`/`members`/`audit-log` tests, 84/84 green,
+> live E2E. See `PROGRESS.md` § Gate B3. **Next: Gate B4.**
 
 **Objective:** membership roles become *enforced*; workspaces can manage members;
 every mutation is audit-logged immutably.

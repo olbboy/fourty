@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { desc, eq } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { withAuth, json, parseBody } from "@/lib/api";
+import { withAuth, authorize, json, parseBody } from "@/lib/api";
 import { newId } from "@/lib/id";
+import { audit } from "@/lib/audit";
 
 const conditionSchema = z.object({
   field: z.string().min(1),
@@ -63,6 +64,8 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   return withAuth(req, async (auth) => {
+  const denied = authorize(auth, "workflows", "create");
+  if (denied) return denied;
   const body = await parseBody(req, workflowInput);
   if (!body.ok) return body.response;
   const id = newId();
@@ -76,6 +79,7 @@ export async function POST(req: Request) {
       actions: JSON.stringify(body.data.actions),
       createdAt: Date.now(),
     });
+  await audit(auth.user?.id, "workflow.created", { objectType: "workflow", objectId: id });
   const row = (await db.select().from(tables.workflows).where(eq(tables.workflows.id, id)).limit(1))[0]!;
   return json({ workflow: { ...row, enabled: row.enabled === 1 } }, { status: 201 });
   });

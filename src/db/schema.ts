@@ -6,6 +6,7 @@ import {
   doublePrecision,
   index,
   uniqueIndex,
+  primaryKey,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -41,12 +42,53 @@ export const workspaceMembers = pgTable(
     workspaceId: text("workspace_id").notNull(),
     userId: text("user_id").notNull(),
     role: text("role").notNull().default("member"), // admin | member | viewer
+    deactivatedAt: millis("deactivated_at"), // soft-remove: keeps history, blocks access
     createdAt: millis("created_at").notNull(),
   },
   (t) => [
     index("workspace_members_ws_idx").on(t.workspaceId),
     index("workspace_members_user_idx").on(t.userId),
     uniqueIndex("workspace_members_unique").on(t.workspaceId, t.userId),
+  ],
+);
+
+// Pending invitations to join a workspace (tenant-scoped, RLS-enforced).
+export const invites = pgTable(
+  "invites",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    email: text("email").notNull(),
+    role: text("role").notNull().default("member"), // role granted on accept
+    tokenHash: text("token_hash").notNull(), // sha256 of the invite token
+    expiresAt: millis("expires_at").notNull(),
+    acceptedAt: millis("accepted_at"),
+    invitedBy: text("invited_by"),
+    createdAt: millis("created_at").notNull(),
+  },
+  (t) => [
+    index("invites_ws_idx").on(t.workspaceId),
+    index("invites_email_idx").on(t.workspaceId, t.email),
+  ],
+);
+
+// Immutable audit trail (tenant-scoped). RLS + FORCE, and 0004 REVOKEs
+// UPDATE/DELETE + adds DO-INSTEAD-NOTHING rules so history cannot be rewritten.
+export const auditLog = pgTable(
+  "audit_log",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    actorId: text("actor_id"),
+    action: text("action").notNull(), // e.g. contact.created, member.role_changed, api_key.revoked
+    objectType: text("object_type"),
+    objectId: text("object_id"),
+    meta: text("meta").notNull().default("{}"),
+    createdAt: millis("created_at").notNull(),
+  },
+  (t) => [
+    index("audit_log_ws_idx").on(t.workspaceId, t.createdAt),
+    index("audit_log_object_idx").on(t.workspaceId, t.objectType, t.objectId),
   ],
 );
 
@@ -274,15 +316,21 @@ export const apiKeys = pgTable("api_keys", {
   name: text("name").notNull(),
   prefix: text("prefix").notNull(),
   keyHash: text("key_hash").notNull(),
+  role: text("role").notNull().default("admin"), // RBAC role a key acts as (admin = back-compat)
   lastUsedAt: millis("last_used_at"),
   revokedAt: millis("revoked_at"),
   createdAt: millis("created_at").notNull(),
 });
 
-export const settings = pgTable("settings", {
-  key: text("key").primaryKey(),
-  value: text("value").notNull(),
-});
+export const settings = pgTable(
+  "settings",
+  {
+    workspaceId: workspaceId(),
+    key: text("key").notNull(),
+    value: text("value").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.workspaceId, t.key] })],
+);
 
 export const savedViews = pgTable("saved_views", {
   id: text("id").primaryKey(),

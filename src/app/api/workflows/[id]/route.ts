@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { desc, eq } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { withAuth, json, apiError, parseBody } from "@/lib/api";
+import { withAuth, authorize, json, apiError, parseBody } from "@/lib/api";
+import { audit } from "@/lib/audit";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -39,6 +40,8 @@ export async function GET(req: Request, { params }: Params) {
 
 export async function PATCH(req: Request, { params }: Params) {
   return withAuth(req, async (auth) => {
+  const denied = authorize(auth, "workflows", "update");
+  if (denied) return denied;
   const { id } = await params;
   const existing = (await db.select().from(tables.workflows).where(eq(tables.workflows.id, id)).limit(1))[0];
   if (!existing) return apiError("Workflow not found", 404);
@@ -54,15 +57,19 @@ export async function PATCH(req: Request, { params }: Params) {
       ...(d.actions !== undefined ? { actions: JSON.stringify(d.actions) } : {}),
     })
     .where(eq(tables.workflows.id, id));
+  await audit(auth.user?.id, "workflow.updated", { objectType: "workflow", objectId: id });
   return json({ ok: true });
   });
 }
 
 export async function DELETE(req: Request, { params }: Params) {
   return withAuth(req, async (auth) => {
+  const denied = authorize(auth, "workflows", "delete");
+  if (denied) return denied;
   const { id } = await params;
   await db.delete(tables.workflows).where(eq(tables.workflows.id, id));
   await db.delete(tables.workflowRuns).where(eq(tables.workflowRuns.workflowId, id));
+  await audit(auth.user?.id, "workflow.deleted", { objectType: "workflow", objectId: id });
   return json({ ok: true });
   });
 }

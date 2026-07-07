@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { eq, isNull, and } from "drizzle-orm";
 import { z } from "zod";
 import { db, tables, withWorkspace } from "@/db";
-import { getSessionUser, sha256, type SessionUser } from "./auth";
+import { getSessionUser, roleInWorkspace, sha256, type SessionUser } from "./auth";
+import { can, type Action } from "./permissions";
 
 export function json(data: unknown, init?: ResponseInit) {
   return NextResponse.json(data, init);
@@ -25,6 +26,8 @@ export type AuthOk = {
   user: SessionUser | null;
   /** The workspace this request acts within (from the API key or session). */
   workspaceId: string;
+  /** The caller's role IN that workspace (RBAC — admin | member | viewer). */
+  role: string;
   viaApiKey: boolean;
 };
 export type AuthResult = AuthOk | { ok: false; response: NextResponse };
@@ -51,14 +54,31 @@ export async function authenticate(req: Request): Promise<AuthResult> {
         .update(tables.apiKeys)
         .set({ lastUsedAt: Date.now() })
         .where(eq(tables.apiKeys.id, row.id));
-      return { ok: true, user: null, workspaceId: row.workspaceId, viaApiKey: true };
+      return { ok: true, user: null, workspaceId: row.workspaceId, role: row.role, viaApiKey: true };
     }
     return { ok: false, response: apiError("Invalid API key", 401) };
   }
   const user = await getSessionUser();
   if (!user) return { ok: false, response: apiError("Unauthorized", 401) };
   if (!user.workspaceId) return { ok: false, response: apiError("No active workspace", 401) };
-  return { ok: true, user, workspaceId: user.workspaceId, viaApiKey: false };
+  // The caller's role in the active workspace. `null` = not an active member
+  // (removed or deactivated) → the session may no longer act there.
+  const role = await roleInWorkspace(user.id, user.workspaceId);
+  if (!role) return { ok: false, response: apiError("Not a member of this workspace", 403) };
+  return { ok: true, user, workspaceId: user.workspaceId, role, viaApiKey: false };
+}
+
+/**
+ * RBAC gate. Call at the top of a handler (inside withAuth) for the object +
+ * action it performs. Returns a 403 response when denied, or `null` when
+ * allowed — `const denied = authorize(auth, "contacts", "create"); if (denied)
+ * return denied;`. Every mutating handler MUST call this (enforced by
+ * tests/api-auth.test.ts's static guard).
+ */
+export function authorize(auth: AuthOk, object: string, action: Action): NextResponse | null {
+  return can(auth.role, object, action)
+    ? null
+    : apiError(`Forbidden: ${auth.role} cannot ${action} ${object}`, 403);
 }
 
 /**

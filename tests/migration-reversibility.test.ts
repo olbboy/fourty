@@ -5,19 +5,28 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 
 /**
- * Migration reversibility (Gate B1, extended for B2): apply the full migration
- * chain (0000 init → 0001 workspaces → 0002 RLS) → capture a schema checksum +
- * policy count → roll the whole chain back with the down files → assert an empty
- * schema → re-apply → assert byte-identical checksum. Proves up/down migrations
- * are reversible and deterministic (ADR-002).
+ * Migration reversibility (Gate B1, extended for B2/B3): apply the full
+ * migration chain (0000 init → 0001 workspaces → 0002 RLS → 0003 rbac/members/
+ * audit → 0004 audit RLS) → capture a schema checksum + policy count → roll the
+ * whole chain back with the down files → assert an empty schema → re-apply →
+ * assert byte-identical checksum. Proves up/down migrations are reversible and
+ * deterministic (ADR-002).
  *
  * Runs on the dedicated `fourty_revtest` database (owner role) so it never
  * disturbs the migrator state of the shared test database.
  */
 const DSN = "postgresql://fourty:fourty@localhost:5432/fourty_revtest";
 
-const UP = ["drizzle/0000_init.sql", "drizzle/0001_workspaces.sql", "drizzle/0002_rls.sql"];
+const UP = [
+  "drizzle/0000_init.sql",
+  "drizzle/0001_workspaces.sql",
+  "drizzle/0002_rls.sql",
+  "drizzle/0003_rbac_members_audit.sql",
+  "drizzle/0004_audit_rls.sql",
+];
 const DOWN = [
+  "drizzle/down/0004_audit_rls.down.sql",
+  "drizzle/down/0003_rbac_members_audit.down.sql",
   "drizzle/down/0002_rls.down.sql",
   "drizzle/down/0001_workspaces.down.sql",
   "drizzle/down/0000_init.down.sql",
@@ -69,8 +78,8 @@ describe("migration reversibility (full chain, real Postgres)", () => {
       await runFiles(client, UP);
       const before = await schemaFingerprint(client);
       const up1 = await counts(client);
-      expect(up1.tables).toBe(18); // 16 core + workspaces + workspace_members
-      expect(up1.policies).toBe(12); // RLS policies on the 12 data tables
+      expect(up1.tables).toBe(20); // 18 (B2) + invites + audit_log
+      expect(up1.policies).toBe(15); // 12 (B2) + invites + settings + audit_log
 
       // Roll the whole chain back → empty schema
       await runFiles(client, DOWN);
@@ -82,8 +91,8 @@ describe("migration reversibility (full chain, real Postgres)", () => {
       await runFiles(client, UP);
       const after = await schemaFingerprint(client);
       const up2 = await counts(client);
-      expect(up2.tables).toBe(18);
-      expect(up2.policies).toBe(12);
+      expect(up2.tables).toBe(20);
+      expect(up2.policies).toBe(15);
       expect(after).toBe(before);
     } finally {
       await client.end();

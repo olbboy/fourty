@@ -1,7 +1,8 @@
 import { eq } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { withAuth, json, apiError, parseBody } from "@/lib/api";
+import { withAuth, authorize, json, apiError, parseBody } from "@/lib/api";
 import { logActivity } from "@/lib/activity";
+import { audit } from "@/lib/audit";
 import { companyPatch } from "@/lib/validators";
 
 type Params = { params: Promise<{ id: string }> };
@@ -17,6 +18,8 @@ export async function GET(req: Request, { params }: Params) {
 
 export async function PATCH(req: Request, { params }: Params) {
   return withAuth(req, async (auth) => {
+  const denied = authorize(auth, "companies", "update");
+  if (denied) return denied;
   const { id } = await params;
   const existing = (await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1))[0];
   if (!existing) return apiError("Company not found", 404);
@@ -45,6 +48,7 @@ export async function PATCH(req: Request, { params }: Params) {
       meta: { fields: changed },
     });
   }
+  await audit(auth.user?.id, "company.updated", { objectType: "company", objectId: id, meta: { fields: changed } });
   const row = (await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1))[0]!;
   return json({ company: { ...row, custom: JSON.parse(row.custom) } });
   });
@@ -52,6 +56,8 @@ export async function PATCH(req: Request, { params }: Params) {
 
 export async function DELETE(req: Request, { params }: Params) {
   return withAuth(req, async (auth) => {
+  const denied = authorize(auth, "companies", "delete");
+  if (denied) return denied;
   const { id } = await params;
   const existing = (await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1))[0];
   if (!existing) return apiError("Company not found", 404);
@@ -63,6 +69,7 @@ export async function DELETE(req: Request, { params }: Params) {
   await db.update(tables.deals).set({ companyId: null }).where(eq(tables.deals.companyId, id));
   await db.delete(tables.notes).where(eq(tables.notes.entityId, id));
   await db.delete(tables.activities).where(eq(tables.activities.entityId, id));
+  await audit(auth.user?.id, "company.deleted", { objectType: "company", objectId: id });
   return json({ ok: true });
   });
 }
