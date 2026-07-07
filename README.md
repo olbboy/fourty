@@ -10,6 +10,16 @@ Twice the CRM, half the complexity. One process, one file database, zero infrast
 
 ---
 
+> **Project status (read before deploying).** Fourty is a **single-team,
+> single-tenant** CRM — one shared dataset, one Node process. It is *not* a
+> multi-tenant / enterprise Twenty replacement today: there is no multi-tenancy,
+> no enforced RBAC, no SSO, and no MCP server yet. For an evidence-backed audit
+> of exactly what is and isn't implemented, see
+> [`CLAIMS.md`](./CLAIMS.md), the head-to-head [`PARITY.md`](./PARITY.md) vs
+> Twenty 2.0, the roadmap in [`PROGRESS.md`](./PROGRESS.md), and
+> [`SECURITY.md`](./SECURITY.md). Every claim here is cross-checked there against
+> code and passing tests.
+
 ## Why Fourty?
 
 Most open-source CRMs make you pay an *ops tax* before you manage a single contact: a Postgres server, a Redis instance, a heavyweight monorepo, and a docker-compose file long enough to need its own code review. Fourty takes the opposite bet:
@@ -37,6 +47,11 @@ That's the whole deployment. SQLite (WAL mode) handles teams of dozens with ease
 | REST API | ✅ Every resource, Bearer-token keys | GraphQL-first | ✅ |
 | Command palette | ✅ ⌘K global search & jump | ✅ | ❌ |
 | License | MIT | AGPL | Proprietary |
+
+_This table is a **small-team lens**: it compares out-of-the-box experience for
+one team, not enterprise-platform parity. Twenty 2.0 leads on multi-tenancy,
+custom objects, an apps/SDK platform, GraphQL, field-level RBAC, and a native
+MCP server — see [`PARITY.md`](./PARITY.md) for the honest, cited matrix._
 
 ## Features
 

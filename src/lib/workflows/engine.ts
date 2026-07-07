@@ -3,6 +3,7 @@ import { db, tables } from "@/db";
 import { newId } from "@/lib/id";
 import { logActivity } from "@/lib/activity";
 import { evaluateConditions, renderTemplate } from "./evaluate";
+import { checkWebhookUrl } from "@/lib/net";
 import type { EventContext, WorkflowAction, WorkflowDef } from "./types";
 
 function loadWorkflows(): WorkflowDef[] {
@@ -139,12 +140,18 @@ function runAction(action: WorkflowAction, ctx: EventContext): string {
         data: ctx.snapshot,
         firedAt: new Date().toISOString(),
       });
-      // fire-and-forget; never block the request on a third-party endpoint
-      fetch(action.url, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: payload,
-      }).catch(() => {});
+      // Fire-and-forget, but SSRF-guarded: resolve + reject private targets
+      // before the request leaves the process (see src/lib/net.ts).
+      checkWebhookUrl(action.url)
+        .then((check) => {
+          if (!check.ok) return; // blocked — see limitation note in net.ts
+          return fetch(action.url, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: payload,
+          });
+        })
+        .catch(() => {});
       return `webhook queued → ${action.url}`;
     }
     case "log": {

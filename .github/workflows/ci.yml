@@ -15,5 +15,24 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm test
-      - run: npm run build
+      - name: Type check
+        run: npx tsc --noEmit
+      - name: Unit + integration + security tests
+        run: npm test
+      - name: Production build
+        run: npm run build
+
+  security-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Fail CI on any HIGH/CRITICAL advisory. Two MODERATE transitive
+      # advisories (Next → postcss) remain and cannot be fixed without a
+      # breaking Next downgrade; they are tracked, not silenced.
+      - name: Dependency audit (high+)
+        run: npm audit --audit-level=high
