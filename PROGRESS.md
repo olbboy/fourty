@@ -19,9 +19,12 @@ benchmark numbers are published because none were measured yet.
 | **B1 — Postgres foundation & migrations** | ✅ DONE | see below |
 | **B2 — Multi-tenancy + RLS + isolation suite** | ✅ DONE | `tests/tenant-isolation.test.ts` (6) — see below |
 | **B3 — RBAC + user mgmt + audit log** | ⏳ NEXT | membership roles exist; enforcement + invite + audit pending |
-| **B4 — Workers/queue + rate limit + observability + backup drill** | ⬜ pending | |
-| **B5 — Benchmark vs Twenty (same Postgres)** | ⬜ pending | |
+| **B4 — Workers/queue + rate limit + observability + backup drill** | ⬜ pending | plan: `docs/roadmap-b3-b4-b5.md` |
+| **B5 — Benchmark vs Twenty (same Postgres)** | ⬜ pending | plan: `docs/roadmap-b3-b4-b5.md` |
 | **B6 — twenty-migrate + MCP server + docs** | ⬜ pending | |
+
+> **Detailed executable plans for B3, B4, B5** (tasks, files, migrations, tests,
+> acceptance criteria) live in [`docs/roadmap-b3-b4-b5.md`](./docs/roadmap-b3-b4-b5.md).
 
 ## Gate B1 — DONE (evidence)
 
