@@ -11,7 +11,7 @@ export async function GET(req: Request, { params }: Params) {
   const auth = await authenticate(req);
   if (!auth.ok) return auth.response;
   const { id } = await params;
-  const row = db.select().from(tables.deals).where(eq(tables.deals.id, id)).get();
+  const row = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0];
   if (!row) return apiError("Deal not found", 404);
   return json({ deal: { ...row, custom: JSON.parse(row.custom) } });
 }
@@ -20,7 +20,7 @@ export async function PATCH(req: Request, { params }: Params) {
   const auth = await authenticate(req);
   if (!auth.ok) return auth.response;
   const { id } = await params;
-  const existing = db.select().from(tables.deals).where(eq(tables.deals.id, id)).get();
+  const existing = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0];
   if (!existing) return apiError("Deal not found", 404);
 
   const body = await parseBody(req, dealPatch);
@@ -32,13 +32,13 @@ export async function PATCH(req: Request, { params }: Params) {
   const stageChanged = stageId !== undefined && stageId !== existing.stageId;
   let newStage = null;
   if (stageChanged) {
-    newStage = db.select().from(tables.stages).where(eq(tables.stages.id, stageId!)).get();
+    newStage = (await db.select().from(tables.stages).where(eq(tables.stages.id, stageId!)).limit(1))[0];
     if (!newStage || newStage.pipelineId !== existing.pipelineId) {
       return apiError("Invalid stage");
     }
   }
 
-  db.update(tables.deals)
+  await db.update(tables.deals)
     .set({
       ...fields,
       ...(stageChanged
@@ -53,33 +53,32 @@ export async function PATCH(req: Request, { params }: Params) {
         : {}),
       updatedAt: now,
     })
-    .where(eq(tables.deals.id, id))
-    .run();
+    .where(eq(tables.deals.id, id));
 
-  const row = db.select().from(tables.deals).where(eq(tables.deals.id, id)).get()!;
+  const row = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0]!;
   const snapshot = { ...row, custom: undefined, stageName: newStage?.name };
 
   if (stageChanged) {
-    const oldStage = db
+    const oldStage = (await db
       .select()
       .from(tables.stages)
       .where(eq(tables.stages.id, existing.stageId))
-      .get();
-    logActivity({
+      .limit(1))[0];
+    await logActivity({
       type: "stage_changed",
       entityType: "deal",
       entityId: id,
       actorId: auth.user?.id,
       meta: { from: oldStage?.name, to: newStage!.name },
     });
-    dispatchEvent({ event: "deal.stage_changed", entityType: "deal", entityId: id, snapshot });
+    await dispatchEvent({ event: "deal.stage_changed", entityType: "deal", entityId: id, snapshot });
     if (newStage!.type === "won") {
-      dispatchEvent({ event: "deal.won", entityType: "deal", entityId: id, snapshot });
+      await dispatchEvent({ event: "deal.won", entityType: "deal", entityId: id, snapshot });
     } else if (newStage!.type === "lost") {
-      dispatchEvent({ event: "deal.lost", entityType: "deal", entityId: id, snapshot });
+      await dispatchEvent({ event: "deal.lost", entityType: "deal", entityId: id, snapshot });
     }
   } else if (Object.keys(fields).length > 0 || custom !== undefined) {
-    logActivity({
+    await logActivity({
       type: "updated",
       entityType: "deal",
       entityId: id,
@@ -94,10 +93,10 @@ export async function DELETE(req: Request, { params }: Params) {
   const auth = await authenticate(req);
   if (!auth.ok) return auth.response;
   const { id } = await params;
-  const existing = db.select().from(tables.deals).where(eq(tables.deals.id, id)).get();
+  const existing = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0];
   if (!existing) return apiError("Deal not found", 404);
-  db.delete(tables.deals).where(eq(tables.deals.id, id)).run();
-  db.delete(tables.notes).where(eq(tables.notes.entityId, id)).run();
-  db.delete(tables.activities).where(eq(tables.activities.entityId, id)).run();
+  await db.delete(tables.deals).where(eq(tables.deals.id, id));
+  await db.delete(tables.notes).where(eq(tables.notes.entityId, id));
+  await db.delete(tables.activities).where(eq(tables.activities.entityId, id));
   return json({ ok: true });
 }

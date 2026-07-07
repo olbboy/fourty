@@ -8,12 +8,12 @@ export async function DELETE(req: Request, { params }: Params) {
   const auth = await authenticate(req);
   if (!auth.ok) return auth.response;
   const { id } = await params;
-  const existing = db
+  const existing = (await db
     .select()
     .from(tables.customFieldDefs)
     .where(eq(tables.customFieldDefs.id, id))
-    .get();
+    .limit(1))[0];
   if (!existing) return apiError("Field not found", 404);
-  db.delete(tables.customFieldDefs).where(eq(tables.customFieldDefs.id, id)).run();
+  await db.delete(tables.customFieldDefs).where(eq(tables.customFieldDefs.id, id));
   return json({ ok: true });
 }

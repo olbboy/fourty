@@ -10,7 +10,7 @@ export async function GET(req: Request, { params }: Params) {
   const auth = await authenticate(req);
   if (!auth.ok) return auth.response;
   const { id } = await params;
-  const row = db.select().from(tables.companies).where(eq(tables.companies.id, id)).get();
+  const row = (await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1))[0];
   if (!row) return apiError("Company not found", 404);
   return json({ company: { ...row, custom: JSON.parse(row.custom) } });
 }
@@ -19,7 +19,7 @@ export async function PATCH(req: Request, { params }: Params) {
   const auth = await authenticate(req);
   if (!auth.ok) return auth.response;
   const { id } = await params;
-  const existing = db.select().from(tables.companies).where(eq(tables.companies.id, id)).get();
+  const existing = (await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1))[0];
   if (!existing) return apiError("Company not found", 404);
 
   const body = await parseBody(req, companyPatch);
@@ -28,7 +28,7 @@ export async function PATCH(req: Request, { params }: Params) {
   const changed = Object.keys(fields).filter(
     (k) => (fields as Record<string, unknown>)[k] !== (existing as Record<string, unknown>)[k],
   );
-  db.update(tables.companies)
+  await db.update(tables.companies)
     .set({
       ...fields,
       ...(custom !== undefined
@@ -36,10 +36,9 @@ export async function PATCH(req: Request, { params }: Params) {
         : {}),
       updatedAt: Date.now(),
     })
-    .where(eq(tables.companies.id, id))
-    .run();
+    .where(eq(tables.companies.id, id));
   if (changed.length > 0 || custom !== undefined) {
-    logActivity({
+    await logActivity({
       type: "updated",
       entityType: "company",
       entityId: id,
@@ -47,7 +46,7 @@ export async function PATCH(req: Request, { params }: Params) {
       meta: { fields: changed },
     });
   }
-  const row = db.select().from(tables.companies).where(eq(tables.companies.id, id)).get()!;
+  const row = (await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1))[0]!;
   return json({ company: { ...row, custom: JSON.parse(row.custom) } });
 }
 
@@ -55,16 +54,15 @@ export async function DELETE(req: Request, { params }: Params) {
   const auth = await authenticate(req);
   if (!auth.ok) return auth.response;
   const { id } = await params;
-  const existing = db.select().from(tables.companies).where(eq(tables.companies.id, id)).get();
+  const existing = (await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1))[0];
   if (!existing) return apiError("Company not found", 404);
-  db.delete(tables.companies).where(eq(tables.companies.id, id)).run();
+  await db.delete(tables.companies).where(eq(tables.companies.id, id));
   // detach children rather than cascade-delete
-  db.update(tables.contacts)
+  await db.update(tables.contacts)
     .set({ companyId: null })
-    .where(eq(tables.contacts.companyId, id))
-    .run();
-  db.update(tables.deals).set({ companyId: null }).where(eq(tables.deals.companyId, id)).run();
-  db.delete(tables.notes).where(eq(tables.notes.entityId, id)).run();
-  db.delete(tables.activities).where(eq(tables.activities.entityId, id)).run();
+    .where(eq(tables.contacts.companyId, id));
+  await db.update(tables.deals).set({ companyId: null }).where(eq(tables.deals.companyId, id));
+  await db.delete(tables.notes).where(eq(tables.notes.entityId, id));
+  await db.delete(tables.activities).where(eq(tables.activities.entityId, id));
   return json({ ok: true });
 }

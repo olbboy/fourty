@@ -17,15 +17,14 @@ export async function GET(req: Request, { params }: Params) {
   const auth = await authenticate(req);
   if (!auth.ok) return auth.response;
   const { id } = await params;
-  const row = db.select().from(tables.workflows).where(eq(tables.workflows.id, id)).get();
+  const row = (await db.select().from(tables.workflows).where(eq(tables.workflows.id, id)).limit(1))[0];
   if (!row) return apiError("Workflow not found", 404);
-  const runs = db
+  const runs = await db
     .select()
     .from(tables.workflowRuns)
     .where(eq(tables.workflowRuns.workflowId, id))
     .orderBy(desc(tables.workflowRuns.createdAt))
-    .limit(30)
-    .all();
+    .limit(30);
   return json({
     workflow: {
       ...row,
@@ -42,12 +41,12 @@ export async function PATCH(req: Request, { params }: Params) {
   const auth = await authenticate(req);
   if (!auth.ok) return auth.response;
   const { id } = await params;
-  const existing = db.select().from(tables.workflows).where(eq(tables.workflows.id, id)).get();
+  const existing = (await db.select().from(tables.workflows).where(eq(tables.workflows.id, id)).limit(1))[0];
   if (!existing) return apiError("Workflow not found", 404);
   const body = await parseBody(req, patchSchema);
   if (!body.ok) return body.response;
   const d = body.data;
-  db.update(tables.workflows)
+  await db.update(tables.workflows)
     .set({
       ...(d.name !== undefined ? { name: d.name } : {}),
       ...(d.enabled !== undefined ? { enabled: d.enabled ? 1 : 0 } : {}),
@@ -55,8 +54,7 @@ export async function PATCH(req: Request, { params }: Params) {
       ...(d.conditions !== undefined ? { conditions: JSON.stringify(d.conditions) } : {}),
       ...(d.actions !== undefined ? { actions: JSON.stringify(d.actions) } : {}),
     })
-    .where(eq(tables.workflows.id, id))
-    .run();
+    .where(eq(tables.workflows.id, id));
   return json({ ok: true });
 }
 
@@ -64,7 +62,7 @@ export async function DELETE(req: Request, { params }: Params) {
   const auth = await authenticate(req);
   if (!auth.ok) return auth.response;
   const { id } = await params;
-  db.delete(tables.workflows).where(eq(tables.workflows.id, id)).run();
-  db.delete(tables.workflowRuns).where(eq(tables.workflowRuns.workflowId, id)).run();
+  await db.delete(tables.workflows).where(eq(tables.workflows.id, id));
+  await db.delete(tables.workflowRuns).where(eq(tables.workflowRuns.workflowId, id));
   return json({ ok: true });
 }

@@ -1,4 +1,4 @@
-import { and, desc, eq, like, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { authenticate, json, parseBody } from "@/lib/api";
 import { newId } from "@/lib/id";
@@ -22,9 +22,9 @@ export async function GET(req: Request) {
     const pattern = `%${q.replace(/[%_]/g, "")}%`;
     where.push(
       or(
-        like(sql`${tables.contacts.firstName} || ' ' || ${tables.contacts.lastName}`, pattern),
-        like(tables.contacts.email, pattern),
-        like(tables.contacts.jobTitle, pattern),
+        ilike(sql`${tables.contacts.firstName} || ' ' || ${tables.contacts.lastName}`, pattern),
+        ilike(tables.contacts.email, pattern),
+        ilike(tables.contacts.jobTitle, pattern),
       )!,
     );
   }
@@ -40,13 +40,12 @@ export async function GET(req: Request) {
           ? desc(tables.contacts.createdAt)
           : desc(tables.contacts.updatedAt);
 
-  const rows = db
+  const rows = await db
     .select()
     .from(tables.contacts)
     .where(where.length ? and(...where) : undefined)
     .orderBy(orderCol)
-    .limit(limit)
-    .all();
+    .limit(limit);
 
   return json({ contacts: rows.map((r) => ({ ...r, custom: JSON.parse(r.custom) })) });
 }
@@ -60,7 +59,7 @@ export async function POST(req: Request) {
   const now = Date.now();
   const id = newId();
   const { custom, ...fields } = body.data;
-  db.insert(tables.contacts)
+  await db.insert(tables.contacts)
     .values({
       id,
       ...fields,
@@ -68,13 +67,12 @@ export async function POST(req: Request) {
       custom: JSON.stringify(custom ?? {}),
       createdAt: now,
       updatedAt: now,
-    })
-    .run();
+    });
 
-  logActivity({ type: "created", entityType: "contact", entityId: id, actorId: auth.user?.id });
-  recomputeContactScore(id);
-  const row = db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).get()!;
-  dispatchEvent({
+  await logActivity({ type: "created", entityType: "contact", entityId: id, actorId: auth.user?.id });
+  await recomputeContactScore(id);
+  const row = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0]!;
+  await dispatchEvent({
     event: "contact.created",
     entityType: "contact",
     entityId: id,

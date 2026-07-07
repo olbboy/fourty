@@ -49,7 +49,7 @@ const workflowInput = z.object({
 export async function GET(req: Request) {
   const auth = await authenticate(req);
   if (!auth.ok) return auth.response;
-  const rows = db.select().from(tables.workflows).orderBy(desc(tables.workflows.createdAt)).all();
+  const rows = await db.select().from(tables.workflows).orderBy(desc(tables.workflows.createdAt));
   return json({
     workflows: rows.map((r) => ({
       ...r,
@@ -67,7 +67,7 @@ export async function POST(req: Request) {
   const body = await parseBody(req, workflowInput);
   if (!body.ok) return body.response;
   const id = newId();
-  db.insert(tables.workflows)
+  await db.insert(tables.workflows)
     .values({
       id,
       name: body.data.name,
@@ -76,8 +76,7 @@ export async function POST(req: Request) {
       conditions: JSON.stringify(body.data.conditions),
       actions: JSON.stringify(body.data.actions),
       createdAt: Date.now(),
-    })
-    .run();
-  const row = db.select().from(tables.workflows).where(eq(tables.workflows.id, id)).get()!;
+    });
+  const row = (await db.select().from(tables.workflows).where(eq(tables.workflows.id, id)).limit(1))[0]!;
   return json({ workflow: { ...row, enabled: row.enabled === 1 } }, { status: 201 });
 }

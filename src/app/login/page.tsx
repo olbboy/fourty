@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export default async function LoginPage() {
   const user = await getSessionUser();
   if (user) redirect("/dashboard");
-  const fresh = isFreshInstall();
+  const fresh = await isFreshInstall();
 
   return (
     <main className="flex min-h-dvh items-center justify-center p-4">

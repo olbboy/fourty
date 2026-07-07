@@ -17,13 +17,12 @@ export async function GET(req: Request) {
   if (entityType) where.push(eq(tables.activities.entityType, entityType));
   if (entityId) where.push(eq(tables.activities.entityId, entityId));
 
-  const rows = db
+  const rows = await db
     .select()
     .from(tables.activities)
     .where(where.length ? and(...where) : undefined)
     .orderBy(desc(tables.activities.createdAt))
-    .limit(limit)
-    .all();
+    .limit(limit);
   return json({ activities: rows.map((r) => ({ ...r, meta: JSON.parse(r.meta) })) });
 }
 
@@ -33,13 +32,13 @@ export async function POST(req: Request) {
   if (!auth.ok) return auth.response;
   const body = await parseBody(req, activityLogInput);
   if (!body.ok) return body.response;
-  logActivity({
+  await logActivity({
     type: body.data.type,
     entityType: body.data.entityType,
     entityId: body.data.entityId,
     actorId: auth.user?.id,
     meta: body.data.note ? { note: body.data.note } : {},
   });
-  if (body.data.entityType === "contact") recomputeContactScore(body.data.entityId);
+  if (body.data.entityType === "contact") await recomputeContactScore(body.data.entityId);
   return json({ ok: true }, { status: 201 });
 }

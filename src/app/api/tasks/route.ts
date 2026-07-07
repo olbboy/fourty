@@ -18,13 +18,12 @@ export async function GET(req: Request) {
   if (entityType) where.push(eq(tables.tasks.entityType, entityType));
   if (entityId) where.push(eq(tables.tasks.entityId, entityId));
 
-  const rows = db
+  const rows = await db
     .select()
     .from(tables.tasks)
     .where(where.length ? and(...where) : undefined)
     .orderBy(asc(tables.tasks.dueDate))
-    .limit(500)
-    .all();
+    .limit(500);
   return json({ tasks: rows });
 }
 
@@ -34,9 +33,9 @@ export async function POST(req: Request) {
   const body = await parseBody(req, taskInput);
   if (!body.ok) return body.response;
   const id = newId();
-  db.insert(tables.tasks)
-    .values({ id, ...body.data, ownerId: auth.user?.id ?? null, createdAt: Date.now() })
-    .run();
-  const row = db.select().from(tables.tasks).where(eq(tables.tasks.id, id)).get()!;
+  await db
+    .insert(tables.tasks)
+    .values({ id, ...body.data, ownerId: auth.user?.id ?? null, createdAt: Date.now() });
+  const row = (await db.select().from(tables.tasks).where(eq(tables.tasks.id, id)).limit(1))[0]!;
   return json({ task: row }, { status: 201 });
 }

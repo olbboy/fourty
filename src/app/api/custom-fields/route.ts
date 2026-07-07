@@ -21,12 +21,11 @@ export async function GET(req: Request) {
   const auth = await authenticate(req);
   if (!auth.ok) return auth.response;
   const entity = new URL(req.url).searchParams.get("entity");
-  const rows = db
+  const rows = await db
     .select()
     .from(tables.customFieldDefs)
     .where(entity ? eq(tables.customFieldDefs.entity, entity) : undefined)
-    .orderBy(asc(tables.customFieldDefs.order))
-    .all();
+    .orderBy(asc(tables.customFieldDefs.order));
   return json({ fields: rows.map((r) => ({ ...r, options: JSON.parse(r.options) })) });
 }
 
@@ -35,16 +34,15 @@ export async function POST(req: Request) {
   if (!auth.ok) return auth.response;
   const body = await parseBody(req, input);
   if (!body.ok) return body.response;
-  const existing = db
+  const existing = await db
     .select()
     .from(tables.customFieldDefs)
-    .where(eq(tables.customFieldDefs.entity, body.data.entity))
-    .all();
+    .where(eq(tables.customFieldDefs.entity, body.data.entity));
   if (existing.some((f) => f.key === body.data.key)) {
     return json({ error: "A field with this key already exists" }, { status: 409 });
   }
   const id = newId();
-  db.insert(tables.customFieldDefs)
+  await db.insert(tables.customFieldDefs)
     .values({
       id,
       entity: body.data.entity,
@@ -55,12 +53,11 @@ export async function POST(req: Request) {
       required: body.data.required ? 1 : 0,
       order: existing.length,
       createdAt: Date.now(),
-    })
-    .run();
-  const row = db
+    });
+  const row = (await db
     .select()
     .from(tables.customFieldDefs)
     .where(eq(tables.customFieldDefs.id, id))
-    .get()!;
+    .limit(1))[0]!;
   return json({ field: { ...row, options: JSON.parse(row.options) } }, { status: 201 });
 }

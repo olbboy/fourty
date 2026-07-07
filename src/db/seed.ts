@@ -20,27 +20,26 @@ export const DEFAULT_STAGES = [
 ] as const;
 
 /** Create the default sales pipeline if none exists. Returns pipeline id. */
-export function ensureDefaultPipeline(): string {
-  const existing = db.select().from(tables.pipelines).limit(1).get();
+export async function ensureDefaultPipeline(): Promise<string> {
+  const existing = (await db.select().from(tables.pipelines).limit(1))[0];
   if (existing) return existing.id;
   const pipelineId = newId();
   const now = Date.now();
-  db.insert(tables.pipelines)
-    .values({ id: pipelineId, name: "Sales Pipeline", isDefault: 1, createdAt: now })
-    .run();
-  DEFAULT_STAGES.forEach((s, i) => {
-    db.insert(tables.stages)
-      .values({
-        id: newId(),
-        pipelineId,
-        name: s.name,
-        order: i,
-        winProbability: s.winProbability,
-        type: s.type,
-        color: s.color,
-      })
-      .run();
-  });
+  await db
+    .insert(tables.pipelines)
+    .values({ id: pipelineId, name: "Sales Pipeline", isDefault: 1, createdAt: now });
+  for (let i = 0; i < DEFAULT_STAGES.length; i++) {
+    const s = DEFAULT_STAGES[i];
+    await db.insert(tables.stages).values({
+      id: newId(),
+      pipelineId,
+      name: s.name,
+      order: i,
+      winProbability: s.winProbability,
+      type: s.type,
+      color: s.color,
+    });
+  }
   return pipelineId;
 }
 
@@ -52,30 +51,28 @@ function daysAhead(n: number): number {
   return Date.now() + n * 86400000;
 }
 
-export function seedDemoData() {
-  if (db.select().from(tables.companies).limit(1).get()) {
+export async function seedDemoData(): Promise<void> {
+  if ((await db.select().from(tables.companies).limit(1))[0]) {
     console.log("Data already present — skipping seed.");
     return;
   }
-  const pipelineId = ensureDefaultPipeline();
-  const stages = db.select().from(tables.stages).all();
+  const pipelineId = await ensureDefaultPipeline();
+  const stages = await db.select().from(tables.stages);
   const stageByName = new Map(stages.map((s) => [s.name, s]));
 
   // Demo user
-  let owner = db.select().from(tables.users).limit(1).get();
+  let owner = (await db.select().from(tables.users).limit(1))[0];
   if (!owner) {
     const id = newId();
-    db.insert(tables.users)
-      .values({
-        id,
-        email: "demo@fourty.dev",
-        name: "Demo User",
-        passwordHash: hashPassword("demo1234"),
-        role: "admin",
-        createdAt: Date.now(),
-      })
-      .run();
-    owner = db.select().from(tables.users).limit(1).get()!;
+    await db.insert(tables.users).values({
+      id,
+      email: "demo@fourty.dev",
+      name: "Demo User",
+      passwordHash: hashPassword("demo1234"),
+      role: "admin",
+      createdAt: Date.now(),
+    });
+    owner = (await db.select().from(tables.users).limit(1))[0]!;
     console.log("Created demo user: demo@fourty.dev / demo1234");
   }
   const ownerId = owner.id;
@@ -93,10 +90,10 @@ export function seedDemoData() {
     const id = newId();
     companyIds.push(id);
     const created = daysAgo(30 + Math.floor(Math.random() * 90));
-    db.insert(tables.companies)
-      .values({ id, ...c, website: `https://${c.domain}`, ownerId, createdAt: created, updatedAt: created })
-      .run();
-    logActivity({ type: "created", entityType: "company", entityId: id, actorId: ownerId });
+    await db
+      .insert(tables.companies)
+      .values({ id, ...c, website: `https://${c.domain}`, ownerId, createdAt: created, updatedAt: created });
+    await logActivity({ type: "created", entityType: "company", entityId: id, actorId: ownerId });
   }
 
   const contactSpecs = [
@@ -114,24 +111,22 @@ export function seedDemoData() {
     const id = newId();
     contactIds.push(id);
     const created = daysAgo(10 + Math.floor(Math.random() * 80));
-    db.insert(tables.contacts)
-      .values({
-        id,
-        firstName: c.firstName,
-        lastName: c.lastName,
-        email: c.email ?? null,
-        phone: c.phone ?? null,
-        jobTitle: c.jobTitle ?? null,
-        companyId: c.companyIdx === null ? null : companyIds[c.companyIdx],
-        ownerId,
-        status: c.status,
-        source: c.source,
-        linkedin: c.linkedin ?? null,
-        createdAt: created,
-        updatedAt: created,
-      })
-      .run();
-    logActivity({ type: "created", entityType: "contact", entityId: id, actorId: ownerId });
+    await db.insert(tables.contacts).values({
+      id,
+      firstName: c.firstName,
+      lastName: c.lastName,
+      email: c.email ?? null,
+      phone: c.phone ?? null,
+      jobTitle: c.jobTitle ?? null,
+      companyId: c.companyIdx === null ? null : companyIds[c.companyIdx],
+      ownerId,
+      status: c.status,
+      source: c.source,
+      linkedin: c.linkedin ?? null,
+      createdAt: created,
+      updatedAt: created,
+    });
+    await logActivity({ type: "created", entityType: "contact", entityId: id, actorId: ownerId });
   }
 
   // Sprinkle engagement activities so scores/dashboards look real
@@ -144,17 +139,15 @@ export function seedDemoData() {
     [6, "meeting", 3], [6, "email", 9],
   ];
   for (const [idx, type, days] of engagements) {
-    db.insert(tables.activities)
-      .values({
-        id: newId(),
-        type,
-        entityType: "contact",
-        entityId: contactIds[idx],
-        actorId: ownerId,
-        meta: "{}",
-        createdAt: daysAgo(days),
-      })
-      .run();
+    await db.insert(tables.activities).values({
+      id: newId(),
+      type,
+      entityType: "contact",
+      entityId: contactIds[idx],
+      actorId: ownerId,
+      meta: "{}",
+      createdAt: daysAgo(days),
+    });
   }
 
   const dealSpecs = [
@@ -172,25 +165,23 @@ export function seedDemoData() {
     const id = newId();
     const created = daysAgo(20 + Math.floor(Math.random() * 60));
     const closed = stage.type !== "open" ? daysAgo(Math.abs(d.closeIn)) : null;
-    db.insert(tables.deals)
-      .values({
-        id,
-        name: d.name,
-        amount: d.amount,
-        currency: d.currency,
-        pipelineId,
-        stageId: stage.id,
-        companyId: companyIds[d.companyIdx],
-        contactId: contactIds[d.contactIdx],
-        ownerId,
-        expectedCloseDate: d.closeIn > 0 ? daysAhead(d.closeIn) : daysAgo(-d.closeIn),
-        closedAt: closed,
-        stageEnteredAt: daysAgo(Math.floor(Math.random() * 15)),
-        createdAt: created,
-        updatedAt: created,
-      })
-      .run();
-    logActivity({ type: "created", entityType: "deal", entityId: id, actorId: ownerId });
+    await db.insert(tables.deals).values({
+      id,
+      name: d.name,
+      amount: d.amount,
+      currency: d.currency,
+      pipelineId,
+      stageId: stage.id,
+      companyId: companyIds[d.companyIdx],
+      contactId: contactIds[d.contactIdx],
+      ownerId,
+      expectedCloseDate: d.closeIn > 0 ? daysAhead(d.closeIn) : daysAgo(-d.closeIn),
+      closedAt: closed,
+      stageEnteredAt: daysAgo(Math.floor(Math.random() * 15)),
+      createdAt: created,
+      updatedAt: created,
+    });
+    await logActivity({ type: "created", entityType: "deal", entityId: id, actorId: ownerId });
   }
 
   const taskSpecs = [
@@ -201,50 +192,44 @@ export function seedDemoData() {
     { title: "Reconnect with Ken about pilot", priority: "medium", dueIn: -2, entityIdx: 4 },
   ];
   for (const t of taskSpecs) {
-    db.insert(tables.tasks)
-      .values({
-        id: newId(),
-        title: t.title,
-        priority: t.priority,
-        dueDate: t.dueIn >= 0 ? daysAhead(t.dueIn) : daysAgo(-t.dueIn),
-        ownerId,
-        entityType: "contact",
-        entityId: contactIds[t.entityIdx],
-        createdAt: daysAgo(5),
-      })
-      .run();
+    await db.insert(tables.tasks).values({
+      id: newId(),
+      title: t.title,
+      priority: t.priority,
+      dueDate: t.dueIn >= 0 ? daysAhead(t.dueIn) : daysAgo(-t.dueIn),
+      ownerId,
+      entityType: "contact",
+      entityId: contactIds[t.entityIdx],
+      createdAt: daysAgo(5),
+    });
   }
 
   // Example workflows that showcase the engine
-  db.insert(tables.workflows)
-    .values({
-      id: newId(),
-      name: "Follow up on new leads within 2 days",
-      enabled: 1,
-      trigger: JSON.stringify({ event: "contact.created" }),
-      conditions: JSON.stringify([{ field: "status", op: "eq", value: "lead" }]),
-      actions: JSON.stringify([
-        { type: "create_task", title: "Follow up with {{firstName}} {{lastName}}", priority: "high", dueInDays: 2 },
-      ]),
-      createdAt: Date.now(),
-    })
-    .run();
-  db.insert(tables.workflows)
-    .values({
-      id: newId(),
-      name: "Celebrate won deals",
-      enabled: 1,
-      trigger: JSON.stringify({ event: "deal.won" }),
-      conditions: JSON.stringify([]),
-      actions: JSON.stringify([
-        { type: "add_note", body: "🎉 Deal won: {{name}} — kick off onboarding." },
-        { type: "create_task", title: "Kick off onboarding for {{name}}", priority: "high", dueInDays: 3 },
-      ]),
-      createdAt: Date.now(),
-    })
-    .run();
+  await db.insert(tables.workflows).values({
+    id: newId(),
+    name: "Follow up on new leads within 2 days",
+    enabled: 1,
+    trigger: JSON.stringify({ event: "contact.created" }),
+    conditions: JSON.stringify([{ field: "status", op: "eq", value: "lead" }]),
+    actions: JSON.stringify([
+      { type: "create_task", title: "Follow up with {{firstName}} {{lastName}}", priority: "high", dueInDays: 2 },
+    ]),
+    createdAt: Date.now(),
+  });
+  await db.insert(tables.workflows).values({
+    id: newId(),
+    name: "Celebrate won deals",
+    enabled: 1,
+    trigger: JSON.stringify({ event: "deal.won" }),
+    conditions: JSON.stringify([]),
+    actions: JSON.stringify([
+      { type: "add_note", body: "🎉 Deal won: {{name}} — kick off onboarding." },
+      { type: "create_task", title: "Kick off onboarding for {{name}}", priority: "high", dueInDays: 3 },
+    ]),
+    createdAt: Date.now(),
+  });
 
-  for (const id of contactIds) recomputeContactScore(id);
+  for (const id of contactIds) await recomputeContactScore(id);
   console.log(
     `Seeded ${companyIds.length} companies, ${contactIds.length} contacts, ${dealSpecs.length} deals, ${taskSpecs.length} tasks, 2 workflows.`,
   );
@@ -252,5 +237,10 @@ export function seedDemoData() {
 
 const invokedDirectly = process.argv[1]?.endsWith("seed.ts");
 if (invokedDirectly) {
-  seedDemoData();
+  seedDemoData()
+    .then(() => process.exit(0))
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
 }

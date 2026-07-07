@@ -6,9 +6,9 @@ import { ensureDefaultPipeline } from "@/db/seed";
 export async function GET(req: Request) {
   const auth = await authenticate(req);
   if (!auth.ok) return auth.response;
-  ensureDefaultPipeline();
-  const pipelines = db.select().from(tables.pipelines).all();
-  const stages = db.select().from(tables.stages).orderBy(asc(tables.stages.order)).all();
+  await ensureDefaultPipeline();
+  const pipelines = await db.select().from(tables.pipelines);
+  const stages = await db.select().from(tables.stages).orderBy(asc(tables.stages.order));
   return json({
     pipelines: pipelines.map((p) => ({
       ...p,

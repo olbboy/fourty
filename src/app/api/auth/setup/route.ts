@@ -11,12 +11,12 @@ const schema = z.object({
 });
 
 export async function POST(req: Request) {
-  if (!isFreshInstall()) return apiError("Workspace already set up", 403);
+  if (!(await isFreshInstall())) return apiError("Workspace already set up", 403);
   const body = await parseBody(req, schema);
   if (!body.ok) return body.response;
-  const userId = createUser(body.data.email, body.data.name, body.data.password, "admin");
-  ensureDefaultPipeline();
-  if (body.data.seedDemo) seedDemoData();
+  const userId = await createUser(body.data.email, body.data.name, body.data.password, "admin");
+  await ensureDefaultPipeline();
+  if (body.data.seedDemo) await seedDemoData();
   await createSession(userId);
   return json({ ok: true });
 }

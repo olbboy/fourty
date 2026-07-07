@@ -6,8 +6,8 @@ import { evaluateConditions, renderTemplate } from "./evaluate";
 import { checkWebhookUrl } from "@/lib/net";
 import type { EventContext, WorkflowAction, WorkflowDef } from "./types";
 
-function loadWorkflows(): WorkflowDef[] {
-  const rows = db.select().from(tables.workflows).where(eq(tables.workflows.enabled, 1)).all();
+async function loadWorkflows(): Promise<WorkflowDef[]> {
+  const rows = await db.select().from(tables.workflows).where(eq(tables.workflows.enabled, 1));
   return rows.map((r) => ({
     id: r.id,
     name: r.name,
@@ -24,10 +24,10 @@ function loadWorkflows(): WorkflowDef[] {
  * queue infrastructure (one of Fourty's deployment advantages).
  * Webhooks are the exception: they run fire-and-forget.
  */
-export function dispatchEvent(ctx: EventContext): void {
+export async function dispatchEvent(ctx: EventContext): Promise<void> {
   let defs: WorkflowDef[];
   try {
-    defs = loadWorkflows();
+    defs = await loadWorkflows();
   } catch {
     return;
   }
@@ -40,64 +40,58 @@ export function dispatchEvent(ctx: EventContext): void {
         continue; // conditions not met — not even logged as a run
       }
       for (const action of wf.actions ?? []) {
-        log.push(runAction(action, ctx));
+        log.push(await runAction(action, ctx));
       }
     } catch (err) {
       status = "error";
       log.push(`error: ${err instanceof Error ? err.message : String(err)}`);
     }
     const now = Date.now();
-    db.insert(tables.workflowRuns)
-      .values({
-        id: newId(),
-        workflowId: wf.id,
-        entityType: ctx.entityType,
-        entityId: ctx.entityId,
-        status,
-        log: JSON.stringify(log),
-        createdAt: now,
-      })
-      .run();
-    db.update(tables.workflows)
+    await db.insert(tables.workflowRuns).values({
+      id: newId(),
+      workflowId: wf.id,
+      entityType: ctx.entityType,
+      entityId: ctx.entityId,
+      status,
+      log: JSON.stringify(log),
+      createdAt: now,
+    });
+    await db
+      .update(tables.workflows)
       .set({ runCount: sql`${tables.workflows.runCount} + 1`, lastRunAt: now })
-      .where(eq(tables.workflows.id, wf.id))
-      .run();
+      .where(eq(tables.workflows.id, wf.id));
   }
 }
 
-function runAction(action: WorkflowAction, ctx: EventContext): string {
+async function runAction(action: WorkflowAction, ctx: EventContext): Promise<string> {
   const now = Date.now();
   switch (action.type) {
     case "create_task": {
       const title = renderTemplate(action.title, ctx.snapshot);
-      db.insert(tables.tasks)
-        .values({
-          id: newId(),
-          title,
-          priority: action.priority ?? "medium",
-          dueDate: action.dueInDays ? now + action.dueInDays * 86400000 : null,
-          entityType: ctx.entityType === "task" ? null : ctx.entityType,
-          entityId: ctx.entityType === "task" ? null : ctx.entityId,
-          ownerId: (ctx.snapshot.ownerId as string) ?? null,
-          createdAt: now,
-        })
-        .run();
+      await db.insert(tables.tasks).values({
+        id: newId(),
+        title,
+        priority: action.priority ?? "medium",
+        dueDate: action.dueInDays ? now + action.dueInDays * 86400000 : null,
+        entityType: ctx.entityType === "task" ? null : ctx.entityType,
+        entityId: ctx.entityType === "task" ? null : ctx.entityId,
+        ownerId: (ctx.snapshot.ownerId as string) ?? null,
+        createdAt: now,
+      });
       return `created task "${title}"`;
     }
     case "add_note": {
       if (ctx.entityType === "task") return "skipped note: tasks have no notes";
       const body = renderTemplate(action.body, ctx.snapshot);
-      db.insert(tables.notes)
-        .values({
-          id: newId(),
-          body,
-          entityType: ctx.entityType,
-          entityId: ctx.entityId,
-          authorId: null,
-          createdAt: now,
-        })
-        .run();
-      logActivity({
+      await db.insert(tables.notes).values({
+        id: newId(),
+        body,
+        entityType: ctx.entityType,
+        entityId: ctx.entityId,
+        authorId: null,
+        createdAt: now,
+      });
+      await logActivity({
         type: "workflow",
         entityType: ctx.entityType,
         entityId: ctx.entityId,
@@ -125,11 +119,11 @@ function runAction(action: WorkflowAction, ctx: EventContext): string {
       }
       const value =
         typeof action.value === "string" ? renderTemplate(action.value, ctx.snapshot) : action.value;
-      db.update(table)
+      await db
+        .update(table)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .set({ [action.field]: value, updatedAt: now } as any)
-        .where(eq(table.id, ctx.entityId))
-        .run();
+        .where(eq(table.id, ctx.entityId));
       return `set ${action.field} = ${String(value)}`;
     }
     case "webhook": {

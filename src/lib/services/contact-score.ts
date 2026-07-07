@@ -3,12 +3,14 @@ import { db, tables } from "@/db";
 import { computeLeadScore } from "@/lib/scoring";
 
 /** Recompute and persist the lead score for one contact. Returns the score. */
-export function recomputeContactScore(contactId: string): number {
-  const contact = db.select().from(tables.contacts).where(eq(tables.contacts.id, contactId)).get();
+export async function recomputeContactScore(contactId: string): Promise<number> {
+  const contact = (
+    await db.select().from(tables.contacts).where(eq(tables.contacts.id, contactId)).limit(1)
+  )[0];
   if (!contact) return 0;
 
   const since = Date.now() - 30 * 86400000;
-  const recent = db
+  const recent = await db
     .select({ createdAt: tables.activities.createdAt })
     .from(tables.activities)
     .where(
@@ -17,33 +19,31 @@ export function recomputeContactScore(contactId: string): number {
         eq(tables.activities.entityId, contactId),
         gte(tables.activities.createdAt, since),
       ),
-    )
-    .all();
+    );
 
-  const last = db
-    .select({ createdAt: tables.activities.createdAt })
-    .from(tables.activities)
-    .where(
-      and(eq(tables.activities.entityType, "contact"), eq(tables.activities.entityId, contactId)),
-    )
-    .orderBy(desc(tables.activities.createdAt))
-    .limit(1)
-    .get();
+  const last = (
+    await db
+      .select({ createdAt: tables.activities.createdAt })
+      .from(tables.activities)
+      .where(
+        and(eq(tables.activities.entityType, "contact"), eq(tables.activities.entityId, contactId)),
+      )
+      .orderBy(desc(tables.activities.createdAt))
+      .limit(1)
+  )[0];
 
-  const contactDeals = db
+  const contactDeals = await db
     .select({ id: tables.deals.id, stageId: tables.deals.stageId })
     .from(tables.deals)
-    .where(eq(tables.deals.contactId, contactId))
-    .all();
+    .where(eq(tables.deals.contactId, contactId));
 
   let openDeals = 0;
   let wonDeals = 0;
   if (contactDeals.length > 0) {
-    const stageRows = db
+    const stageRows = await db
       .select({ id: tables.stages.id, type: tables.stages.type })
       .from(tables.stages)
-      .where(inArray(tables.stages.id, [...new Set(contactDeals.map((d) => d.stageId))]))
-      .all();
+      .where(inArray(tables.stages.id, [...new Set(contactDeals.map((d) => d.stageId))]));
     const stageType = new Map(stageRows.map((s) => [s.id, s.type]));
     for (const d of contactDeals) {
       const t = stageType.get(d.stageId) ?? "open";
@@ -66,9 +66,9 @@ export function recomputeContactScore(contactId: string): number {
     wonDealCount: wonDeals,
   });
 
-  db.update(tables.contacts)
+  await db
+    .update(tables.contacts)
     .set({ score, lastActivityAt: last?.createdAt ?? contact.lastActivityAt })
-    .where(eq(tables.contacts.id, contactId))
-    .run();
+    .where(eq(tables.contacts.id, contactId));
   return score;
 }
