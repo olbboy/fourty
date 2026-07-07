@@ -1,10 +1,10 @@
 # PARITY.md — Fourty vs Twenty 2.0
 
-> **Status (2026-07-07): Direction B underway.** Fourty is now on **Postgres**
-> with drizzle-kit migrations (Gate B1 done — see `PROGRESS.md`). Multi-tenancy +
-> RLS (Gate B2) is the next step and is **not yet implemented**, so the tenancy
-> rows below still read ❌. This document tracks the gap as it closes; do not read
-> a ✅ into anything not yet backed by a test.
+> **Status (2026-07-07): Direction B — Gates B1 + B2 done.** Fourty is on
+> **Postgres** with drizzle-kit migrations (B1) and now **multi-tenant with
+> Postgres Row-Level Security** (B2), proven by a passing cross-tenant isolation
+> attack suite. RBAC *enforcement* (B3), workers/observability (B4), and the
+> head-to-head benchmark (B5) are still open. Every ✅ below is backed by a test.
 
 > **Honesty note.** Twenty's capabilities below are sourced from Twenty's
 > official docs, release notes, and the 2.0 launch coverage (April 21, 2026) —
@@ -43,9 +43,9 @@
 
 | Capability | Twenty 2.0 | Fourty | Notes |
 |---|---|---|---|
-| **Multi-tenant workspaces** | ✅ single- & multi-workspace, subdomain per workspace [2] | ❌ **none** | The decisive gap. Fourty has one global dataset. |
-| Object-level RBAC | ✅ complete [2][3] | ❌ role column unenforced | |
-| Field-level permissions | ✅ view/edit per role [2] | ❌ | |
+| **Multi-tenant workspaces** | ✅ single- & multi-workspace, subdomain per workspace [2] | ✅ shared-schema + Postgres RLS (FORCE), non-owner app role | Isolation attack suite passes; direct-connection RLS proof. |
+| Object-level RBAC | ✅ complete [2][3] | 🟡 membership roles (admin/member/viewer) exist; enforcement is B3 | |
+| Field-level permissions | ✅ view/edit per role [2] | ❌ (deferred, later tier) | |
 | OAuth2 + PKCE / SSO (OIDC/SAML) / 2FA | ✅ auth & integration mechanisms expanded in 2.0 [4] | ❌ password + cookie only | |
 | Rate limiting | ✅ | 🟡 login only (added this session) | |
 | Input validation | ✅ | ✅ zod on all write routes | Genuine parity here. |
