@@ -1,10 +1,9 @@
 import { ilike, or, sql } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { authenticate, json } from "@/lib/api";
+import { withAuth, json } from "@/lib/api";
 
 export async function GET(req: Request) {
-  const auth = await authenticate(req);
-  if (!auth.ok) return auth.response;
+  return withAuth(req, async (auth) => {
 
   const q = new URL(req.url).searchParams.get("q")?.trim() ?? "";
   if (!q) return json({ results: [] });
@@ -54,5 +53,6 @@ export async function GET(req: Request) {
         subtitle: `${d.currency} ${d.amount.toLocaleString()}`,
       })),
     ],
+  });
   });
 }

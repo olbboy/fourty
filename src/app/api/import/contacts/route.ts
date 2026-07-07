@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { authenticate, json, apiError } from "@/lib/api";
+import { withAuth, json, apiError } from "@/lib/api";
 import { newId } from "@/lib/id";
 import { parseCsvObjects } from "@/lib/csv";
 import { logActivity } from "@/lib/activity";
@@ -14,8 +14,7 @@ const MAX_ROWS = 5000;
  * or creates it on the fly — one upload, whole book of business.
  */
 export async function POST(req: Request) {
-  const auth = await authenticate(req);
-  if (!auth.ok) return auth.response;
+  return withAuth(req, async (auth) => {
 
   const text = await req.text();
   if (!text.trim()) return apiError("Empty file");
@@ -103,4 +102,5 @@ export async function POST(req: Request) {
   }
 
   return json({ created, skipped, companiesCreated, total: rows.length });
+  });
 }

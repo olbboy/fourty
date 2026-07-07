@@ -1,11 +1,10 @@
 import { asc } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { authenticate, json } from "@/lib/api";
+import { withAuth, json } from "@/lib/api";
 import { ensureDefaultPipeline } from "@/db/seed";
 
 export async function GET(req: Request) {
-  const auth = await authenticate(req);
-  if (!auth.ok) return auth.response;
+  return withAuth(req, async (auth) => {
   await ensureDefaultPipeline();
   const pipelines = await db.select().from(tables.pipelines);
   const stages = await db.select().from(tables.stages).orderBy(asc(tables.stages.order));
@@ -14,5 +13,6 @@ export async function GET(req: Request) {
       ...p,
       stages: stages.filter((s) => s.pipelineId === p.id),
     })),
+  });
   });
 }

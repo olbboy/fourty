@@ -1,40 +1,81 @@
-import { pgTable, text, integer, bigint, doublePrecision, index } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  integer,
+  bigint,
+  doublePrecision,
+  index,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
-// Value semantics preserved from the SQLite original so application logic
-// (Date.now() epoch millis, 0/1 boolean flags, JSON-in-text) is unchanged by
-// the Postgres port (ADR-002/006):
-//   - epoch-millis timestamps → bigint({ mode: "number" })  (fits in 2^53)
-//   - boolean flags           → integer 0/1
-//   - JSON blobs              → text (JSON.parse/stringify at the edge)
-// Multi-tenancy (workspace_id) and jsonb/native-timestamp migrations come in
-// later gates; B1 is a faithful single-tenant port onto Postgres.
+// Value semantics preserved from the SQLite original (epoch-millis→bigint,
+// 0/1 flags→integer, JSON→text). Multi-tenancy (B2): every CRM table carries
+// workspace_id, which DEFAULTS to the per-transaction GUC set by withWorkspace()
+// — so inserts auto-populate it and Postgres RLS enforces isolation. See
+// docs/adr/001-tenancy-model.md.
 
 const millis = (name: string) => bigint(name, { mode: "number" });
 
-// ── Auth ────────────────────────────────────────────────────────────────────
+// workspace_id column shared by every tenant-scoped table. NOT NULL + a DB
+// default of current_setting('app.workspace_id') means an insert without an
+// active workspace fails closed (default resolves to NULL → NOT NULL violation).
+const workspaceId = () =>
+  text("workspace_id")
+    .notNull()
+    .default(sql`current_setting('app.workspace_id', true)`);
+
+// ── Tenancy ───────────────────────────────────────────────────────────────
+
+export const workspaces = pgTable("workspaces", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  createdAt: millis("created_at").notNull(),
+});
+
+export const workspaceMembers = pgTable(
+  "workspace_members",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id").notNull(),
+    userId: text("user_id").notNull(),
+    role: text("role").notNull().default("member"), // admin | member | viewer
+    createdAt: millis("created_at").notNull(),
+  },
+  (t) => [
+    index("workspace_members_ws_idx").on(t.workspaceId),
+    index("workspace_members_user_idx").on(t.userId),
+    uniqueIndex("workspace_members_unique").on(t.workspaceId, t.userId),
+  ],
+);
+
+// ── Auth (global identity — NOT workspace-scoped) ───────────────────────────
 
 export const users = pgTable("users", {
   id: text("id").primaryKey(),
   email: text("email").notNull().unique(),
   name: text("name").notNull(),
   passwordHash: text("password_hash").notNull(),
-  role: text("role").notNull().default("member"), // admin | member
+  role: text("role").notNull().default("member"), // legacy global role; authz lives on membership
   createdAt: millis("created_at").notNull(),
 });
 
 export const sessions = pgTable("sessions", {
   id: text("id").primaryKey(), // sha256 of the random token
   userId: text("user_id").notNull(),
+  workspaceId: text("workspace_id"), // active workspace for this session (nullable pre-selection)
   expiresAt: millis("expires_at").notNull(),
   createdAt: millis("created_at").notNull(),
 });
 
-// ── Core CRM objects ────────────────────────────────────────────────────────
+// ── Core CRM objects (workspace-scoped + RLS) ───────────────────────────────
 
 export const companies = pgTable(
   "companies",
   {
     id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
     name: text("name").notNull(),
     domain: text("domain"),
     industry: text("industry"),
@@ -49,13 +90,16 @@ export const companies = pgTable(
     createdAt: millis("created_at").notNull(),
     updatedAt: millis("updated_at").notNull(),
   },
-  (t) => [index("companies_name_idx").on(t.name)],
+  (t) => [
+    index("companies_ws_name_idx").on(t.workspaceId, t.name),
+  ],
 );
 
 export const contacts = pgTable(
   "contacts",
   {
     id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
     firstName: text("first_name").notNull(),
     lastName: text("last_name").notNull().default(""),
     email: text("email"),
@@ -75,13 +119,14 @@ export const contacts = pgTable(
     updatedAt: millis("updated_at").notNull(),
   },
   (t) => [
-    index("contacts_email_idx").on(t.email),
-    index("contacts_company_idx").on(t.companyId),
+    index("contacts_ws_email_idx").on(t.workspaceId, t.email),
+    index("contacts_ws_company_idx").on(t.workspaceId, t.companyId),
   ],
 );
 
 export const pipelines = pgTable("pipelines", {
   id: text("id").primaryKey(),
+  workspaceId: workspaceId(),
   name: text("name").notNull(),
   isDefault: integer("is_default").notNull().default(0),
   createdAt: millis("created_at").notNull(),
@@ -91,6 +136,7 @@ export const stages = pgTable(
   "stages",
   {
     id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
     pipelineId: text("pipeline_id").notNull(),
     name: text("name").notNull(),
     order: integer("sort_order").notNull().default(0),
@@ -98,13 +144,14 @@ export const stages = pgTable(
     type: text("type").notNull().default("open"), // open | won | lost
     color: text("color").notNull().default("#6366f1"),
   },
-  (t) => [index("stages_pipeline_idx").on(t.pipelineId)],
+  (t) => [index("stages_ws_pipeline_idx").on(t.workspaceId, t.pipelineId)],
 );
 
 export const deals = pgTable(
   "deals",
   {
     id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
     name: text("name").notNull(),
     amount: doublePrecision("amount").notNull().default(0),
     currency: text("currency").notNull().default("USD"),
@@ -121,8 +168,8 @@ export const deals = pgTable(
     updatedAt: millis("updated_at").notNull(),
   },
   (t) => [
-    index("deals_stage_idx").on(t.stageId),
-    index("deals_pipeline_idx").on(t.pipelineId),
+    index("deals_ws_stage_idx").on(t.workspaceId, t.stageId),
+    index("deals_ws_pipeline_idx").on(t.workspaceId, t.pipelineId),
   ],
 );
 
@@ -130,6 +177,7 @@ export const tasks = pgTable(
   "tasks",
   {
     id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
     title: text("title").notNull(),
     description: text("description"),
     dueDate: millis("due_date"),
@@ -140,26 +188,28 @@ export const tasks = pgTable(
     entityId: text("entity_id"),
     createdAt: millis("created_at").notNull(),
   },
-  (t) => [index("tasks_entity_idx").on(t.entityType, t.entityId)],
+  (t) => [index("tasks_ws_entity_idx").on(t.workspaceId, t.entityType, t.entityId)],
 );
 
 export const notes = pgTable(
   "notes",
   {
     id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
     body: text("body").notNull(),
     entityType: text("entity_type").notNull(),
     entityId: text("entity_id").notNull(),
     authorId: text("author_id"),
     createdAt: millis("created_at").notNull(),
   },
-  (t) => [index("notes_entity_idx").on(t.entityType, t.entityId)],
+  (t) => [index("notes_ws_entity_idx").on(t.workspaceId, t.entityType, t.entityId)],
 );
 
 export const activities = pgTable(
   "activities",
   {
     id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
     type: text("type").notNull(),
     entityType: text("entity_type").notNull(),
     entityId: text("entity_id").notNull(),
@@ -168,15 +218,16 @@ export const activities = pgTable(
     createdAt: millis("created_at").notNull(),
   },
   (t) => [
-    index("activities_entity_idx").on(t.entityType, t.entityId),
-    index("activities_created_idx").on(t.createdAt),
+    index("activities_ws_entity_idx").on(t.workspaceId, t.entityType, t.entityId),
+    index("activities_ws_created_idx").on(t.workspaceId, t.createdAt),
   ],
 );
 
-// ── Extensibility ───────────────────────────────────────────────────────────
+// ── Extensibility (workspace-scoped + RLS) ──────────────────────────────────
 
 export const customFieldDefs = pgTable("custom_field_defs", {
   id: text("id").primaryKey(),
+  workspaceId: workspaceId(),
   entity: text("entity").notNull(),
   key: text("key").notNull(),
   label: text("label").notNull(),
@@ -189,6 +240,7 @@ export const customFieldDefs = pgTable("custom_field_defs", {
 
 export const workflows = pgTable("workflows", {
   id: text("id").primaryKey(),
+  workspaceId: workspaceId(),
   name: text("name").notNull(),
   enabled: integer("enabled").notNull().default(1),
   trigger: text("trigger").notNull(),
@@ -203,6 +255,7 @@ export const workflowRuns = pgTable(
   "workflow_runs",
   {
     id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
     workflowId: text("workflow_id").notNull(),
     entityType: text("entity_type").notNull(),
     entityId: text("entity_id").notNull(),
@@ -210,11 +263,14 @@ export const workflowRuns = pgTable(
     log: text("log").notNull().default("[]"),
     createdAt: millis("created_at").notNull(),
   },
-  (t) => [index("workflow_runs_wf_idx").on(t.workflowId)],
+  (t) => [index("workflow_runs_ws_wf_idx").on(t.workspaceId, t.workflowId)],
 );
 
+// API keys belong to one workspace. Looked up by hash during auth (before a
+// workspace context exists), so this table is app-scoped, not RLS-enforced.
 export const apiKeys = pgTable("api_keys", {
   id: text("id").primaryKey(),
+  workspaceId: workspaceId(),
   name: text("name").notNull(),
   prefix: text("prefix").notNull(),
   keyHash: text("key_hash").notNull(),
@@ -230,6 +286,7 @@ export const settings = pgTable("settings", {
 
 export const savedViews = pgTable("saved_views", {
   id: text("id").primaryKey(),
+  workspaceId: workspaceId(),
   entity: text("entity").notNull(),
   name: text("name").notNull(),
   config: text("config").notNull().default("{}"),

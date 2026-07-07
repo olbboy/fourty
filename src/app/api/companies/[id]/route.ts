@@ -1,23 +1,22 @@
 import { eq } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { authenticate, json, apiError, parseBody } from "@/lib/api";
+import { withAuth, json, apiError, parseBody } from "@/lib/api";
 import { logActivity } from "@/lib/activity";
 import { companyPatch } from "@/lib/validators";
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(req: Request, { params }: Params) {
-  const auth = await authenticate(req);
-  if (!auth.ok) return auth.response;
+  return withAuth(req, async (auth) => {
   const { id } = await params;
   const row = (await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1))[0];
   if (!row) return apiError("Company not found", 404);
   return json({ company: { ...row, custom: JSON.parse(row.custom) } });
+  });
 }
 
 export async function PATCH(req: Request, { params }: Params) {
-  const auth = await authenticate(req);
-  if (!auth.ok) return auth.response;
+  return withAuth(req, async (auth) => {
   const { id } = await params;
   const existing = (await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1))[0];
   if (!existing) return apiError("Company not found", 404);
@@ -48,11 +47,11 @@ export async function PATCH(req: Request, { params }: Params) {
   }
   const row = (await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1))[0]!;
   return json({ company: { ...row, custom: JSON.parse(row.custom) } });
+  });
 }
 
 export async function DELETE(req: Request, { params }: Params) {
-  const auth = await authenticate(req);
-  if (!auth.ok) return auth.response;
+  return withAuth(req, async (auth) => {
   const { id } = await params;
   const existing = (await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1))[0];
   if (!existing) return apiError("Company not found", 404);
@@ -65,4 +64,5 @@ export async function DELETE(req: Request, { params }: Params) {
   await db.delete(tables.notes).where(eq(tables.notes.entityId, id));
   await db.delete(tables.activities).where(eq(tables.activities.entityId, id));
   return json({ ok: true });
+  });
 }

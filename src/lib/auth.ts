@@ -1,6 +1,6 @@
 import { scryptSync, timingSafeEqual, randomBytes, createHash } from "node:crypto";
 import { cookies } from "next/headers";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { newId, newToken } from "./id";
 
@@ -30,14 +30,20 @@ export type SessionUser = {
   email: string;
   name: string;
   role: string;
+  /** Active workspace for this session (null if none selected). */
+  workspaceId: string | null;
 };
 
-export async function createSession(userId: string): Promise<string> {
+export async function createSession(userId: string, workspaceId: string | null): Promise<string> {
   const token = newToken();
   const now = Date.now();
-  await db
-    .insert(tables.sessions)
-    .values({ id: sha256(token), userId, expiresAt: now + SESSION_TTL, createdAt: now });
+  await db.insert(tables.sessions).values({
+    id: sha256(token),
+    userId,
+    workspaceId,
+    expiresAt: now + SESSION_TTL,
+    createdAt: now,
+  });
   const jar = await cookies();
   jar.set(SESSION_COOKIE, token, {
     httpOnly: true,
@@ -70,7 +76,13 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     await db.select().from(tables.users).where(eq(tables.users.id, session.userId)).limit(1)
   )[0];
   if (!user) return null;
-  return { id: user.id, email: user.email, name: user.name, role: user.role };
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    workspaceId: session.workspaceId ?? null,
+  };
 }
 
 /** True when no user exists yet — first boot shows the setup screen. */
@@ -90,4 +102,54 @@ export async function createUser(email: string, name: string, password: string, 
     createdAt: Date.now(),
   });
   return id;
+}
+
+// ── Workspaces & membership (identity plane — not RLS-scoped) ────────────────
+
+function slugify(name: string): string {
+  const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
+  return `${base || "workspace"}-${newId().slice(0, 6).toLowerCase()}`;
+}
+
+/** Create a workspace and add `ownerId` as its admin. Returns the workspace id. */
+export async function createWorkspace(name: string, ownerId: string): Promise<string> {
+  const id = newId();
+  const now = Date.now();
+  await db.insert(tables.workspaces).values({ id, name: name.trim() || "Workspace", slug: slugify(name), createdAt: now });
+  await db.insert(tables.workspaceMembers).values({
+    id: newId(),
+    workspaceId: id,
+    userId: ownerId,
+    role: "admin",
+    createdAt: now,
+  });
+  return id;
+}
+
+export type Membership = { workspaceId: string; role: string };
+
+/** All workspaces a user belongs to, with their role in each. */
+export async function membershipsOf(userId: string): Promise<Membership[]> {
+  const rows = await db
+    .select({ workspaceId: tables.workspaceMembers.workspaceId, role: tables.workspaceMembers.role })
+    .from(tables.workspaceMembers)
+    .where(eq(tables.workspaceMembers.userId, userId));
+  return rows;
+}
+
+/** The user's role in a workspace, or null if not a member. */
+export async function roleInWorkspace(userId: string, workspaceId: string): Promise<string | null> {
+  const row = (
+    await db
+      .select({ role: tables.workspaceMembers.role })
+      .from(tables.workspaceMembers)
+      .where(
+        and(
+          eq(tables.workspaceMembers.userId, userId),
+          eq(tables.workspaceMembers.workspaceId, workspaceId),
+        ),
+      )
+      .limit(1)
+  )[0];
+  return row?.role ?? null;
 }

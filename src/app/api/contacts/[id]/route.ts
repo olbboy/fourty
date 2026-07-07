@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { authenticate, json, apiError, parseBody } from "@/lib/api";
+import { withAuth, json, apiError, parseBody } from "@/lib/api";
 import { logActivity } from "@/lib/activity";
 import { dispatchEvent } from "@/lib/workflows/engine";
 import { recomputeContactScore } from "@/lib/services/contact-score";
@@ -9,17 +9,16 @@ import { contactPatch } from "@/lib/validators";
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(req: Request, { params }: Params) {
-  const auth = await authenticate(req);
-  if (!auth.ok) return auth.response;
+  return withAuth(req, async (auth) => {
   const { id } = await params;
   const row = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0];
   if (!row) return apiError("Contact not found", 404);
   return json({ contact: { ...row, custom: JSON.parse(row.custom) } });
+  });
 }
 
 export async function PATCH(req: Request, { params }: Params) {
-  const auth = await authenticate(req);
-  if (!auth.ok) return auth.response;
+  return withAuth(req, async (auth) => {
   const { id } = await params;
   const existing = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0];
   if (!existing) return apiError("Contact not found", 404);
@@ -59,11 +58,11 @@ export async function PATCH(req: Request, { params }: Params) {
     snapshot: { ...row, custom: undefined, changedFields: changed.join(",") },
   });
   return json({ contact: { ...row, custom: JSON.parse(row.custom) } });
+  });
 }
 
 export async function DELETE(req: Request, { params }: Params) {
-  const auth = await authenticate(req);
-  if (!auth.ok) return auth.response;
+  return withAuth(req, async (auth) => {
   const { id } = await params;
   const existing = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0];
   if (!existing) return apiError("Contact not found", 404);
@@ -72,4 +71,5 @@ export async function DELETE(req: Request, { params }: Params) {
     .where(eq(tables.notes.entityId, id));
   await db.delete(tables.activities).where(eq(tables.activities.entityId, id));
   return json({ ok: true });
+  });
 }

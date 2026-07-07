@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { authenticate, json, apiError, parseBody } from "@/lib/api";
+import { withAuth, json, apiError, parseBody } from "@/lib/api";
 import { logActivity } from "@/lib/activity";
 import { dispatchEvent } from "@/lib/workflows/engine";
 import { taskPatch } from "@/lib/validators";
@@ -8,8 +8,7 @@ import { taskPatch } from "@/lib/validators";
 type Params = { params: Promise<{ id: string }> };
 
 export async function PATCH(req: Request, { params }: Params) {
-  const auth = await authenticate(req);
-  if (!auth.ok) return auth.response;
+  return withAuth(req, async (auth) => {
   const { id } = await params;
   const existing = (await db.select().from(tables.tasks).where(eq(tables.tasks.id, id)).limit(1))[0];
   if (!existing) return apiError("Task not found", 404);
@@ -46,12 +45,13 @@ export async function PATCH(req: Request, { params }: Params) {
     });
   }
   return json({ task: row });
+  });
 }
 
 export async function DELETE(req: Request, { params }: Params) {
-  const auth = await authenticate(req);
-  if (!auth.ok) return auth.response;
+  return withAuth(req, async (auth) => {
   const { id } = await params;
   await db.delete(tables.tasks).where(eq(tables.tasks.id, id));
   return json({ ok: true });
+  });
 }

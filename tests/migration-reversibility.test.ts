@@ -5,29 +5,33 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 
 /**
- * Migration reversibility (Gate B1): apply the migration → capture a schema
- * checksum → roll it back (down) → assert the schema is gone → re-apply →
- * assert the checksum is byte-identical. Proves up/down migrations are
- * reversible and deterministic (ADR-002).
+ * Migration reversibility (Gate B1, extended for B2): apply the full migration
+ * chain (0000 init → 0001 workspaces → 0002 RLS) → capture a schema checksum +
+ * policy count → roll the whole chain back with the down files → assert an empty
+ * schema → re-apply → assert byte-identical checksum. Proves up/down migrations
+ * are reversible and deterministic (ADR-002).
  *
- * Runs the SQL files directly (not through the migrator's bookkeeping) so it can
- * freely apply/rollback/re-apply on a dedicated connection.
+ * Runs on the dedicated `fourty_revtest` database (owner role) so it never
+ * disturbs the migrator state of the shared test database.
  */
-const DSN =
-  process.env.DATABASE_URL ?? "postgresql://fourty:fourty@localhost:5432/fourty_test";
+const DSN = "postgresql://fourty:fourty@localhost:5432/fourty_revtest";
+
+const UP = ["drizzle/0000_init.sql", "drizzle/0001_workspaces.sql", "drizzle/0002_rls.sql"];
+const DOWN = [
+  "drizzle/down/0002_rls.down.sql",
+  "drizzle/down/0001_workspaces.down.sql",
+  "drizzle/down/0000_init.down.sql",
+];
 
 function statements(file: string): string[] {
-  const sql = readFileSync(path.join(process.cwd(), file), "utf8");
-  return sql
+  return readFileSync(path.join(process.cwd(), file), "utf8")
     .split("--> statement-breakpoint")
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
 }
 
-async function exec(client: pg.Client, file: string) {
-  for (const stmt of statements(file)) {
-    await client.query(stmt);
-  }
+async function runFiles(client: pg.Client, files: string[]) {
+  for (const f of files) for (const stmt of statements(f)) await client.query(stmt);
 }
 
 async function schemaFingerprint(client: pg.Client): Promise<string> {
@@ -40,35 +44,46 @@ async function schemaFingerprint(client: pg.Client): Promise<string> {
   return createHash("sha256").update(JSON.stringify(rows)).digest("hex");
 }
 
-async function publicTableCount(client: pg.Client): Promise<number> {
-  const { rows } = await client.query(
-    "SELECT count(*)::int AS n FROM pg_tables WHERE schemaname = 'public'",
-  );
-  return rows[0].n;
+async function counts(client: pg.Client) {
+  const t = await client.query("SELECT count(*)::int AS n FROM pg_tables WHERE schemaname='public'");
+  const p = await client.query("SELECT count(*)::int AS n FROM pg_policies WHERE schemaname='public'");
+  return { tables: t.rows[0].n as number, policies: p.rows[0].n as number };
 }
 
-describe("migration reversibility (real Postgres)", () => {
-  it("apply → checksum → rollback → re-apply yields an identical schema", async () => {
+async function dropAll(client: pg.Client) {
+  const { rows } = await client.query<{ tablename: string }>(
+    "SELECT tablename FROM pg_tables WHERE schemaname='public'",
+  );
+  for (const r of rows) await client.query(`DROP TABLE IF EXISTS "${r.tablename}" CASCADE`);
+}
+
+describe("migration reversibility (full chain, real Postgres)", () => {
+  it("up → checksum → down → re-apply yields an identical schema", async () => {
     const client = new pg.Client({ connectionString: DSN });
     await client.connect();
     try {
-      // Clean slate (a prior migrator run may have created the tables).
-      await exec(client, "drizzle/down/0000_init.down.sql");
-      expect(await publicTableCount(client)).toBe(0);
+      await dropAll(client); // clean slate regardless of prior state
+      expect((await counts(client)).tables).toBe(0);
 
-      // Apply up → fingerprint A
-      await exec(client, "drizzle/0000_init.sql");
+      // Apply the full chain → fingerprint A
+      await runFiles(client, UP);
       const before = await schemaFingerprint(client);
-      expect(await publicTableCount(client)).toBe(16);
+      const up1 = await counts(client);
+      expect(up1.tables).toBe(18); // 16 core + workspaces + workspace_members
+      expect(up1.policies).toBe(12); // RLS policies on the 12 data tables
 
-      // Roll back one step → schema gone
-      await exec(client, "drizzle/down/0000_init.down.sql");
-      expect(await publicTableCount(client)).toBe(0);
+      // Roll the whole chain back → empty schema
+      await runFiles(client, DOWN);
+      const down = await counts(client);
+      expect(down.tables).toBe(0);
+      expect(down.policies).toBe(0);
 
-      // Re-apply → fingerprint B, must equal A
-      await exec(client, "drizzle/0000_init.sql");
+      // Re-apply → fingerprint B must equal A
+      await runFiles(client, UP);
       const after = await schemaFingerprint(client);
-      expect(await publicTableCount(client)).toBe(16);
+      const up2 = await counts(client);
+      expect(up2.tables).toBe(18);
+      expect(up2.policies).toBe(12);
       expect(after).toBe(before);
     } finally {
       await client.end();

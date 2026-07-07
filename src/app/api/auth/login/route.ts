@@ -2,7 +2,7 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { json, apiError, parseBody, tooManyRequests } from "@/lib/api";
-import { createSession, verifyPassword } from "@/lib/auth";
+import { createSession, verifyPassword, membershipsOf } from "@/lib/auth";
 import { rateLimit, clientIp } from "@/lib/ratelimit";
 
 const schema = z.object({
@@ -35,6 +35,8 @@ export async function POST(req: Request) {
   if (!user || !verifyPassword(body.data.password, user.passwordHash)) {
     return apiError("Invalid email or password", 401);
   }
-  await createSession(user.id);
+  // Activate the user's first workspace for this session.
+  const memberships = await membershipsOf(user.id);
+  await createSession(user.id, memberships[0]?.workspaceId ?? null);
   return json({ ok: true });
 }

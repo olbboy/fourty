@@ -3,9 +3,9 @@
  * Run: npm run db:seed  (idempotent — skips if data already exists)
  * The default pipeline is also created automatically on first boot.
  */
+import { eq } from "drizzle-orm";
 import { db, tables } from "./index";
 import { newId } from "@/lib/id";
-import { hashPassword } from "@/lib/auth";
 import { logActivity } from "@/lib/activity";
 import { recomputeContactScore } from "@/lib/services/contact-score";
 
@@ -60,21 +60,11 @@ export async function seedDemoData(): Promise<void> {
   const stages = await db.select().from(tables.stages);
   const stageByName = new Map(stages.map((s) => [s.name, s]));
 
-  // Demo user
-  let owner = (await db.select().from(tables.users).limit(1))[0];
-  if (!owner) {
-    const id = newId();
-    await db.insert(tables.users).values({
-      id,
-      email: "demo@fourty.dev",
-      name: "Demo User",
-      passwordHash: hashPassword("demo1234"),
-      role: "admin",
-      createdAt: Date.now(),
-    });
-    owner = (await db.select().from(tables.users).limit(1))[0]!;
-    console.log("Created demo user: demo@fourty.dev / demo1234");
-  }
+  // Owner = the first existing user. seedDemoData runs inside a workspace
+  // context (RLS); both callers (setup route, db:seed CLI) create the user +
+  // workspace before invoking it.
+  const owner = (await db.select().from(tables.users).limit(1))[0];
+  if (!owner) throw new Error("seedDemoData: no user exists — create one first");
   const ownerId = owner.id;
 
   const companySpecs = [
@@ -237,10 +227,21 @@ export async function seedDemoData(): Promise<void> {
 
 const invokedDirectly = process.argv[1]?.endsWith("seed.ts");
 if (invokedDirectly) {
-  seedDemoData()
-    .then(() => process.exit(0))
-    .catch((err) => {
-      console.error(err);
-      process.exit(1);
-    });
+  (async () => {
+    const { withWorkspace } = await import("./index");
+    const { createUser, createWorkspace, membershipsOf } = await import("@/lib/auth");
+    let user = (await db.select().from(tables.users).limit(1))[0];
+    if (!user) {
+      const id = await createUser("demo@fourty.dev", "Demo User", "demo1234", "admin");
+      user = (await db.select().from(tables.users).where(eq(tables.users.id, id)).limit(1))[0]!;
+      console.log("Created demo user: demo@fourty.dev / demo1234");
+    }
+    const memberships = await membershipsOf(user.id);
+    const workspaceId = memberships[0]?.workspaceId ?? (await createWorkspace("Demo Workspace", user.id));
+    await withWorkspace(workspaceId, () => seedDemoData());
+    process.exit(0);
+  })().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
 }

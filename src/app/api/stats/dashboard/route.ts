@@ -1,8 +1,8 @@
-import { authenticate, json } from "@/lib/api";
+import { withAuth, json } from "@/lib/api";
 import { computeDashboardStats } from "@/lib/services/stats";
 
 export async function GET(req: Request) {
-  const auth = await authenticate(req);
-  if (!auth.ok) return auth.response;
+  return withAuth(req, async (auth) => {
   return json(await computeDashboardStats());
+  });
 }
