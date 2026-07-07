@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
-import { resetDb } from "./pg-setup";
+import { resetDb, createWorkspace } from "./pg-setup";
 
 /**
  * Authorization enforcement on the public REST surface.
@@ -31,8 +31,10 @@ describe("API-key auth enforcement", () => {
     ({ newId } = await import("@/lib/id"));
     contactRoutes = await import("@/app/api/contacts/route");
 
+    const ws = await createWorkspace();
     await db.insert(tables.apiKeys).values({
       id: newId(),
+      workspaceId: ws,
       name: "good",
       prefix: "frty_val",
       keyHash: sha256(GOOD),
@@ -42,6 +44,7 @@ describe("API-key auth enforcement", () => {
     revokedToken = "frty_revoked_key";
     await db.insert(tables.apiKeys).values({
       id: newId(),
+      workspaceId: ws,
       name: "revoked",
       prefix: "frty_rev",
       keyHash: sha256(revokedToken),
@@ -88,17 +91,20 @@ describe("static guard: every API route authenticates", () => {
     return out;
   }
 
-  it("references authenticate() in every non-public route", () => {
+  it("authenticates + workspace-scopes every non-public route", () => {
     const apiDir = path.resolve(__dirname, "../src/app/api");
     const files = routeFiles(apiDir);
     expect(files.length).toBeGreaterThan(15); // sanity: we found the routes
 
+    // A data route must go through withAuth() (which authenticates AND enters the
+    // workspace RLS transaction). Bare authenticate() is allowed too for routes
+    // that don't touch tenant data.
     const missing: string[] = [];
     for (const { rel, file } of files) {
       if (PUBLIC_ROUTES.has(rel)) continue;
       const src = readFileSync(file, "utf8");
-      if (!src.includes("authenticate(")) missing.push(rel);
+      if (!src.includes("withAuth(") && !src.includes("authenticate(")) missing.push(rel);
     }
-    expect(missing, `routes missing authenticate(): ${missing.join(", ")}`).toEqual([]);
+    expect(missing, `routes missing withAuth()/authenticate(): ${missing.join(", ")}`).toEqual([]);
   });
 });

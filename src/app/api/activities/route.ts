@@ -1,13 +1,12 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { authenticate, json, parseBody } from "@/lib/api";
+import { withAuth, json, parseBody } from "@/lib/api";
 import { logActivity } from "@/lib/activity";
 import { recomputeContactScore } from "@/lib/services/contact-score";
 import { activityLogInput } from "@/lib/validators";
 
 export async function GET(req: Request) {
-  const auth = await authenticate(req);
-  if (!auth.ok) return auth.response;
+  return withAuth(req, async (auth) => {
   const params = new URL(req.url).searchParams;
   const entityType = params.get("entityType");
   const entityId = params.get("entityId");
@@ -24,12 +23,12 @@ export async function GET(req: Request) {
     .orderBy(desc(tables.activities.createdAt))
     .limit(limit);
   return json({ activities: rows.map((r) => ({ ...r, meta: JSON.parse(r.meta) })) });
+  });
 }
 
 /** Log a manual touchpoint: email, call, or meeting. Feeds timeline + lead scoring. */
 export async function POST(req: Request) {
-  const auth = await authenticate(req);
-  if (!auth.ok) return auth.response;
+  return withAuth(req, async (auth) => {
   const body = await parseBody(req, activityLogInput);
   if (!body.ok) return body.response;
   await logActivity({
@@ -41,4 +40,5 @@ export async function POST(req: Request) {
   });
   if (body.data.entityType === "contact") await recomputeContactScore(body.data.entityId);
   return json({ ok: true }, { status: 201 });
+  });
 }

@@ -8,9 +8,13 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import path from "node:path";
 
+// Migrations run as the OWNER role (fourty), not the RLS-subject app role.
+// Prefer MIGRATE_DATABASE_URL; fall back to DATABASE_URL for single-role dev.
 const DEFAULT_DSN = "postgresql://fourty:fourty@localhost:5432/fourty";
 
-export async function runMigrations(url: string = process.env.DATABASE_URL ?? DEFAULT_DSN) {
+export async function runMigrations(
+  url: string = process.env.MIGRATE_DATABASE_URL ?? process.env.DATABASE_URL ?? DEFAULT_DSN,
+) {
   const pool = new pg.Pool({ connectionString: url });
   try {
     const db = drizzle(pool);

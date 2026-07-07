@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { desc, eq } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { authenticate, json, parseBody } from "@/lib/api";
+import { withAuth, json, parseBody } from "@/lib/api";
 import { newId } from "@/lib/id";
 
 const conditionSchema = z.object({
@@ -47,8 +47,7 @@ const workflowInput = z.object({
 });
 
 export async function GET(req: Request) {
-  const auth = await authenticate(req);
-  if (!auth.ok) return auth.response;
+  return withAuth(req, async (auth) => {
   const rows = await db.select().from(tables.workflows).orderBy(desc(tables.workflows.createdAt));
   return json({
     workflows: rows.map((r) => ({
@@ -59,11 +58,11 @@ export async function GET(req: Request) {
       actions: JSON.parse(r.actions),
     })),
   });
+  });
 }
 
 export async function POST(req: Request) {
-  const auth = await authenticate(req);
-  if (!auth.ok) return auth.response;
+  return withAuth(req, async (auth) => {
   const body = await parseBody(req, workflowInput);
   if (!body.ok) return body.response;
   const id = newId();
@@ -79,4 +78,5 @@ export async function POST(req: Request) {
     });
   const row = (await db.select().from(tables.workflows).where(eq(tables.workflows.id, id)).limit(1))[0]!;
   return json({ workflow: { ...row, enabled: row.enabled === 1 } }, { status: 201 });
+  });
 }

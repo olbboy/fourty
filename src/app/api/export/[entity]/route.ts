@@ -1,10 +1,9 @@
 import { db, tables } from "@/db";
-import { authenticate, apiError } from "@/lib/api";
+import { withAuth, apiError } from "@/lib/api";
 import { toCsv } from "@/lib/csv";
 
 export async function GET(req: Request, { params }: { params: Promise<{ entity: string }> }) {
-  const auth = await authenticate(req);
-  if (!auth.ok) return auth.response;
+  return withAuth(req, async (auth) => {
   const { entity } = await params;
 
   let csv: string;
@@ -43,5 +42,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ entity: 
       "content-type": "text/csv; charset=utf-8",
       "content-disposition": `attachment; filename="fourty-${entity}-${new Date().toISOString().slice(0, 10)}.csv"`,
     },
+  });
   });
 }

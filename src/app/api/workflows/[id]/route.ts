@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { desc, eq } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { authenticate, json, apiError, parseBody } from "@/lib/api";
+import { withAuth, json, apiError, parseBody } from "@/lib/api";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -14,8 +14,7 @@ const patchSchema = z.object({
 });
 
 export async function GET(req: Request, { params }: Params) {
-  const auth = await authenticate(req);
-  if (!auth.ok) return auth.response;
+  return withAuth(req, async (auth) => {
   const { id } = await params;
   const row = (await db.select().from(tables.workflows).where(eq(tables.workflows.id, id)).limit(1))[0];
   if (!row) return apiError("Workflow not found", 404);
@@ -35,11 +34,11 @@ export async function GET(req: Request, { params }: Params) {
     },
     runs: runs.map((r) => ({ ...r, log: JSON.parse(r.log) })),
   });
+  });
 }
 
 export async function PATCH(req: Request, { params }: Params) {
-  const auth = await authenticate(req);
-  if (!auth.ok) return auth.response;
+  return withAuth(req, async (auth) => {
   const { id } = await params;
   const existing = (await db.select().from(tables.workflows).where(eq(tables.workflows.id, id)).limit(1))[0];
   if (!existing) return apiError("Workflow not found", 404);
@@ -56,13 +55,14 @@ export async function PATCH(req: Request, { params }: Params) {
     })
     .where(eq(tables.workflows.id, id));
   return json({ ok: true });
+  });
 }
 
 export async function DELETE(req: Request, { params }: Params) {
-  const auth = await authenticate(req);
-  if (!auth.ok) return auth.response;
+  return withAuth(req, async (auth) => {
   const { id } = await params;
   await db.delete(tables.workflows).where(eq(tables.workflows.id, id));
   await db.delete(tables.workflowRuns).where(eq(tables.workflowRuns.workflowId, id));
   return json({ ok: true });
+  });
 }

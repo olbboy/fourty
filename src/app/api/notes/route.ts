@@ -1,14 +1,13 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { authenticate, json, parseBody } from "@/lib/api";
+import { withAuth, json, parseBody } from "@/lib/api";
 import { newId } from "@/lib/id";
 import { logActivity } from "@/lib/activity";
 import { recomputeContactScore } from "@/lib/services/contact-score";
 import { noteInput } from "@/lib/validators";
 
 export async function GET(req: Request) {
-  const auth = await authenticate(req);
-  if (!auth.ok) return auth.response;
+  return withAuth(req, async (auth) => {
   const params = new URL(req.url).searchParams;
   const entityType = params.get("entityType");
   const entityId = params.get("entityId");
@@ -19,11 +18,11 @@ export async function GET(req: Request) {
     .where(and(eq(tables.notes.entityType, entityType), eq(tables.notes.entityId, entityId)))
     .orderBy(desc(tables.notes.createdAt));
   return json({ notes: rows });
+  });
 }
 
 export async function POST(req: Request) {
-  const auth = await authenticate(req);
-  if (!auth.ok) return auth.response;
+  return withAuth(req, async (auth) => {
   const body = await parseBody(req, noteInput);
   if (!body.ok) return body.response;
   const id = newId();
@@ -40,4 +39,5 @@ export async function POST(req: Request) {
   if (body.data.entityType === "contact") await recomputeContactScore(body.data.entityId);
   const row = (await db.select().from(tables.notes).where(eq(tables.notes.id, id)).limit(1))[0]!;
   return json({ note: row }, { status: 201 });
+  });
 }

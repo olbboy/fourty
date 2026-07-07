@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { eq, isNull, and } from "drizzle-orm";
 import { z } from "zod";
-import { db, tables } from "@/db";
+import { db, tables, withWorkspace } from "@/db";
 import { getSessionUser, sha256, type SessionUser } from "./auth";
 
 export function json(data: unknown, init?: ResponseInit) {
@@ -20,12 +20,20 @@ export function tooManyRequests(message: string, retryAfter: number) {
   );
 }
 
-export type AuthResult =
-  | { ok: true; user: SessionUser | null; viaApiKey: boolean }
-  | { ok: false; response: NextResponse };
+export type AuthOk = {
+  ok: true;
+  user: SessionUser | null;
+  /** The workspace this request acts within (from the API key or session). */
+  workspaceId: string;
+  viaApiKey: boolean;
+};
+export type AuthResult = AuthOk | { ok: false; response: NextResponse };
 
 /**
- * Authenticate a request: session cookie (app UI) or Bearer API key (public REST API).
+ * Authenticate a request: session cookie (app UI) or Bearer API key (public REST
+ * API). Both resolve the request's workspace — an API key belongs to exactly one
+ * workspace; a session carries its active workspace. That workspace is the only
+ * one the request can ever touch (enforced by RLS via withAuth/withWorkspace).
  */
 export async function authenticate(req: Request): Promise<AuthResult> {
   const authHeader = req.headers.get("authorization");
@@ -43,13 +51,28 @@ export async function authenticate(req: Request): Promise<AuthResult> {
         .update(tables.apiKeys)
         .set({ lastUsedAt: Date.now() })
         .where(eq(tables.apiKeys.id, row.id));
-      return { ok: true, user: null, viaApiKey: true };
+      return { ok: true, user: null, workspaceId: row.workspaceId, viaApiKey: true };
     }
     return { ok: false, response: apiError("Invalid API key", 401) };
   }
   const user = await getSessionUser();
-  if (user) return { ok: true, user, viaApiKey: false };
-  return { ok: false, response: apiError("Unauthorized", 401) };
+  if (!user) return { ok: false, response: apiError("Unauthorized", 401) };
+  if (!user.workspaceId) return { ok: false, response: apiError("No active workspace", 401) };
+  return { ok: true, user, workspaceId: user.workspaceId, viaApiKey: false };
+}
+
+/**
+ * Authenticate, then run `handler` inside the request's workspace transaction so
+ * every `db` query is RLS-scoped to that workspace. Wrap every data route in
+ * this. `SET LOCAL app.workspace_id` is issued once for the whole handler.
+ */
+export async function withAuth(
+  req: Request,
+  handler: (auth: AuthOk) => Promise<Response> | Response,
+): Promise<Response> {
+  const auth = await authenticate(req);
+  if (!auth.ok) return auth.response;
+  return withWorkspace(auth.workspaceId, async () => handler(auth));
 }
 
 /** Parse + validate a JSON body against a zod schema, returning a typed result or a 400. */

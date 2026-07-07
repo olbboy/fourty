@@ -1,6 +1,6 @@
 import { and, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { authenticate, json, parseBody } from "@/lib/api";
+import { withAuth, json, parseBody } from "@/lib/api";
 import { newId } from "@/lib/id";
 import { logActivity } from "@/lib/activity";
 import { dispatchEvent } from "@/lib/workflows/engine";
@@ -8,8 +8,7 @@ import { recomputeContactScore } from "@/lib/services/contact-score";
 import { contactInput } from "@/lib/validators";
 
 export async function GET(req: Request) {
-  const auth = await authenticate(req);
-  if (!auth.ok) return auth.response;
+  return withAuth(req, async (auth) => {
   const params = new URL(req.url).searchParams;
   const q = params.get("q")?.trim();
   const status = params.get("status");
@@ -48,11 +47,11 @@ export async function GET(req: Request) {
     .limit(limit);
 
   return json({ contacts: rows.map((r) => ({ ...r, custom: JSON.parse(r.custom) })) });
+  });
 }
 
 export async function POST(req: Request) {
-  const auth = await authenticate(req);
-  if (!auth.ok) return auth.response;
+  return withAuth(req, async (auth) => {
   const body = await parseBody(req, contactInput);
   if (!body.ok) return body.response;
 
@@ -79,4 +78,5 @@ export async function POST(req: Request) {
     snapshot: { ...row, custom: undefined },
   });
   return json({ contact: { ...row, custom: JSON.parse(row.custom) } }, { status: 201 });
+  });
 }

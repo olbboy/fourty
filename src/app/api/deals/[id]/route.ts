@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { authenticate, json, apiError, parseBody } from "@/lib/api";
+import { withAuth, json, apiError, parseBody } from "@/lib/api";
 import { logActivity } from "@/lib/activity";
 import { dispatchEvent } from "@/lib/workflows/engine";
 import { dealPatch } from "@/lib/validators";
@@ -8,17 +8,16 @@ import { dealPatch } from "@/lib/validators";
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(req: Request, { params }: Params) {
-  const auth = await authenticate(req);
-  if (!auth.ok) return auth.response;
+  return withAuth(req, async (auth) => {
   const { id } = await params;
   const row = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0];
   if (!row) return apiError("Deal not found", 404);
   return json({ deal: { ...row, custom: JSON.parse(row.custom) } });
+  });
 }
 
 export async function PATCH(req: Request, { params }: Params) {
-  const auth = await authenticate(req);
-  if (!auth.ok) return auth.response;
+  return withAuth(req, async (auth) => {
   const { id } = await params;
   const existing = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0];
   if (!existing) return apiError("Deal not found", 404);
@@ -87,11 +86,11 @@ export async function PATCH(req: Request, { params }: Params) {
     });
   }
   return json({ deal: { ...row, custom: JSON.parse(row.custom) } });
+  });
 }
 
 export async function DELETE(req: Request, { params }: Params) {
-  const auth = await authenticate(req);
-  if (!auth.ok) return auth.response;
+  return withAuth(req, async (auth) => {
   const { id } = await params;
   const existing = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0];
   if (!existing) return apiError("Deal not found", 404);
@@ -99,4 +98,5 @@ export async function DELETE(req: Request, { params }: Params) {
   await db.delete(tables.notes).where(eq(tables.notes.entityId, id));
   await db.delete(tables.activities).where(eq(tables.activities.entityId, id));
   return json({ ok: true });
+  });
 }

@@ -1,7 +1,8 @@
 # Fourty — one-command self-host (ADR-006).
 #   docker compose up --build
-# Brings up Postgres, runs migrations once, then starts the app on :3000.
-# The background worker (pg-boss) arrives in Gate B4.
+# Brings up Postgres, runs migrations once (as the owner role), then starts the
+# app (as the non-owner, RLS-subject role fourty_app). Background worker
+# (pg-boss) arrives in Gate B4.
 services:
   postgres:
     image: postgres:16
@@ -9,20 +10,23 @@ services:
       POSTGRES_USER: fourty
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fourty}
       POSTGRES_DB: fourty
+      FOURTY_APP_PASSWORD: ${FOURTY_APP_PASSWORD:-fourty_app}
     volumes:
       - fourty-pg:/var/lib/postgresql/data
+      # Creates the fourty_app application role on first init (ADR-001).
+      - ./docker/init-fourty-app.sh:/docker-entrypoint-initdb.d/10-fourty-app.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U fourty -d fourty"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # One-shot: apply migrations, then exit. App waits for this to complete.
+  # One-shot: apply migrations as the OWNER role, then exit. App waits for it.
   migrate:
     build: .
     command: ["npm", "run", "db:migrate"]
     environment:
-      DATABASE_URL: postgresql://fourty:${POSTGRES_PASSWORD:-fourty}@postgres:5432/fourty
+      MIGRATE_DATABASE_URL: postgresql://fourty:${POSTGRES_PASSWORD:-fourty}@postgres:5432/fourty
     depends_on:
       postgres:
         condition: service_healthy
@@ -31,7 +35,8 @@ services:
   app:
     build: .
     environment:
-      DATABASE_URL: postgresql://fourty:${POSTGRES_PASSWORD:-fourty}@postgres:5432/fourty
+      # App connects as the non-owner role so Postgres RLS applies (ADR-001).
+      DATABASE_URL: postgresql://fourty_app:${FOURTY_APP_PASSWORD:-fourty_app}@postgres:5432/fourty
       NODE_ENV: production
       PORT: 3000
       # Local demo runs over plain HTTP, so session cookies can't be Secure-only.

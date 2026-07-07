@@ -23,7 +23,9 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: postgresql://fourty:fourty@localhost:5432/fourty_test
+      # App/tests connect as the RLS-subject role; migrations as the owner.
+      DATABASE_URL: postgresql://fourty_app:fourty_app@localhost:5432/fourty_test
+      MIGRATE_DATABASE_URL: postgresql://fourty:fourty@localhost:5432/fourty_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -31,11 +33,15 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Provision app role + reversibility DB
+        run: |
+          PGPASSWORD=fourty psql -h localhost -U fourty -d fourty_test -c "CREATE ROLE fourty_app LOGIN PASSWORD 'fourty_app';"
+          PGPASSWORD=fourty psql -h localhost -U fourty -d fourty_test -c "CREATE DATABASE fourty_revtest OWNER fourty;"
       - name: Type check
         run: npx tsc --noEmit
-      - name: Migrate test database
+      - name: Migrate test database (as owner)
         run: npm run db:migrate
-      - name: Unit + integration + security tests (real Postgres)
+      - name: Unit + integration + isolation + security tests (real Postgres + RLS)
         run: npm test
       - name: Production build
         run: npm run build

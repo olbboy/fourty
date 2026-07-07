@@ -12,9 +12,12 @@ export default defineConfig({
     // files must not run in parallel (ADR-006 / pg-setup.ts).
     fileParallelism: false,
     env: {
-      // Every test process talks to the dedicated test database — never dev.
+      // App/query pool connects as the RLS-subject app role; migrations +
+      // truncation use the owner role. Both target the dedicated test database.
       DATABASE_URL:
-        process.env.DATABASE_URL ?? "postgresql://fourty:fourty@localhost:5432/fourty_test",
+        process.env.DATABASE_URL ?? "postgresql://fourty_app:fourty_app@localhost:5432/fourty_test",
+      MIGRATE_DATABASE_URL:
+        process.env.MIGRATE_DATABASE_URL ?? "postgresql://fourty:fourty@localhost:5432/fourty_test",
       NODE_ENV: "test",
     },
   },
