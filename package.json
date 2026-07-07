@@ -16,9 +16,6 @@
     "migrate-from-sqlite": "tsx scripts/migrate-from-sqlite.ts"
   },
   "dependencies": {
-    "@types/pg": "^8.20.0",
-    "better-sqlite3": "^11.10.0",
-    "drizzle-kit": "^0.31.10",
     "drizzle-orm": "^0.45.2",
     "next": "^15.3.4",
     "pg": "^8.22.0",
@@ -30,6 +27,9 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.10",
     "@types/better-sqlite3": "^7.6.13",
+    "@types/pg": "^8.20.0",
+    "better-sqlite3": "^11.10.0",
+    "drizzle-kit": "^0.31.10",
     "@types/node": "^22.15.32",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
