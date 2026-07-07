@@ -17,8 +17,8 @@ benchmark numbers are published because none were measured yet.
 |---|---|---|
 | **RULE #0 — ADRs** | ✅ DONE | `docs/adr/001..006` — tenancy(RLS), migrations, SQLite fate, queue, authz, deploy |
 | **B1 — Postgres foundation & migrations** | ✅ DONE | see below |
-| **B2 — Multi-tenancy + RLS + isolation suite** | ⏳ NEXT | not started — the point of no return |
-| **B3 — RBAC + user mgmt + audit log** | ⬜ pending | |
+| **B2 — Multi-tenancy + RLS + isolation suite** | ✅ DONE | `tests/tenant-isolation.test.ts` (6) — see below |
+| **B3 — RBAC + user mgmt + audit log** | ⏳ NEXT | membership roles exist; enforcement + invite + audit pending |
 | **B4 — Workers/queue + rate limit + observability + backup drill** | ⬜ pending | |
 | **B5 — Benchmark vs Twenty (same Postgres)** | ⬜ pending | |
 | **B6 — twenty-migrate + MCP server + docs** | ⬜ pending | |
@@ -46,37 +46,44 @@ sync→async conversion of all 24 API routes + libs (drizzle better-sqlite3 is
 sync; node-postgres is async). `like()`→`ilike()` for case-insensitive search
 parity. `better-sqlite3` demoted to devDependencies (migrate-tool-only).
 
-## Gate B2 — NEXT (the point of no return). Concrete plan
+## Gate B2 — DONE (evidence)
 
-Do these in order; do not merge until the isolation suite is 100% green.
+| Requirement | Status | Evidence |
+|---|---|---|
+| `workspace` + `workspace_member` tables; role on membership | ✅ | `src/db/schema.ts`, migration `0001_workspaces` |
+| `workspace_id NOT NULL` on every CRM table (13), composite indexes | ✅ | `0001_workspaces.sql` (DEFAULT `current_setting('app.workspace_id')` → fail-closed inserts) |
+| Postgres RLS ENABLE + **FORCE** + policies; non-owner app role + grants | ✅ | `0002_rls.sql` (hand-written); app connects as `fourty_app`, migrations as owner `fourty` |
+| App-layer scoping via a single choke point (no per-query edits, no bypass) | ✅ | `withWorkspace()` + AsyncLocalStorage proxy in `src/db/index.ts`; `withAuth()` wraps all 24 data routes; static guard test |
+| Auth carries workspace (API key → its ws; session → active ws); signup/login | ✅ | `src/lib/auth.ts`, `src/lib/api.ts`, `auth/setup`, `auth/login` |
+| **Isolation attack suite 100% pass** (cross-tenant REST → 404; key confined; RLS proof) | ✅ | `tests/tenant-isolation.test.ts` (6 tests) |
+| Migrations reversible incl. tenancy/RLS (full-chain up→down→up) | ✅ | `drizzle/down/0001,0002` + `tests/migration-reversibility.test.ts` |
+| migrate-from-sqlite lands data into a workspace (round-trip) | ✅ | `scripts/migrate-from-sqlite.ts` + `tests/migrate-from-sqlite.test.ts` |
 
-1. **Schema migration** (new drizzle migration `0001_workspaces`):
-   - `workspace(id, name, slug, created_at)`.
-   - `workspace_member(workspace_id, user_id, role)` — role ∈ admin/member/viewer (ADR-005).
-   - Add `workspace_id text NOT NULL` (FK → workspace) to every CRM table:
-     companies, contacts, pipelines, stages, deals, tasks, notes, activities,
-     custom_field_defs, workflows, workflow_runs, api_keys, saved_views.
-     Add composite indexes `(workspace_id, …)` on hot paths.
-   - Backfill: create a default workspace, set all existing rows to it (expand→migrate; safe for the migrate-from-sqlite path too).
-2. **RLS migration** (hand-written SQL, `0002_rls`):
-   - `ALTER TABLE … ENABLE ROW LEVEL SECURITY; ALTER TABLE … FORCE ROW LEVEL SECURITY;`
-   - Policy per table: `USING (workspace_id = current_setting('app.workspace_id', true)::uuid)` (uuid or text to match id type).
-   - Grants: `fourty_app` gets DML but NOT ownership; owner stays `fourty`.
-3. **Connection/repository layer**: a `withWorkspace(workspaceId, fn)` helper that
-   opens a transaction, runs `SET LOCAL app.workspace_id = $1`, and passes a tx
-   handle. Route the app runtime connection through the `fourty_app` role
-   (`APP_DATABASE_URL`). Every route uses this — add a static test forbidding raw
-   `db.` outside the repository layer.
-4. **Auth scoping**: session + API key carry `workspace_id`; `authenticate()`
-   returns the active workspace; signup creates a workspace; invite adds a member.
-5. **Isolation attack suite** (`tests/tenant-isolation.test.ts`) — DEFINITION OF
-   DONE for B2: two workspaces + users + API keys; assert cross-tenant
-   REST get/list/update/delete by foreign id → 404/403; API key A cannot read B;
-   webhook/workflow/attachment scoped; **plus** a direct-connection RLS proof
-   (query as `fourty_app` with a wrong `app.workspace_id` → 0 rows).
+**Live E2E:** setup creates a workspace; contacts/stats/search scoped to it as
+`fourty_app`; API key confined to its workspace; bad key → 401. **66/66 tests
+pass on real Postgres + RLS.**
 
-**First command for the next session:**
-`DATABASE_URL=postgresql://fourty:fourty@localhost:5432/fourty npx drizzle-kit generate --name workspaces` after adding the workspace tables + `workspace_id` columns to `src/db/schema.ts`.
+Design note (why it's safe): RLS is defense-in-depth. Even if a route forgot to
+scope a query, `fourty_app` + RLS returns zero rows (fail closed) rather than
+leaking. The isolation suite includes a direct-connection proof independent of
+app code.
+
+Known limits (honest): field-level permissions and RBAC *enforcement* are B3
+(membership roles exist but aren't yet checked per-action). `settings` table is
+global (unused by data routes). In-place B2 upgrade of a *populated* B1-Postgres
+DB needs a manual backfill (fresh installs + migrate-from-sqlite handle it).
+
+## Gate B3 — NEXT. Concrete plan
+1. **RBAC enforcement**: a permission matrix (role × object × action) checked in a
+   route-layer guard; `viewer` read-only, `member` CRM read/write, `admin` +settings/keys/members. Generated coverage test so a new route without a matrix entry fails CI (ADR-005).
+2. **User management API + UI**: invite (email token) → membership, change role,
+   remove member, deactivate; last admin cannot remove self.
+3. **Audit log**: append-only table (actor/workspace/action/target/ts) on
+   mutations + settings + auth; export; test that rows can't be updated/deleted.
+
+**First command for the next session:** add a `permissions.ts` matrix + a
+`requireRole()` guard, wire it into the mutating routes, and add
+`tests/rbac-matrix.test.ts`.
 
 ## Environment note (for session continuity)
 A real Postgres 16 is running locally in this container (`fourty` + `fourty_test`
