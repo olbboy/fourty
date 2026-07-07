@@ -10,33 +10,41 @@ Twice the CRM, half the complexity. One process, one file database, zero infrast
 
 ---
 
-> **Project status (read before deploying).** Fourty is a **single-team,
-> single-tenant** CRM — one shared dataset, one Node process. It is *not* a
-> multi-tenant / enterprise Twenty replacement today: there is no multi-tenancy,
-> no enforced RBAC, no SSO, and no MCP server yet. For an evidence-backed audit
-> of exactly what is and isn't implemented, see
-> [`CLAIMS.md`](./CLAIMS.md), the head-to-head [`PARITY.md`](./PARITY.md) vs
-> Twenty 2.0, the roadmap in [`PROGRESS.md`](./PROGRESS.md), and
-> [`SECURITY.md`](./SECURITY.md). Every claim here is cross-checked there against
-> code and passing tests.
+> **Project status (read before deploying).** Fourty is mid-migration to a
+> **Postgres multi-tenant** architecture ("Direction B", see [`docs/adr/`](./docs/adr)).
+> **Done:** the app now runs on **Postgres** with versioned, reversible
+> drizzle-kit migrations, a real-Postgres CI, and a one-command Docker Compose
+> stack (Gate B1). **Not done yet:** multi-tenancy + row-level security (the next
+> gate), enforced RBAC, SSO, and an MCP server — so today it is still effectively
+> **single-tenant** and *not* an enterprise Twenty replacement. Existing SQLite
+> users migrate with `npm run migrate-from-sqlite` (round-trip tested). For the
+> evidence-backed detail see [`CLAIMS.md`](./CLAIMS.md), [`PARITY.md`](./PARITY.md),
+> [`PROGRESS.md`](./PROGRESS.md), and [`SECURITY.md`](./SECURITY.md). Every claim is
+> cross-checked there against code and passing tests.
 
 ## Why Fourty?
 
-Most open-source CRMs make you pay an *ops tax* before you manage a single contact: a Postgres server, a Redis instance, a heavyweight monorepo, and a docker-compose file long enough to need its own code review. Fourty takes the opposite bet:
+Fourty aims to be the fastest open-source CRM to stand up and the easiest to run — a small, legible codebase (~8k LOC) with strong built-in analytics and lead scoring. It runs on **Postgres** with a one-command Docker Compose stack:
 
 ```bash
 git clone https://github.com/olbboy/fourty && cd fourty
-npm install && npm run build && npm start
+cp .env.example .env && docker compose up --build
 # → http://localhost:3000 — create your admin account, done.
 ```
 
-That's the whole deployment. SQLite (WAL mode) handles teams of dozens with ease, the workflow engine runs in-process with no queue server, and the entire app is a single Node process you can run on a $4 VPS, a Raspberry Pi, or a container platform.
+Compose brings up Postgres, runs the migrations once, and starts the app. No
+Redis and no separate queue server yet — the workflow engine runs in-process
+(a background worker lands in a later milestone; see [`docs/adr/004`](./docs/adr/004-queue-and-workers.md)).
+
+> _Historical note: Fourty began as a single-file SQLite app. It moved to
+> Postgres to enable multi-tenancy and scale (Direction B). Older SQLite
+> databases migrate losslessly with `npm run migrate-from-sqlite`._
 
 ### How it compares
 
 | | **Fourty** | Twenty | Salesforce |
 |---|---|---|---|
-| Deploy | 1 process, SQLite | Postgres + Redis + workers | Cloud only |
+| Deploy | Docker Compose (Postgres) | Postgres + Redis + workers | Cloud only |
 | Built-in analytics | Forecast, funnel, velocity, win/loss, aging, sources | Basic | Extensive ($$) |
 | Lead scoring | ✅ Automatic, zero-config | ❌ | Einstein ($$) |
 | Workflow automation | ✅ Visual builder, in-process, instant | Limited | Flow ($$) |
@@ -70,13 +78,21 @@ MCP server — see [`PARITY.md`](./PARITY.md) for the honest, cited matrix._
 
 ## Quickstart
 
-**Requirements:** Node.js 20+.
+**Fastest — Docker Compose** (bundles Postgres, runs migrations, starts the app):
+
+```bash
+cp .env.example .env
+docker compose up --build      # → http://localhost:3000
+```
+
+**From source** — requires Node.js 20+ and Postgres 16:
 
 ```bash
 npm install
-npm run dev        # development on :3000
-# or production:
-npm run build && npm start
+export DATABASE_URL=postgresql://user:pass@localhost:5432/fourty
+npm run db:migrate             # apply schema
+npm run dev                    # development on :3000
+# or production:  npm run build && npm start
 ```
 
 On first visit you'll create the admin account (optionally with sample data).
@@ -87,20 +103,23 @@ On first visit you'll create the admin account (optionally with sample data).
 npm run db:seed    # demo user: demo@fourty.dev / demo1234
 ```
 
-**Docker:**
+**Migrating from an older SQLite Fourty:**
 
 ```bash
-docker build -t fourty .
-docker run -p 3000:3000 -v fourty-data:/app/data fourty
+npm run db:migrate                                   # create the Postgres schema
+npm run migrate-from-sqlite -- --sqlite ./old/fourty.db --dry-run   # preview
+npm run migrate-from-sqlite -- --sqlite ./old/fourty.db            # copy data
 ```
 
 ### Configuration
 
 | Env var | Default | Purpose |
 |---|---|---|
-| `FOURTY_DB_PATH` | `./data/fourty.db` | SQLite location (`:memory:` for tests) |
-| `FOURTY_INSECURE_COOKIE` | unset | Set to `1` to allow session cookies over plain HTTP in production (behind a VPN, LAN, etc.) |
-| `PORT` | `3000` | HTTP port (`next start -p`) |
+| `DATABASE_URL` | `postgresql://fourty:fourty@localhost:5432/fourty` | Postgres connection string |
+| `PGPOOL_MAX` | `10` | Connection pool size per process |
+| `FOURTY_INSECURE_COOKIE` | unset | Set to `1` to allow session cookies over plain HTTP (behind a VPN/LAN or the local Compose demo) |
+| `FOURTY_ALLOW_PRIVATE_WEBHOOKS` | unset | Set to `1` to let workflow webhooks reach private/loopback addresses (off = SSRF-blocked) |
+| `PORT` | `3000` | HTTP port |
 
 ## REST API
 
@@ -136,27 +155,34 @@ Add a **webhook action** to any workflow and Fourty POSTs the full entity snapsh
 src/
   app/            Next.js App Router — pages + REST API routes
   components/     UI primitives, charts, panels (no component library)
-  db/             Drizzle schema, self-bootstrapping DDL, seed
+  db/             Drizzle (pg-core) schema, migrations, seed
   lib/
     scoring.ts    lead-score model (pure, tested)
     currency.ts   multi-currency conversion + formatting
     csv.ts        RFC-4180 parser/serializer (dependency-free)
     workflows/    event → conditions → actions engine (pure core, tested)
     services/     stats aggregation, score recompute
-tests/            vitest — 33 tests over the pure logic
+drizzle/          versioned SQL migrations (up + hand-written down)
+scripts/          migrate-from-sqlite tool
+tests/            vitest — 60 tests, run against real Postgres in CI
 ```
 
-Deliberate choices:
+Deliberate choices (see [`docs/adr/`](./docs/adr) for full rationale + trade-offs):
 
-- **SQLite over Postgres** — a CRM for a 5–50-person team is thousands of rows, not billions. WAL-mode SQLite gives single-digit-ms queries, trivial backups (`cp fourty.db backup.db`), and removes an entire class of ops failures. The data layer is Drizzle ORM, so a Postgres driver can be swapped in when you truly outgrow it.
-- **Synchronous workflows** — actions run in the same transaction context as the triggering request. No broker, no retries-of-retries; webhook calls are the only fire-and-forget part.
+- **Postgres + drizzle-kit migrations** — enables the multi-tenancy, RLS, and
+  concurrency that Direction B targets. Versioned, reversible migrations replace
+  the old runtime `CREATE TABLE IF NOT EXISTS` bootstrap.
+- **In-process workflows (for now)** — actions run in the request path today; a
+  Postgres-backed background queue (pg-boss) with retry/backoff moves them off
+  the request cycle in a later milestone (ADR-004).
 - **No component library** — the whole UI is ~40 small components on Tailwind; nothing to fork a theme from.
 
 ## Testing
 
 ```bash
-npm test          # vitest: scoring, CSV, currency, workflow conditions, engine integration
-npm run build     # type-checks and compiles
+npm run db:migrate   # apply schema to $DATABASE_URL (a test Postgres)
+npm test             # vitest: unit + API integration + security, on real Postgres
+npm run build        # type-checks and compiles
 ```
 
 ## License

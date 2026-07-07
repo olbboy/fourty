@@ -1,5 +1,11 @@
 # PARITY.md — Fourty vs Twenty 2.0
 
+> **Status (2026-07-07): Direction B underway.** Fourty is now on **Postgres**
+> with drizzle-kit migrations (Gate B1 done — see `PROGRESS.md`). Multi-tenancy +
+> RLS (Gate B2) is the next step and is **not yet implemented**, so the tenancy
+> rows below still read ❌. This document tracks the gap as it closes; do not read
+> a ✅ into anything not yet backed by a test.
+
 > **Honesty note.** Twenty's capabilities below are sourced from Twenty's
 > official docs, release notes, and the 2.0 launch coverage (April 21, 2026) —
 > **cited inline** — not from memory. A full local head-to-head (both stacks up
@@ -25,12 +31,13 @@
 
 | Capability | Twenty 2.0 | Fourty | Notes |
 |---|---|---|---|
-| Self-host | ✅ Docker Compose (Postgres+Redis+workers) [1] | ✅ 1 process + SQLite | Fourty wins on simplicity; Twenty on scale. |
-| One-command deploy | 🟡 compose stack | ✅ `npm start` / one container | Fourty's real advantage. |
-| Zero-downtime migration | ✅ migration tooling | ❌ no migrations at all | Fourty uses idempotent DDL; **no up/down**. |
+| Self-host | ✅ Docker Compose (Postgres+Redis+workers) [1] | ✅ Docker Compose (Postgres + migrate + app) | Fourty now Postgres-based (B1); worker service in B4. |
+| One-command deploy | 🟡 compose stack | ✅ `docker compose up` (authored; healthcheck + migrate one-shot) | Compose not yet run in CI (no daemon); app boots on PG (E2E verified). |
+| Reversible migrations | ✅ migration tooling | ✅ drizzle-kit + tested up/down | Was ❌ (idempotent DDL); now versioned + reversibility test. |
+| Zero-downtime migration | ✅ | 🟡 expand→migrate→contract documented (ADR-002); demo pending B4 | |
 | Helm chart | 🟡 community | ❌ | Neither first-class here. |
-| Horizontal scale | ✅ workers, queue | ❌ single process by design | Fourty caps at one node. |
-| Backup/restore | ✅ pg_dump | 🟡 `cp fourty.db` (no tested drill) | Fourty simpler; drill not automated. |
+| Horizontal scale | ✅ workers, queue | 🟡 stateless app scales; queue/worker in B4 | SQLite ceiling removed; worker pending. |
+| Backup/restore | ✅ pg_dump | 🟡 pg_dump possible; tested drill pending B4 | |
 
 ## B. Security & multi-tenancy
 
