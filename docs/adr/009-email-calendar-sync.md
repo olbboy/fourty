@@ -23,14 +23,29 @@ an honest boundary at the network transport.
      `last_activity_at`, so synced items appear on the existing timeline.
 - The **transport is the injectable edge**. `POST /api/sync/accounts/[id]/ingest`
   accepts raw messages/ICS (a mail webhook, the worker, or an IMAP poller pushes
-  here). `POST …/run` implements the `ics` feed-URL pull with the existing
-  SSRF guard. OAuth/IMAP/Gmail/Microsoft fetch plugs in at this seam and calls the
-  same engine; **those network transports are not exercised by the test suite**,
-  which is stated plainly rather than mocked into a green checkmark.
+  here). `POST …/run` pulls live: `ics` fetches the feed URL (SSRF-guarded); every
+  provider network call routes through an injectable `HttpFetcher`
+  (`src/lib/sync/http.ts`).
+
+## Update (mail OAuth transport built)
+The **Google + Microsoft mail transport** is now implemented (`src/lib/sync/`):
+- `oauth.ts` — Authorization Code + PKCE, offline access, `exchangeCode` /
+  `refreshAccessToken`. One OAuth app **per provider via env** (client = the app,
+  not the user); only the resulting tokens are stored, on `sync_accounts.config`.
+- `fetch-mail.ts` — Gmail (`format=raw`) and Graph (`/$value`) return **raw
+  RFC822**, which feeds the existing `ingestEmails` engine with no new parser.
+- Connect flow: `…/connect` → provider consent (state + PKCE in an httpOnly
+  cookie) → `…/oauth/callback` stores tokens; `…/run` refreshes and pulls.
+- **Tested at the boundary** against a fake provider (`sync.test.ts`): consent URL,
+  code exchange/refresh, Gmail/Graph fetch, and a full run → ingest → contact-link.
+- **Calendar over OAuth is deferred**: provider calendar APIs return JSON (not
+  ICS), needing a new ingest path — calendar is covered today by the `ics` feed
+  URL. SAML-style/IMAP transports remain the same injectable seam.
 
 ## Consequences
 - Idempotent ingestion is at-least-once-delivery friendly (fits the Gate B4 queue).
-- Account `config` may hold secrets (IMAP password, OAuth token ref); the API
-  **redacts** them on read and only surfaces non-secret hints (host/url).
-- Full provider OAuth flows + historical backfill are a later tier; the data model
-  and engine are built to receive them.
+- Account `config` holds secrets (IMAP password, **OAuth tokens**); the API
+  **redacts** them on read and only surfaces non-secret hints (host/url/`connected`).
+  Encrypting these at rest is a follow-up.
+- Historical backfill + provider push/watch subscriptions are a later tier; the
+  data model and engine are built to receive them.

@@ -4,15 +4,16 @@ import { withAuth, authorize, json, apiError } from "@/lib/api";
 import { audit } from "@/lib/audit";
 import { checkWebhookUrl } from "@/lib/net";
 import { ingestCalendar } from "@/lib/sync/ingest";
+import { runMailSync } from "@/lib/sync/transport";
 
 type Params = { params: Promise<{ id: string }> };
 
 /**
- * Trigger a live pull for an account (Gate C6). Implemented for the `ics` provider:
- * fetch the feed URL (SSRF-guarded via checkWebhookUrl) and run it through the same
- * ingest engine as the push endpoint. IMAP/Gmail/Microsoft transports are the
- * injectable edge — their OAuth/IMAP fetch plugs in here and then calls
- * ingestEmails(); those network transports are not exercised by the test suite.
+ * Trigger a live pull for an account (Gate C6). `ics` fetches the feed URL
+ * (SSRF-guarded) and ingests it; `google`/`microsoft` use the connected OAuth
+ * token to pull recent mail (Gate C6 completion, ADR-009) and run it through the
+ * same ingestion engine as the push endpoint. The provider network calls are the
+ * injectable edge (`src/lib/sync/http.ts`).
  */
 export async function POST(req: Request, { params }: Params) {
   return withAuth(req, async (auth) => {
@@ -23,6 +24,26 @@ export async function POST(req: Request, { params }: Params) {
       await db.select().from(tables.syncAccounts).where(eq(tables.syncAccounts.id, id)).limit(1)
     )[0];
     if (!account) return apiError("Account not found", 404);
+
+    // OAuth mailbox providers: refresh token → fetch recent mail → ingest.
+    if (account.provider === "google" || account.provider === "microsoft") {
+      try {
+        const emails = await runMailSync(account, { limit: 50 });
+        await db
+          .update(tables.syncAccounts)
+          .set({ lastSyncedAt: Date.now(), status: "active", lastError: null })
+          .where(eq(tables.syncAccounts.id, id));
+        await audit(auth.user?.id, "sync_account.ran", { objectType: "sync_account", objectId: id, meta: { emails } });
+        return json({ emails });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "sync failed";
+        await db
+          .update(tables.syncAccounts)
+          .set({ status: "error", lastError: message })
+          .where(eq(tables.syncAccounts.id, id));
+        return apiError(`Mail sync failed: ${message}`, 502);
+      }
+    }
 
     const cfg = JSON.parse(account.config) as { url?: string };
     if (account.provider !== "ics" || !cfg.url) {
