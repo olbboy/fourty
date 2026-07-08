@@ -3,6 +3,7 @@ import { db, tables, currentStore } from "@/db";
 import { newId } from "@/lib/id";
 import { logActivity } from "@/lib/activity";
 import { enqueue } from "@/lib/queue";
+import { getOrCreateSigningSecret, signatureHeaders } from "@/lib/webhook-sign";
 import { evaluateConditions, renderTemplate } from "./evaluate";
 import type { EventContext, WorkflowAction, WorkflowDef } from "./types";
 
@@ -155,7 +156,12 @@ async function runAction(action: WorkflowAction, ctx: EventContext): Promise<str
       // — no longer lost on failure, and off the request path.
       const workspaceId = currentStore().workspaceId;
       if (workspaceId) {
-        await enqueue("webhook.deliver", { url: action.url, body: payload, event: ctx.event }, {
+        // Sign the payload with the workspace secret (Gate D3) so the receiver can
+        // verify authenticity + reject replays. Computed here (in workspace
+        // context) and carried on the job for the worker to set as headers.
+        const secret = await getOrCreateSigningSecret();
+        const headers = signatureHeaders(secret, payload);
+        await enqueue("webhook.deliver", { url: action.url, body: payload, event: ctx.event, headers }, {
           workspaceId,
         });
       }
