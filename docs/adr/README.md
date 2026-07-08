@@ -18,6 +18,9 @@ are short by design.
 | [008](./008-graphql-api.md) | Auto GraphQL API on the reference `graphql` package | Accepted |
 | [009](./009-email-calendar-sync.md) | Email & calendar sync: engine in-repo, transport injectable | Accepted |
 | [010](./010-mcp-server.md) | Native MCP server: hand-rolled stdio JSON-RPC | Accepted |
+| [011](./011-field-level-permissions.md) | Field-level permissions: sparse rules + enforce helper | Accepted |
+| [012](./012-two-factor-auth.md) | Two-factor auth: TOTP + backup codes on node:crypto | Accepted |
+| [013](./013-webhook-signatures.md) | Signed webhooks: per-workspace HMAC-SHA256 | Accepted |
 
 _Grounded via web research (Drizzle RLS docs, Postgres multi-tenancy patterns,
 Twenty's architecture, pg-boss vs BullMQ). Sources cited inline._
