@@ -21,6 +21,11 @@ export async function resetDb(): Promise<void> {
     await runMigrations(OWNER_DSN);
     migrated = true;
   }
+  // Clear in-process counters so each file starts from a clean slate (Gate B4).
+  const { __resetRateLimits } = await import("@/lib/ratelimit");
+  const { __resetMetrics } = await import("@/lib/metrics");
+  __resetRateLimits();
+  __resetMetrics();
   const client = new pg.Client({ connectionString: OWNER_DSN });
   await client.connect();
   try {

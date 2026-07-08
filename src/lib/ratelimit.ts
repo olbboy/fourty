@@ -15,8 +15,12 @@ const buckets = new Map<string, Hit>();
 
 export type RateLimitResult = {
   allowed: boolean;
+  /** The configured ceiling for this window (for a `RateLimit-Limit` header). */
+  limit: number;
   remaining: number;
-  /** Seconds until the window resets (for a `Retry-After` header). */
+  /** Seconds until the window resets (for `RateLimit-Reset`). */
+  resetSeconds: number;
+  /** Seconds until the caller may retry (for a `Retry-After` header; 0 if allowed). */
   retryAfter: number;
 };
 
@@ -33,15 +37,60 @@ export function rateLimit(
   const existing = buckets.get(key);
   if (!existing || existing.resetAt <= now) {
     buckets.set(key, { count: 1, resetAt: now + opts.windowMs });
-    return { allowed: true, remaining: opts.limit - 1, retryAfter: 0 };
+    return {
+      allowed: true,
+      limit: opts.limit,
+      remaining: opts.limit - 1,
+      resetSeconds: Math.ceil(opts.windowMs / 1000),
+      retryAfter: 0,
+    };
   }
   existing.count += 1;
   const allowed = existing.count <= opts.limit;
+  const resetSeconds = Math.max(0, Math.ceil((existing.resetAt - now) / 1000));
   return {
     allowed,
+    limit: opts.limit,
     remaining: Math.max(0, opts.limit - existing.count),
-    retryAfter: allowed ? 0 : Math.ceil((existing.resetAt - now) / 1000),
+    resetSeconds,
+    retryAfter: allowed ? 0 : resetSeconds,
   };
+}
+
+/** Request budget class: reads are cheap, writes moderate, bulk import/export scarce. */
+export type RouteClass = "read" | "write" | "bulk";
+
+export function routeClass(req: Request): RouteClass {
+  const { pathname } = new URL(req.url);
+  if (pathname.startsWith("/api/import") || pathname.startsWith("/api/export")) return "bulk";
+  return req.method === "GET" || req.method === "HEAD" ? "read" : "write";
+}
+
+/** Per-class budget, overridable via env (read at call time so tests can tune it). */
+function budgetFor(cls: RouteClass): { limit: number; windowMs: number } {
+  const windowMs = Number(process.env.RATELIMIT_WINDOW_MS ?? 60_000);
+  const limit =
+    cls === "read"
+      ? Number(process.env.RATELIMIT_READ ?? 600)
+      : cls === "write"
+        ? Number(process.env.RATELIMIT_WRITE ?? 300)
+        : Number(process.env.RATELIMIT_BULK ?? 60);
+  return { limit, windowMs };
+}
+
+/**
+ * Apply the whole-API rate limit for a request by an authenticated caller.
+ * Keyed by caller identity + client IP + route class, so a read flood can't
+ * starve writes and one tenant's key can't exhaust another's budget.
+ */
+export function apiRateLimit(
+  req: Request,
+  identity: string,
+  now: number = Date.now(),
+): RateLimitResult {
+  const cls = routeClass(req);
+  const { limit, windowMs } = budgetFor(cls);
+  return rateLimit(`api:${cls}:${identity}:${clientIp(req)}`, { limit, windowMs }, now);
 }
 
 /** Best-effort client IP from proxy headers, falling back to a shared bucket. */

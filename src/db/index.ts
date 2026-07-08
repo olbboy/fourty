@@ -23,22 +23,51 @@ function createPool(): pg.Pool {
   });
 }
 
+/**
+ * Per-request async-context store. Carries the workspace-scoped transaction plus
+ * observability breadcrumbs (request_id, workspace_id) so a request-scoped logger
+ * and metrics can attach them without threading parameters through every call
+ * (Gate B4). Fields are optional so the store can be entered for context alone
+ * (withContext) before a transaction opens (withWorkspace).
+ */
+export type RequestStore = {
+  tx?: Tx;
+  requestId?: string;
+  workspaceId?: string;
+};
+
 // Survive Next.js dev-mode HMR without leaking pools.
 const globalForDb = globalThis as unknown as {
   __fourtyPool?: pg.Pool;
-  __fourtyAls?: AsyncLocalStorage<{ tx: Tx }>;
+  __fourtyAls?: AsyncLocalStorage<RequestStore>;
 };
 export const pool = globalForDb.__fourtyPool ?? createPool();
 if (process.env.NODE_ENV !== "production") globalForDb.__fourtyPool = pool;
 
 const baseDb: Db = drizzle(pool, { schema });
 
-// Carries the workspace-scoped transaction for the current async context.
-const als = globalForDb.__fourtyAls ?? new AsyncLocalStorage<{ tx: Tx }>();
+// Carries the workspace-scoped transaction + request context for the current
+// async context.
+const als = globalForDb.__fourtyAls ?? new AsyncLocalStorage<RequestStore>();
 if (process.env.NODE_ENV !== "production") globalForDb.__fourtyAls = als;
 
 function active(): Db {
   return (als.getStore()?.tx as unknown as Db) ?? baseDb;
+}
+
+/** The current request's async-context store (empty object outside a request). */
+export function currentStore(): RequestStore {
+  return als.getStore() ?? {};
+}
+
+/**
+ * Enter (or extend) the async context with request-scoped fields, without
+ * opening a transaction. withAuth wraps the handler in this so the request_id +
+ * workspace_id are visible to the logger/metrics even before/around
+ * withWorkspace's transaction.
+ */
+export function withContext<T>(ctx: Partial<RequestStore>, fn: () => Promise<T>): Promise<T> {
+  return als.run({ ...currentStore(), ...ctx }, fn);
 }
 
 /**
@@ -64,9 +93,10 @@ export const db: Db = new Proxy({} as Db, {
  */
 export async function withWorkspace<T>(workspaceId: string, fn: () => Promise<T>): Promise<T> {
   if (!workspaceId) throw new Error("withWorkspace: workspaceId is required");
+  const prev = currentStore();
   return baseDb.transaction(async (tx) => {
     await tx.execute(sql`select set_config('app.workspace_id', ${workspaceId}, true)`);
-    return als.run({ tx }, fn);
+    return als.run({ ...prev, tx, workspaceId }, fn);
   });
 }
 

@@ -341,3 +341,19 @@ export const savedViews = pgTable("saved_views", {
   userId: text("user_id"),
   createdAt: millis("created_at").notNull(),
 });
+
+// Idempotency ledger for background jobs (Gate B4, ADR-004). A job handler
+// claims its idempotency key here (INSERT … ON CONFLICT DO NOTHING) before doing
+// side effects, so at-least-once delivery (a worker killed after the side effect
+// but before ack → redelivery) still yields exactly-once results. Workspace-
+// scoped + RLS: a job's receipt lives in the same tenant as its work.
+export const jobReceipts = pgTable(
+  "job_receipts",
+  {
+    workspaceId: workspaceId(),
+    key: text("key").notNull(), // the job's idempotency key
+    queue: text("queue").notNull(),
+    createdAt: millis("created_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.workspaceId, t.key] })],
+);
