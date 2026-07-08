@@ -6,6 +6,7 @@ import { audit } from "@/lib/audit";
 import { dispatchEvent } from "@/lib/workflows/engine";
 import { recomputeContactScore } from "@/lib/services/contact-score";
 import { contactPatch } from "@/lib/validators";
+import { loadFieldPolicy, redact, blockedWrites } from "@/lib/field-permissions";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -14,7 +15,8 @@ export async function GET(req: Request, { params }: Params) {
   const { id } = await params;
   const row = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0];
   if (!row) return apiError("Contact not found", 404);
-  return json({ contact: { ...row, custom: JSON.parse(row.custom) } });
+  const policy = await loadFieldPolicy(auth.role);
+  return json({ contact: redact(policy, "contacts", { ...row, custom: JSON.parse(row.custom) }) });
   });
 }
 
@@ -28,6 +30,10 @@ export async function PATCH(req: Request, { params }: Params) {
 
   const body = await parseBody(req, contactPatch);
   if (!body.ok) return body.response;
+
+  const policy = await loadFieldPolicy(auth.role);
+  const blocked = blockedWrites(policy, "contacts", body.keys);
+  if (blocked.length) return apiError(`Not permitted to set field(s): ${blocked.join(", ")}`, 403);
 
   const { custom, ...fields } = body.data;
   const changed = Object.keys(fields).filter(
@@ -61,7 +67,7 @@ export async function PATCH(req: Request, { params }: Params) {
     entityId: id,
     snapshot: { ...row, custom: undefined, changedFields: changed.join(",") },
   });
-  return json({ contact: { ...row, custom: JSON.parse(row.custom) } });
+  return json({ contact: redact(policy, "contacts", { ...row, custom: JSON.parse(row.custom) }) });
   });
 }
 
