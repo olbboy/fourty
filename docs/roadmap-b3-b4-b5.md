@@ -83,7 +83,20 @@ every mutation is audit-logged immutably.
 
 ---
 
-## Gate B4 — Workers/queue + rate limit + observability + backup drill
+## Gate B4 — Workers/queue + rate limit + observability + backup drill — ✅ DONE
+
+> **Done (2026-07-08).** Delivered per this plan: pg-boss queue (`src/lib/queue.ts`,
+> own `pgboss` schema, `inline`/`pgboss` drivers) + standalone worker
+> (`src/worker/`, `npm run worker`, Compose `worker` service); webhook delivery +
+> workflow dispatch moved off the request path with retry/backoff/dead-letter;
+> `job_receipts` idempotency ledger (`0005_queue`) → **exactly-once proven by a
+> SIGKILL-mid-run worker test**. Whole-API rate limit in `withAuth`
+> (`RateLimit-*`/`Retry-After`, per-route budgets). `pino` request-scoped logs +
+> `GET /metrics` (Prometheus: HTTP counter/histogram, DB-pool + queue-depth
+> gauges) + optional OTel hook. `scripts/backup-drill.sh` **ran PASS (21 tables)**;
+> `bench/zero-downtime.k6.js` authored. Evidence: `worker.test.ts`,
+> `ratelimit.test.ts`, `metrics.test.ts`, 94/94 green, live E2E, backup-drill log.
+> See `PROGRESS.md` § Gate B4. **Next: Gate B5.**
 
 **Objective:** heavy/async work leaves the request path durably; the stack is
 observable and its backups are proven.

@@ -32,9 +32,10 @@ cp .env.example .env && docker compose up --build
 # → http://localhost:3000 — create your admin account, done.
 ```
 
-Compose brings up Postgres, runs the migrations once, and starts the app. No
-Redis and no separate queue server yet — the workflow engine runs in-process
-(a background worker lands in a later milestone; see [`docs/adr/004`](./docs/adr/004-queue-and-workers.md)).
+Compose brings up Postgres, runs the migrations once, then starts the app **and a
+background worker**. The worker drains webhook + workflow jobs from a
+Postgres-backed queue (**pg-boss** — no Redis) with retry, exponential backoff and
+a dead-letter queue; see [`docs/adr/004`](./docs/adr/004-queue-and-workers.md).
 
 > _Historical note: Fourty began as a single-file SQLite app. It moved to
 > Postgres to enable multi-tenancy and scale (Direction B). Older SQLite
@@ -44,7 +45,7 @@ Redis and no separate queue server yet — the workflow engine runs in-process
 
 | | **Fourty** | Twenty | Salesforce |
 |---|---|---|---|
-| Deploy | Docker Compose (Postgres) | Postgres + Redis + workers | Cloud only |
+| Deploy | Docker Compose (Postgres + worker) | Postgres + Redis + workers | Cloud only |
 | Built-in analytics | Forecast, funnel, velocity, win/loss, aging, sources | Basic | Extensive ($$) |
 | Lead scoring | ✅ Automatic, zero-config | ❌ | Einstein ($$) |
 | Workflow automation | ✅ Visual builder, in-process, instant | Limited | Flow ($$) |
@@ -67,7 +68,7 @@ MCP server — see [`PARITY.md`](./PARITY.md) for the honest, cited matrix._
 - **Kanban pipeline** — drag deals between stages; per-column totals and weighted forecasts update optimistically. List view included.
 - **Automatic lead scoring** — every contact gets a live 0–100 score from profile fit, engagement recency, and commercial signals. Hot leads surface on the dashboard; the model is a pure function you can tune in one file (`src/lib/scoring.ts`).
 - **Analytics that answer real questions** — open pipeline, probability-weighted forecast, 90-day win rate, average sales cycle, revenue trend, funnel by stage, win/loss by month, lead-source conversion, pipeline aging, stale-deal alerts.
-- **Workflow automation** — "When a deal is won → create an onboarding task and add a note." Visual builder with conditions, template variables (`{{firstName}}`), five action types (task, note, field update, webhook, log), and a full run history. Runs synchronously in-process: no queue, no cron, no lost jobs.
+- **Workflow automation** — "When a deal is won → create an onboarding task and add a note." Visual builder with conditions, template variables (`{{firstName}}`), five action types (task, note, field update, webhook, log), and a full run history. Runs on a **durable Postgres-backed queue** (pg-boss): jobs leave the request path and survive restarts with retry, backoff and dead-lettering — no lost webhooks.
 - **Multi-currency** — deals in USD, EUR, GBP, JPY, VND and 7 more; every report normalizes to USD automatically.
 - **Custom fields** — add text/number/date/select/checkbox/URL fields to any object from Settings; they appear in forms, detail pages, and the API immediately.
 - **CSV import/export** — imports match `First Name`/`first_name`/`firstname` alike, dedupe by email, and link or auto-create companies from a `company` column.
@@ -160,11 +161,16 @@ src/
     scoring.ts    lead-score model (pure, tested)
     currency.ts   multi-currency conversion + formatting
     csv.ts        RFC-4180 parser/serializer (dependency-free)
+    queue.ts      pg-boss job queue (enqueue, idempotency, drivers)
+    ratelimit.ts  per-caller API rate limiter
+    metrics.ts    Prometheus registry · logger.ts pino · otel.ts tracing hook
     workflows/    event → conditions → actions engine (pure core, tested)
     services/     stats aggregation, score recompute
+  worker/         standalone job worker (npm run worker) + handlers
 drizzle/          versioned SQL migrations (up + hand-written down)
-scripts/          migrate-from-sqlite tool
-tests/            vitest — 60 tests, run against real Postgres in CI
+scripts/          migrate-from-sqlite tool, backup-drill.sh
+bench/            zero-downtime.k6.js (expand-migration-under-load drill)
+tests/            vitest — 94 tests, run against real Postgres in CI
 ```
 
 Deliberate choices (see [`docs/adr/`](./docs/adr) for full rationale + trade-offs):
@@ -172,9 +178,15 @@ Deliberate choices (see [`docs/adr/`](./docs/adr) for full rationale + trade-off
 - **Postgres + drizzle-kit migrations** — enables the multi-tenancy, RLS, and
   concurrency that Direction B targets. Versioned, reversible migrations replace
   the old runtime `CREATE TABLE IF NOT EXISTS` bootstrap.
-- **In-process workflows (for now)** — actions run in the request path today; a
-  Postgres-backed background queue (pg-boss) with retry/backoff moves them off
-  the request cycle in a later milestone (ADR-004).
+- **Postgres-backed queue + worker** — webhook delivery and workflow actions run
+  off the request path on **pg-boss** (its own schema on the same Postgres, no
+  Redis) with retry, exponential backoff, dead-lettering and an idempotency ledger
+  for exactly-once side effects. `npm run worker` runs the standalone worker
+  (ADR-004).
+- **Observability** — structured `pino` logs (request-scoped `request_id` +
+  `workspace_id`), a public PII-free `GET /metrics` Prometheus endpoint (HTTP
+  latency/counts, DB-pool + queue-depth gauges), and an optional OTel tracing hook.
+  Every API request is rate-limited per caller + IP with `RateLimit-*` headers.
 - **No component library** — the whole UI is ~40 small components on Tailwind; nothing to fork a theme from.
 
 ## Testing

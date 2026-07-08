@@ -76,6 +76,7 @@ describe("static guard: every API route authenticates", () => {
     "auth/logout",
     "auth/setup",
     "health", // liveness probe — pings DB only, exposes no data
+    "metrics", // Prometheus scrape — aggregate counters only, no PII (Gate B4)
   ]);
 
   function routeFiles(dir: string, base = ""): { rel: string; file: string }[] {

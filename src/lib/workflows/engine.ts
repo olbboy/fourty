@@ -1,9 +1,9 @@
 import { eq, sql } from "drizzle-orm";
-import { db, tables } from "@/db";
+import { db, tables, currentStore } from "@/db";
 import { newId } from "@/lib/id";
 import { logActivity } from "@/lib/activity";
+import { enqueue } from "@/lib/queue";
 import { evaluateConditions, renderTemplate } from "./evaluate";
-import { checkWebhookUrl } from "@/lib/net";
 import type { EventContext, WorkflowAction, WorkflowDef } from "./types";
 
 async function loadWorkflows(): Promise<WorkflowDef[]> {
@@ -19,12 +19,28 @@ async function loadWorkflows(): Promise<WorkflowDef[]> {
 }
 
 /**
- * Fire an event through all enabled workflows. Synchronous by design —
- * SQLite is embedded, actions are cheap, and a single process means no
- * queue infrastructure (one of Fourty's deployment advantages).
- * Webhooks are the exception: they run fire-and-forget.
+ * Fire an event through the workflow engine (Gate B4). Enqueues a
+ * `workflow.dispatch` job so workflow evaluation + actions run off the request
+ * path, durably, with retry. In `inline` mode (tests / single-process dev) the
+ * job runs immediately in the caller's workspace context — same observable
+ * behaviour as the old synchronous engine.
  */
 export async function dispatchEvent(ctx: EventContext): Promise<void> {
+  const workspaceId = currentStore().workspaceId;
+  if (!workspaceId) {
+    // No active workspace context (defensive — routes always have one): run now.
+    await runWorkflowsForEvent(ctx);
+    return;
+  }
+  await enqueue("workflow.dispatch", { ctx }, { workspaceId });
+}
+
+/**
+ * Execute all enabled workflows matching `ctx.event`. Runs inside a
+ * withWorkspace() transaction (the worker wraps it; inline mode inherits the
+ * request's). Records a run + bumps counters per workflow.
+ */
+export async function runWorkflowsForEvent(ctx: EventContext): Promise<void> {
   let defs: WorkflowDef[];
   try {
     defs = await loadWorkflows();
@@ -134,18 +150,15 @@ async function runAction(action: WorkflowAction, ctx: EventContext): Promise<str
         data: ctx.snapshot,
         firedAt: new Date().toISOString(),
       });
-      // Fire-and-forget, but SSRF-guarded: resolve + reject private targets
-      // before the request leaves the process (see src/lib/net.ts).
-      checkWebhookUrl(action.url)
-        .then((check) => {
-          if (!check.ok) return; // blocked — see limitation note in net.ts
-          return fetch(action.url, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: payload,
-          });
-        })
-        .catch(() => {});
+      // Durable delivery: hand off to the queue. The worker resolves + SSRF-checks
+      // the target, POSTs it, and retries with backoff (dead-letters when spent)
+      // — no longer lost on failure, and off the request path.
+      const workspaceId = currentStore().workspaceId;
+      if (workspaceId) {
+        await enqueue("webhook.deliver", { url: action.url, body: payload, event: ctx.event }, {
+          workspaceId,
+        });
+      }
       return `webhook queued → ${action.url}`;
     }
     case "log": {

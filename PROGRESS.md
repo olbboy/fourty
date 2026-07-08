@@ -19,7 +19,7 @@ benchmark numbers are published because none were measured yet.
 | **B1 — Postgres foundation & migrations** | ✅ DONE | see below |
 | **B2 — Multi-tenancy + RLS + isolation suite** | ✅ DONE | `tests/tenant-isolation.test.ts` (6) — see below |
 | **B3 — RBAC + user mgmt + audit log** | ✅ DONE | `rbac-matrix.test.ts`, `audit-log.test.ts`, `members.test.ts`, `permissions.test.ts` — see below |
-| **B4 — Workers/queue + rate limit + observability + backup drill** | ⬜ pending | plan: `docs/roadmap-b3-b4-b5.md` |
+| **B4 — Workers/queue + rate limit + observability + backup drill** | ✅ DONE | `worker.test.ts`, `ratelimit.test.ts`, `metrics.test.ts` + backup-drill log — see below |
 | **B5 — Benchmark vs Twenty (same Postgres)** | ⬜ pending | plan: `docs/roadmap-b3-b4-b5.md` |
 | **B6 — twenty-migrate + MCP server + docs** | ⬜ pending | |
 
@@ -102,6 +102,46 @@ viewer → viewer create is denied (403) → audit log shows
   invitee (the token authorizes it) since there is no open registration.
 - **audit_log immutability** is enforced two ways: `REVOKE UPDATE,DELETE` from the
   app role AND rewrite rules, so neither the app nor a stray query can alter it.
+
+## Gate B4 — DONE (evidence)
+
+| Requirement | Status | Evidence |
+|---|---|---|
+| Queue + worker (pg-boss, no Redis) | ✅ | `src/lib/queue.ts` (typed `enqueue`, `inline`/`pgboss` drivers, own `pgboss` schema as owner), `src/worker/{handlers,index}.ts` (`npm run worker`), Compose `worker` service |
+| Heavy work off the request path | ✅ | webhook delivery + workflow dispatch now `enqueue()` instead of running in-request (`engine.ts`); worker runs them inside `withWorkspace()` (RLS + audit hold), retry + exponential backoff + dead-letter (`<name>.dead`) |
+| Exactly-once under at-least-once delivery | ✅ | `job_receipts` idempotency ledger (migration `0005_queue`, RLS) claimed transactionally before side effects; **worker-kill test**: enqueue 12, `SIGKILL` mid-run, restart → receipts == 12 exactly (`tests/worker.test.ts`) |
+| Rate limiting on the whole API surface | ✅ | `apiRateLimit()` wired into `withAuth` — keyed by caller+IP+route class (read/write/bulk), `RateLimit-*` + `Retry-After` headers; `tests/ratelimit.test.ts` (burst→429, IP buckets, window reset) |
+| Observability: structured logs + `/metrics` | ✅ | `pino` request-scoped child logger (request_id + workspace_id via the ALS store); `GET /metrics` Prometheus (HTTP counter + latency histogram, DB-pool gauges, queue depth), public + PII-free; `tests/metrics.test.ts` |
+| Optional OTel tracing hook | ✅ | `src/lib/otel.ts` + `src/instrumentation.ts` — no-op unless `OTEL_EXPORTER_OTLP_ENDPOINT` set (+ OTel SDK installed) |
+| Backup/restore drill (real) | ✅ | `scripts/backup-drill.sh` — pg_dump → per-table count → restore into a fresh DB → re-count → PASS/FAIL. **Ran locally: PASS, all 21 tables identical** (503 contacts / 121 companies / 301 activities incl.) |
+| Zero-downtime expand-migration demo | ⚠️ authored | `bench/zero-downtime.k6.js` (k6, `http_req_failed rate==0` threshold). **Not run here** — k6 not installed in this env; documented manual/CI run |
+| Migrations reversible incl. B4 | ✅ | `0005_queue` (+ down); `tests/migration-reversibility.test.ts` full chain 0000→0005 (21 tables / 16 policies) |
+
+**Verification (this session, real Postgres 16):** `npx vitest run` → **94/94 pass**;
+`tsc` green; `npm run build` green (incl. `/api/metrics`). **Live E2E** (`next start`
+as `fourty_app`, `QUEUE_DRIVER=pgboss`): `/api/health → ok`; unauth `/api/contacts
+→ 401`; auth → 200 with `RateLimit-Limit: 600 / Remaining: 599 / Reset: 60`;
+`/metrics` exposed the 200+401 counters, latency histogram and DB-pool gauges
+(no PII); a `POST /api/contacts` enqueued a `workflow.dispatch` job to `pgboss.job`.
+Backup drill: PASS.
+
+### Deliberate choices / deviations
+- **pg-boss connects as the owner role** (`QUEUE_DATABASE_URL`) since it manages
+  its own `pgboss` schema DDL. That pool only touches `pgboss`; all tenant data
+  still flows through the `fourty_app` pool under RLS, and handlers re-enter
+  `withWorkspace()` — isolation + audit hold end-to-end.
+- **Inline driver** (default under tests / single-process dev) runs jobs in the
+  caller's request context — preserves pre-B4 synchronous semantics so existing
+  tests stay green; `pgboss` is the production default.
+- **Graceful degradation:** if the queue is unreachable (misconfigured / no
+  worker), `enqueue()` falls back to inline execution (logged) so a request never
+  500s and no job is lost — durability is the only thing traded.
+- **Exactly-once is on the transactional (DB) side effect** via `job_receipts`.
+  External webhook POSTs are at-least-once by nature (a job killed after the POST
+  but before commit is redelivered) — stated honestly, asserted as such in the test.
+- **In-process rate limiter / metrics** measure ONE instance (like the existing
+  limiter). Behind multiple replicas, front with a shared limiter and scrape each
+  instance — documented, not hidden.
 
 ## Environment note (for session continuity)
 Local dev (macOS) runs Postgres 16 in Docker:
