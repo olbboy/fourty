@@ -392,6 +392,24 @@ export const savedViews = pgTable("saved_views", {
   createdAt: millis("created_at").notNull(),
 });
 
+// Field-level permissions (Gate D1, ADR-011). Per (object, field, role) rule
+// restricting read/write of a core-object field. Absence of a rule = allowed
+// (backward compatible); admin is never restricted. Workspace-scoped + RLS.
+export const fieldPermissions = pgTable(
+  "field_permissions",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    object: text("object").notNull(), // contacts | companies | deals
+    field: text("field").notNull(),
+    role: text("role").notNull(), // member | viewer (admin is never restricted)
+    canRead: integer("can_read").notNull().default(1),
+    canWrite: integer("can_write").notNull().default(1),
+    createdAt: millis("created_at").notNull(),
+  },
+  (t) => [uniqueIndex("field_permissions_unique_idx").on(t.workspaceId, t.object, t.field, t.role)],
+);
+
 // Email + calendar sync (Gate C6, ADR-009). A sync_account is a connected
 // mailbox/calendar (IMAP, Gmail, Microsoft, or an ICS feed URL). Ingested
 // messages/events are deduped by their provider id (Message-ID / ICS UID) and

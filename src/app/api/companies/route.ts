@@ -1,11 +1,12 @@
 import { and, desc, eq, ilike, or, type SQL } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { withAuth, authorize, json, parseBody } from "@/lib/api";
+import { withAuth, authorize, json, apiError, parseBody } from "@/lib/api";
 import { newId } from "@/lib/id";
 import { logActivity } from "@/lib/activity";
 import { audit } from "@/lib/audit";
 import { dispatchEvent } from "@/lib/workflows/engine";
 import { companyInput } from "@/lib/validators";
+import { loadFieldPolicy, redact, blockedWrites } from "@/lib/field-permissions";
 
 export async function GET(req: Request) {
   return withAuth(req, async (auth) => {
@@ -33,7 +34,10 @@ export async function GET(req: Request) {
     .where(where.length ? and(...where) : undefined)
     .orderBy(desc(tables.companies.updatedAt))
     .limit(limit);
-  return json({ companies: rows.map((r) => ({ ...r, custom: JSON.parse(r.custom) })) });
+  const policy = await loadFieldPolicy(auth.role);
+  return json({
+    companies: rows.map((r) => redact(policy, "companies", { ...r, custom: JSON.parse(r.custom) })),
+  });
   });
 }
 
@@ -43,6 +47,10 @@ export async function POST(req: Request) {
   if (denied) return denied;
   const body = await parseBody(req, companyInput);
   if (!body.ok) return body.response;
+
+  const policy = await loadFieldPolicy(auth.role);
+  const blocked = blockedWrites(policy, "companies", body.keys);
+  if (blocked.length) return apiError(`Not permitted to set field(s): ${blocked.join(", ")}`, 403);
 
   const now = Date.now();
   const id = newId();
@@ -65,6 +73,9 @@ export async function POST(req: Request) {
     entityId: id,
     snapshot: { ...row, custom: undefined },
   });
-  return json({ company: { ...row, custom: JSON.parse(row.custom) } }, { status: 201 });
+  return json(
+    { company: redact(policy, "companies", { ...row, custom: JSON.parse(row.custom) }) },
+    { status: 201 },
+  );
   });
 }

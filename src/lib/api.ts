@@ -154,11 +154,16 @@ export async function withAuth(
   return finish(response, auth.workspaceId);
 }
 
-/** Parse + validate a JSON body against a zod schema, returning a typed result or a 400. */
+/**
+ * Parse + validate a JSON body against a zod schema, returning a typed result or a
+ * 400. `keys` are the caller's actual top-level keys (before zod defaults) — used
+ * by field-level permission checks so a defaulted field isn't mistaken for one the
+ * caller tried to write.
+ */
 export async function parseBody<T extends z.ZodTypeAny>(
   req: Request,
   schema: T,
-): Promise<{ ok: true; data: z.infer<T> } | { ok: false; response: NextResponse }> {
+): Promise<{ ok: true; data: z.infer<T>; keys: string[] } | { ok: false; response: NextResponse }> {
   let raw: unknown;
   try {
     raw = await req.json();
@@ -173,5 +178,6 @@ export async function parseBody<T extends z.ZodTypeAny>(
       response: apiError(`${issue.path.join(".") || "body"}: ${issue.message}`),
     };
   }
-  return { ok: true, data: parsed.data };
+  const keys = raw && typeof raw === "object" ? Object.keys(raw as Record<string, unknown>) : [];
+  return { ok: true, data: parsed.data, keys };
 }

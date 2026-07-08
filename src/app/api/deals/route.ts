@@ -7,6 +7,7 @@ import { audit } from "@/lib/audit";
 import { dispatchEvent } from "@/lib/workflows/engine";
 import { dealInput } from "@/lib/validators";
 import { ensureDefaultPipeline } from "@/db/seed";
+import { loadFieldPolicy, redact, blockedWrites } from "@/lib/field-permissions";
 
 export async function GET(req: Request) {
   return withAuth(req, async (auth) => {
@@ -31,7 +32,8 @@ export async function GET(req: Request) {
     .where(where.length ? and(...where) : undefined)
     .orderBy(desc(tables.deals.updatedAt))
     .limit(limit);
-  return json({ deals: rows.map((r) => ({ ...r, custom: JSON.parse(r.custom) })) });
+  const policy = await loadFieldPolicy(auth.role);
+  return json({ deals: rows.map((r) => redact(policy, "deals", { ...r, custom: JSON.parse(r.custom) })) });
   });
 }
 
@@ -41,6 +43,10 @@ export async function POST(req: Request) {
   if (denied) return denied;
   const body = await parseBody(req, dealInput);
   if (!body.ok) return body.response;
+
+  const policy = await loadFieldPolicy(auth.role);
+  const blocked = blockedWrites(policy, "deals", body.keys);
+  if (blocked.length) return apiError(`Not permitted to set field(s): ${blocked.join(", ")}`, 403);
 
   const pipelineId = body.data.pipelineId ?? (await ensureDefaultPipeline());
   let stageId = body.data.stageId;
@@ -82,6 +88,6 @@ export async function POST(req: Request) {
     entityId: id,
     snapshot: { ...row, custom: undefined },
   });
-  return json({ deal: { ...row, custom: JSON.parse(row.custom) } }, { status: 201 });
+  return json({ deal: redact(policy, "deals", { ...row, custom: JSON.parse(row.custom) }) }, { status: 201 });
   });
 }
