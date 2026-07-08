@@ -1,0 +1,13 @@
+{
+  "target": "fourty",
+  "size": 10000,
+  "counts": {
+    "companies": 1000,
+    "contacts": 10000,
+    "deals": 5000,
+    "activities": 1000
+  },
+  "failed": 0,
+  "elapsedMs": 24388,
+  "insertsPerSec": 697
+}

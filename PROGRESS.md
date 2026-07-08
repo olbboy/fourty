@@ -20,7 +20,7 @@ benchmark numbers are published because none were measured yet.
 | **B2 — Multi-tenancy + RLS + isolation suite** | ✅ DONE | `tests/tenant-isolation.test.ts` (6) — see below |
 | **B3 — RBAC + user mgmt + audit log** | ✅ DONE | `rbac-matrix.test.ts`, `audit-log.test.ts`, `members.test.ts`, `permissions.test.ts` — see below |
 | **B4 — Workers/queue + rate limit + observability + backup drill** | ✅ DONE | `worker.test.ts`, `ratelimit.test.ts`, `metrics.test.ts` + backup-drill log — see below |
-| **B5 — Benchmark vs Twenty (same Postgres)** | ⬜ pending | plan: `docs/roadmap-b3-b4-b5.md` |
+| **B5 — Benchmark vs Twenty (same Postgres)** | 🟡 harness + Fourty baseline | `BENCHMARK.md` + `bench/results/*.json` (real Fourty @10k); Twenty run pending — see below |
 | **B6 — twenty-migrate + MCP server + docs** | ⬜ pending | |
 
 > **Detailed executable plans for B3, B4, B5** (tasks, files, migrations, tests,
@@ -142,6 +142,25 @@ Backup drill: PASS.
 - **In-process rate limiter / metrics** measure ONE instance (like the existing
   limiter). Behind multiple replicas, front with a shared limiter and scrape each
   instance — documented, not hidden.
+
+## Gate B5 — HARNESS + FOURTY BASELINE (Twenty run pending)
+
+| Requirement | Status | Evidence |
+|---|---|---|
+| One-command reproducible harness | ✅ | `bench/run.sh` (up-from-clean → bootstrap → seed → k6 matrix → resource sample → regenerate tables); `bench/docker-compose.bench.yml` (both stacks, matched 4cpu/4g DB + app, 2cpu/2g worker, same PG tuning, `profiles` for isolation) |
+| Seed via each product's API | ✅ | `bench/seed.ts` — Fourty REST (verified), Twenty GraphQL (authored). Same shape: companies=SIZE/10, contacts=SIZE, deals=SIZE/2, activities=SIZE/10 |
+| API load: p50/p95/p99 + throughput | ✅ | `bench/k6/api.js` — list/filter/sort/search/create/update, warm-up + fixed VUs/duration |
+| Numbers come only from measurements | ✅ | `bench/report.ts` renders `BENCHMARK.md` straight from `bench/results/*.json`; unmeasured product = `—` (never invented); observations are derived from the data, not hand-typed |
+| **Real Fourty baseline @10k** | ✅ | ran on real Postgres 16 under limits: 0 errors, worst p95 46ms / p99 55ms; filter 998 rps … update 626 rps; ingest 17k rows via API in ~24s; under read load **Postgres is CPU-bound (~405% of 4 cores) while the app tier sits ~60%** — the honest bottleneck at this scale |
+| Twenty side measured | ⬜ pending | stack authored + pinned in the compose; `bench/run.sh twenty` not yet executed → Twenty columns are `—`. Gate closes when run + loss analysis filled |
+| Zero-downtime expand-migration demo | ⚠️ authored | `bench/zero-downtime.k6.js` (Gate B4) — k6 not run in this env |
+
+**Why not fully DONE:** the gate requires a head-to-head with Twenty. Standing up
+Twenty (Postgres+Redis+server+worker) + seeding 1M via API is a multi-hour run;
+per the session scope we built the full reproducible harness and published the
+**real Fourty baseline**, and deliberately left Twenty's columns empty rather than
+fabricate them (anti-vanity rule). Next: `bench/run.sh twenty` at 10k/100k/1M,
+then fill the loss analysis.
 
 ## Environment note (for session continuity)
 Local dev (macOS) runs Postgres 16 in Docker:
