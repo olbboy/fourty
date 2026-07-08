@@ -10,21 +10,26 @@ Twice the CRM, half the complexity. One process, one file database, zero infrast
 
 ---
 
-> **Project status (read before deploying).** Fourty is mid-migration to a
-> **Postgres multi-tenant** architecture ("Direction B", see [`docs/adr/`](./docs/adr)).
-> **Done:** the app now runs on **Postgres** with versioned, reversible
-> drizzle-kit migrations, a real-Postgres CI, and a one-command Docker Compose
-> stack (Gate B1). **Not done yet:** multi-tenancy + row-level security (the next
-> gate), enforced RBAC, SSO, and an MCP server — so today it is still effectively
-> **single-tenant** and *not* an enterprise Twenty replacement. Existing SQLite
-> users migrate with `npm run migrate-from-sqlite` (round-trip tested). For the
+> **Project status (read before deploying).** Fourty runs on a **Postgres
+> multi-tenant** architecture ("Direction B", see [`docs/adr/`](./docs/adr)).
+> **Done:** Postgres with versioned reversible drizzle-kit migrations + real-PG CI
+> (B1), **multi-tenancy with Row-Level Security** (B2), **enforced object-level
+> RBAC + user management + immutable audit log** (B3), a **durable queue/worker +
+> API rate limiting + observability** (B4), a **real head-to-head benchmark vs
+> Twenty** (B5), and Tier-2: **custom objects** (C1), a **typed GraphQL API** (C2),
+> **saved views** (C3), **i18n** (C4), an **a11y pass** (C5), **email/calendar
+> ingestion** (C6), a **native MCP server**, and the **`@fourty/twenty-migrate`
+> CLI** (B6). **Not done yet:** field-level permissions, SSO/OIDC/SAML + 2FA, a
+> define-as-code apps/SDK platform, and full provider OAuth for mail/calendar — so
+> it is not yet a drop-in enterprise Twenty replacement. Existing SQLite users
+> migrate with `npm run migrate-from-sqlite` (round-trip tested). For the
 > evidence-backed detail see [`CLAIMS.md`](./CLAIMS.md), [`PARITY.md`](./PARITY.md),
 > [`PROGRESS.md`](./PROGRESS.md), and [`SECURITY.md`](./SECURITY.md). Every claim is
 > cross-checked there against code and passing tests.
 
 ## Why Fourty?
 
-Fourty aims to be the fastest open-source CRM to stand up and the easiest to run — a small, legible codebase (~8k LOC) with strong built-in analytics and lead scoring. It runs on **Postgres** with a one-command Docker Compose stack:
+Fourty aims to be the fastest open-source CRM to stand up and the easiest to run — a small, legible codebase (~12k LOC) with strong built-in analytics and lead scoring. It runs on **Postgres** with a one-command Docker Compose stack:
 
 ```bash
 git clone https://github.com/olbboy/fourty && cd fourty
@@ -51,16 +56,18 @@ a dead-letter queue; see [`docs/adr/004`](./docs/adr/004-queue-and-workers.md).
 | Workflow automation | ✅ Visual builder, in-process, instant | Limited | Flow ($$) |
 | Multi-currency deals | ✅ 12 currencies, auto USD-normalized reporting | ❌ | ✅ |
 | Mobile | ✅ Responsive PWA + bottom nav | ❌ No mobile app | ✅ |
-| Custom fields | ✅ UI-managed, instant in forms & API | ✅ | ✅ |
+| Custom fields & objects | ✅ UI-managed fields + no-code custom objects | ✅ | ✅ |
 | CSV import | ✅ Fuzzy header mapping + company auto-linking | Basic | ✅ |
-| REST API | ✅ Every resource, Bearer-token keys | GraphQL-first | ✅ |
+| REST **and** GraphQL API | ✅ REST for every resource + typed `/api/graphql` | GraphQL-first | ✅ |
+| MCP server (AI agents) | ✅ Self-host stdio JSON-RPC, 10 tools | ✅ | ❌ |
 | Command palette | ✅ ⌘K global search & jump | ✅ | ❌ |
 | License | MIT | AGPL | Proprietary |
 
 _This table is a **small-team lens**: it compares out-of-the-box experience for
-one team, not enterprise-platform parity. Twenty 2.0 leads on multi-tenancy,
-custom objects, an apps/SDK platform, GraphQL, field-level RBAC, and a native
-MCP server — see [`PARITY.md`](./PARITY.md) for the honest, cited matrix._
+one team, not full enterprise-platform parity. Twenty 2.0 still leads on
+**field-level RBAC**, an **apps/SDK platform**, **SSO/2FA**, and **full provider
+OAuth** for mail/calendar — see [`PARITY.md`](./PARITY.md) for the honest, cited
+matrix._
 
 ## Features
 
@@ -70,7 +77,11 @@ MCP server — see [`PARITY.md`](./PARITY.md) for the honest, cited matrix._
 - **Analytics that answer real questions** — open pipeline, probability-weighted forecast, 90-day win rate, average sales cycle, revenue trend, funnel by stage, win/loss by month, lead-source conversion, pipeline aging, stale-deal alerts.
 - **Workflow automation** — "When a deal is won → create an onboarding task and add a note." Visual builder with conditions, template variables (`{{firstName}}`), five action types (task, note, field update, webhook, log), and a full run history. Runs on a **durable Postgres-backed queue** (pg-boss): jobs leave the request path and survive restarts with retry, backoff and dead-lettering — no lost webhooks.
 - **Multi-currency** — deals in USD, EUR, GBP, JPY, VND and 7 more; every report normalizes to USD automatically.
-- **Custom fields** — add text/number/date/select/checkbox/URL fields to any object from Settings; they appear in forms, detail pages, and the API immediately.
+- **Custom fields & custom objects** — add text/number/date/select/checkbox/URL fields to any object from Settings, or define whole **no-code custom objects** (e.g. Projects, Tickets) whose records are validated on write and served over REST, GraphQL, and MCP.
+- **Typed GraphQL API** — a single `POST /api/graphql` with introspection: typed queries for every object plus custom records, and mutations for contacts/companies/custom records — auto-scoped by the same RLS + RBAC as REST.
+- **Native MCP server** — expose Fourty to Claude, Cursor, and other LLM clients with `npm run mcp` (self-hosted stdio JSON-RPC, 10 tools, workspace + role enforced).
+- **Email & calendar ingestion** — parse RFC822 messages and iCalendar feeds, match participants to contacts, dedupe, and thread them onto the activity timeline.
+- **i18n & accessibility** — English + Vietnamese out of the box (locale from cookie/browser), and an accessible UI (dialog/combobox semantics, focus management, landmarks, labels).
 - **CSV import/export** — imports match `First Name`/`first_name`/`firstname` alike, dedupe by email, and link or auto-create companies from a `company` column.
 - **⌘K command palette** — search contacts, companies, and deals or jump to any page without touching the mouse.
 - **REST API + API keys** — everything the UI does, over JSON. Keys are SHA-256-hashed at rest and revocable.

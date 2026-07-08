@@ -1,30 +1,30 @@
 # PARITY.md — Fourty vs Twenty 2.0
 
-> **Status (2026-07-07): Direction B — Gates B1 + B2 + B3 done.** Fourty is on
-> **Postgres** with drizzle-kit migrations (B1), **multi-tenant with Postgres
-> Row-Level Security** (B2, cross-tenant isolation suite), and now **object-level
-> RBAC + user management + an immutable audit log** (B3, `rbac-matrix`/`audit-log`/
-> `members` tests + live E2E). Field-level permissions, SSO/2FA,
-> workers/observability (B4), and the head-to-head benchmark (B5) are still open.
-> Every ✅ below is backed by a test.
+> **Status (2026-07-08): Direction B — Gates B1–B5 + Tier-2 (C1–C6) + B6 done.**
+> Fourty is on **Postgres** with drizzle-kit migrations (B1), **multi-tenant with
+> Postgres RLS** (B2), **object-level RBAC + user management + an immutable audit
+> log** (B3), a **durable queue/worker + rate limiting + observability** (B4), and a
+> **real head-to-head benchmark vs Twenty @10k** (B5). Tier-2 closed **custom
+> objects** (C1), an **auto GraphQL API** (C2), a **saved-views UI** (C3), **i18n**
+> (C4), an **a11y pass** (C5), and an **email/calendar ingestion engine** (C6); B6
+> adds the **`@fourty/twenty-migrate` CLI** and a **native MCP server**. Field-level
+> permissions and SSO/2FA remain open. Every ✅ below is backed by a test.
 
 > **Honesty note.** Twenty's capabilities below are sourced from Twenty's
 > official docs, release notes, and the 2.0 launch coverage (April 21, 2026) —
-> **cited inline** — not from memory. A full local head-to-head (both stacks up
-> under Docker Compose on one host) was **not** performed this session: standing
-> up Twenty (Postgres + Redis + server + worker + frontend build) plus a shared
-> seed harness is a multi-hour effort that belongs in the benchmark task, and I
-> will not publish comparison *numbers* I did not measure. Where a cell says
-> "not measured", that is a deliberate refusal to fabricate — see Gate A in
-> `PROGRESS.md` for the plan to close it.
+> **cited inline** — not from memory. The head-to-head performance numbers now
+> come from a **real, measured** run of both stacks on one host at 10k rows
+> (Gate B5, see `BENCHMARK.md`); nothing here is a fabricated number.
 >
-> **The headline.** Fourty and Twenty are not the same class of system. Twenty
-> 2.0 is a multi-workspace, Postgres-backed **application platform** with a
-> native MCP server, an apps/SDK framework, object+field-level RBAC, and
-> auto-generated REST+GraphQL for every object. Fourty is a single-process,
-> single-tenant SQLite CRM (~8k LOC). Fourty's genuine edge is *time-to-first-
-> value and ops simplicity*; it is **behind on every enterprise-platform axis**.
-> This document does not pretend otherwise.
+> **The headline.** Fourty has grown from a single-file SQLite CRM into a
+> **Postgres multi-tenant** platform (~12k LOC): shared-schema + RLS, enforced
+> RBAC + audit, custom objects, a typed GraphQL API, an email/calendar ingestion
+> engine, and a native MCP server — each backed by a test. Twenty 2.0 still leads
+> as a broader **application platform**: an apps/SDK framework, **field-level**
+> RBAC, SSO/2FA, and full provider OAuth. Fourty's genuine edge remains
+> *time-to-first-value and ops simplicity* (one Postgres, no Redis); it is now at
+> or near parity on the core data/API/AI axes and behind only on the
+> enterprise-platform axes named above. This document does not pretend otherwise.
 
 ## Legend
 ✅ present & working · 🟡 partial / caveated · ❌ absent · 📏 not measured
@@ -36,10 +36,10 @@
 | Self-host | ✅ Docker Compose (Postgres+Redis+workers) [1] | ✅ Docker Compose (Postgres + migrate + app) | Fourty now Postgres-based (B1); worker service in B4. |
 | One-command deploy | 🟡 compose stack | ✅ `docker compose up` (authored; healthcheck + migrate one-shot) | Compose not yet run in CI (no daemon); app boots on PG (E2E verified). |
 | Reversible migrations | ✅ migration tooling | ✅ drizzle-kit + tested up/down | Was ❌ (idempotent DDL); now versioned + reversibility test. |
-| Zero-downtime migration | ✅ | 🟡 expand→migrate→contract documented (ADR-002); demo pending B4 | |
+| Zero-downtime migration | ✅ | 🟡 expand→migrate→contract (ADR-002); k6 drill authored (`bench/zero-downtime.k6.js`) | |
 | Helm chart | 🟡 community | ❌ | Neither first-class here. |
-| Horizontal scale | ✅ workers, queue | 🟡 stateless app scales; queue/worker in B4 | SQLite ceiling removed; worker pending. |
-| Backup/restore | ✅ pg_dump | 🟡 pg_dump possible; tested drill pending B4 | |
+| Horizontal scale | ✅ workers, queue | ✅ stateless app + durable pg-boss queue & worker (B4) | `npm run worker`; exactly-once under SIGKILL tested. |
+| Backup/restore | ✅ pg_dump | ✅ tested backup/restore drill (B4, `scripts/backup-drill.sh`) | Ran locally: PASS, all tables identical. |
 
 ## B. Security & multi-tenancy
 
@@ -49,7 +49,7 @@
 | Object-level RBAC | ✅ complete [2][3] | ✅ enforced (admin/member/viewer) on every mutating route (Gate B3, `rbac-matrix.test.ts`) | |
 | Field-level permissions | ✅ view/edit per role [2] | ❌ (deferred, later tier) | |
 | OAuth2 + PKCE / SSO (OIDC/SAML) / 2FA | ✅ auth & integration mechanisms expanded in 2.0 [4] | ❌ password + cookie only | |
-| Rate limiting | ✅ | 🟡 login only (added this session) | |
+| Rate limiting | ✅ | ✅ whole-API limit per caller+IP+route class, `RateLimit-*` headers (B4) | `ratelimit.test.ts`. |
 | Input validation | ✅ | ✅ zod on all write routes | Genuine parity here. |
 | SSRF-guarded webhooks | (n/a public) | ✅ added this session (`src/lib/net.ts`) | |
 | Audit log (immutable) | 🟡/✅ | ✅ append-only `audit_log`, DB-enforced immutability (REVOKE + rules), admin API + CSV (Gate B3) | |
@@ -58,23 +58,23 @@
 
 | Capability | Twenty 2.0 | Fourty | Notes |
 |---|---|---|---|
-| Custom **objects** (no-code) | ✅ unlimited, from Settings [2][5] | ❌ only custom *fields* on 3 fixed objects | Fourty has `custom_field_defs`, no custom objects. |
-| Custom fields | ✅ | 🟡 defined in UI, **not validated on API write** | |
-| Define-as-code (SDK/manifest) | ✅ apps platform: model data, add server logic, React layouts [4][5] | ❌ | Twenty 2.0's headline feature. |
-| Auto REST **and** GraphQL for every object | ✅ both, auto-gen [1] | 🟡 hand-written REST only, fixed objects | No GraphQL; README is REST-first honestly. |
-| Webhooks (retry + signature) | ✅ | 🟡 fire-and-forget, no retry/signature | |
-| Typed TS SDK on npm | ✅ AI-friendly SDK [4] | ❌ | |
+| Custom **objects** (no-code) | ✅ unlimited, from Settings [2][5] | ✅ unlimited, metadata-driven; REST + GraphQL + MCP (Gate C1, ADR-007) | `custom_objects`/`_fields`/`_records`, RLS-scoped, records validated on write. |
+| Custom fields | ✅ | ✅ custom-object records validated on API write (C1); fixed-object custom fields UI-managed | Write-time validation added for no-code objects. |
+| Define-as-code (SDK/manifest) | ✅ apps platform: model data, add server logic, React layouts [4][5] | ❌ | Twenty 2.0's headline feature; no-code from Settings only in Fourty. |
+| Auto REST **and** GraphQL for every object | ✅ both, auto-gen [1] | ✅ REST (all objects) + typed GraphQL at `/api/graphql` (Gate C2, ADR-008) | GraphQL: queries for every object; mutations for contacts/companies/custom records (deals/tasks write via REST). |
+| Webhooks (retry + signature) | ✅ | 🟡 durable retry/backoff/DLQ via queue (B4); signature TBD | |
+| Typed TS SDK on npm | ✅ AI-friendly SDK [4] | 🟡 `@fourty/twenty-migrate` on npm (typed clients); general SDK TBD | Migration CLI ships typed Twenty/Fourty clients. |
 | Plugin/app install-uninstall | ✅ apps framework [5] | ❌ | |
 
 ## D. AI-native
 
 | Capability | Twenty 2.0 | Fourty | Notes |
 |---|---|---|---|
-| Native MCP server (self-host) | ✅ Claude/ChatGPT/Cursor read+write [4][6] | ❌ | Gate D not started. |
+| Native MCP server (self-host) | ✅ Claude/ChatGPT/Cursor read+write [4][6] | ✅ stdio JSON-RPC, 10 tools, RLS+RBAC (Gate B6, ADR-010) | `npm run mcp`; verified end-to-end + `mcp.test.ts`. |
 | AI agents / chat in-app | ✅ [4] | ❌ | |
-| JSON ops schema for LLMs | ✅ (SDK/MCP) | ❌ | |
+| JSON ops schema for LLMs | ✅ (SDK/MCP) | ✅ MCP `tools/list` JSON schemas + GraphQL introspection | |
 | Streaming ops → live UI | ✅ (agents) | ❌ | |
-| `llms.txt` / AI integration guide | 🟡 | ❌ | |
+| `llms.txt` / AI integration guide | 🟡 | ✅ `public/llms.txt` (REST + GraphQL + MCP guide) | |
 
 ## E. Core CRM features (where Fourty is genuinely competitive)
 
@@ -87,34 +87,35 @@
 | Automatic lead scoring | ❌ (Einstein is Salesforce) | ✅ zero-config, tested | **Fourty ahead.** |
 | Multi-currency w/ USD normalization | 🟡 | ✅ 12 currencies, tested | **Fourty ahead.** |
 | CSV import w/ fuzzy mapping | ✅ | ✅ | Parity. |
-| Views: saved/table/kanban/filter/group | ✅ | 🟡 `saved_views` table exists, thin UI | |
+| Views: saved/table/kanban/filter/group | ✅ | ✅ saved views API + list UI, personal/shared (Gate C3) | `saved-views.test.ts`; wired into contacts list. |
 | Virtualized list for large datasets | ✅ | 📏 not verified (likely ❌) | |
-| Email/calendar sync | ✅ | ❌ | |
-| i18n / a11y | ✅ i18n | ❌ / 📏 | |
+| Email/calendar sync | ✅ | 🟡 ingestion engine (parse→match→link→dedupe), tested; OAuth/IMAP transport is the injectable edge (Gate C6, ADR-009) | `sync.test.ts`; provider OAuth flows not exercised. |
+| i18n / a11y | ✅ i18n | ✅ i18n (en/vi, `t()`, locale resolution, C4) / ✅ a11y pass (dialogs, combobox, landmarks, labels, C5) | `i18n.test.ts`, `a11y.test.ts`. |
 
-## Performance (Gate A) — NOT MEASURED
+## Performance (Gate B5) — MEASURED @10k
 
-No head-to-head numbers exist yet, by design (see honesty note). Neither system
-was benchmarked this session. Publishing p50/p95/p99, throughput, UI load, or
-search latency **requires** the shared-seed repro harness described in
-`PROGRESS.md`. Any number not produced by that harness is not a Fourty benchmark.
-
-**Architectural prior (hypothesis, to be tested, not a result):** on a small
-single-node dataset (≤100k rows) Fourty's in-process SQLite may show lower API
-latency for simple reads (no network hop to Postgres, no GraphQL resolver
-layer); at 1M+ rows, with concurrency and complex filters, Twenty's Postgres +
-indexes + workers should pull ahead, and Fourty's single-writer SQLite will
-bottleneck on concurrent writes. This is a prediction to falsify, not a claim.
+A **real head-to-head** was run: both stacks on `postgres:16`, matched resources,
+same dataset shape, seeded through each product's API. At 10k rows, 0 errors both
+sides, **Fourty wins every scenario** (e.g. list 756 vs 191 rps, p95 35 vs 136ms;
+create 689 vs 287; search 639 vs 325) with a **~3.7× smaller footprint** (~830 vs
+~3047 MiB — Twenty's Redis + worker + richer server). Full numbers, method, and
+caveats in [`BENCHMARK.md`](./BENCHMARK.md); the same harness supports 100k/1M
+(`SIZE=100000 bench/run.sh …`), not yet run. Numbers are one host, one run — the
+report is regenerated straight from `bench/results/*.json`, never hand-typed.
 
 ## Verdict
 
-Fourty **cannot today replace Twenty for a multi-tenant / enterprise
-production** deployment: it lacks multi-tenancy, RBAC enforcement, SSO,
-custom objects, GraphQL, an SDK/apps platform, and an MCP server. Fourty **is a
-credible choice** for a single small team that wants a zero-ops, self-hosted CRM
-with strong built-in analytics and lead scoring, deployed in minutes. The
-honest positioning is "the 30-second single-team CRM", not "the Twenty
-replacement" — until the Tier-1/Tier-2 gaps in `PROGRESS.md` are closed.
+Fourty has closed most of the Tier-1/Tier-2 platform gap: it is now
+**multi-tenant with RLS**, has **enforced RBAC + audit**, **custom objects**, an
+**auto GraphQL API**, **saved views**, **i18n + a11y**, an **email/calendar
+ingestion engine**, a **native MCP server**, and a **Twenty→Fourty migration CLI** —
+each backed by a test. What still separates it from Twenty 2.0 for a large
+**enterprise** deployment: **field-level permissions**, **SSO/OIDC/SAML + 2FA**, a
+**define-as-code apps/SDK platform**, and **full provider OAuth** for mail/calendar
+(the ingestion engine is built; the OAuth transport is not). Fourty remains the
+strongest choice for a small team wanting a zero-ops, self-hosted CRM with strong
+analytics and lead scoring — and is now a credible multi-tenant, AI-native option
+for teams that don't need field-level RBAC or SSO yet.
 
 ---
 
@@ -126,4 +127,4 @@ replacement" — until the Tier-1/Tier-2 gaps in `PROGRESS.md` are closed.
 5. Twenty apps/custom objects & no-code workflows from Settings. https://twenty.com/
 6. Twenty native MCP server (Cloud, self-host). https://twenty.com/releases
 
-_Last updated: 2026-07-07 (audited commit `9de80c7`)._
+_Last updated: 2026-07-08 (Tier-2 C1–C6 + B6; audited commit `130c2a8`)._

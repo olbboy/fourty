@@ -21,7 +21,13 @@ benchmark numbers are published because none were measured yet.
 | **B3 — RBAC + user mgmt + audit log** | ✅ DONE | `rbac-matrix.test.ts`, `audit-log.test.ts`, `members.test.ts`, `permissions.test.ts` — see below |
 | **B4 — Workers/queue + rate limit + observability + backup drill** | ✅ DONE | `worker.test.ts`, `ratelimit.test.ts`, `metrics.test.ts` + backup-drill log — see below |
 | **B5 — Benchmark vs Twenty (same Postgres)** | ✅ DONE | `BENCHMARK.md` + `bench/results/*.json` — real head-to-head @10k, both stacks measured — see below |
-| **B6 — twenty-migrate + MCP server + docs** | ⬜ pending | |
+| **C1 — Custom objects (no-code)** | ✅ DONE | `tests/custom-objects.test.ts`; migration `0006` reversible; REST + records validated on write (ADR-007) |
+| **C2 — Auto GraphQL API** | ✅ DONE | `tests/graphql.test.ts`; `/api/graphql`, typed queries all objects + mutations, RLS+RBAC (ADR-008) |
+| **C3 — Saved views (API + UI)** | ✅ DONE | `tests/saved-views.test.ts`; `/api/saved-views`, personal/shared, wired into contacts list |
+| **C4 — i18n** | ✅ DONE | `tests/i18n.test.ts`; en/vi catalogs, `t()`, locale resolution, language switcher |
+| **C5 — a11y pass** | ✅ DONE | `tests/a11y.test.ts`; dialogs/combobox/landmarks/labels; `next build` green |
+| **C6 — Email/calendar sync** | ✅ DONE | `tests/sync.test.ts`; migration `0007`; parse→match→link→dedupe engine, injectable transport (ADR-009) |
+| **B6 — twenty-migrate + MCP server + docs** | ✅ DONE | `tests/twenty-migrate.test.ts`, `tests/mcp.test.ts`; `@fourty/twenty-migrate` pkg, `npm run mcp` (ADR-010); docs updated |
 
 > **Detailed executable plans for B3, B4, B5** (tasks, files, migrations, tests,
 > acceptance criteria) live in [`docs/roadmap-b3-b4-b5.md`](./docs/roadmap-b3-b4-b5.md).
@@ -159,6 +165,37 @@ Backup drill: PASS.
 by the same harness (`SIZE=100000 bench/run.sh {fourty,twenty}`) but not yet run —
 Twenty's prior hypothesised concurrency/bulk edge is to be *measured* at larger N,
 not assumed. Numbers are one host, one run; re-run for stability.
+
+## Tier-2 (C1–C6) + B6 — DONE (evidence)
+
+Verified 2026-07-08 on real Postgres 16: `npx vitest run` → **142/142 pass**;
+`tsc` green (root + `packages/twenty-migrate`); `next build` green (all new routes
+registered). Every gate ships a reversible migration where it adds tables
+(`0006`, `0007`) and cross-workspace RLS confinement is asserted per feature.
+
+| Gate | What shipped | Key files | Test |
+|---|---|---|---|
+| C1 | No-code custom objects: definitions, fields, JSON records; records validated/coerced on write | `src/db/schema.ts`, `drizzle/0006`, `src/lib/{records,custom-objects}.ts`, `src/app/api/{custom-objects,objects}/**` | `custom-objects.test.ts` |
+| C2 | Typed GraphQL for every object + custom records; RLS + per-resolver RBAC | `src/lib/graphql/schema.ts`, `src/app/api/graphql/route.ts` | `graphql.test.ts` |
+| C3 | Saved views (personal/shared) API + contacts-list UI bar | `src/app/api/saved-views/**`, `src/components/saved-views.tsx` | `saved-views.test.ts` |
+| C4 | i18n: en/vi catalogs, `t()` + interpolation, cookie/Accept-Language resolution, switcher | `src/lib/i18n/**`, `src/app/api/locale/route.ts` | `i18n.test.ts` |
+| C5 | a11y: dialog/combobox/listbox semantics, modal focus mgmt, `<label>` association, skip link, aria-current, decorative icons hidden | `src/components/{command-palette,ui,shell,icons,saved-views}.tsx` | `a11y.test.ts` |
+| C6 | Email/calendar ingestion: RFC822 + ICS parsers, contact matching, idempotent dedupe, activity linking; injectable transport | `drizzle/0007`, `src/lib/sync/**`, `src/app/api/sync/**` | `sync.test.ts` |
+| B6·migrate | `@fourty/twenty-migrate` CLI: pure transforms + id-remapping over injectable Twenty/Fourty clients, `--dry-run` | `packages/twenty-migrate/**` | `twenty-migrate.test.ts` |
+| B6·mcp | Native MCP server (stdio JSON-RPC, 10 tools) reusing RLS + RBAC; `npm run mcp` | `src/mcp/**` | `mcp.test.ts` (+ live stdio smoke) |
+| B6·docs | ADR-007..010, PARITY/PROGRESS/README refresh, `public/llms.txt` | `docs/adr/00{7,8,9,10}-*.md`, `public/llms.txt` | — |
+
+### Deliberate choices / deviations
+- **Custom objects are metadata-driven** (one JSON `custom_records` table) — no
+  per-object DDL, so the feature is one reversible migration and RLS-safe (ADR-007).
+  Trade-off: no per-field SQL indexes on custom data at this tier.
+- **GraphQL mutations** cover contacts/companies/custom records; deals/tasks/notes
+  are read via GraphQL but written via REST where their side effects live (ADR-008).
+- **Email/calendar**: the parse→match→link→dedupe engine is in-repo and fully
+  tested; the OAuth/IMAP network transport is the injectable edge and is **not**
+  exercised by tests — stated, not mocked green (ADR-009).
+- **MCP + migrate CLI** hand-rolled with zero new heavy deps (only `graphql` was
+  added, for C2), consistent with the pg-boss/no-Redis ethos.
 
 ## Environment note (for session continuity)
 Local dev (macOS) runs Postgres 16 in Docker:
