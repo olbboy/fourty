@@ -126,4 +126,35 @@ describe("MCP server (handler + Postgres + RLS)", () => {
     const res = await call(ctxA, "does/not/exist");
     expect(res!.error?.code).toBe(-32601);
   });
+
+  it("enforces field-level permissions (redacts reads, blocks writes)", async () => {
+    const { withWorkspace } = await import("@/db");
+    const wsA = ctxA.workspaceId;
+    // viewer cannot read contacts.email; member cannot write contacts.status.
+    await withWorkspace(wsA, async () => {
+      await db.insert(tables.fieldPermissions).values([
+        { id: newId(), object: "contacts", field: "email", role: "viewer", canRead: 0, canWrite: 0, createdAt: Date.now() },
+        { id: newId(), object: "contacts", field: "status", role: "member", canRead: 1, canWrite: 0, createdAt: Date.now() },
+      ]);
+    });
+    const memberCtx: ToolContext = { workspaceId: wsA, role: "member", userId: null };
+
+    // Viewer sees contacts but the email field is stripped; admin still sees it.
+    const asViewer = await callTool(viewerCtx, "list_contacts", {});
+    expect(asViewer.isError).toBe(false);
+    expect(asViewer.data.length).toBeGreaterThan(0);
+    expect(asViewer.data.every((c: Record<string, unknown>) => !("email" in c))).toBe(true);
+    const asAdmin = await callTool(ctxA, "list_contacts", {});
+    expect(asAdmin.data.some((c: { email?: string }) => c.email === "grace@navy.mil")).toBe(true);
+    // search is redacted too.
+    const search = await callTool(viewerCtx, "search", { query: "grace" });
+    expect(search.data.contacts.every((c: Record<string, unknown>) => !("email" in c))).toBe(true);
+
+    // Member cannot write the blocked field; omitting it works.
+    const blocked = await callTool(memberCtx, "create_contact", { firstName: "Blocked", status: "customer" });
+    expect(blocked.isError).toBe(true);
+    expect(blocked.data).toMatch(/status/);
+    const ok = await callTool(memberCtx, "create_contact", { firstName: "Allowed" });
+    expect(ok.isError).toBe(false);
+  });
 });
