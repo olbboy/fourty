@@ -34,13 +34,13 @@ wait_http() { # url, timeout_s
   done
 }
 
-capture_stats() { # label, prefix, base, key -> results/<label>-stats.json (UNDER LOAD)
-  local label="$1" prefix="$2" base="$3" key="$4"
+capture_stats() { # label, prefix, base, key, script -> results/<label>-stats.json (UNDER LOAD)
+  local label="$1" prefix="$2" base="$3" key="$4" script="${5:-bench/k6/api.js}"
   local raw; raw="$(mktemp)"
   # Drive sustained load in the background, then sample docker stats a few times
   # while it runs so CPU reflects load — not a post-run idle snapshot.
   BASE_URL="$base" API_KEY="$key" SCENARIO=list VUS="$VUS" DURATION=24s \
-    RESULT_FILE=/dev/null k6 run bench/k6/api.js >/dev/null 2>&1 &
+    RESULT_FILE=/dev/null k6 run "$script" >/dev/null 2>&1 &
   local k6pid=$!
   sleep 8 # past warm-up, into steady state
   for _ in 1 2 3 4; do
@@ -68,13 +68,13 @@ capture_stats() { # label, prefix, base, key -> results/<label>-stats.json (UNDE
   rm -f "$raw"
 }
 
-run_k6_matrix() { # label, base_url, api_key  (writes results/<label>-<scenario>.json)
-  local label="$1" base="$2" key="$3"
+run_k6_matrix() { # label, base_url, api_key, script  (writes results/<label>-<scenario>.json)
+  local label="$1" base="$2" key="$3" script="${4:-bench/k6/api.js}"
   for s in $SCENARIOS; do
     log "k6: $label / $s (vus=$VUS dur=$DURATION)"
     BASE_URL="$base" API_KEY="$key" SCENARIO="$s" VUS="$VUS" DURATION="$DURATION" \
       RESULT_FILE="$RESULTS/${label}-${s}.json" \
-      k6 run bench/k6/api.js || echo "  (scenario $s reported threshold breach)"
+      k6 run "$script" || echo "  (scenario $s reported threshold breach)"
   done
 }
 
@@ -102,23 +102,35 @@ bench_fourty() {
   cat "$RESULTS/fourty-${SIZE}-seed.json"
 
   local label="fourty-${SIZE}"
-  run_k6_matrix "$label" "$base" "$key"
+  run_k6_matrix "$label" "$base" "$key" bench/k6/api.js
   # Match only this compose project's containers (bench-bench-*), not any stray
   # host container that happens to contain "fourty".
-  capture_stats "$label" "bench-bench" "$base" "$key"
+  capture_stats "$label" "bench-bench" "$base" "$key" bench/k6/api.js
 
   [ "${KEEP:-0}" = "1" ] || $COMPOSE --profile fourty down -v --remove-orphans
 }
 
 bench_twenty() {
   local base="http://localhost:${TWENTY_PORT}"
-  log "Twenty: clean bring-up (SIZE=$SIZE) — requires pinned images + a token"
+  log "Twenty: clean bring-up (SIZE=$SIZE)"
   $COMPOSE --profile twenty down -v --remove-orphans 2>/dev/null || true
   TWENTY_PORT="$TWENTY_PORT" $COMPOSE --profile twenty up -d
-  wait_http "${base}/healthz" 300 || wait_http "${base}" 300
-  echo "Twenty requires a workspace + API token to seed via GraphQL."
-  echo "Set TWENTY_TOKEN, then seed (bench/seed.ts TARGET=twenty) and run the k6"
-  echo "matrix + capture_stats exactly as the Fourty path does."
+  wait_http "${base}/healthz" 300
+
+  log "Twenty: bootstrap workspace + access token (signUp → new workspace → activate → re-auth)"
+  local token
+  token="$(BASE_URL="$base" node bench/twenty-bootstrap.mjs)"
+  [ -n "$token" ] || { echo "twenty bootstrap failed"; exit 1; }
+
+  log "Twenty: seed via GraphQL API"
+  TARGET=twenty BASE_URL="$base" TWENTY_TOKEN="$token" SIZE="$SIZE" \
+    npx tsx bench/seed.ts > "$RESULTS/twenty-${SIZE}-seed.json"
+  cat "$RESULTS/twenty-${SIZE}-seed.json"
+
+  local label="twenty-${SIZE}"
+  run_k6_matrix "$label" "$base" "$token" bench/k6/twenty.js
+  capture_stats "$label" "bench-bench" "$base" "$token" bench/k6/twenty.js
+
   [ "${KEEP:-0}" = "1" ] || $COMPOSE --profile twenty down -v --remove-orphans
 }
 

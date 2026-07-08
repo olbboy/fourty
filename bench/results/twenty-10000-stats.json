@@ -1,0 +1,26 @@
+{
+  "label": "twenty-10000",
+  "note": "peak under sustained list load",
+  "containers": [
+    {
+      "name": "bench-bench-twenty-worker-1",
+      "cpu_peak": "116.0%",
+      "mem_peak_mib": 1023
+    },
+    {
+      "name": "bench-bench-twenty-server-1",
+      "cpu_peak": "118.3%",
+      "mem_peak_mib": 1454
+    },
+    {
+      "name": "bench-bench-pg-twenty-1",
+      "cpu_peak": "104.8%",
+      "mem_peak_mib": 318
+    },
+    {
+      "name": "bench-bench-redis-twenty-1",
+      "cpu_peak": "27.1%",
+      "mem_peak_mib": 252
+    }
+  ]
+}

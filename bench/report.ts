@@ -174,11 +174,13 @@ out.push(
   "  `effective_cache_size=3GB`). Twenty additionally runs Redis (1cpu/1g) — part of its",
   "  architecture, counted in its footprint.",
   "- **Seeded via each product's API** (`bench/seed.ts`): Fourty over REST, Twenty over",
-  "  GraphQL — same logical dataset (companies=SIZE/10, contacts=SIZE, deals=SIZE/2,",
-  "  activities=SIZE/10).",
-  "- **Load**: k6 (`bench/k6/api.js`), 5s warm-up then fixed VUs for a fixed duration per",
-  "  scenario. Fourty's in-process rate limiter is raised out of the way so raw throughput",
-  "  is measured (Twenty has no equivalent per-instance limiter).",
+  "  GraphQL (its first-class API) — same logical dataset (companies=SIZE/10, contacts=SIZE,",
+  "  deals=SIZE/2). Activities (SIZE/10) are Fourty-only — Twenty has no directly equivalent",
+  "  timeline object, so they're excluded from the comparison rather than faked.",
+  "- **Load**: k6 over REST for both — `bench/k6/api.js` hits Fourty's `/api/contacts`,",
+  "  `bench/k6/twenty.js` hits Twenty's `/rest/people` (`depth=0` for a flat list, matching",
+  "  Fourty). 5s warm-up then fixed VUs for a fixed duration per scenario. Fourty's in-process",
+  "  rate limiter is raised out of the way so raw throughput is measured (Twenty has none).",
   "- **Honesty**: where Fourty loses, it is stated with an optimization note — losses are",
   "  published, not hidden (repo anti-vanity rule).",
 );
@@ -225,10 +227,63 @@ if (!hasTwenty) {
     "Once both sides are measured, this section enumerates every scenario where Fourty is",
     "slower than Twenty, with a one-line cause and an optimization ticket.",
   );
+  out.push("");
 } else {
-  out.push("_Auto-comparison pending: fill per-scenario win/loss from the tables above._");
+  for (const size of sizes) {
+    const f = data[size]?.fourty?.k6;
+    const t = data[size]?.twenty?.k6;
+    if (!f || !t || Object.keys(f).length === 0 || Object.keys(t).length === 0) continue;
+    out.push(`### ${size.toLocaleString("en-US")} contacts — head-to-head`);
+    out.push("");
+    out.push("| Scenario | Fourty req/s | Twenty req/s | Higher | Fourty p95 (ms) | Twenty p95 (ms) | Lower p95 |");
+    out.push("|---|--:|--:|:--:|--:|--:|:--:|");
+    const losses: string[] = [];
+    for (const s of SCENARIOS) {
+      const fr = f[s];
+      const tr = t[s];
+      if (!fr || !tr) continue;
+      const rpsWin = fr.rps >= tr.rps ? "Fourty" : "**Twenty**";
+      const p95Win = fr.latency_ms.p95 <= tr.latency_ms.p95 ? "Fourty" : "**Twenty**";
+      out.push(
+        `| ${s} | ${Math.round(fr.rps)} | ${Math.round(tr.rps)} | ${rpsWin} | ${fr.latency_ms.p95.toFixed(1)} | ${tr.latency_ms.p95.toFixed(1)} | ${p95Win} |`,
+      );
+      if (tr.rps > fr.rps)
+        losses.push(
+          `**${s}** throughput: Twenty ${Math.round(tr.rps)} vs Fourty ${Math.round(fr.rps)} req/s (${(tr.rps / fr.rps).toFixed(2)}×).`,
+        );
+      else if (tr.latency_ms.p95 < fr.latency_ms.p95)
+        losses.push(
+          `**${s}** p95: Twenty ${tr.latency_ms.p95.toFixed(1)}ms vs Fourty ${fr.latency_ms.p95.toFixed(1)}ms (throughput still Fourty's).`,
+        );
+    }
+    out.push("");
+    // Total memory footprint per stack under load (sum of container peaks).
+    const memSum = (target: string) =>
+      (data[size]?.[target]?.stats?.containers ?? []).reduce((a, c) => a + c.mem_peak_mib, 0);
+    const fMem = memSum("fourty");
+    const tMem = memSum("twenty");
+    if (fMem > 0 && tMem > 0) {
+      out.push(
+        `**Footprint under load:** Fourty ~${fMem} MiB across ${data[size].fourty.stats?.containers.length} containers vs Twenty ~${tMem} MiB across ${data[size].twenty.stats?.containers.length} (${(tMem / fMem).toFixed(1)}×) — Twenty's Redis + worker + richer server are part of its architecture.`,
+      );
+      out.push("");
+    }
+    if (losses.length) {
+      out.push("**Where Fourty loses (publish, don't hide):**");
+      for (const l of losses) out.push(`- ${l}`);
+      out.push("- → optimization ticket: profile the losing query path; check indexes + N+1 in the handler.");
+    } else {
+      out.push("**Fourty matches or beats Twenty on every measured scenario** (throughput and p95).");
+    }
+    out.push("");
+    out.push(
+      "_Caveat: same protocol (REST) and dataset shape both sides; Twenty adds Redis + a worker" +
+        " (its architecture) and runs GraphQL as its first-class API — REST is its auto-generated" +
+        " equivalent. Numbers are one host, one run; re-run for stability._",
+    );
+    out.push("");
+  }
 }
-out.push("");
 
 writeFileSync(path.join(ROOT, "BENCHMARK.md"), out.join("\n") + "\n");
 process.stdout.write(`BENCHMARK.md written (${sizes.length} dataset size(s)).\n`);
