@@ -100,6 +100,12 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   passwordHash: text("password_hash").notNull(),
   role: text("role").notNull().default("member"), // legacy global role; authz lives on membership
+  // 2FA (Gate D2). totpSecret holds the Base32 secret once set up; totpEnabled
+  // flips to 1 after the first code is verified; backupCodes is a JSON array of
+  // sha256-hashed one-time recovery codes (consumed on use).
+  totpSecret: text("totp_secret"),
+  totpEnabled: integer("totp_enabled").notNull().default(0),
+  backupCodes: text("backup_codes").notNull().default("[]"),
   createdAt: millis("created_at").notNull(),
 });
 

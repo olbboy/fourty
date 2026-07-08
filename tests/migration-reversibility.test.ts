@@ -27,8 +27,10 @@ const UP = [
   "drizzle/0006_custom_objects.sql",
   "drizzle/0007_email_calendar_sync.sql",
   "drizzle/0008_field_permissions.sql",
+  "drizzle/0009_two_factor.sql",
 ];
 const DOWN = [
+  "drizzle/down/0009_two_factor.down.sql",
   "drizzle/down/0008_field_permissions.down.sql",
   "drizzle/down/0007_email_calendar_sync.down.sql",
   "drizzle/down/0006_custom_objects.down.sql",
