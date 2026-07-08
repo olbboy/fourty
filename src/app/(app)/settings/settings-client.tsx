@@ -4,8 +4,11 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { CustomFieldDef } from "@/lib/types";
 import { timeAgo } from "@/lib/format";
+import { useRouter } from "next/navigation";
 import { PageHeader, Modal, Field, Spinner } from "@/components/ui";
 import { IconPlus, IconTrash, IconKey, IconUpload } from "@/components/icons";
+import { useLocale, useT } from "@/lib/i18n/provider";
+import { SUPPORTED_LOCALES, LOCALE_LABELS } from "@/lib/i18n";
 
 type ApiKey = {
   id: string;
@@ -32,6 +35,7 @@ export function SettingsClient() {
     <div className="animate-fade-up space-y-6">
       <PageHeader title="Settings" subtitle="Team, custom fields, API access, and data tools." />
       <MembersSection />
+      <LanguageSection />
       <CustomFieldsSection />
       <ApiKeysSection />
       <div className="card p-4">
@@ -56,9 +60,56 @@ export function SettingsClient() {
             /api/contacts · /api/companies · /api/deals · /api/tasks · /api/notes · /api/activities
             · /api/workflows · /api/search · /api/stats/dashboard
           </code>{" "}
-          with GET/POST/PATCH/DELETE. Full examples in the README.
+          with GET/POST/PATCH/DELETE. A typed <strong>GraphQL</strong> API for every object is at{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 text-xs">/api/graphql</code>, and no-code{" "}
+          <strong>custom objects</strong> are served at{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 text-xs">/api/objects/&lt;name&gt;</code>.
+          Full examples in the README.
         </p>
       </div>
+    </div>
+  );
+}
+
+// Interface language (Gate C4). Persists to a cookie via /api/locale, then
+// refreshes so the server layout re-resolves the locale.
+function LanguageSection() {
+  const locale = useLocale();
+  const t = useT();
+  const router = useRouter();
+  const [saving, setSaving] = useState(false);
+
+  async function change(next: string) {
+    setSaving(true);
+    await fetch("/api/locale", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ locale: next }),
+    });
+    setSaving(false);
+    router.refresh();
+  }
+
+  return (
+    <div className="card p-4">
+      <h2 className="mb-1 text-sm font-semibold">{t("settings.language")}</h2>
+      <p className="mb-3 text-sm text-ink-muted">{t("settings.languageHint")}</p>
+      <label htmlFor="locale-select" className="sr-only">
+        {t("settings.language")}
+      </label>
+      <select
+        id="locale-select"
+        value={locale}
+        disabled={saving}
+        onChange={(e) => change(e.target.value)}
+        className="input w-auto"
+      >
+        {SUPPORTED_LOCALES.map((l) => (
+          <option key={l} value={l}>
+            {LOCALE_LABELS[l]}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

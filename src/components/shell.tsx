@@ -18,16 +18,18 @@ import {
   IconZap,
 } from "./icons";
 import { CommandPalette } from "./command-palette";
+import { LocaleProvider } from "@/lib/i18n/provider";
+import { translator, type Locale, type MessageKey } from "@/lib/i18n";
 
-const NAV = [
-  { href: "/dashboard", label: "Dashboard", icon: IconDashboard },
-  { href: "/contacts", label: "Contacts", icon: IconUsers },
-  { href: "/companies", label: "Companies", icon: IconBuilding },
-  { href: "/deals", label: "Deals", icon: IconTarget },
-  { href: "/tasks", label: "Tasks", icon: IconCheckSquare },
-  { href: "/reports", label: "Reports", icon: IconChart },
-  { href: "/workflows", label: "Workflows", icon: IconZap },
-  { href: "/settings", label: "Settings", icon: IconSettings },
+const NAV: { href: string; key: MessageKey; icon: typeof IconDashboard }[] = [
+  { href: "/dashboard", key: "nav.dashboard", icon: IconDashboard },
+  { href: "/contacts", key: "nav.contacts", icon: IconUsers },
+  { href: "/companies", key: "nav.companies", icon: IconBuilding },
+  { href: "/deals", key: "nav.deals", icon: IconTarget },
+  { href: "/tasks", key: "nav.tasks", icon: IconCheckSquare },
+  { href: "/reports", key: "nav.reports", icon: IconChart },
+  { href: "/workflows", key: "nav.workflows", icon: IconZap },
+  { href: "/settings", key: "nav.settings", icon: IconSettings },
 ];
 
 // Primary items for the mobile bottom bar
@@ -60,14 +62,17 @@ function ThemeToggle() {
 
 export function AppShell({
   user,
+  locale,
   children,
 }: {
   user: { name: string; email: string };
+  locale: Locale;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const t = translator(locale);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -87,7 +92,14 @@ export function AppShell({
   }
 
   return (
+    <LocaleProvider locale={locale}>
     <div className="flex min-h-dvh">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-accent-600 focus:px-3 focus:py-2 focus:text-sm focus:text-white"
+      >
+        Skip to content
+      </a>
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-56 flex-col border-r border-line bg-surface md:flex">
         <div className="flex items-center gap-2.5 px-4 py-4">
@@ -106,13 +118,14 @@ export function AppShell({
             ⌘K
           </kbd>
         </button>
-        <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-2">
-          {NAV.map(({ href, label, icon: Icon }) => {
+        <nav aria-label="Main" className="flex-1 space-y-0.5 overflow-y-auto px-3 py-2">
+          {NAV.map(({ href, key, icon: Icon }) => {
             const active = pathname === href || pathname.startsWith(href + "/");
             return (
               <Link
                 key={href}
                 href={href}
+                aria-current={active ? "page" : undefined}
                 className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition ${
                   active
                     ? "bg-accent-600/10 text-accent-600 dark:text-accent-400"
@@ -120,7 +133,7 @@ export function AppShell({
                 }`}
               >
                 <Icon width={17} height={17} />
-                {label}
+                {t(key)}
               </Link>
             );
           })}
@@ -178,29 +191,34 @@ export function AppShell({
       </header>
 
       {/* Mobile bottom nav */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 flex border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] md:hidden">
-        {MOBILE_NAV.map(({ href, label, icon: Icon }) => {
+      <nav
+        aria-label="Primary"
+        className="fixed inset-x-0 bottom-0 z-30 flex border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] md:hidden"
+      >
+        {MOBILE_NAV.map(({ href, key, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + "/");
           return (
             <Link
               key={href}
               href={href}
+              aria-current={active ? "page" : undefined}
               className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium ${
                 active ? "text-accent-600 dark:text-accent-400" : "text-ink-muted"
               }`}
             >
               <Icon width={19} height={19} />
-              {label}
+              {t(key)}
             </Link>
           );
         })}
       </nav>
 
-      <main className="min-w-0 flex-1 px-4 pb-24 pt-16 md:ml-56 md:px-8 md:pb-10 md:pt-8">
+      <main id="main" className="min-w-0 flex-1 px-4 pb-24 pt-16 md:ml-56 md:px-8 md:pb-10 md:pt-8">
         {children}
       </main>
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
+    </LocaleProvider>
   );
 }
