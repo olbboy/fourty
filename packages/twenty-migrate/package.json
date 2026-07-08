@@ -1,0 +1,20 @@
+{
+  "name": "@fourty/twenty-migrate",
+  "version": "0.1.0",
+  "description": "Migrate a Twenty CRM workspace (people, companies, opportunities) into Fourty over its REST API.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "fourty-twenty-migrate": "dist/cli.js"
+  },
+  "main": "dist/migrate.js",
+  "types": "dist/migrate.d.ts",
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "tsc"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
