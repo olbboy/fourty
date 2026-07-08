@@ -128,6 +128,11 @@ describe("static guard: every API route authenticates", () => {
       "members/accept",
       "graphql",
       "locale", // UI-preference cookie: no tenant data, no RBAC object (authenticates only)
+      // 2FA endpoints act on the caller's own account (users table), not tenant
+      // data / an RBAC object — they authenticate via getSessionUser only.
+      "2fa/setup",
+      "2fa/enable",
+      "2fa/disable",
     ]);
     const missing: string[] = [];
     for (const { rel, file } of files) {
