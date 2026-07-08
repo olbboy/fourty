@@ -117,9 +117,11 @@ describe("static guard: every API route authenticates", () => {
   it("every mutating route enforces RBAC via authorize()", () => {
     const apiDir = path.resolve(__dirname, "../src/app/api");
     const files = routeFiles(apiDir);
-    // Mutating routes exempt from authorize(): public auth endpoints and invite
-    // accept (authorized by the one-time invite token, not a workspace role).
-    const EXEMPT = new Set(["auth/login", "auth/logout", "auth/setup", "members/accept"]);
+    // Mutating routes exempt from authorize(): public auth endpoints, invite
+    // accept (authorized by the one-time invite token, not a workspace role), and
+    // graphql (RBAC enforced per-resolver via can(), the same predicate
+    // authorize() wraps — see src/lib/graphql/schema.ts requireRbac).
+    const EXEMPT = new Set(["auth/login", "auth/logout", "auth/setup", "members/accept", "graphql"]);
     const missing: string[] = [];
     for (const { rel, file } of files) {
       if (EXEMPT.has(rel)) continue;
