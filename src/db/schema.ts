@@ -392,6 +392,74 @@ export const savedViews = pgTable("saved_views", {
   createdAt: millis("created_at").notNull(),
 });
 
+// Email + calendar sync (Gate C6, ADR-009). A sync_account is a connected
+// mailbox/calendar (IMAP, Gmail, Microsoft, or an ICS feed URL). Ingested
+// messages/events are deduped by their provider id (Message-ID / ICS UID) and
+// linked to a contact by matching a participant email within the workspace. All
+// three tables are workspace-scoped + RLS. The provider transport (OAuth/IMAP
+// fetch) is the injectable edge; parsing→matching→linking→storage is in-repo.
+export const syncAccounts = pgTable(
+  "sync_accounts",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    provider: text("provider").notNull(), // imap | google | microsoft | ics
+    email: text("email").notNull(),
+    label: text("label"),
+    config: text("config").notNull().default("{}"), // provider connection details (JSON)
+    status: text("status").notNull().default("active"), // active | paused | error
+    lastSyncedAt: millis("last_synced_at"),
+    lastError: text("last_error"),
+    createdAt: millis("created_at").notNull(),
+  },
+  (t) => [index("sync_accounts_ws_idx").on(t.workspaceId)],
+);
+
+export const emailMessages = pgTable(
+  "email_messages",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    accountId: text("account_id").notNull(),
+    messageId: text("message_id").notNull(), // RFC 822 Message-ID (dedup key)
+    threadId: text("thread_id"),
+    direction: text("direction").notNull().default("inbound"), // inbound | outbound
+    fromAddr: text("from_addr"),
+    toAddrs: text("to_addrs").notNull().default("[]"),
+    subject: text("subject"),
+    snippet: text("snippet"),
+    contactId: text("contact_id"),
+    sentAt: millis("sent_at"),
+    createdAt: millis("created_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("email_messages_dedup_idx").on(t.workspaceId, t.accountId, t.messageId),
+    index("email_messages_contact_idx").on(t.workspaceId, t.contactId),
+  ],
+);
+
+export const calendarEvents = pgTable(
+  "calendar_events",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    accountId: text("account_id").notNull(),
+    uid: text("uid").notNull(), // ICS UID (dedup key)
+    title: text("title"),
+    description: text("description"),
+    location: text("location"),
+    attendees: text("attendees").notNull().default("[]"),
+    contactId: text("contact_id"),
+    startAt: millis("start_at"),
+    endAt: millis("end_at"),
+    createdAt: millis("created_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("calendar_events_dedup_idx").on(t.workspaceId, t.accountId, t.uid),
+    index("calendar_events_contact_idx").on(t.workspaceId, t.contactId),
+  ],
+);
+
 // Idempotency ledger for background jobs (Gate B4, ADR-004). A job handler
 // claims its idempotency key here (INSERT … ON CONFLICT DO NOTHING) before doing
 // side effects, so at-least-once delivery (a worker killed after the side effect
