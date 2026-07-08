@@ -25,8 +25,10 @@ const UP = [
   "drizzle/0004_audit_rls.sql",
   "drizzle/0005_queue.sql",
   "drizzle/0006_custom_objects.sql",
+  "drizzle/0007_email_calendar_sync.sql",
 ];
 const DOWN = [
+  "drizzle/down/0007_email_calendar_sync.down.sql",
   "drizzle/down/0006_custom_objects.down.sql",
   "drizzle/down/0005_queue.down.sql",
   "drizzle/down/0004_audit_rls.down.sql",
@@ -82,8 +84,8 @@ describe("migration reversibility (full chain, real Postgres)", () => {
       await runFiles(client, UP);
       const before = await schemaFingerprint(client);
       const up1 = await counts(client);
-      expect(up1.tables).toBe(24); // 21 (B4) + custom_objects + custom_object_fields + custom_records
-      expect(up1.policies).toBe(19); // 16 (B4) + 3 custom-object tables
+      expect(up1.tables).toBe(27); // 24 (C1) + sync_accounts + email_messages + calendar_events
+      expect(up1.policies).toBe(22); // 19 (C1) + 3 sync tables
 
       // Roll the whole chain back → empty schema
       await runFiles(client, DOWN);
@@ -95,8 +97,8 @@ describe("migration reversibility (full chain, real Postgres)", () => {
       await runFiles(client, UP);
       const after = await schemaFingerprint(client);
       const up2 = await counts(client);
-      expect(up2.tables).toBe(24);
-      expect(up2.policies).toBe(19);
+      expect(up2.tables).toBe(27);
+      expect(up2.policies).toBe(22);
       expect(after).toBe(before);
     } finally {
       await client.end();
