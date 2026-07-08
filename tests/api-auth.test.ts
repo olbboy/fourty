@@ -121,7 +121,14 @@ describe("static guard: every API route authenticates", () => {
     // accept (authorized by the one-time invite token, not a workspace role), and
     // graphql (RBAC enforced per-resolver via can(), the same predicate
     // authorize() wraps — see src/lib/graphql/schema.ts requireRbac).
-    const EXEMPT = new Set(["auth/login", "auth/logout", "auth/setup", "members/accept", "graphql"]);
+    const EXEMPT = new Set([
+      "auth/login",
+      "auth/logout",
+      "auth/setup",
+      "members/accept",
+      "graphql",
+      "locale", // UI-preference cookie: no tenant data, no RBAC object (authenticates only)
+    ]);
     const missing: string[] = [];
     for (const { rel, file } of files) {
       if (EXEMPT.has(rel)) continue;
