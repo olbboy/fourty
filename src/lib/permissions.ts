@@ -34,7 +34,7 @@ export const CRM_OBJECTS = [
 ] as const;
 
 // Administration objects: admin-only for every action (incl. read).
-export const ADMIN_OBJECTS = ["members", "api-keys", "settings", "audit", "field-permissions"] as const;
+export const ADMIN_OBJECTS = ["members", "api-keys", "settings", "audit", "field-permissions", "webhooks"] as const;
 
 export type CrmObject = (typeof CRM_OBJECTS)[number];
 export type AdminObject = (typeof ADMIN_OBJECTS)[number];

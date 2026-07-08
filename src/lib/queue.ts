@@ -29,7 +29,10 @@ import type { EventContext } from "@/lib/workflows/types";
 // ── Job catalogue ───────────────────────────────────────────────────────────
 
 export type JobPayloads = {
-  "webhook.deliver": { url: string; body: string; event: string };
+  // `headers` carries the HMAC signature + timestamp (Gate D3) so the worker sets
+  // them on the outbound request; computed at enqueue time when the payload + the
+  // workspace signing secret are both in hand.
+  "webhook.deliver": { url: string; body: string; event: string; headers?: Record<string, string> };
   "workflow.dispatch": { ctx: EventContext };
 };
 
