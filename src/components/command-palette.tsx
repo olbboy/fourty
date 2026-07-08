@@ -109,30 +109,41 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     }
   }
 
+  const activeId = items[selected] ? `cmdk-opt-${selected}` : undefined;
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-[12vh] backdrop-blur-sm"
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command palette"
         className="card w-full max-w-lg animate-fade-up overflow-hidden shadow-2xl"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={onKeyDown}
       >
         <div className="flex items-center gap-2.5 border-b border-line px-4">
-          <IconSearch width={16} height={16} className="text-ink-muted" />
+          <IconSearch width={16} height={16} className="text-ink-muted" aria-hidden="true" />
           <input
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search contacts, companies, deals — or jump anywhere…"
             className="w-full bg-transparent py-3.5 text-sm outline-none placeholder:text-ink-muted/60"
+            role="combobox"
+            aria-expanded={items.length > 0}
+            aria-controls="cmdk-list"
+            aria-activedescendant={activeId}
+            aria-label="Search or jump to a page"
+            aria-autocomplete="list"
           />
           <kbd className="rounded border border-line px-1.5 py-0.5 text-[10px] font-semibold text-ink-muted">
             esc
           </kbd>
         </div>
-        <div className="max-h-80 overflow-y-auto p-2">
+        <div id="cmdk-list" role="listbox" aria-label="Results" className="max-h-80 overflow-y-auto p-2">
           {items.length === 0 && (
             <p className="px-3 py-6 text-center text-sm text-ink-muted">No results</p>
           )}
@@ -141,6 +152,9 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
             return (
               <button
                 key={i}
+                id={`cmdk-opt-${i}`}
+                role="option"
+                aria-selected={i === selected}
                 onClick={() => {
                   item.go();
                   onClose();
@@ -150,7 +164,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
                   i === selected ? "bg-accent-600/10 text-accent-700 dark:text-accent-300" : ""
                 }`}
               >
-                <Icon width={15} height={15} className="shrink-0 text-ink-muted" />
+                <Icon width={15} height={15} className="shrink-0 text-ink-muted" aria-hidden="true" />
                 <span className="truncate font-medium">{item.title}</span>
                 {item.subtitle && (
                   <span className="ml-auto truncate text-xs text-ink-muted">{item.subtitle}</span>

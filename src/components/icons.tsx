@@ -10,6 +10,10 @@ function base(props: IconProps): IconProps {
     strokeWidth: 2,
     strokeLinecap: "round",
     strokeLinejoin: "round",
+    // Icons are decorative by default — hide from assistive tech unless a caller
+    // opts in with its own aria-label/role (a11y, Gate C5).
+    "aria-hidden": true,
+    focusable: false,
     ...props,
   };
 }
