@@ -7,6 +7,7 @@ import type { Contact, Company } from "@/lib/types";
 import { timeAgo } from "@/lib/format";
 import { PageHeader, Modal, Field, StatusChip, ScoreBadge, EmptyState, Spinner } from "@/components/ui";
 import { IconPlus, IconDownload, IconUpload } from "@/components/icons";
+import { SavedViewsBar, type SavedView } from "@/components/saved-views";
 import { ContactForm } from "./contact-form";
 
 export function ContactsClient() {
@@ -17,7 +18,16 @@ export function ContactsClient() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
   const [sort, setSort] = useState("updatedAt");
+  const [activeView, setActiveView] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(searchParams.get("new") === "1");
+
+  // Apply a saved view's config (or reset to defaults when cleared).
+  const applyView = useCallback((view: SavedView | null) => {
+    setActiveView(view?.id ?? null);
+    const cfg = view?.config ?? {};
+    setStatus(typeof cfg.filters?.status === "string" ? cfg.filters.status : "");
+    setSort(cfg.sort ?? "updatedAt");
+  }, []);
 
   const load = useCallback(async () => {
     const params = new URLSearchParams();
@@ -65,6 +75,13 @@ export function ContactsClient() {
         }
       />
 
+      <SavedViewsBar
+        entity="contacts"
+        activeId={activeView}
+        current={{ filters: status ? { status } : {}, sort }}
+        onApply={applyView}
+      />
+
       <div className="mb-4 flex flex-wrap gap-2">
         <input
           value={q}
@@ -72,14 +89,28 @@ export function ContactsClient() {
           placeholder="Search name, email, title…"
           className="input max-w-xs"
         />
-        <select value={status} onChange={(e) => setStatus(e.target.value)} className="input w-auto">
+        <select
+          value={status}
+          onChange={(e) => {
+            setStatus(e.target.value);
+            setActiveView(null);
+          }}
+          className="input w-auto"
+        >
           <option value="">All statuses</option>
           <option value="lead">Lead</option>
           <option value="qualified">Qualified</option>
           <option value="customer">Customer</option>
           <option value="churned">Churned</option>
         </select>
-        <select value={sort} onChange={(e) => setSort(e.target.value)} className="input w-auto">
+        <select
+          value={sort}
+          onChange={(e) => {
+            setSort(e.target.value);
+            setActiveView(null);
+          }}
+          className="input w-auto"
+        >
           <option value="updatedAt">Recently updated</option>
           <option value="score">Highest score</option>
           <option value="name">Name</option>

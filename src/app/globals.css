@@ -87,6 +87,15 @@ body {
   @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium;
 }
 
+/* Interactive pill (saved-views bar, quick filters). */
+.chip-btn {
+  @apply inline-flex items-center gap-1 rounded-full border border-line bg-surface px-2.5 py-1 text-xs font-medium text-ink transition hover:bg-surface-2;
+}
+
+.chip-active {
+  @apply border-accent-500 bg-accent-50 text-accent-700;
+}
+
 .th {
   @apply px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-ink-muted;
 }
