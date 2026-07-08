@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useId, useRef } from "react";
 import { IconX } from "./icons";
 import { initials } from "@/lib/format";
 
@@ -37,13 +37,22 @@ export function Modal({
   children: React.ReactNode;
   wide?: boolean;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
     }
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    // Move focus into the dialog on open; restore it to the trigger on close.
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    dialogRef.current?.focus();
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      previouslyFocused?.focus?.();
+    };
   }, [open, onClose]);
 
   if (!open) return null;
@@ -53,15 +62,22 @@ export function Modal({
       onClick={onClose}
     >
       <div
-        className={`card max-h-[92dvh] w-full animate-fade-up overflow-y-auto rounded-b-none p-5 shadow-2xl sm:rounded-xl ${
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className={`card max-h-[92dvh] w-full animate-fade-up overflow-y-auto rounded-b-none p-5 shadow-2xl outline-none sm:rounded-xl ${
           wide ? "sm:max-w-2xl" : "sm:max-w-md"
         }`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-semibold">{title}</h2>
+          <h2 id={titleId} className="text-base font-semibold">
+            {title}
+          </h2>
           <button onClick={onClose} className="btn-ghost !border-0 !px-2" aria-label="Close">
-            <IconX width={16} height={16} />
+            <IconX width={16} height={16} aria-hidden="true" />
           </button>
         </div>
         {children}
@@ -79,13 +95,15 @@ export function Field({
   children: React.ReactNode;
   className?: string;
 }) {
+  // Wrapping the control in <label> gives an implicit label association without
+  // threading an id through every field (a11y, Gate C5).
   return (
-    <div className={className}>
-      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-muted">
+    <label className={`block ${className ?? ""}`}>
+      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-muted">
         {label}
-      </label>
+      </span>
       {children}
-    </div>
+    </label>
   );
 }
 

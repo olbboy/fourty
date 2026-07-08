@@ -5,6 +5,9 @@ export default defineConfig({
   resolve: {
     alias: { "@": path.resolve(__dirname, "src") },
   },
+  // Use the automatic JSX runtime so component modules render under vitest without
+  // a React global (they rely on Next's automatic runtime in the app build).
+  esbuild: { jsx: "automatic" },
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
