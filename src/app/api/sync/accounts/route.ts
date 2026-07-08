@@ -21,11 +21,12 @@ const input = z.object({
 function redact(row: typeof tables.syncAccounts.$inferSelect) {
   const cfg = JSON.parse(row.config) as Record<string, unknown>;
   const safe: Record<string, unknown> = {};
-  // Only surface non-secret hints (e.g. the ICS URL host, IMAP host) — never creds.
+  // Only surface non-secret hints (e.g. the ICS URL host, IMAP host) — never creds
+  // or OAuth tokens. `connected` tells the UI a refresh token is present.
   if (typeof cfg.host === "string") safe.host = cfg.host;
   if (typeof cfg.url === "string") safe.url = cfg.url;
   const { config: _c, ...rest } = row;
-  return { ...rest, config: safe };
+  return { ...rest, config: safe, connected: typeof cfg.refreshToken === "string" };
 }
 
 export async function GET(req: Request) {

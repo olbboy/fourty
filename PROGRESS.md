@@ -26,7 +26,7 @@ benchmark numbers are published because none were measured yet.
 | **C3 — Saved views (API + UI)** | ✅ DONE | `tests/saved-views.test.ts`; `/api/saved-views`, personal/shared, wired into contacts list |
 | **C4 — i18n** | ✅ DONE | `tests/i18n.test.ts`; en/vi catalogs, `t()`, locale resolution, language switcher |
 | **C5 — a11y pass** | ✅ DONE | `tests/a11y.test.ts`; dialogs/combobox/landmarks/labels; `next build` green |
-| **C6 — Email/calendar sync** | ✅ DONE | `tests/sync.test.ts`; migration `0007`; parse→match→link→dedupe engine, injectable transport (ADR-009) |
+| **C6 — Email/calendar sync** | ✅ DONE | `tests/sync.test.ts`; migration `0007`; parse→match→link→dedupe engine + Google/Microsoft mail OAuth transport (PKCE, refresh, Gmail/Graph fetch → ingest); calendar-over-OAuth deferred (ADR-009) |
 | **B6 — twenty-migrate + MCP server + docs** | ✅ DONE | `tests/twenty-migrate.test.ts`, `tests/mcp.test.ts`; `@fourty/twenty-migrate` pkg, `npm run mcp` (ADR-010); docs updated |
 | **D1 — Field-level permissions** | ✅ DONE | `tests/field-permissions.test.ts`, `graphql.test.ts`, `mcp.test.ts`; migration `0008` reversible; per (object,field,role) read/write on core objects, enforced on REST + GraphQL + MCP (ADR-011) |
 | **D2 — 2FA (TOTP + backup codes)** | ✅ DONE | `tests/two-factor.test.ts`; RFC 6238 vector + enroll→login→disable; migration `0009` (ADR-012) |
@@ -172,13 +172,14 @@ not assumed. Numbers are one host, one run; re-run for stability.
 
 ## Tier-2 (C1–C6) + B6 — DONE (evidence)
 
-Verified 2026-07-08 on real Postgres 16: `npx vitest run` → **176/176 pass**
-(142 after B6, +34 for Tier-3 D1–D4); `tsc` green (root + `packages/twenty-migrate`);
-`next build` green (all new routes registered). Every gate ships a reversible
-migration where it adds tables/columns (`0006`–`0010`) and cross-workspace RLS
-confinement is asserted per feature. Tier-3 adds field-level permissions (D1,
-`0008`; enforced on REST + GraphQL + MCP), 2FA/TOTP (D2, `0009`), signed webhooks
-(D3), and SSO via OIDC (D4, `0010`) — see ADR-011..014.
+Verified 2026-07-08 on real Postgres 16: `npx vitest run` → **185/185 pass**
+(142 after B6, +34 for Tier-3 D1–D4, +9 for the C6 mail OAuth transport); `tsc`
+green (root + `packages/twenty-migrate`); `next build` green (all new routes
+registered). Every gate ships a reversible migration where it adds tables/columns
+(`0006`–`0010`) and cross-workspace RLS confinement is asserted per feature.
+Tier-3 adds field-level permissions (D1, `0008`; enforced on REST + GraphQL + MCP),
+2FA/TOTP (D2, `0009`), signed webhooks (D3), and SSO via OIDC (D4, `0010`); C6 now
+also ships the Google/Microsoft mail OAuth transport — see ADR-011..014 + ADR-009.
 
 | Gate | What shipped | Key files | Test |
 |---|---|---|---|
@@ -198,9 +199,12 @@ confinement is asserted per feature. Tier-3 adds field-level permissions (D1,
   Trade-off: no per-field SQL indexes on custom data at this tier.
 - **GraphQL mutations** cover contacts/companies/custom records; deals/tasks/notes
   are read via GraphQL but written via REST where their side effects live (ADR-008).
-- **Email/calendar**: the parse→match→link→dedupe engine is in-repo and fully
-  tested; the OAuth/IMAP network transport is the injectable edge and is **not**
-  exercised by tests — stated, not mocked green (ADR-009).
+- **Email/calendar**: the parse→match→link→dedupe engine plus the **Google/
+  Microsoft mail OAuth transport** (Authorization Code + PKCE, refresh, Gmail/Graph
+  fetch → ingest) are in-repo and tested at the boundary against a fake provider
+  (`sync.test.ts`). Calendar-over-OAuth is deferred (provider calendar APIs return
+  JSON, not ICS; the `ics` feed URL covers calendar); IMAP remains the same
+  injectable seam (ADR-009).
 - **MCP + migrate CLI** hand-rolled with zero new heavy deps (only `graphql` was
   added, for C2), consistent with the pg-boss/no-Redis ethos.
 

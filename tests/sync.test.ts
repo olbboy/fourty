@@ -1,8 +1,11 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { resetDb, createWorkspace } from "./pg-setup";
 import { parseEmail } from "@/lib/sync/parse-email";
 import { parseIcs, parseIcsDate } from "@/lib/sync/parse-ics";
+import { buildConsentUrl, exchangeCode, refreshAccessToken } from "@/lib/sync/oauth";
+import { fetchRawMessages } from "@/lib/sync/fetch-mail";
+import type { HttpFetcher } from "@/lib/sync/http";
 
 const EML = [
   "Message-ID: <abc123@mail.example.com>",
@@ -204,5 +207,189 @@ describe("sync ingestion (real handlers + Postgres + RLS)", () => {
       { params: Promise.resolve({ id: accountId }) },
     );
     expect(ingestAsB.status).toBe(404);
+  });
+});
+
+describe("mail OAuth transport (pure + injectable edge)", () => {
+  const client = { clientId: "cid", clientSecret: "secret" };
+
+  it("builds a Google consent URL with offline access + PKCE", () => {
+    const url = new URL(
+      buildConsentUrl("google", client, { redirectUri: "https://app/cb", state: "st", codeChallenge: "ch", loginHint: "a@b.io" }),
+    );
+    expect(url.origin + url.pathname).toBe("https://accounts.google.com/o/oauth2/v2/auth");
+    expect(url.searchParams.get("access_type")).toBe("offline");
+    expect(url.searchParams.get("prompt")).toBe("consent");
+    expect(url.searchParams.get("code_challenge_method")).toBe("S256");
+    expect(url.searchParams.get("scope")).toContain("gmail.readonly");
+    expect(url.searchParams.get("login_hint")).toBe("a@b.io");
+  });
+
+  it("builds a Microsoft consent URL with Mail.Read + offline_access", () => {
+    const url = new URL(buildConsentUrl("microsoft", client, { redirectUri: "https://app/cb", state: "st", codeChallenge: "ch" }));
+    expect(url.origin + url.pathname).toBe("https://login.microsoftonline.com/common/oauth2/v2.0/authorize");
+    expect(url.searchParams.get("scope")).toContain("Mail.Read");
+    expect(url.searchParams.get("scope")).toContain("offline_access");
+  });
+
+  it("exchanges the code and refreshes with the correct grants", async () => {
+    let lastBody: string | undefined;
+    const fetcher: HttpFetcher = async (_u, init) => {
+      lastBody = init?.body;
+      return { status: 200, json: async () => ({ access_token: "at", refresh_token: "rt", expires_in: 3600 }), text: async () => "" };
+    };
+    const tokens = await exchangeCode("google", client, { code: "c", redirectUri: "https://app/cb", codeVerifier: "v" }, fetcher);
+    expect(tokens.access_token).toBe("at");
+    let sent = new URLSearchParams(lastBody);
+    expect(sent.get("grant_type")).toBe("authorization_code");
+    expect(sent.get("code_verifier")).toBe("v");
+    expect(sent.get("client_secret")).toBe("secret");
+
+    await refreshAccessToken("google", client, "rt", fetcher);
+    sent = new URLSearchParams(lastBody);
+    expect(sent.get("grant_type")).toBe("refresh_token");
+    expect(sent.get("refresh_token")).toBe("rt");
+  });
+
+  it("fetches Gmail messages (list → base64url raw decode)", async () => {
+    const rawB64 = Buffer.from(EML).toString("base64url");
+    const fetcher: HttpFetcher = async (url) => {
+      if (url.includes("/messages?")) return { status: 200, json: async () => ({ messages: [{ id: "m1" }] }), text: async () => "" };
+      if (url.includes("/messages/m1")) return { status: 200, json: async () => ({ raw: rawB64 }), text: async () => "" };
+      return { status: 404, json: async () => ({}), text: async () => "" };
+    };
+    const raws = await fetchRawMessages("google", "tok", { limit: 10 }, fetcher);
+    expect(raws).toHaveLength(1);
+    expect(raws[0]).toContain("Project kickoff");
+  });
+
+  it("fetches Graph messages via $value (raw MIME)", async () => {
+    const fetcher: HttpFetcher = async (url) => {
+      if (url.includes("/me/messages?")) return { status: 200, json: async () => ({ value: [{ id: "g1" }] }), text: async () => "" };
+      if (url.includes("/messages/g1/$value")) return { status: 200, json: async () => ({}), text: async () => EML };
+      return { status: 404, json: async () => ({}), text: async () => "" };
+    };
+    const raws = await fetchRawMessages("microsoft", "tok", { limit: 10 }, fetcher);
+    expect(raws).toHaveLength(1);
+    expect(raws[0]).toContain("Project kickoff");
+  });
+});
+
+describe("mail OAuth run + connect (real routes + Postgres)", () => {
+  const TOKEN = "frty_mailoauth_key";
+  let db: typeof import("@/db").db;
+  let tables: typeof import("@/db").tables;
+  let withWorkspace: typeof import("@/db").withWorkspace;
+  let sha256: typeof import("@/lib/auth").sha256;
+  let newId: typeof import("@/lib/id").newId;
+  let setFetcher: typeof import("@/lib/sync/http").__setSyncFetcher;
+  let run: typeof import("@/app/api/sync/accounts/[id]/run/route");
+  let connect: typeof import("@/app/api/sync/accounts/[id]/connect/route");
+  let callback: typeof import("@/app/api/sync/accounts/[id]/oauth/callback/route");
+  let wsA: string;
+  let accountId: string;
+  let aliceId: string;
+
+  const hdr = { Authorization: `Bearer ${TOKEN}`, "content-type": "application/json" };
+  const params = () => ({ params: Promise.resolve({ id: accountId }) });
+
+  beforeAll(async () => {
+    await resetDb();
+    ({ db, tables, withWorkspace } = await import("@/db"));
+    ({ sha256 } = await import("@/lib/auth"));
+    ({ newId } = await import("@/lib/id"));
+    ({ __setSyncFetcher: setFetcher } = await import("@/lib/sync/http"));
+    run = await import("@/app/api/sync/accounts/[id]/run/route");
+    connect = await import("@/app/api/sync/accounts/[id]/connect/route");
+    callback = await import("@/app/api/sync/accounts/[id]/oauth/callback/route");
+    process.env.GOOGLE_OAUTH_CLIENT_ID = "gid";
+    process.env.GOOGLE_OAUTH_CLIENT_SECRET = "gsecret";
+
+    wsA = await createWorkspace();
+    accountId = newId();
+    aliceId = newId();
+    await db.insert(tables.apiKeys).values({
+      id: newId(), workspaceId: wsA, name: "t", prefix: TOKEN.slice(0, 8), keyHash: sha256(TOKEN), createdAt: Date.now(),
+    });
+    await withWorkspace(wsA, async () => {
+      await db.insert(tables.contacts).values({
+        id: aliceId, firstName: "Alice", lastName: "Example", email: "alice@example.com", status: "lead", createdAt: Date.now(), updatedAt: Date.now(),
+      });
+      await db.insert(tables.syncAccounts).values({
+        id: accountId, provider: "google", email: "me@myco.com", config: JSON.stringify({ refreshToken: "r1" }), createdAt: Date.now(),
+      });
+    });
+  });
+
+  afterAll(() => {
+    setFetcher(null);
+    delete process.env.GOOGLE_OAUTH_CLIENT_ID;
+    delete process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  });
+
+  it("runs a Google mailbox sync: refresh → fetch → ingest → link", async () => {
+    const rawB64 = Buffer.from(EML).toString("base64url");
+    setFetcher(async (url) => {
+      if (url.includes("oauth2.googleapis.com/token")) return { status: 200, json: async () => ({ access_token: "at", expires_in: 3600 }), text: async () => "" };
+      if (url.includes("/messages?")) return { status: 200, json: async () => ({ messages: [{ id: "m1" }] }), text: async () => "" };
+      if (url.includes("/messages/m1")) return { status: 200, json: async () => ({ raw: rawB64 }), text: async () => "" };
+      return { status: 404, json: async () => ({}), text: async () => "" };
+    });
+    const res = await run.POST(
+      new Request(`http://localhost/api/sync/accounts/${accountId}/run`, { method: "POST", headers: hdr }),
+      params(),
+    );
+    expect(res.status).toBe(200);
+    expect((await res.json()).emails).toEqual({ ingested: 1, linked: 1, duplicates: 0 });
+
+    await withWorkspace(wsA, async () => {
+      const acct = (await db.select().from(tables.syncAccounts).where(eq(tables.syncAccounts.id, accountId)))[0];
+      const cfg = JSON.parse(acct.config);
+      expect(cfg.accessToken).toBe("at"); // refreshed + persisted
+      expect(cfg.refreshToken).toBe("r1"); // preserved across refresh
+      const msgs = await db.select().from(tables.emailMessages);
+      expect(msgs).toHaveLength(1);
+      expect(msgs[0].contactId).toBe(aliceId);
+    });
+  });
+
+  it("connect redirects to Google consent and sets a state cookie", async () => {
+    const res = await connect.GET(new Request(`http://localhost/api/sync/accounts/${accountId}/connect`, { headers: hdr }), params());
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toContain("accounts.google.com");
+    expect(res.headers.get("set-cookie")).toContain("fourty_sync_oauth=");
+  });
+
+  it("callback verifies state, exchanges the code, and stores tokens", async () => {
+    const startRes = await connect.GET(new Request(`http://localhost/api/sync/accounts/${accountId}/connect`, { headers: hdr }), params());
+    const cookieVal = startRes.headers.get("set-cookie")!.split(";")[0].split("=").slice(1).join("="); // id:state:verifier (percent-encoded)
+    const state = decodeURIComponent(cookieVal).split(":")[1];
+    setFetcher(async (url) => {
+      if (url.includes("oauth2.googleapis.com/token")) return { status: 200, json: async () => ({ access_token: "at2", refresh_token: "r2", expires_in: 3600 }), text: async () => "" };
+      return { status: 404, json: async () => ({}), text: async () => "" };
+    });
+    const res = await callback.GET(
+      new Request(`http://localhost/api/sync/accounts/${accountId}/oauth/callback?code=abc&state=${state}`, {
+        headers: { ...hdr, cookie: `fourty_sync_oauth=${cookieVal}` },
+      }),
+      params(),
+    );
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toContain("sync=connected");
+    await withWorkspace(wsA, async () => {
+      const cfg = JSON.parse((await db.select().from(tables.syncAccounts).where(eq(tables.syncAccounts.id, accountId)))[0].config);
+      expect(cfg.accessToken).toBe("at2");
+      expect(cfg.refreshToken).toBe("r2");
+    });
+  });
+
+  it("rejects a callback whose state does not match the cookie (CSRF)", async () => {
+    const res = await callback.GET(
+      new Request(`http://localhost/api/sync/accounts/${accountId}/oauth/callback?code=abc&state=forged`, {
+        headers: { ...hdr, cookie: `fourty_sync_oauth=${accountId}:realstate:verifier` },
+      }),
+      params(),
+    );
+    expect(res.headers.get("location")).toContain("sync=error");
   });
 });

@@ -18,13 +18,14 @@ Twice the CRM, half the complexity. One process, one file database, zero infrast
 > API rate limiting + observability** (B4), a **real head-to-head benchmark vs
 > Twenty** (B5), and Tier-2: **custom objects** (C1), a **typed GraphQL API** (C2),
 > **saved views** (C3), **i18n** (C4), an **a11y pass** (C5), **email/calendar
-> ingestion** (C6), a **native MCP server**, and the **`@fourty/twenty-migrate`
-> CLI** (B6). Tier-3 adds **field-level permissions** (D1), **2FA/TOTP** (D2),
-> **signed webhooks** (D3), and **SSO via OIDC** (Authorization Code + PKCE, real
-> JWKS/RS256 ID-token verification, JIT provisioning — D4). **Not done yet:**
-> **SAML**, a define-as-code apps/SDK platform, and full provider OAuth for
-> mail/calendar — so it is not yet a drop-in enterprise Twenty replacement.
-> Existing SQLite users
+> ingestion + Google/Microsoft mail OAuth** (C6), a **native MCP server**, and the
+> **`@fourty/twenty-migrate` CLI** (B6). Tier-3 adds **field-level permissions**
+> (D1, enforced on REST/GraphQL/MCP), **2FA/TOTP** (D2), **signed webhooks** (D3),
+> and **SSO via OIDC** (Authorization Code + PKCE, real JWKS/RS256 ID-token
+> verification, JIT provisioning — D4). **Not done yet:** **SAML**, a define-as-code
+> apps/SDK platform, and **calendar-over-OAuth** (mail OAuth is done; provider
+> calendar APIs return JSON, deferred — ICS feeds cover calendar) — so it is not yet
+> a drop-in enterprise Twenty replacement. Existing SQLite users
 > migrate with `npm run migrate-from-sqlite` (round-trip tested). For the
 > evidence-backed detail see [`CLAIMS.md`](./CLAIMS.md), [`PARITY.md`](./PARITY.md),
 > [`PROGRESS.md`](./PROGRESS.md), and [`SECURITY.md`](./SECURITY.md). Every claim is
@@ -68,8 +69,9 @@ a dead-letter queue; see [`docs/adr/004`](./docs/adr/004-queue-and-workers.md).
 
 _This table is a **small-team lens**: it compares out-of-the-box experience for
 one team, not full enterprise-platform parity. Twenty 2.0 still leads on **SAML**,
-an **apps/SDK platform**, and **full provider OAuth** for mail/calendar — see
-[`PARITY.md`](./PARITY.md) for the honest, cited matrix._
+an **apps/SDK platform**, and **calendar-over-OAuth** (Fourty ships mail OAuth;
+calendar is via ICS feeds) — see [`PARITY.md`](./PARITY.md) for the honest, cited
+matrix._
 
 ## Features
 
@@ -82,7 +84,7 @@ an **apps/SDK platform**, and **full provider OAuth** for mail/calendar — see
 - **Custom fields & custom objects** — add text/number/date/select/checkbox/URL fields to any object from Settings, or define whole **no-code custom objects** (e.g. Projects, Tickets) whose records are validated on write and served over REST, GraphQL, and MCP.
 - **Typed GraphQL API** — a single `POST /api/graphql` with introspection: typed queries for every object plus custom records, and mutations for contacts/companies/custom records — auto-scoped by the same RLS + RBAC as REST.
 - **Native MCP server** — expose Fourty to Claude, Cursor, and other LLM clients with `npm run mcp` (self-hosted stdio JSON-RPC, 10 tools, workspace + role enforced).
-- **Email & calendar ingestion** — parse RFC822 messages and iCalendar feeds, match participants to contacts, dedupe, and thread them onto the activity timeline.
+- **Email & calendar sync** — connect a **Gmail or Microsoft** mailbox over OAuth (Authorization Code + PKCE, read-only) to pull recent mail, or push RFC822/iCalendar in; participants are matched to contacts, deduped, and threaded onto the activity timeline. Calendar via ICS feed URLs.
 - **i18n & accessibility** — English + Vietnamese out of the box (locale from cookie/browser), and an accessible UI (dialog/combobox semantics, focus management, landmarks, labels).
 - **CSV import/export** — imports match `First Name`/`first_name`/`firstname` alike, dedupe by email, and link or auto-create companies from a `company` column.
 - **⌘K command palette** — search contacts, companies, and deals or jump to any page without touching the mouse.

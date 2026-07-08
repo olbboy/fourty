@@ -23,8 +23,8 @@
 > **Postgres multi-tenant** platform (~12k LOC): shared-schema + RLS, enforced
 > RBAC + audit, custom objects, a typed GraphQL API, an email/calendar ingestion
 > engine, and a native MCP server — each backed by a test. Twenty 2.0 still leads
-> as a broader **application platform**: an apps/SDK framework, **SAML**, and full
-> provider OAuth. Fourty's genuine edge remains
+> as a broader **application platform**: an apps/SDK framework, **SAML**, and
+> calendar-over-OAuth. Fourty's genuine edge remains
 > *time-to-first-value and ops simplicity* (one Postgres, no Redis); it is now at
 > or near parity on the core data/API/AI axes and behind only on the
 > enterprise-platform axes named above. This document does not pretend otherwise.
@@ -92,7 +92,7 @@
 | CSV import w/ fuzzy mapping | ✅ | ✅ | Parity. |
 | Views: saved/table/kanban/filter/group | ✅ | ✅ saved views API + list UI, personal/shared (Gate C3) | `saved-views.test.ts`; wired into contacts list. |
 | Virtualized list for large datasets | ✅ | 📏 not verified (likely ❌) | |
-| Email/calendar sync | ✅ | 🟡 ingestion engine (parse→match→link→dedupe), tested; OAuth/IMAP transport is the injectable edge (Gate C6, ADR-009) | `sync.test.ts`; provider OAuth flows not exercised. |
+| Email/calendar sync | ✅ | 🟡 ingestion engine + **Google/Microsoft mail OAuth** (Authorization Code + PKCE, refresh, Gmail/Graph fetch → ingest); calendar-over-OAuth deferred (ICS feed covers it) (Gate C6, ADR-009) | `sync.test.ts` — consent URL, exchange/refresh, Gmail/Graph fetch, full run→ingest→link vs a fake provider. |
 | i18n / a11y | ✅ i18n | ✅ i18n (en/vi, `t()`, locale resolution, C4) / ✅ a11y pass (dialogs, combobox, landmarks, labels, C5) | `i18n.test.ts`, `a11y.test.ts`. |
 
 ## Performance (Gate B5) — MEASURED @10k
@@ -111,15 +111,15 @@ report is regenerated straight from `bench/results/*.json`, never hand-typed.
 Fourty has closed the Tier-1/Tier-2/Tier-3 platform gaps: it is now
 **multi-tenant with RLS**, has **enforced object- and field-level RBAC + audit**,
 **custom objects**, an **auto GraphQL API**, **saved views**, **i18n + a11y**, an
-**email/calendar ingestion engine**, a **native MCP server**, a **Twenty→Fourty
-migration CLI**, **2FA (TOTP)**, **signed webhooks**, and **SSO via OIDC**
-(Authorization Code + PKCE) — each backed by a test. What still separates it from
-Twenty 2.0 for a large **enterprise** deployment: **SAML**, a **define-as-code
-apps/SDK platform**, and **full provider OAuth** for mail/calendar (the ingestion
-engine is built; the OAuth transport is not). Fourty is now a credible
-multi-tenant, AI-native, security-hardened self-hosted CRM for teams that don't
-yet need SAML or an apps platform — while remaining the fastest zero-ops option
-for a small team.
+**email/calendar ingestion engine + Google/Microsoft mail OAuth**, a **native MCP
+server**, a **Twenty→Fourty migration CLI**, **2FA (TOTP)**, **signed webhooks**,
+and **SSO via OIDC** (Authorization Code + PKCE) — each backed by a test. What
+still separates it from Twenty 2.0 for a large **enterprise** deployment: **SAML**,
+a **define-as-code apps/SDK platform**, and **calendar-over-OAuth** (mail OAuth is
+built; provider calendar APIs return JSON, deferred — ICS feed covers calendar
+today). Fourty is now a credible multi-tenant, AI-native, security-hardened
+self-hosted CRM for teams that don't yet need SAML or an apps platform — while
+remaining the fastest zero-ops option for a small team.
 
 ---
 
