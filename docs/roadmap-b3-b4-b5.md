@@ -146,18 +146,19 @@ observable and its backups are proven.
 
 ---
 
-## Gate B5 — Benchmark vs Twenty (same Postgres, honest numbers) — 🟡 HARNESS + FOURTY BASELINE
+## Gate B5 — Benchmark vs Twenty (same Postgres, honest numbers) — ✅ DONE (@10k)
 
-> **Partial (2026-07-08).** The reproducible harness is complete and a REAL
-> Fourty baseline @10k is published (`BENCHMARK.md` + `bench/results/*.json`,
-> rendered by `bench/report.ts` — no hand-typed numbers): `bench/run.sh` brings a
-> stack up from clean under matched cpu/mem limits + PG tuning, seeds via the
-> product's API, runs the k6 matrix (list/filter/sort/search/create/update),
-> samples resource use under load, and regenerates the tables. **Twenty side is
-> authored but NOT yet run** — its columns show `—` (not measured), never
-> invented. Gate fully closes when `bench/run.sh twenty` is executed against the
-> pinned images and the loss analysis is filled in. This honours the anti-vanity
-> rule: no number without a `bench/results/*.json` behind it.
+> **Done (2026-07-08).** Real head-to-head published in `BENCHMARK.md` (+
+> `bench/results/*.json`, rendered by `bench/report.ts` — no hand-typed numbers).
+> `bench/run.sh {fourty,twenty}` brings each stack up from clean under matched
+> cpu/mem limits + identical PG tuning (both on `postgres:16`), seeds via the
+> product's own API (Twenty auth cracked in `bench/twenty-bootstrap.mjs`), runs the
+> REST k6 matrix, samples resource use under load, and regenerates the tables.
+> **Result @10k (0 errors both sides): Fourty wins every scenario** (e.g. list 756
+> vs 191 rps, sort 868 vs 185; filter closest 998 vs 819) at **~830 MiB vs ~3047
+> MiB (3.7×)** footprint. Measured at 10k per scope; 100k/1M run with the same
+> harness (`SIZE=…`). See `PROGRESS.md` § Gate B5. Anti-vanity honoured: every
+> number has a `bench/results/*.json` behind it; losses would be auto-listed.
 
 **Objective:** a reproducible, one-command head-to-head. No fabricated numbers —
 publish losses.

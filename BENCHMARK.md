@@ -4,7 +4,7 @@
 > `bench/report.ts` renders it straight from `bench/results/*.json`. A product with no
 > results shows `—` (not measured) rather than an invented number.
 
-_Generated: 2026-07-08T01:34:14.970Z_
+_Generated: 2026-07-08T02:06:51.649Z_
 
 ## Methodology
 
@@ -14,11 +14,13 @@ _Generated: 2026-07-08T01:34:14.970Z_
   `effective_cache_size=3GB`). Twenty additionally runs Redis (1cpu/1g) — part of its
   architecture, counted in its footprint.
 - **Seeded via each product's API** (`bench/seed.ts`): Fourty over REST, Twenty over
-  GraphQL — same logical dataset (companies=SIZE/10, contacts=SIZE, deals=SIZE/2,
-  activities=SIZE/10).
-- **Load**: k6 (`bench/k6/api.js`), 5s warm-up then fixed VUs for a fixed duration per
-  scenario. Fourty's in-process rate limiter is raised out of the way so raw throughput
-  is measured (Twenty has no equivalent per-instance limiter).
+  GraphQL (its first-class API) — same logical dataset (companies=SIZE/10, contacts=SIZE,
+  deals=SIZE/2). Activities (SIZE/10) are Fourty-only — Twenty has no directly equivalent
+  timeline object, so they're excluded from the comparison rather than faked.
+- **Load**: k6 over REST for both — `bench/k6/api.js` hits Fourty's `/api/contacts`,
+  `bench/k6/twenty.js` hits Twenty's `/rest/people` (`depth=0` for a flat list, matching
+  Fourty). 5s warm-up then fixed VUs for a fixed duration per scenario. Fourty's in-process
+  rate limiter is raised out of the way so raw throughput is measured (Twenty has none).
 - **Honesty**: where Fourty loses, it is stated with an optimization note — losses are
   published, not hidden (repo anti-vanity rule).
 
@@ -28,43 +30,43 @@ _Generated: 2026-07-08T01:34:14.970Z_
 
 | Scenario | Metric | Fourty | Twenty |
 |---|---|---:|---:|
-| **list** | throughput (req/s) | 756.1 | — |
-| | p50 latency (ms) | 21.2 | — |
-| | p95 latency (ms) | 34.9 | — |
-| | p99 latency (ms) | 40.6 | — |
-| | error rate (%) | 0.0 | — |
-| **filter** | throughput (req/s) | 997.8 | — |
-| | p50 latency (ms) | 17.2 | — |
-| | p95 latency (ms) | 23.4 | — |
-| | p99 latency (ms) | 29.6 | — |
-| | error rate (%) | 0.0 | — |
-| **sort** | throughput (req/s) | 867.8 | — |
-| | p50 latency (ms) | 18.8 | — |
-| | p95 latency (ms) | 30.1 | — |
-| | p99 latency (ms) | 36.3 | — |
-| | error rate (%) | 0.0 | — |
-| **search** | throughput (req/s) | 639.4 | — |
-| | p50 latency (ms) | 25.0 | — |
-| | p95 latency (ms) | 46.1 | — |
-| | p99 latency (ms) | 55.4 | — |
-| | error rate (%) | 0.0 | — |
-| **create** | throughput (req/s) | 688.9 | — |
-| | p50 latency (ms) | 25.5 | — |
-| | p95 latency (ms) | 31.1 | — |
-| | p99 latency (ms) | 39.0 | — |
-| | error rate (%) | 0.0 | — |
-| **update** | throughput (req/s) | 626.2 | — |
-| | p50 latency (ms) | 28.0 | — |
-| | p95 latency (ms) | 34.7 | — |
-| | p99 latency (ms) | 42.6 | — |
-| | error rate (%) | 0.0 | — |
+| **list** | throughput (req/s) | 756.1 | 191.2 |
+| | p50 latency (ms) | 21.2 | 98.6 |
+| | p95 latency (ms) | 34.9 | 136.0 |
+| | p99 latency (ms) | 40.6 | 159.1 |
+| | error rate (%) | 0.0 | 0.0 |
+| **filter** | throughput (req/s) | 997.8 | 818.8 |
+| | p50 latency (ms) | 17.2 | 21.5 |
+| | p95 latency (ms) | 23.4 | 28.9 |
+| | p99 latency (ms) | 29.6 | 34.5 |
+| | error rate (%) | 0.0 | 0.0 |
+| **sort** | throughput (req/s) | 867.8 | 184.6 |
+| | p50 latency (ms) | 18.8 | 100.7 |
+| | p95 latency (ms) | 30.1 | 138.6 |
+| | p99 latency (ms) | 36.3 | 175.5 |
+| | error rate (%) | 0.0 | 0.0 |
+| **search** | throughput (req/s) | 639.4 | 325.2 |
+| | p50 latency (ms) | 25.0 | 54.1 |
+| | p95 latency (ms) | 46.1 | 77.8 |
+| | p99 latency (ms) | 55.4 | 98.5 |
+| | error rate (%) | 0.0 | 0.0 |
+| **create** | throughput (req/s) | 688.9 | 286.8 |
+| | p50 latency (ms) | 25.5 | 61.4 |
+| | p95 latency (ms) | 31.1 | 85.5 |
+| | p99 latency (ms) | 39.0 | 113.7 |
+| | error rate (%) | 0.0 | 0.0 |
+| **update** | throughput (req/s) | 626.2 | 363.6 |
+| | p50 latency (ms) | 28.0 | 48.1 |
+| | p95 latency (ms) | 34.7 | 66.1 |
+| | p99 latency (ms) | 42.6 | 85.1 |
+| | error rate (%) | 0.0 | 0.0 |
 
 ### Ingest (seed via API)
 
 | Product | Rows seeded | Wall time (s) | Inserts/s |
 |---|---:|---:|---:|
 | fourty | 17000 | 24.4 | 697 |
-| twenty | — | — | — |
+| twenty | 16000 | 37.3 | 429 |
 
 ### Resource use under load (`docker stats`)
 
@@ -73,6 +75,10 @@ _Generated: 2026-07-08T01:34:14.970Z_
 | bench-bench-fourty-app-1 | 59.8% | 520 MiB |
 | bench-bench-fourty-worker-1 | 0.3% | 122 MiB |
 | bench-bench-pg-fourty-1 | 404.5% | 188 MiB |
+| bench-bench-twenty-worker-1 | 116.0% | 1023 MiB |
+| bench-bench-twenty-server-1 | 118.3% | 1454 MiB |
+| bench-bench-pg-twenty-1 | 104.8% | 318 MiB |
+| bench-bench-redis-twenty-1 | 27.1% | 252 MiB |
 
 _Peak values sampled under sustained list-scenario load._
 
@@ -85,10 +91,20 @@ _Peak values sampled under sustained list-scenario load._
 
 ## Comparison & losses
 
-**Twenty not yet measured in this run.** The harness (compose, seed, k6, run.sh) is
-complete and reproducible; the Twenty column is `—` until `bench/run.sh twenty` is run
-against the pinned images with a workspace token. No Twenty numbers are invented here.
+### 10,000 contacts — head-to-head
 
-Once both sides are measured, this section enumerates every scenario where Fourty is
-slower than Twenty, with a one-line cause and an optimization ticket.
+| Scenario | Fourty req/s | Twenty req/s | Higher | Fourty p95 (ms) | Twenty p95 (ms) | Lower p95 |
+|---|--:|--:|:--:|--:|--:|:--:|
+| list | 756 | 191 | Fourty | 34.9 | 136.0 | Fourty |
+| filter | 998 | 819 | Fourty | 23.4 | 28.9 | Fourty |
+| sort | 868 | 185 | Fourty | 30.1 | 138.6 | Fourty |
+| search | 639 | 325 | Fourty | 46.1 | 77.8 | Fourty |
+| create | 689 | 287 | Fourty | 31.1 | 85.5 | Fourty |
+| update | 626 | 364 | Fourty | 34.7 | 66.1 | Fourty |
+
+**Footprint under load:** Fourty ~830 MiB across 3 containers vs Twenty ~3047 MiB across 4 (3.7×) — Twenty's Redis + worker + richer server are part of its architecture.
+
+**Fourty matches or beats Twenty on every measured scenario** (throughput and p95).
+
+_Caveat: same protocol (REST) and dataset shape both sides; Twenty adds Redis + a worker (its architecture) and runs GraphQL as its first-class API — REST is its auto-generated equivalent. Numbers are one host, one run; re-run for stability._
 

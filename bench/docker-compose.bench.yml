@@ -114,19 +114,19 @@ services:
         condition: service_completed_successfully
 
   # ── Twenty stack (pinned) ─────────────────────────────────────────────────
-  # Pin the exact release via TWENTY_VERSION. Twenty ships its own Postgres image
-  # (spilo, with the extensions it needs) and requires Redis — both included so
-  # the comparison uses Twenty's real, supported topology.
+  # Pin the exact release via TWENTY_VERSION. Twenty's supported self-host uses
+  # plain postgres:16 (same image as Fourty — fair) + Redis. The server auto-runs
+  # DB migrations on boot; the worker skips them.
   bench-pg-twenty:
     profiles: ["twenty"]
-    image: twentycrm/twenty-postgres-spilo:${TWENTY_VERSION:-v0.62.0}
-    <<: *db-limits
+    image: postgres:16
+    <<: [*pg-tuning, *db-limits]
     environment:
-      PGUSER_SUPERUSER: postgres
-      PGPASSWORD_SUPERUSER: twenty
-      ALLOW_NOSSL: "true"
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: twenty
+      POSTGRES_DB: default
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d default"]
       interval: 5s
       timeout: 5s
       retries: 15
@@ -141,7 +141,7 @@ services:
 
   bench-twenty-server:
     profiles: ["twenty"]
-    image: twentycrm/twenty:${TWENTY_VERSION:-v0.62.0}
+    image: twentycrm/twenty:${TWENTY_VERSION:-v2.18.5}
     <<: *app-limits
     environment:
       NODE_PORT: 3000
@@ -149,10 +149,21 @@ services:
       PG_DATABASE_URL: postgres://postgres:twenty@bench-pg-twenty:5432/default
       REDIS_URL: redis://bench-redis-twenty:6379
       STORAGE_TYPE: local
-      APP_SECRET: ${TWENTY_APP_SECRET:-bench-secret-change-me-please-32b}
-      DISABLE_DB_MIGRATIONS: "false"
+      APP_SECRET: ${TWENTY_APP_SECRET:-benchAppSecret_change_me_please_0001}
+      ENCRYPTION_KEY: ${TWENTY_ENCRYPTION_KEY:-benchEncryptionKey_change_me_0000001}
+      # Ease programmatic signup for the benchmark seed.
+      IS_SIGN_UP_DISABLED: "false"
+      AUTH_PASSWORD_ENABLED: "true"
     ports:
       - "${TWENTY_PORT:-3201}:3000"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - node -e "fetch('http://localhost:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
     depends_on:
       bench-pg-twenty:
         condition: service_healthy
@@ -161,15 +172,19 @@ services:
 
   bench-twenty-worker:
     profiles: ["twenty"]
-    image: twentycrm/twenty:${TWENTY_VERSION:-v0.62.0}
+    image: twentycrm/twenty:${TWENTY_VERSION:-v2.18.5}
     <<: *worker-limits
     command: ["yarn", "worker:prod"]
     environment:
+      NODE_PORT: 3000
+      SERVER_URL: http://localhost:${TWENTY_PORT:-3201}
       PG_DATABASE_URL: postgres://postgres:twenty@bench-pg-twenty:5432/default
       REDIS_URL: redis://bench-redis-twenty:6379
       STORAGE_TYPE: local
-      APP_SECRET: ${TWENTY_APP_SECRET:-bench-secret-change-me-please-32b}
+      APP_SECRET: ${TWENTY_APP_SECRET:-benchAppSecret_change_me_please_0001}
+      ENCRYPTION_KEY: ${TWENTY_ENCRYPTION_KEY:-benchEncryptionKey_change_me_0000001}
       DISABLE_DB_MIGRATIONS: "true"
+      DISABLE_CRON_JOBS_REGISTRATION: "true"
     depends_on:
       bench-twenty-server:
-        condition: service_started
+        condition: service_healthy

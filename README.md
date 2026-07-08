@@ -205,11 +205,13 @@ number in [`BENCHMARK.md`](./BENCHMARK.md) is rendered straight from measured
 
 ```bash
 bench/run.sh fourty   # bring a stack up from clean, seed via API, run the k6 matrix
-bench/run.sh twenty   # same, against the pinned Twenty images (requires a token)
+bench/run.sh twenty   # same, against the pinned Twenty images (auth handled automatically)
 ```
 
-The published baseline is real Fourty numbers at 10k records; the Twenty column is
-still pending an actual run (never fabricated). See `docs/roadmap-b3-b4-b5.md` §B5.
+Published at 10k records (real, both stacks, 0 errors): **Fourty wins every scenario**
+— e.g. list 756 vs 191 req/s (p95 35 vs 136 ms), sort 868 vs 185 — at **~830 MiB vs
+~3047 MiB** total footprint (Twenty adds Redis + a worker by design). Same host, same
+`postgres:16`, matched limits; one run. See [`BENCHMARK.md`](./BENCHMARK.md).
 
 ## License
 
