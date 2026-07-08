@@ -280,6 +280,56 @@ export const customFieldDefs = pgTable("custom_field_defs", {
   createdAt: millis("created_at").notNull(),
 });
 
+// Custom objects (no-code, Gate C1). A workspace defines its own object types
+// (e.g. "Project", "Ticket") without DDL: definitions live in custom_objects,
+// their fields in custom_object_fields, and every record is one row in
+// custom_records with its values in a JSON `data` column. Metadata-driven keeps
+// it RLS-scoped and reversible in a single migration (ADR-007).
+export const customObjects = pgTable(
+  "custom_objects",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    apiName: text("api_name").notNull(), // url/graphql slug, unique per workspace
+    nameSingular: text("name_singular").notNull(),
+    namePlural: text("name_plural").notNull(),
+    icon: text("icon").notNull().default("Box"),
+    description: text("description"),
+    createdAt: millis("created_at").notNull(),
+  },
+  (t) => [uniqueIndex("custom_objects_ws_apiname_idx").on(t.workspaceId, t.apiName)],
+);
+
+export const customObjectFields = pgTable(
+  "custom_object_fields",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    objectId: text("object_id").notNull(),
+    key: text("key").notNull(),
+    label: text("label").notNull(),
+    type: text("type").notNull().default("text"), // text|number|date|select|checkbox|url
+    options: text("options").notNull().default("[]"),
+    required: integer("required").notNull().default(0),
+    order: integer("sort_order").notNull().default(0),
+    createdAt: millis("created_at").notNull(),
+  },
+  (t) => [index("custom_object_fields_ws_object_idx").on(t.workspaceId, t.objectId)],
+);
+
+export const customRecords = pgTable(
+  "custom_records",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    objectId: text("object_id").notNull(),
+    data: text("data").notNull().default("{}"),
+    createdAt: millis("created_at").notNull(),
+    updatedAt: millis("updated_at").notNull(),
+  },
+  (t) => [index("custom_records_ws_object_idx").on(t.workspaceId, t.objectId, t.updatedAt)],
+);
+
 export const workflows = pgTable("workflows", {
   id: text("id").primaryKey(),
   workspaceId: workspaceId(),

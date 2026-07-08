@@ -23,6 +23,8 @@ export const CRM_OBJECTS = [
   "activities",
   "workflows",
   "custom-fields",
+  "custom-objects",
+  "objects",
   "saved-views",
   "pipelines",
   "stages",
