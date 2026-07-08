@@ -75,6 +75,10 @@ describe("static guard: every API route authenticates", () => {
     "auth/login",
     "auth/logout",
     "auth/setup",
+    // OIDC login runs before any session exists (Gate D4): the browser is
+    // redirected to the IdP and back; auth comes from the verified ID token.
+    "auth/sso/[id]/start",
+    "auth/sso/[id]/callback",
     "health", // liveness probe — pings DB only, exposes no data
     "metrics", // Prometheus scrape — aggregate counters only, no PII (Gate B4)
   ]);

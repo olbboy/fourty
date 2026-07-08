@@ -28,8 +28,10 @@ const UP = [
   "drizzle/0007_email_calendar_sync.sql",
   "drizzle/0008_field_permissions.sql",
   "drizzle/0009_two_factor.sql",
+  "drizzle/0010_sso_oidc.sql",
 ];
 const DOWN = [
+  "drizzle/down/0010_sso_oidc.down.sql",
   "drizzle/down/0009_two_factor.down.sql",
   "drizzle/down/0008_field_permissions.down.sql",
   "drizzle/down/0007_email_calendar_sync.down.sql",
@@ -88,8 +90,8 @@ describe("migration reversibility (full chain, real Postgres)", () => {
       await runFiles(client, UP);
       const before = await schemaFingerprint(client);
       const up1 = await counts(client);
-      expect(up1.tables).toBe(28); // 27 (C6) + field_permissions
-      expect(up1.policies).toBe(23); // 22 (C6) + field_permissions
+      expect(up1.tables).toBe(30); // 28 (D1) + sso_connections + sso_login_states (D4)
+      expect(up1.policies).toBe(23); // unchanged — SSO tables are global (no RLS)
 
       // Roll the whole chain back → empty schema
       await runFiles(client, DOWN);
@@ -101,7 +103,7 @@ describe("migration reversibility (full chain, real Postgres)", () => {
       await runFiles(client, UP);
       const after = await schemaFingerprint(client);
       const up2 = await counts(client);
-      expect(up2.tables).toBe(28);
+      expect(up2.tables).toBe(30);
       expect(up2.policies).toBe(23);
       expect(after).toBe(before);
     } finally {

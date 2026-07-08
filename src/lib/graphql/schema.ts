@@ -17,6 +17,7 @@ import { and, desc, eq, ilike, type SQL } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { newId } from "@/lib/id";
 import { can } from "@/lib/permissions";
+import { loadFieldPolicy, redact, blockedWrites, type FieldPolicy } from "@/lib/field-permissions";
 import { audit } from "@/lib/audit";
 import { logActivity } from "@/lib/activity";
 import { dispatchEvent } from "@/lib/workflows/engine";
@@ -44,7 +45,12 @@ import type { z } from "zod";
  * workspace and mutations are RBAC-gated via can().
  */
 
-export type GqlContext = { auth: AuthOk };
+export type GqlContext = {
+  auth: AuthOk;
+  // Field-level policy for the caller's role, memoized per request so a query
+  // touching several objects loads it once (Gate D1 enforcement, ADR-011).
+  _fieldPolicy?: Promise<FieldPolicy | null>;
+};
 
 // A JSON scalar for the `custom` blob on core objects and `data` on records.
 const JSONScalar = new GraphQLScalarType({
@@ -78,6 +84,36 @@ const JSONScalar = new GraphQLScalarType({
 function requireRbac(ctx: GqlContext, object: string, action: "read" | "create" | "update" | "delete") {
   if (!can(ctx.auth.role, object, action)) {
     throw new GraphQLError(`Forbidden: ${ctx.auth.role} cannot ${action} ${object}`, {
+      extensions: { code: "FORBIDDEN" },
+    });
+  }
+}
+
+// ── Field-level permissions (Gate D1, ADR-011) ───────────────────────────────
+// The same policy the REST handlers apply, enforced here so GraphQL is not a
+// bypass door: unreadable fields are stripped from results, and a write to a
+// non-writable field is refused. Only the core objects carry field rules.
+
+function fieldPolicy(ctx: GqlContext): Promise<FieldPolicy | null> {
+  return (ctx._fieldPolicy ??= loadFieldPolicy(ctx.auth.role));
+}
+
+/** Strip fields the caller may not read from a fetched row (null-safe). */
+async function redactRow<T extends Record<string, unknown>>(
+  ctx: GqlContext,
+  object: string,
+  row: T | undefined,
+): Promise<T | undefined> {
+  if (!row) return row;
+  return redact(await fieldPolicy(ctx), object, row);
+}
+
+/** Refuse a mutation that writes a field the caller's role may not write. */
+async function guardWrites(ctx: GqlContext, object: string, input: unknown): Promise<void> {
+  const keys = input && typeof input === "object" ? Object.keys(input as Record<string, unknown>) : [];
+  const blocked = blockedWrites(await fieldPolicy(ctx), object, keys);
+  if (blocked.length) {
+    throw new GraphQLError(`Forbidden: cannot write ${object} field(s): ${blocked.join(", ")}`, {
       extensions: { code: "FORBIDDEN" },
     });
   }
@@ -219,7 +255,7 @@ const queryFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
   contacts: {
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Contact))),
     args: { limit: { type: GraphQLInt }, q: { type: GraphQLString } },
-    resolve: (_r, { limit, q }, ctx) => {
+    resolve: async (_r, { limit, q }, ctx) => {
       requireRbac(ctx, "contacts", "read");
       const where = q
         ? ilike(
@@ -229,49 +265,55 @@ const queryFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
             `%${String(q).replace(/[%_]/g, "")}%`,
           )
         : undefined;
-      return listCore(tables.contacts, where, limit ?? 200);
+      const rows = await listCore(tables.contacts, where, limit ?? 200);
+      const policy = await fieldPolicy(ctx);
+      return rows.map((r) => redact(policy, "contacts", r));
     },
   },
   contact: {
     type: Contact,
     args: { id: { type: new GraphQLNonNull(GraphQLID) } },
-    resolve: (_r, { id }, ctx) => {
+    resolve: async (_r, { id }, ctx) => {
       requireRbac(ctx, "contacts", "read");
-      return byId(tables.contacts, id);
+      return redactRow(ctx, "contacts", await byId(tables.contacts, id));
     },
   },
   companies: {
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Company))),
     args: { limit: { type: GraphQLInt }, q: { type: GraphQLString } },
-    resolve: (_r, { limit, q }, ctx) => {
+    resolve: async (_r, { limit, q }, ctx) => {
       requireRbac(ctx, "companies", "read");
       const where = q ? ilike(tables.companies.name, `%${String(q).replace(/[%_]/g, "")}%`) : undefined;
-      return listCore(tables.companies, where, limit ?? 200);
+      const rows = await listCore(tables.companies, where, limit ?? 200);
+      const policy = await fieldPolicy(ctx);
+      return rows.map((r) => redact(policy, "companies", r));
     },
   },
   company: {
     type: Company,
     args: { id: { type: new GraphQLNonNull(GraphQLID) } },
-    resolve: (_r, { id }, ctx) => {
+    resolve: async (_r, { id }, ctx) => {
       requireRbac(ctx, "companies", "read");
-      return byId(tables.companies, id);
+      return redactRow(ctx, "companies", await byId(tables.companies, id));
     },
   },
   deals: {
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Deal))),
     args: { limit: { type: GraphQLInt }, q: { type: GraphQLString } },
-    resolve: (_r, { limit, q }, ctx) => {
+    resolve: async (_r, { limit, q }, ctx) => {
       requireRbac(ctx, "deals", "read");
       const where = q ? ilike(tables.deals.name, `%${String(q).replace(/[%_]/g, "")}%`) : undefined;
-      return listCore(tables.deals, where, limit ?? 200);
+      const rows = await listCore(tables.deals, where, limit ?? 200);
+      const policy = await fieldPolicy(ctx);
+      return rows.map((r) => redact(policy, "deals", r));
     },
   },
   deal: {
     type: Deal,
     args: { id: { type: new GraphQLNonNull(GraphQLID) } },
-    resolve: (_r, { id }, ctx) => {
+    resolve: async (_r, { id }, ctx) => {
       requireRbac(ctx, "deals", "read");
-      return byId(tables.deals, id);
+      return redactRow(ctx, "deals", await byId(tables.deals, id));
     },
   },
   tasks: {
@@ -344,6 +386,7 @@ const mutationFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
     args: { input: { type: new GraphQLNonNull(JSONScalar) } },
     resolve: async (_r, { input }, ctx) => {
       requireRbac(ctx, "contacts", "create");
+      await guardWrites(ctx, "contacts", input);
       const data = zparse(contactInput, input);
       const now = Date.now();
       const id = newId();
@@ -360,8 +403,9 @@ const mutationFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
       await audit(ctx.auth.user?.id, "contact.created", { objectType: "contact", objectId: id });
       await recomputeContactScore(id);
       const row = await byId(tables.contacts, id);
+      // Workflows see the full snapshot; the API caller sees a redacted row.
       await dispatchEvent({ event: "contact.created", entityType: "contact", entityId: id, snapshot: { ...row, custom: undefined } });
-      return row;
+      return redactRow(ctx, "contacts", row);
     },
   },
   updateContact: {
@@ -369,6 +413,7 @@ const mutationFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
     args: { id: { type: new GraphQLNonNull(GraphQLID) }, input: { type: new GraphQLNonNull(JSONScalar) } },
     resolve: async (_r, { id, input }, ctx) => {
       requireRbac(ctx, "contacts", "update");
+      await guardWrites(ctx, "contacts", input);
       const existing = await byId(tables.contacts, id);
       if (!existing) throw new GraphQLError("Contact not found", { extensions: { code: "NOT_FOUND" } });
       const data = zparse(contactPatch, input);
@@ -383,7 +428,7 @@ const mutationFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
         .where(eq(tables.contacts.id, id));
       await recomputeContactScore(id);
       await audit(ctx.auth.user?.id, "contact.updated", { objectType: "contact", objectId: id });
-      return byId(tables.contacts, id);
+      return redactRow(ctx, "contacts", await byId(tables.contacts, id));
     },
   },
   deleteContact: {
@@ -403,6 +448,7 @@ const mutationFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
     args: { input: { type: new GraphQLNonNull(JSONScalar) } },
     resolve: async (_r, { input }, ctx) => {
       requireRbac(ctx, "companies", "create");
+      await guardWrites(ctx, "companies", input);
       const data = zparse(companyInput, input);
       const now = Date.now();
       const id = newId();
@@ -416,7 +462,7 @@ const mutationFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
         updatedAt: now,
       });
       await audit(ctx.auth.user?.id, "company.created", { objectType: "company", objectId: id });
-      return byId(tables.companies, id);
+      return redactRow(ctx, "companies", await byId(tables.companies, id));
     },
   },
   updateCompany: {
@@ -424,6 +470,7 @@ const mutationFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
     args: { id: { type: new GraphQLNonNull(GraphQLID) }, input: { type: new GraphQLNonNull(JSONScalar) } },
     resolve: async (_r, { id, input }, ctx) => {
       requireRbac(ctx, "companies", "update");
+      await guardWrites(ctx, "companies", input);
       const existing = await byId(tables.companies, id);
       if (!existing) throw new GraphQLError("Company not found", { extensions: { code: "NOT_FOUND" } });
       const data = zparse(companyPatch, input);
@@ -437,7 +484,7 @@ const mutationFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
         })
         .where(eq(tables.companies.id, id));
       await audit(ctx.auth.user?.id, "company.updated", { objectType: "company", objectId: id });
-      return byId(tables.companies, id);
+      return redactRow(ctx, "companies", await byId(tables.companies, id));
     },
   },
   deleteCompany: {

@@ -8,9 +8,10 @@
 > objects** (C1), an **auto GraphQL API** (C2), a **saved-views UI** (C3), **i18n**
 > (C4), an **a11y pass** (C5), and an **email/calendar ingestion engine** (C6); B6
 > adds the **`@fourty/twenty-migrate` CLI** and a **native MCP server**; Tier-3
-> (D1–D3) adds **field-level permissions**, **2FA (TOTP)**, and **signed webhooks**.
-> **SSO/OIDC/SAML** and a **define-as-code apps/SDK** platform remain open. Every ✅
-> below is backed by a test.
+> (D1–D4) adds **field-level permissions**, **2FA (TOTP)**, **signed webhooks**, and
+> **SSO via OIDC** (Authorization Code + PKCE, real JWKS/RS256 ID-token
+> verification). **SAML** and a **define-as-code apps/SDK** platform remain open.
+> Every ✅ below is backed by a test.
 
 > **Honesty note.** Twenty's capabilities below are sourced from Twenty's
 > official docs, release notes, and the 2.0 launch coverage (April 21, 2026) —
@@ -22,8 +23,8 @@
 > **Postgres multi-tenant** platform (~12k LOC): shared-schema + RLS, enforced
 > RBAC + audit, custom objects, a typed GraphQL API, an email/calendar ingestion
 > engine, and a native MCP server — each backed by a test. Twenty 2.0 still leads
-> as a broader **application platform**: an apps/SDK framework, **field-level**
-> RBAC, SSO/2FA, and full provider OAuth. Fourty's genuine edge remains
+> as a broader **application platform**: an apps/SDK framework, **SAML**, and full
+> provider OAuth. Fourty's genuine edge remains
 > *time-to-first-value and ops simplicity* (one Postgres, no Redis); it is now at
 > or near parity on the core data/API/AI axes and behind only on the
 > enterprise-platform axes named above. This document does not pretend otherwise.
@@ -49,8 +50,8 @@
 |---|---|---|---|
 | **Multi-tenant workspaces** | ✅ single- & multi-workspace, subdomain per workspace [2] | ✅ shared-schema + Postgres RLS (FORCE), non-owner app role | Isolation attack suite passes; direct-connection RLS proof. |
 | Object-level RBAC | ✅ complete [2][3] | ✅ enforced (admin/member/viewer) on every mutating route (Gate B3, `rbac-matrix.test.ts`) | |
-| Field-level permissions | ✅ view/edit per role [2] | ✅ per (object,field,role) read/write rules on core objects (Gate D1, ADR-011) | `field-permissions.test.ts`; REST-enforced (GraphQL/MCP follow-up). |
-| OAuth2 + PKCE / SSO (OIDC/SAML) / 2FA | ✅ auth & integration mechanisms expanded in 2.0 [4] | 🟡 **2FA (TOTP + backup codes)** done (Gate D2, ADR-012); SSO/OIDC/SAML still ❌ | `two-factor.test.ts` (RFC 6238 vector + enroll→login→disable). |
+| Field-level permissions | ✅ view/edit per role [2] | ✅ per (object,field,role) read/write rules on core objects, enforced on **REST, GraphQL, and MCP** (Gate D1, ADR-011) | `field-permissions.test.ts`, `graphql.test.ts`, `mcp.test.ts` — redact reads + block writes on every surface. |
+| OAuth2 + PKCE / SSO (OIDC/SAML) / 2FA | ✅ auth & integration mechanisms expanded in 2.0 [4] | 🟡 **2FA (TOTP)** (Gate D2, ADR-012) + **SSO via OIDC** (Authorization Code + PKCE, JWKS/RS256 ID-token verify, JIT provisioning; Gate D4, ADR-014); **SAML** still ❌ | `two-factor.test.ts`; `sso.test.ts` (RS256/JWKS + full start→callback flow vs a fake IdP). |
 | Rate limiting | ✅ | ✅ whole-API limit per caller+IP+route class, `RateLimit-*` headers (B4) | `ratelimit.test.ts`. |
 | Input validation | ✅ | ✅ zod on all write routes | Genuine parity here. |
 | SSRF-guarded webhooks | (n/a public) | ✅ added this session (`src/lib/net.ts`) | |
@@ -111,13 +112,14 @@ Fourty has closed the Tier-1/Tier-2/Tier-3 platform gaps: it is now
 **multi-tenant with RLS**, has **enforced object- and field-level RBAC + audit**,
 **custom objects**, an **auto GraphQL API**, **saved views**, **i18n + a11y**, an
 **email/calendar ingestion engine**, a **native MCP server**, a **Twenty→Fourty
-migration CLI**, **2FA (TOTP)**, and **signed webhooks** — each backed by a test.
-What still separates it from Twenty 2.0 for a large **enterprise** deployment:
-**SSO/OIDC/SAML**, a **define-as-code apps/SDK platform**, and **full provider
-OAuth** for mail/calendar (the ingestion engine is built; the OAuth transport is
-not). Fourty is now a credible multi-tenant, AI-native, security-hardened
-self-hosted CRM for teams that don't yet need SSO or an apps platform — while
-remaining the fastest zero-ops option for a small team.
+migration CLI**, **2FA (TOTP)**, **signed webhooks**, and **SSO via OIDC**
+(Authorization Code + PKCE) — each backed by a test. What still separates it from
+Twenty 2.0 for a large **enterprise** deployment: **SAML**, a **define-as-code
+apps/SDK platform**, and **full provider OAuth** for mail/calendar (the ingestion
+engine is built; the OAuth transport is not). Fourty is now a credible
+multi-tenant, AI-native, security-hardened self-hosted CRM for teams that don't
+yet need SAML or an apps platform — while remaining the fastest zero-ops option
+for a small team.
 
 ---
 

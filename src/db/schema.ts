@@ -117,6 +117,40 @@ export const sessions = pgTable("sessions", {
   createdAt: millis("created_at").notNull(),
 });
 
+// SSO / OIDC (Gate D4, ADR-014). An sso_connections row is an instance-level
+// OIDC provider an admin registers (issuer + client credentials). OIDC login
+// runs before a workspace is selected, so — like users/sessions — these tables
+// are global identity plane: no workspace_id, no RLS. JIT-provisioned users join
+// default_workspace_id with default_role.
+export const ssoConnections = pgTable("sso_connections", {
+  id: text("id").primaryKey(),
+  label: text("label").notNull(), // shown on the login button
+  issuer: text("issuer").notNull(), // OIDC issuer URL (discovery base, no trailing slash)
+  clientId: text("client_id").notNull(),
+  clientSecret: text("client_secret").notNull(),
+  scopes: text("scopes").notNull().default("openid email profile"),
+  enabled: integer("enabled").notNull().default(1),
+  defaultWorkspaceId: text("default_workspace_id"), // workspace JIT users join (null = none)
+  defaultRole: text("default_role").notNull().default("member"),
+  createdAt: millis("created_at").notNull(),
+});
+
+// Short-lived per-login state: the PKCE verifier + nonce + bound redirect keyed
+// by a one-time `state`. Consumed (deleted) on callback; expired rows ignored.
+export const ssoLoginStates = pgTable(
+  "sso_login_states",
+  {
+    id: text("id").primaryKey(), // the opaque `state` value
+    connectionId: text("connection_id").notNull(),
+    codeVerifier: text("code_verifier").notNull(),
+    nonce: text("nonce").notNull(),
+    redirectUri: text("redirect_uri").notNull(),
+    expiresAt: millis("expires_at").notNull(),
+    createdAt: millis("created_at").notNull(),
+  },
+  (t) => [index("sso_login_states_expiry_idx").on(t.expiresAt)],
+);
+
 // ── Core CRM objects (workspace-scoped + RLS) ───────────────────────────────
 
 export const companies = pgTable(

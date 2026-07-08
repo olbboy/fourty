@@ -2,6 +2,7 @@ import { and, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { newId } from "@/lib/id";
 import { can } from "@/lib/permissions";
+import { loadFieldPolicy, redact, blockedWrites, type FieldPolicy } from "@/lib/field-permissions";
 import { audit } from "@/lib/audit";
 import { logActivity } from "@/lib/activity";
 import { recomputeContactScore } from "@/lib/services/contact-score";
@@ -35,6 +36,20 @@ function requireRole(ctx: ToolContext, object: string, action: "read" | "create"
   if (!can(ctx.role, object, action)) {
     throw new ToolError(`Forbidden: ${ctx.role} cannot ${action} ${object}`);
   }
+}
+
+// Field-level permissions (Gate D1, ADR-011): the same policy REST/GraphQL apply,
+// so MCP is not a bypass door. Unreadable fields are stripped from tool output;
+// a write to a non-writable field is refused.
+async function requireWritableFields(
+  ctx: ToolContext,
+  object: string,
+  args: Record<string, unknown>,
+): Promise<FieldPolicy | null> {
+  const policy = await loadFieldPolicy(ctx.role);
+  const blocked = blockedWrites(policy, object, Object.keys(args));
+  if (blocked.length) throw new ToolError(`Forbidden: cannot write ${object} field(s): ${blocked.join(", ")}`);
+  return policy;
 }
 
 const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
@@ -75,7 +90,12 @@ export const TOOLS: Tool[] = [
         .from(tables.deals)
         .where(ilike(tables.deals.name, like))
         .limit(limit);
-      return { contacts, companies, deals };
+      const policy = await loadFieldPolicy(ctx.role);
+      return {
+        contacts: contacts.map((r) => redact(policy, "contacts", r)),
+        companies: companies.map((r) => redact(policy, "companies", r)),
+        deals: deals.map((r) => redact(policy, "deals", r)),
+      };
     },
   },
   {
@@ -99,7 +119,8 @@ export const TOOLS: Tool[] = [
         .where(where.length ? and(...where) : undefined)
         .orderBy(desc(tables.contacts.updatedAt))
         .limit(Math.min(num(args.limit, 50), 200));
-      return rows.map((r) => ({ ...r, custom: JSON.parse(r.custom) }));
+      const policy = await loadFieldPolicy(ctx.role);
+      return rows.map((r) => redact(policy, "contacts", { ...r, custom: JSON.parse(r.custom) }));
     },
   },
   {
@@ -120,6 +141,7 @@ export const TOOLS: Tool[] = [
     },
     handler: async (args, ctx) => {
       requireRole(ctx, "contacts", "create");
+      const policy = await requireWritableFields(ctx, "contacts", args);
       const parsed = contactInput.safeParse(args);
       if (!parsed.success) throw new ToolError(parsed.error.issues[0].message);
       const now = Date.now();
@@ -137,7 +159,7 @@ export const TOOLS: Tool[] = [
       await audit(ctx.userId, "contact.created", { objectType: "contact", objectId: id, meta: { via: "mcp" } });
       await recomputeContactScore(id);
       const row = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0]!;
-      return { ...row, custom: JSON.parse(row.custom) };
+      return redact(policy, "contacts", { ...row, custom: JSON.parse(row.custom) });
     },
   },
   {
@@ -153,7 +175,8 @@ export const TOOLS: Tool[] = [
         .where(q ? ilike(tables.companies.name, `%${q.replace(/[%_]/g, "")}%`) : undefined)
         .orderBy(desc(tables.companies.updatedAt))
         .limit(Math.min(num(args.limit, 50), 200));
-      return rows.map((r) => ({ ...r, custom: JSON.parse(r.custom) }));
+      const policy = await loadFieldPolicy(ctx.role);
+      return rows.map((r) => redact(policy, "companies", { ...r, custom: JSON.parse(r.custom) }));
     },
   },
   {
@@ -166,6 +189,7 @@ export const TOOLS: Tool[] = [
     },
     handler: async (args, ctx) => {
       requireRole(ctx, "companies", "create");
+      const policy = await requireWritableFields(ctx, "companies", args);
       const parsed = companyInput.safeParse(args);
       if (!parsed.success) throw new ToolError(parsed.error.issues[0].message);
       const now = Date.now();
@@ -181,7 +205,7 @@ export const TOOLS: Tool[] = [
       });
       await audit(ctx.userId, "company.created", { objectType: "company", objectId: id, meta: { via: "mcp" } });
       const row = (await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1))[0]!;
-      return { ...row, custom: JSON.parse(row.custom) };
+      return redact(policy, "companies", { ...row, custom: JSON.parse(row.custom) });
     },
   },
   {
@@ -195,7 +219,8 @@ export const TOOLS: Tool[] = [
         .from(tables.deals)
         .orderBy(desc(tables.deals.updatedAt))
         .limit(Math.min(num(args.limit, 50), 200));
-      return rows.map((r) => ({ ...r, custom: JSON.parse(r.custom) }));
+      const policy = await loadFieldPolicy(ctx.role);
+      return rows.map((r) => redact(policy, "deals", { ...r, custom: JSON.parse(r.custom) }));
     },
   },
   {

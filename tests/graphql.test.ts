@@ -11,6 +11,7 @@ describe("GraphQL API (real handler + Postgres + RLS)", () => {
   const ADMIN_A = "frty_gql_admin_a";
   const ADMIN_B = "frty_gql_admin_b";
   const VIEWER_A = "frty_gql_viewer_a";
+  const MEMBER_A = "frty_gql_member_a";
   let db: typeof import("@/db").db;
   let tables: typeof import("@/db").tables;
   let sha256: typeof import("@/lib/auth").sha256;
@@ -53,6 +54,7 @@ describe("GraphQL API (real handler + Postgres + RLS)", () => {
     await seedKey(wsA, ADMIN_A, "admin");
     await seedKey(wsB, ADMIN_B, "admin");
     await seedKey(wsA, VIEWER_A, "viewer");
+    await seedKey(wsA, MEMBER_A, "member");
   });
 
   it("introspects the schema (Query + Mutation types present)", async () => {
@@ -140,5 +142,37 @@ describe("GraphQL API (real handler + Postgres + RLS)", () => {
     // And cannot see workspace A's custom object.
     const objB = await run(ADMIN_B, `{ records(object: "ticket") { id } }`);
     expect(objB.body.errors?.[0].extensions.code).toBe("NOT_FOUND");
+  });
+
+  it("enforces field-level permissions (redacts reads, blocks writes)", async () => {
+    const { withWorkspace } = await import("@/db");
+    const wsA = (await db.select().from(tables.apiKeys).where(eq(tables.apiKeys.keyHash, sha256(ADMIN_A))))[0].workspaceId;
+    // viewer cannot read contacts.email; member cannot write contacts.status.
+    await withWorkspace(wsA, async () => {
+      await db.insert(tables.fieldPermissions).values([
+        { id: newId(), object: "contacts", field: "email", role: "viewer", canRead: 0, canWrite: 0, createdAt: Date.now() },
+        { id: newId(), object: "contacts", field: "status", role: "member", canRead: 1, canWrite: 0, createdAt: Date.now() },
+      ]);
+    });
+
+    // Viewer's email is redacted to null; admin still reads it (bypass).
+    const asViewer = await run(VIEWER_A, `{ contacts { firstName email } }`);
+    expect(asViewer.body.errors).toBeUndefined();
+    expect(asViewer.body.data.contacts.length).toBeGreaterThan(0);
+    expect(asViewer.body.data.contacts.every((c: { email: unknown }) => c.email === null)).toBe(true);
+    const asAdmin = await run(ADMIN_A, `{ contacts { email } }`);
+    expect(asAdmin.body.data.contacts.some((c: { email: string }) => c.email === "ada@analytical.engine")).toBe(true);
+
+    // Member writing the blocked field is refused; omitting it works.
+    const blocked = await run(MEMBER_A, `mutation ($i: JSON!) { createContact(input: $i) { id } }`, {
+      i: { firstName: "Blocked", status: "customer" },
+    });
+    expect(blocked.body.errors?.[0].extensions.code).toBe("FORBIDDEN");
+    expect(blocked.body.errors?.[0].message).toMatch(/status/);
+    const ok = await run(MEMBER_A, `mutation ($i: JSON!) { createContact(input: $i) { id firstName } }`, {
+      i: { firstName: "Allowed" },
+    });
+    expect(ok.body.errors).toBeUndefined();
+    expect(ok.body.data.createContact.firstName).toBe("Allowed");
   });
 });

@@ -19,9 +19,12 @@ Twice the CRM, half the complexity. One process, one file database, zero infrast
 > Twenty** (B5), and Tier-2: **custom objects** (C1), a **typed GraphQL API** (C2),
 > **saved views** (C3), **i18n** (C4), an **a11y pass** (C5), **email/calendar
 > ingestion** (C6), a **native MCP server**, and the **`@fourty/twenty-migrate`
-> CLI** (B6). **Not done yet:** field-level permissions, SSO/OIDC/SAML + 2FA, a
-> define-as-code apps/SDK platform, and full provider OAuth for mail/calendar — so
-> it is not yet a drop-in enterprise Twenty replacement. Existing SQLite users
+> CLI** (B6). Tier-3 adds **field-level permissions** (D1), **2FA/TOTP** (D2),
+> **signed webhooks** (D3), and **SSO via OIDC** (Authorization Code + PKCE, real
+> JWKS/RS256 ID-token verification, JIT provisioning — D4). **Not done yet:**
+> **SAML**, a define-as-code apps/SDK platform, and full provider OAuth for
+> mail/calendar — so it is not yet a drop-in enterprise Twenty replacement.
+> Existing SQLite users
 > migrate with `npm run migrate-from-sqlite` (round-trip tested). For the
 > evidence-backed detail see [`CLAIMS.md`](./CLAIMS.md), [`PARITY.md`](./PARITY.md),
 > [`PROGRESS.md`](./PROGRESS.md), and [`SECURITY.md`](./SECURITY.md). Every claim is
@@ -64,10 +67,9 @@ a dead-letter queue; see [`docs/adr/004`](./docs/adr/004-queue-and-workers.md).
 | License | MIT | AGPL | Proprietary |
 
 _This table is a **small-team lens**: it compares out-of-the-box experience for
-one team, not full enterprise-platform parity. Twenty 2.0 still leads on
-**field-level RBAC**, an **apps/SDK platform**, **SSO/2FA**, and **full provider
-OAuth** for mail/calendar — see [`PARITY.md`](./PARITY.md) for the honest, cited
-matrix._
+one team, not full enterprise-platform parity. Twenty 2.0 still leads on **SAML**,
+an **apps/SDK platform**, and **full provider OAuth** for mail/calendar — see
+[`PARITY.md`](./PARITY.md) for the honest, cited matrix._
 
 ## Features
 

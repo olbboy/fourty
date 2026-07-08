@@ -17,18 +17,17 @@ the response serializer.
 - `src/lib/field-permissions.ts`: `loadFieldPolicy(role)` (one query, null for
   admin) → `redact(policy, object, row)` drops unreadable fields from a response,
   `blockedWrites(policy, object, keys)` returns disallowed write keys.
-- Enforced in the REST handlers for **contacts, companies, deals** (list + detail
-  reads redact; create + update reject a blocked field with 403).
-- Writes are checked against the **caller's actual body keys**, not the
+- Enforced for **contacts, companies, deals** on **every read/write surface** —
+  REST handlers, the GraphQL resolvers (`src/lib/graphql/schema.ts`), and the MCP
+  tools (`src/mcp/tools.ts`) — via the same `redact`/`blockedWrites` helper. Reads
+  redact unreadable fields; create + update refuse a blocked field (REST 403,
+  GraphQL `FORBIDDEN`, MCP `isError`). No surface is a bypass door.
+- Writes are checked against the **caller's actual input keys**, not the
   zod-parsed object — so a defaulted field (e.g. `status`) isn't mistaken for a
-  write. `parseBody` now returns those keys.
+  write. `parseBody` returns those keys for REST; GraphQL/MCP read them off the raw
+  input.
 - Management API `/api/field-permissions` is **admin-only**; a fully-permissive
   rule is stored as *no rule* (deleted).
-
-### Why not enforce in GraphQL/MCP too (yet)?
-REST is the primary write surface and where the test lives. GraphQL field
-resolvers and MCP tools can adopt the same helper next; documented as follow-up
-rather than half-done silently.
 
 ## Consequences
 - A redacted field is **absent** from the JSON (not null) — the UI already renders
