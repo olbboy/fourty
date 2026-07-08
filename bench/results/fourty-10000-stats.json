@@ -1,0 +1,21 @@
+{
+  "label": "fourty-10000",
+  "note": "peak under sustained list load",
+  "containers": [
+    {
+      "name": "bench-bench-fourty-app-1",
+      "cpu_peak": "59.8%",
+      "mem_peak_mib": 520
+    },
+    {
+      "name": "bench-bench-fourty-worker-1",
+      "cpu_peak": "0.3%",
+      "mem_peak_mib": 122
+    },
+    {
+      "name": "bench-bench-pg-fourty-1",
+      "cpu_peak": "404.5%",
+      "mem_peak_mib": 188
+    }
+  ]
+}

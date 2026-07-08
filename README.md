@@ -197,6 +197,20 @@ npm test             # vitest: unit + API integration + security, on real Postgr
 npm run build        # type-checks and compiles
 ```
 
+## Benchmarks
+
+A reproducible, one-command head-to-head harness lives in [`bench/`](./bench); every
+number in [`BENCHMARK.md`](./BENCHMARK.md) is rendered straight from measured
+`bench/results/*.json` (no hand-typed figures — an unmeasured product shows `—`):
+
+```bash
+bench/run.sh fourty   # bring a stack up from clean, seed via API, run the k6 matrix
+bench/run.sh twenty   # same, against the pinned Twenty images (requires a token)
+```
+
+The published baseline is real Fourty numbers at 10k records; the Twenty column is
+still pending an actual run (never fabricated). See `docs/roadmap-b3-b4-b5.md` §B5.
+
 ## License
 
 MIT — use it, fork it, sell it, self-host it for your team. No open-core gotchas.

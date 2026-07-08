@@ -146,7 +146,18 @@ observable and its backups are proven.
 
 ---
 
-## Gate B5 — Benchmark vs Twenty (same Postgres, honest numbers)
+## Gate B5 — Benchmark vs Twenty (same Postgres, honest numbers) — 🟡 HARNESS + FOURTY BASELINE
+
+> **Partial (2026-07-08).** The reproducible harness is complete and a REAL
+> Fourty baseline @10k is published (`BENCHMARK.md` + `bench/results/*.json`,
+> rendered by `bench/report.ts` — no hand-typed numbers): `bench/run.sh` brings a
+> stack up from clean under matched cpu/mem limits + PG tuning, seeds via the
+> product's API, runs the k6 matrix (list/filter/sort/search/create/update),
+> samples resource use under load, and regenerates the tables. **Twenty side is
+> authored but NOT yet run** — its columns show `—` (not measured), never
+> invented. Gate fully closes when `bench/run.sh twenty` is executed against the
+> pinned images and the loss analysis is filled in. This honours the anti-vanity
+> rule: no number without a `bench/results/*.json` behind it.
 
 **Objective:** a reproducible, one-command head-to-head. No fabricated numbers —
 publish losses.

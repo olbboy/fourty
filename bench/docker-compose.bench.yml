@@ -1,0 +1,175 @@
+# Head-to-head benchmark harness (Gate B5). Fourty vs Twenty on the SAME host,
+# SAME Postgres tuning, IDENTICAL cpu/memory limits — so the numbers compare the
+# products, not the hardware they were handed.
+#
+# Stacks run in ISOLATION via profiles (one at a time) to avoid cross-stack
+# resource contention:
+#   docker compose -f bench/docker-compose.bench.yml --profile fourty up -d --build
+#   docker compose -f bench/docker-compose.bench.yml --profile twenty up -d
+# bench/run.sh drives this. Postgres tuning + limits are defined once via YAML
+# anchors and applied to both sides.
+#
+# Resource budget per stack (matched): DB 4cpu/4g, app 4cpu/4g, worker 2cpu/2g.
+# Twenty additionally requires Redis (1cpu/1g) — part of its architecture, so it
+# is counted in Twenty's footprint and reported honestly, not hidden.
+
+x-pg-tuning: &pg-tuning
+  command:
+    - postgres
+    - -c
+    - shared_buffers=1GB
+    - -c
+    - work_mem=32MB
+    - -c
+    - effective_cache_size=3GB
+    - -c
+    - max_connections=200
+    - -c
+    - max_wal_size=4GB
+
+x-db-limits: &db-limits
+  deploy:
+    resources:
+      limits: { cpus: "4", memory: 4g }
+
+x-app-limits: &app-limits
+  deploy:
+    resources:
+      limits: { cpus: "4", memory: 4g }
+
+x-worker-limits: &worker-limits
+  deploy:
+    resources:
+      limits: { cpus: "2", memory: 2g }
+
+services:
+  # ── Fourty stack ──────────────────────────────────────────────────────────
+  bench-pg-fourty:
+    profiles: ["fourty"]
+    image: postgres:16
+    <<: [*pg-tuning, *db-limits]
+    environment:
+      POSTGRES_USER: fourty
+      POSTGRES_PASSWORD: fourty
+      POSTGRES_DB: fourty
+      FOURTY_APP_PASSWORD: fourty_app
+    volumes:
+      - ../docker/init-fourty-app.sh:/docker-entrypoint-initdb.d/10-fourty-app.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fourty -d fourty"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  bench-fourty-migrate:
+    profiles: ["fourty"]
+    build: ..
+    command: ["npm", "run", "db:migrate"]
+    environment:
+      MIGRATE_DATABASE_URL: postgresql://fourty:fourty@bench-pg-fourty:5432/fourty
+    depends_on:
+      bench-pg-fourty:
+        condition: service_healthy
+    restart: "no"
+
+  bench-fourty-app:
+    profiles: ["fourty"]
+    build: ..
+    <<: *app-limits
+    environment:
+      DATABASE_URL: postgresql://fourty_app:fourty_app@bench-pg-fourty:5432/fourty
+      QUEUE_DATABASE_URL: postgresql://fourty:fourty@bench-pg-fourty:5432/fourty
+      NODE_ENV: production
+      PORT: 3000
+      FOURTY_INSECURE_COOKIE: "1"
+      LOG_LEVEL: warn
+      # Effectively disable the in-process rate limiter for the benchmark: we are
+      # measuring raw throughput, and Twenty has no equivalent per-instance limiter
+      # — throttling one side only would be an unfair comparison.
+      RATELIMIT_READ: "100000000"
+      RATELIMIT_WRITE: "100000000"
+      RATELIMIT_BULK: "100000000"
+    ports:
+      - "${FOURTY_PORT:-3200}:3000"
+    depends_on:
+      bench-pg-fourty:
+        condition: service_healthy
+      bench-fourty-migrate:
+        condition: service_completed_successfully
+
+  bench-fourty-worker:
+    profiles: ["fourty"]
+    build: ..
+    <<: *worker-limits
+    command: ["npm", "run", "worker"]
+    environment:
+      DATABASE_URL: postgresql://fourty_app:fourty_app@bench-pg-fourty:5432/fourty
+      QUEUE_DATABASE_URL: postgresql://fourty:fourty@bench-pg-fourty:5432/fourty
+      NODE_ENV: production
+      LOG_LEVEL: warn
+    depends_on:
+      bench-pg-fourty:
+        condition: service_healthy
+      bench-fourty-migrate:
+        condition: service_completed_successfully
+
+  # ── Twenty stack (pinned) ─────────────────────────────────────────────────
+  # Pin the exact release via TWENTY_VERSION. Twenty ships its own Postgres image
+  # (spilo, with the extensions it needs) and requires Redis — both included so
+  # the comparison uses Twenty's real, supported topology.
+  bench-pg-twenty:
+    profiles: ["twenty"]
+    image: twentycrm/twenty-postgres-spilo:${TWENTY_VERSION:-v0.62.0}
+    <<: *db-limits
+    environment:
+      PGUSER_SUPERUSER: postgres
+      PGPASSWORD_SUPERUSER: twenty
+      ALLOW_NOSSL: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
+  bench-redis-twenty:
+    profiles: ["twenty"]
+    image: redis:7
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 1g }
+    command: ["redis-server", "--maxmemory", "768mb", "--maxmemory-policy", "noeviction"]
+
+  bench-twenty-server:
+    profiles: ["twenty"]
+    image: twentycrm/twenty:${TWENTY_VERSION:-v0.62.0}
+    <<: *app-limits
+    environment:
+      NODE_PORT: 3000
+      SERVER_URL: http://localhost:${TWENTY_PORT:-3201}
+      PG_DATABASE_URL: postgres://postgres:twenty@bench-pg-twenty:5432/default
+      REDIS_URL: redis://bench-redis-twenty:6379
+      STORAGE_TYPE: local
+      APP_SECRET: ${TWENTY_APP_SECRET:-bench-secret-change-me-please-32b}
+      DISABLE_DB_MIGRATIONS: "false"
+    ports:
+      - "${TWENTY_PORT:-3201}:3000"
+    depends_on:
+      bench-pg-twenty:
+        condition: service_healthy
+      bench-redis-twenty:
+        condition: service_started
+
+  bench-twenty-worker:
+    profiles: ["twenty"]
+    image: twentycrm/twenty:${TWENTY_VERSION:-v0.62.0}
+    <<: *worker-limits
+    command: ["yarn", "worker:prod"]
+    environment:
+      PG_DATABASE_URL: postgres://postgres:twenty@bench-pg-twenty:5432/default
+      REDIS_URL: redis://bench-redis-twenty:6379
+      STORAGE_TYPE: local
+      APP_SECRET: ${TWENTY_APP_SECRET:-bench-secret-change-me-please-32b}
+      DISABLE_DB_MIGRATIONS: "true"
+    depends_on:
+      bench-twenty-server:
+        condition: service_started
