@@ -8,17 +8,20 @@ to satisfy a check. Every migration reversible (up→down→up, checksum-identic
 
 ## Gates
 
-| Gate | Feature | State | Evidence target |
+| Gate | Feature | State | Evidence |
 |---|---|---|---|
-| C1 | Custom objects (no-code) + record validation | ⬜ | `tests/custom-objects.test.ts`, migration 0006 reversible |
-| C2 | Auto GraphQL for every object (fixed + custom) | ⬜ | `tests/graphql.test.ts` (query/mutation/introspection/RLS) |
-| C3 | Saved-views API + list UI | ⬜ | `tests/saved-views.test.ts` + UI wired |
-| C4 | i18n (catalog + t() + locale resolution) | ⬜ | `tests/i18n.test.ts` (catalog completeness + interp) |
-| C5 | a11y pass (shell, palette, forms, ui) | ⬜ | source fixes + build green + checklist in docs |
-| C6 | Email/calendar ingestion engine | ⬜ | `tests/sync.test.ts` (.eml + .ics fixtures → link+store) |
-| B6a | `@fourty/twenty-migrate` CLI | ⬜ | transform unit tests w/ fixtures |
-| B6b | MCP server (stdio JSON-RPC) | ⬜ | `tests/mcp.test.ts` (initialize/tools.list/tools.call) |
-| B6c | Docs: PARITY/PROGRESS/README/ADR/llms.txt | ⬜ | updated + cited |
+| C1 | Custom objects (no-code) + record validation | ✅ | `tests/custom-objects.test.ts`, migration 0006 reversible |
+| C2 | Auto GraphQL for every object (fixed + custom) | ✅ | `tests/graphql.test.ts` (query/mutation/introspection/RLS) |
+| C3 | Saved-views API + list UI | ✅ | `tests/saved-views.test.ts` + contacts-list bar |
+| C4 | i18n (catalog + t() + locale resolution) | ✅ | `tests/i18n.test.ts` (completeness + interp + resolution) |
+| C5 | a11y pass (shell, palette, forms, ui) | ✅ | `tests/a11y.test.ts` + next build green |
+| C6 | Email/calendar ingestion engine | ✅ | `tests/sync.test.ts` (.eml + .ics → link+store+dedupe) |
+| B6a | `@fourty/twenty-migrate` CLI | ✅ | `tests/twenty-migrate.test.ts` (transforms + remap + dry-run) |
+| B6b | MCP server (stdio JSON-RPC) | ✅ | `tests/mcp.test.ts` + live stdio smoke |
+| B6c | Docs: PARITY/PROGRESS/README/ADR/llms.txt | ✅ | ADR-007..010, PARITY/PROGRESS/README, public/llms.txt |
+
+**All gates done.** 142/142 tests pass (real Postgres 16); root + package `tsc`
+green; `next build` green. Commits `e12bac2`→`d6f4c01` on `main`.
 
 ## Architecture invariants to preserve
 - DB choke point: all data flows through `withWorkspace()` tx (RLS). New tables get
