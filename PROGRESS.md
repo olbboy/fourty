@@ -28,6 +28,9 @@ benchmark numbers are published because none were measured yet.
 | **C5 — a11y pass** | ✅ DONE | `tests/a11y.test.ts`; dialogs/combobox/landmarks/labels; `next build` green |
 | **C6 — Email/calendar sync** | ✅ DONE | `tests/sync.test.ts`; migration `0007`; parse→match→link→dedupe engine, injectable transport (ADR-009) |
 | **B6 — twenty-migrate + MCP server + docs** | ✅ DONE | `tests/twenty-migrate.test.ts`, `tests/mcp.test.ts`; `@fourty/twenty-migrate` pkg, `npm run mcp` (ADR-010); docs updated |
+| **D1 — Field-level permissions** | ✅ DONE | `tests/field-permissions.test.ts`; migration `0008` reversible; per (object,field,role) read/write on core objects (ADR-011) |
+| **D2 — 2FA (TOTP + backup codes)** | ✅ DONE | `tests/two-factor.test.ts`; RFC 6238 vector + enroll→login→disable; migration `0009` (ADR-012) |
+| **D3 — Signed webhooks (HMAC)** | ✅ DONE | `tests/webhook-signature.test.ts`; per-workspace secret, replay-guarded, end-to-end via engine (ADR-013) |
 
 > **Detailed executable plans for B3, B4, B5** (tasks, files, migrations, tests,
 > acceptance criteria) live in [`docs/roadmap-b3-b4-b5.md`](./docs/roadmap-b3-b4-b5.md).
@@ -168,10 +171,12 @@ not assumed. Numbers are one host, one run; re-run for stability.
 
 ## Tier-2 (C1–C6) + B6 — DONE (evidence)
 
-Verified 2026-07-08 on real Postgres 16: `npx vitest run` → **142/142 pass**;
-`tsc` green (root + `packages/twenty-migrate`); `next build` green (all new routes
-registered). Every gate ships a reversible migration where it adds tables
-(`0006`, `0007`) and cross-workspace RLS confinement is asserted per feature.
+Verified 2026-07-08 on real Postgres 16: `npx vitest run` → **159/159 pass**
+(142 after B6, +17 for Tier-3 D1–D3); `tsc` green (root + `packages/twenty-migrate`);
+`next build` green (all new routes registered). Every gate ships a reversible
+migration where it adds tables/columns (`0006`–`0009`) and cross-workspace RLS
+confinement is asserted per feature. Tier-3 adds field-level permissions (D1,
+`0008`), 2FA/TOTP (D2, `0009`), and signed webhooks (D3) — see ADR-011..013.
 
 | Gate | What shipped | Key files | Test |
 |---|---|---|---|
