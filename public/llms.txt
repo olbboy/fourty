@@ -1,0 +1,67 @@
+# Fourty
+
+> Fourty is an open-source, multi-tenant CRM (Postgres + Row-Level Security) with
+> contacts, companies, deals, tasks, notes, analytics, lead scoring, workflow
+> automation, custom objects, a REST API, a typed GraphQL API, and a native MCP
+> server. Every request is scoped to one workspace and gated by role-based access
+> control (admin / member / viewer).
+
+Authenticate every API request with a workspace API key:
+`Authorization: Bearer <api-key>`. A key belongs to exactly one workspace and acts
+at a fixed role. Create keys in Settings → API access.
+
+## REST API
+
+Base path `/api`. JSON in/out. Standard verbs GET/POST/PATCH/DELETE.
+
+- Contacts: `/api/contacts`, `/api/contacts/{id}`
+- Companies: `/api/companies`, `/api/companies/{id}`
+- Deals: `/api/deals`, `/api/deals/{id}`
+- Tasks: `/api/tasks`, `/api/tasks/{id}`
+- Notes: `/api/notes`
+- Activities (timeline): `/api/activities`
+- Search (contacts+companies+deals): `/api/search?q=...`
+- Dashboard analytics: `/api/stats/dashboard`
+- Custom object records: `/api/objects/{apiName}`, `/api/objects/{apiName}/{id}`
+- Custom object definitions: `/api/custom-objects` (+ `/fields`)
+- Saved views: `/api/saved-views`
+
+Writes are validated with zod and return `{ error }` + HTTP 400 on failure; RBAC
+denials return HTTP 403; unknown/other-workspace records return 404 (RLS).
+
+## GraphQL API
+
+Single endpoint `POST /api/graphql` with `{ query, variables }`. Introspection is
+enabled. Typed queries for every object: `contacts`, `contact(id)`, `companies`,
+`deals`, `tasks`, `notes`, `customObjects`, `records(object)`, `record(object,id)`.
+Mutations: `createContact`/`updateContact`/`deleteContact`,
+`createCompany`/`updateCompany`/`deleteCompany`, and
+`createRecord`/`updateRecord`/`deleteRecord` for custom objects. Errors travel in
+the response body (`errors[]` with `extensions.code`); HTTP stays 200.
+
+## MCP server (for LLM agents)
+
+Fourty ships a self-hosted Model Context Protocol server over stdio. Start it with
+`FOURTY_API_KEY=<key> npm run mcp`. It authenticates once and serves
+newline-delimited JSON-RPC (`initialize`, `tools/list`, `tools/call`). Tools:
+`search`, `list_contacts`, `create_contact`, `list_companies`, `create_company`,
+`list_deals`, `get_dashboard_stats`, `list_custom_objects`, `list_records`,
+`create_record`. Every tool runs under the key's workspace (RLS) and role (RBAC).
+
+Example Claude Desktop config entry:
+```
+"fourty": { "command": "npm", "args": ["run", "mcp"],
+            "env": { "FOURTY_API_KEY": "frty_..." } }
+```
+
+## Migrating from Twenty
+
+`npx @fourty/twenty-migrate --twenty-url ... --twenty-token ... --fourty-key ...`
+imports companies, people, and opportunities from a Twenty workspace. Use
+`--dry-run` to preview counts without writing.
+
+## Docs
+
+- README: overview, quickstart, configuration
+- PARITY.md: honest, cited Fourty-vs-Twenty capability matrix
+- docs/adr/: architecture decision records (tenancy/RLS, GraphQL, MCP, …)
