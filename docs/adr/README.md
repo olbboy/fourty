@@ -22,6 +22,7 @@ are short by design.
 | [012](./012-two-factor-auth.md) | Two-factor auth: TOTP + backup codes on node:crypto | Accepted |
 | [013](./013-webhook-signatures.md) | Signed webhooks: per-workspace HMAC-SHA256 | Accepted |
 | [014](./014-sso-oidc.md) | SSO: OIDC Authorization Code + PKCE, injectable transport | Accepted |
+| [015](./015-ai-agent-chat.md) | In-app AI agent / chat: stop-at-write loop, BYO OpenAI-compatible provider | Accepted |
 
 _Grounded via web research (Drizzle RLS docs, Postgres multi-tenancy patterns,
 Twenty's architecture, pg-boss vs BullMQ). Sources cited inline._
