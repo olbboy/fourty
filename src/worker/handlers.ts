@@ -1,6 +1,11 @@
 import { claimJob, type JobEnvelope, type JobName } from "@/lib/queue";
 import { checkWebhookUrl } from "@/lib/net";
 import { runWorkflowsForEvent } from "@/lib/workflows/engine";
+import { aiClientFromEnv } from "@/lib/ai";
+import { db, tables } from "@/db";
+import { newId } from "@/lib/id";
+import { logActivity } from "@/lib/activity";
+import { audit } from "@/lib/audit";
 import { log } from "@/lib/logger";
 
 /**
@@ -37,6 +42,33 @@ const handlers: { [N in JobName]: Handler<N> } = {
 
   "workflow.dispatch": async (env) => {
     await runWorkflowsForEvent(env.data.ctx);
+  },
+
+  // Optional generative draft (ADR-015, Tier 3). Runs a BYO-key provider call
+  // and writes the result as a DRAFT note on the entity — human-in-the-loop, the
+  // AI never mutates a real field. No-ops when AI is disabled/unconfigured.
+  "ai.generate": async (env) => {
+    const { entityType, entityId, prompt, system } = env.data;
+    const client = aiClientFromEnv();
+    if (!client) {
+      log().info({ entityType, entityId }, "ai.generate skipped — AI disabled");
+      return;
+    }
+    const text = await client.generate({ system, prompt });
+    if (!text) return;
+    const id = newId();
+    await db.insert(tables.notes).values({
+      id,
+      body: `🤖 AI draft (review before use):\n\n${text}`,
+      entityType,
+      entityId,
+      authorId: null,
+      createdAt: Date.now(),
+    });
+    await logActivity({ type: "note_added", entityType, entityId, meta: { detail: "AI draft" } });
+    // Tag AI-initiated writes so they're auditable and distinguishable from human edits.
+    await audit(null, "note.created", { objectType: "note", objectId: id, meta: { via: "ai", provider: client.provider } });
+    log().info({ entityType, entityId, provider: client.provider }, "ai.generate wrote a draft note");
   },
 };
 
