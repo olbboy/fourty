@@ -35,7 +35,8 @@ and drained by the background **worker** (`npm run worker`). That buys you:
 - **Exactly-once side effects** via an idempotency ledger — no double-fired webhooks.
 - **Survival across restarts** — a crash mid-run doesn't lose the job.
 
-> **Warning.** In production, run the worker as its own process (Docker Compose does
+> [!WARNING]
+> In production, run the worker as its own process (Docker Compose does
 > this for you). Without a worker, jobs queue but never execute — unless you set
 > `QUEUE_DRIVER=inline`, which runs them in-request (fine for a single-process demo,
 > not for production). See [Configuration](../self-hosting/configuration.md).

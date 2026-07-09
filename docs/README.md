@@ -27,6 +27,7 @@ New to Fourty? Read these in order.
 - **[Why Fourty](./getting-started/why-fourty.md)** — the philosophy, the moat, and an honest comparison to Twenty and Salesforce.
 - **[Quickstart](./getting-started/quickstart.md)** — deploy with Docker Compose or from source, and create your first admin account.
 - **[Key features](./getting-started/key-features.md)** — a guided tour of everything in the box.
+- **[Glossary](./getting-started/glossary.md)** — the vocabulary used across these docs.
 
 ## User guide
 
@@ -42,12 +43,15 @@ One page per feature area. Each opens with what it is and why it matters, then h
 - **[Email & calendar](./guides/email-calendar.md)** — connect a Gmail/Microsoft mailbox or ICS feed.
 - **[AI assistant](./guides/ai-assistant.md)** — the optional, BYO-key in-app chat.
 
+**Hands-on:** **[Tutorials](./guides/tutorials/)** (numbered walkthroughs) · **[FAQ](./guides/faq.md)** (quick answers).
+
 ## Self-hosting
 
 - **[Installation](./self-hosting/installation.md)** — Docker Compose (recommended) or from source.
 - **[Configuration](./self-hosting/configuration.md)** — the complete environment-variable reference.
 - **[Upgrading & migrations](./self-hosting/upgrading.md)** — reversible schema migrations, and importing from SQLite or Twenty.
 - **[Operations](./self-hosting/operations.md)** — backups, observability, rate limits, and the security posture.
+- **[Troubleshooting](./self-hosting/troubleshooting.md)** — common issues and their fixes.
 
 ## API & developers
 
@@ -75,6 +79,7 @@ These evidence-backed documents sit alongside the guides above:
 - **[Command reference](./reference/cli.md)** — the `npm run` catalogue.
 - **[Changelog](../CHANGELOG.md)** · **[Project status](../PROGRESS.md)**
 
+> [!TIP]
 > **Conventions.** Callouts marked **Note** are helpful context; **Warning** flags
 > something that can bite you in production. Commands assume a POSIX shell. Every
 > feature described here ships with a passing test — nothing is documented as done

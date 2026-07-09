@@ -37,6 +37,7 @@ Three principles shape every decision (and every [ADR](../adr/)):
 | MCP server (AI agents) | ✅ Self-host, 20 tools, stdio + HTTP | ✅ (Cloud/OAuth) | ❌ |
 | Licence | **MIT** | AGPL-3.0 | Proprietary |
 
+> [!NOTE]
 > **A small-team lens.** This table compares the out-of-the-box experience for one
 > team — not full enterprise-platform parity. Twenty 2.0 still leads on **SAML**, an
 > **apps/SDK platform**, and **calendar-over-OAuth** (Fourty ships mail OAuth;

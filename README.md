@@ -12,6 +12,7 @@ Twice the CRM, half the complexity. One process, one Postgres, zero infrastructu
 
 ---
 
+> [!IMPORTANT]
 > **Project status (read before deploying).** Fourty runs on a **Postgres
 > multi-tenant** architecture. **Done:** versioned reversible migrations + real-PG CI,
 > multi-tenancy with **Row-Level Security**, object-level **RBAC** + field-level

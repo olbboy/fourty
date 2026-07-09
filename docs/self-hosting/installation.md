@@ -48,7 +48,8 @@ Run the worker as a **separate process** so jobs execute off the request path:
 npm run worker
 ```
 
-> **Warning.** In production, always run a worker. Without one, workflow actions and
+> [!WARNING]
+> In production, always run a worker. Without one, workflow actions and
 > webhooks queue but never fire — unless you set `QUEUE_DRIVER=inline` (single-process
 > only). See [Configuration → Queue](./configuration.md#queue-and-worker).
 

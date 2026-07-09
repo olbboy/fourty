@@ -42,6 +42,7 @@ MCP to Cloud/OAuth, Fourty's HTTP transport runs on the OSS build.
 `update_company`, `delete_company`, `create_deal`, `update_deal`, `delete_deal`,
 `create_task`, `create_note`, `create_record`.
 
+> [!IMPORTANT]
 > **Write safety.** Every tool carries a `mutates` flag, and the **delete** tools are
 > **dry-run by default** — pass `confirm: true` to actually delete. Created/updated
 > deals come back with a [health score](../guides/lead-scoring.md#deal-health).

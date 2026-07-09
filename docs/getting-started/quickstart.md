@@ -17,7 +17,8 @@ docker compose up --build
 Open <http://localhost:3000>, create your admin account, and you're in. The first
 boot offers demo data so you can explore immediately.
 
-> **Note.** The Compose demo sets `FOURTY_INSECURE_COOKIE=1` so session cookies work
+> [!NOTE]
+> The Compose demo sets `FOURTY_INSECURE_COOKIE=1` so session cookies work
 > over plain `http://localhost`. In production behind TLS, leave it unset — see
 > [Configuration](../self-hosting/configuration.md).
 

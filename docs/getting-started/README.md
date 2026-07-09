@@ -9,5 +9,7 @@ understand.
    create your first admin account.
 3. **[Key features](./key-features.md)** — a guided tour of everything in the box.
 
+New terms as you read? Keep the **[Glossary](./glossary.md)** open in a tab.
+
 Then continue to the **[User guide](../guides/)** for how each feature works, or
 **[Self-hosting](../self-hosting/)** to run it in production.
