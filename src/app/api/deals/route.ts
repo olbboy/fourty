@@ -5,6 +5,7 @@ import { newId } from "@/lib/id";
 import { logActivity } from "@/lib/activity";
 import { audit } from "@/lib/audit";
 import { dispatchEvent } from "@/lib/workflows/engine";
+import { recomputeDealScore } from "@/lib/services/deal-score";
 import { dealInput } from "@/lib/validators";
 import { ensureDefaultPipeline } from "@/db/seed";
 import { loadFieldPolicy, redact, blockedWrites } from "@/lib/field-permissions";
@@ -81,6 +82,7 @@ export async function POST(req: Request) {
     });
   await logActivity({ type: "created", entityType: "deal", entityId: id, actorId: auth.user?.id });
   await audit(auth.user?.id, "deal.created", { objectType: "deal", objectId: id });
+  await recomputeDealScore(id);
   const row = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0]!;
   await dispatchEvent({
     event: "deal.created",

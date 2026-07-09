@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import { resetDb, createWorkspace } from "./pg-setup";
 import { handleMcpRequest, MCP_PROTOCOL_VERSION } from "@/mcp/server";
 import type { ToolContext } from "@/mcp/tools";
@@ -156,5 +157,110 @@ describe("MCP server (handler + Postgres + RLS)", () => {
     expect(blocked.data).toMatch(/status/);
     const ok = await callTool(memberCtx, "create_contact", { firstName: "Allowed" });
     expect(ok.isError).toBe(false);
+  });
+
+  // ── ADR-015 Tier 1: broadened MCP surface (CRUD + tasks/notes + resources/prompts) ──
+  // These run as admin (ctxA), which bypasses the field-permission rules the test
+  // above installed, so they exercise the new tools in isolation.
+
+  it("expands the tool catalogue with CRUD + task/note tools", async () => {
+    const res = await call(ctxA, "tools/list");
+    const { tools } = res!.result as { tools: { name: string }[] };
+    const names = tools.map((t) => t.name);
+    for (const n of [
+      "update_contact", "delete_contact", "update_company", "delete_company",
+      "create_deal", "update_deal", "delete_deal", "create_task", "list_tasks", "create_note",
+    ]) {
+      expect(names).toContain(n);
+    }
+  });
+
+  it("update_contact changes only the passed fields", async () => {
+    const created = await callTool(ctxA, "create_contact", { firstName: "Ada", lastName: "Lovelace" });
+    const updated = await callTool(ctxA, "update_contact", { id: created.data.id, jobTitle: "Analyst", status: "qualified" });
+    expect(updated.isError).toBe(false);
+    expect(updated.data.jobTitle).toBe("Analyst");
+    expect(updated.data.status).toBe("qualified");
+    expect(updated.data.firstName).toBe("Ada"); // untouched
+  });
+
+  it("delete_contact is a dry run unless confirm=true", async () => {
+    const created = await callTool(ctxA, "create_contact", { firstName: "Temp", lastName: "Delete" });
+    const dry = await callTool(ctxA, "delete_contact", { id: created.data.id });
+    expect(dry.isError).toBe(false);
+    expect(dry.data.dryRun).toBe(true);
+    const stillThere = await callTool(ctxA, "list_contacts", { query: "Temp" });
+    expect(stillThere.data.some((c: { id: string }) => c.id === created.data.id)).toBe(true);
+
+    const del = await callTool(ctxA, "delete_contact", { id: created.data.id, confirm: true });
+    expect(del.data.deleted).toBe(true);
+    const gone = await callTool(ctxA, "list_contacts", { query: "Temp" });
+    expect(gone.data.some((c: { id: string }) => c.id === created.data.id)).toBe(false);
+  });
+
+  it("create_deal returns a health score; update_deal advances the stage to won (100)", async () => {
+    const deal = await callTool(ctxA, "create_deal", { name: "MCP Deal", amount: 1000 });
+    expect(deal.isError).toBe(false);
+    expect(typeof deal.data.score).toBe("number");
+
+    const { withWorkspace } = await import("@/db");
+    const wonStageId = await withWorkspace(ctxA.workspaceId, async () =>
+      (await db.select().from(tables.stages).where(eq(tables.stages.type, "won")).limit(1))[0]?.id,
+    );
+    expect(wonStageId).toBeTruthy();
+    const moved = await callTool(ctxA, "update_deal", { id: deal.data.id, stageId: wonStageId });
+    expect(moved.isError).toBe(false);
+    expect(moved.data.score).toBe(100); // won → certain
+  });
+
+  it("create_task, create_note, list_tasks round-trip", async () => {
+    const t = await callTool(ctxA, "create_task", { title: "Call Ada", priority: "high" });
+    expect(t.isError).toBe(false);
+    expect(t.data.title).toBe("Call Ada");
+
+    const contact = await callTool(ctxA, "create_contact", { firstName: "Note", lastName: "Target" });
+    const n = await callTool(ctxA, "create_note", { body: "hello", entityType: "contact", entityId: contact.data.id });
+    expect(n.isError).toBe(false);
+    expect(n.data.body).toBe("hello");
+
+    const tasks = await callTool(ctxA, "list_tasks", {});
+    expect(Array.isArray(tasks.data)).toBe(true);
+    expect(tasks.data.some((x: { title: string }) => x.title === "Call Ada")).toBe(true);
+  });
+
+  it("serves MCP resources (list + read) under the same RLS/RBAC path", async () => {
+    const list = await call(ctxA, "resources/list");
+    const { resources } = list!.result as { resources: { uri: string }[] };
+    expect(resources.some((r) => r.uri === "fourty://dashboard")).toBe(true);
+
+    const read = await call(ctxA, "resources/read", { uri: "fourty://dashboard" });
+    const { contents } = read!.result as { contents: { text: string }[] };
+    expect(JSON.parse(contents[0].text).kpis).toBeDefined();
+
+    const bad = await call(ctxA, "resources/read", { uri: "fourty://nope" });
+    expect(bad!.error?.code).toBe(-32602);
+  });
+
+  it("serves MCP prompts (list + get)", async () => {
+    const list = await call(ctxA, "prompts/list");
+    const { prompts } = list!.result as { prompts: { name: string }[] };
+    expect(prompts.some((p) => p.name === "draft_followup")).toBe(true);
+
+    const get = await call(ctxA, "prompts/get", { name: "draft_followup", arguments: { contactId: "abc123" } });
+    const { messages } = get!.result as { messages: { content: { text: string } }[] };
+    expect(messages[0].content.text).toContain("abc123");
+  });
+
+  it("denies a viewer from the new write tools (RBAC, not a bypass door)", async () => {
+    for (const [name, args] of [
+      ["update_contact", { id: "x", firstName: "y" }],
+      ["delete_contact", { id: "x" }],
+      ["create_deal", { name: "nope" }],
+      ["update_deal", { id: "x", name: "nope" }],
+    ] as const) {
+      const res = await callTool(viewerCtx, name, args);
+      expect(res.isError, `${name} should be denied`).toBe(true);
+      expect(res.data).toMatch(/Forbidden/);
+    }
   });
 });

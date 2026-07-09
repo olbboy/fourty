@@ -1,6 +1,17 @@
 # ADR-015 — AI-native strategy: don't chase Twenty's platform; be the best substrate for AI
 
-**Status:** Proposed · **Date:** 2026-07-09
+**Status:** Accepted — Tier 1 + Tier 2 implemented; Tier 3 deferred · **Date:** 2026-07-09
+
+> **Implementation (2026-07-09).** Tier 1 shipped: the MCP tool catalogue grew
+> 10 → 20 (full CRUD for contacts/companies, deal create/update/delete, tasks,
+> notes; delete tools are dry-run unless `confirm: true`), an **HTTP transport**
+> at `POST /api/mcp` (Bearer key or session; single or batch JSON-RPC) reusing the
+> same `handleMcpRequest` — so RLS/RBAC/field-perms are enforced identically — and
+> MCP **resources** (`fourty://dashboard`, `fourty://custom-objects`) + **prompts**
+> (`summarize_pipeline`, `draft_followup`). Tier 2 shipped: a deterministic
+> **deal health score** (`src/lib/deal-scoring.ts` + `services/deal-score.ts`,
+> migration `0011`, wired into the deals REST routes and the MCP deal tools).
+> 202 tests pass (was 185). Tier 3 (opt-in BYO-key generative) remains deferred.
 
 ## Context
 

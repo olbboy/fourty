@@ -131,6 +131,9 @@ describe("static guard: every API route authenticates", () => {
       "auth/setup",
       "members/accept",
       "graphql",
+      // MCP HTTP transport: RBAC enforced per-tool via can()/requireRole inside
+      // handleMcpRequest (same predicate authorize() wraps), like graphql above.
+      "mcp",
       "locale", // UI-preference cookie: no tenant data, no RBAC object (authenticates only)
       // 2FA endpoints act on the caller's own account (users table), not tenant
       // data / an RBAC object — they authenticate via getSessionUser only.

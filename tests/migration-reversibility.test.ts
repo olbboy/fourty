@@ -29,8 +29,10 @@ const UP = [
   "drizzle/0008_field_permissions.sql",
   "drizzle/0009_two_factor.sql",
   "drizzle/0010_sso_oidc.sql",
+  "drizzle/0011_deal_score.sql",
 ];
 const DOWN = [
+  "drizzle/down/0011_deal_score.down.sql",
   "drizzle/down/0010_sso_oidc.down.sql",
   "drizzle/down/0009_two_factor.down.sql",
   "drizzle/down/0008_field_permissions.down.sql",

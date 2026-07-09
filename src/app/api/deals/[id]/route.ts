@@ -4,6 +4,7 @@ import { withAuth, authorize, json, apiError, parseBody } from "@/lib/api";
 import { logActivity } from "@/lib/activity";
 import { audit } from "@/lib/audit";
 import { dispatchEvent } from "@/lib/workflows/engine";
+import { recomputeDealScore } from "@/lib/services/deal-score";
 import { dealPatch } from "@/lib/validators";
 import { loadFieldPolicy, redact, blockedWrites } from "@/lib/field-permissions";
 
@@ -94,7 +95,9 @@ export async function PATCH(req: Request, { params }: Params) {
     });
   }
   await audit(auth.user?.id, "deal.updated", { objectType: "deal", objectId: id });
-  return json({ deal: redact(policy, "deals", { ...row, custom: JSON.parse(row.custom) }) });
+  await recomputeDealScore(id);
+  const scored = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0]!;
+  return json({ deal: redact(policy, "deals", { ...scored, custom: JSON.parse(scored.custom) }) });
   });
 }
 
