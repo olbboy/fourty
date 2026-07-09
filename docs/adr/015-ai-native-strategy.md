@@ -1,6 +1,6 @@
 # ADR-015 — AI-native strategy: don't chase Twenty's platform; be the best substrate for AI
 
-**Status:** Accepted — Tier 1 + Tier 2 implemented; Tier 3 deferred · **Date:** 2026-07-09
+**Status:** Accepted — Tier 1 + Tier 2 + Tier 3 implemented · **Date:** 2026-07-09
 
 > **Implementation (2026-07-09).** Tier 1 shipped: the MCP tool catalogue grew
 > 10 → 20 (full CRUD for contacts/companies, deal create/update/delete, tasks,
@@ -11,7 +11,13 @@
 > (`summarize_pipeline`, `draft_followup`). Tier 2 shipped: a deterministic
 > **deal health score** (`src/lib/deal-scoring.ts` + `services/deal-score.ts`,
 > migration `0011`, wired into the deals REST routes and the MCP deal tools).
-> 202 tests pass (was 185). Tier 3 (opt-in BYO-key generative) remains deferred.
+> Tier 3 shipped as designed — **off by default, BYO-key, human-in-the-loop**:
+> an `ai_draft` workflow action enqueues an `ai.generate` job whose worker calls a
+> provider-agnostic thin-`fetch` client (`src/lib/ai` — Anthropic / OpenAI /
+> local Ollama; enabled only via `FOURTY_ENABLE_AI=1` + a key) and writes the
+> result as a **draft note** (never a record mutation), audited `via:"ai"`. No
+> heavy SDK was added — the core stays at ~10 runtime deps. 206 tests pass
+> (was 185); the generative path was verified end-to-end against a local model.
 
 ## Context
 
