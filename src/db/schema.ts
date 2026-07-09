@@ -245,7 +245,7 @@ export const deals = pgTable(
     expectedCloseDate: millis("expected_close_date"),
     closedAt: millis("closed_at"),
     stageEnteredAt: millis("stage_entered_at").notNull(),
-    // Deterministic deal health score 0-100 (ADR-015, Tier 2), recomputed on
+    // Deterministic deal health score 0-100 (ADR-016, Tier 2), recomputed on
     // create/update by src/lib/services/deal-score.ts.
     score: integer("score").notNull().default(0),
     custom: text("custom").notNull().default("{}"),
@@ -535,4 +535,52 @@ export const jobReceipts = pgTable(
     createdAt: millis("created_at").notNull(),
   },
   (t) => [primaryKey({ columns: [t.workspaceId, t.key] })],
+);
+
+// ── In-app AI agent / chat (workspace-scoped + RLS) ─────────────────────────
+
+// A chat thread. `user_id` is the OWNERSHIP key: RLS isolates tenants, but a
+// workspace's members share its RLS scope, so per-user reads must be scoped by
+// user_id in the store/route (a workspace-mate must not read another's thread).
+// Nullable only because an API-key-driven session has no user id (fails closed —
+// such rows are then unreadable via the user-scoped store).
+export const aiConversations = pgTable(
+  "ai_conversations",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    userId: text("user_id"),
+    title: text("title"),
+    createdAt: millis("created_at").notNull(),
+    updatedAt: millis("updated_at").notNull(),
+  },
+  (t) => [index("ai_conversations_ws_updated_idx").on(t.workspaceId, t.updatedAt)],
+);
+
+// One turn of a thread. `tool_calls`/`tool_call_id` carry the provider round-trip
+// shape (assistant-with-tool_calls, then a tool result). `status` drives the
+// stop-at-write state machine: a proposed write is `pending_confirmation`, then
+// atomically claimed to `executing` (so it runs at most once), then `complete`
+// or `rejected`. Real FK to the conversation (ON DELETE CASCADE) — RLS + FK
+// coexist because the referenced row is always in the same workspace.
+export const aiMessages = pgTable(
+  "ai_messages",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    conversationId: text("conversation_id")
+      .notNull()
+      .references(() => aiConversations.id, { onDelete: "cascade" }),
+    role: text("role").notNull(), // user | assistant | tool
+    content: text("content").notNull().default(""),
+    toolCalls: text("tool_calls"), // JSON [{id,name,arguments}] for an assistant tool turn
+    toolCallId: text("tool_call_id"), // matches an assistant tool_call for role: tool
+    status: text("status").notNull().default("complete"), // complete | pending_confirmation | executing | rejected
+    // Monotonic insertion order — the provider round-trip (assistant-with-tool_calls
+    // then its tool results) must reload in the exact order it was written, and
+    // wall-clock millis can tie within a fast turn. seq is the ordering key.
+    seq: bigint("seq", { mode: "number" }).generatedAlwaysAsIdentity(),
+    createdAt: millis("created_at").notNull(),
+  },
+  (t) => [index("ai_messages_ws_conv_idx").on(t.workspaceId, t.conversationId, t.seq)],
 );

@@ -33,12 +33,17 @@ import {
  * and writes are RBAC-gated by can(). Tools return plain JSON — the server wraps
  * them in MCP content blocks. Reused helpers keep behavior identical to REST.
  */
-export type ToolContext = { workspaceId: string; role: string; userId: string | null };
+// `via` records who drove the call in the audit trail: MCP passes nothing (→
+// "mcp"); the in-app AI agent passes "ai". So the tool's OWN audit row is already
+// correct and the agent must not fire a second audit() (RT-A).
+export type ToolContext = { workspaceId: string; role: string; userId: string | null; via?: string };
 
 export type Tool = {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
+  /** true = the tool writes CRM data. The AI agent proposes writes (human-confirmed) and runs reads inline. */
+  mutates: boolean;
   handler: (args: Record<string, unknown>, ctx: ToolContext) => Promise<unknown>;
 };
 
@@ -70,6 +75,7 @@ const num = (v: unknown, d: number): number => (typeof v === "number" && Number.
 export const TOOLS: Tool[] = [
   {
     name: "search",
+    mutates: false,
     description: "Search contacts, companies, and deals by name/email. Returns the top matches per type.",
     inputSchema: {
       type: "object",
@@ -112,6 +118,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "list_contacts",
+    mutates: false,
     description: "List contacts, most recently updated first. Optional text filter.",
     inputSchema: {
       type: "object",
@@ -137,6 +144,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "create_contact",
+    mutates: true,
     description: "Create a contact. Requires firstName; email/phone/jobTitle/companyId/status optional.",
     inputSchema: {
       type: "object",
@@ -168,7 +176,7 @@ export const TOOLS: Tool[] = [
         updatedAt: now,
       });
       await logActivity({ type: "created", entityType: "contact", entityId: id, actorId: ctx.userId });
-      await audit(ctx.userId, "contact.created", { objectType: "contact", objectId: id, meta: { via: "mcp" } });
+      await audit(ctx.userId, "contact.created", { objectType: "contact", objectId: id, meta: { via: ctx.via ?? "mcp" } });
       await recomputeContactScore(id);
       const row = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0]!;
       return redact(policy, "contacts", { ...row, custom: JSON.parse(row.custom) });
@@ -176,6 +184,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "list_companies",
+    mutates: false,
     description: "List companies, most recently updated first. Optional text filter.",
     inputSchema: { type: "object", properties: { query: { type: "string" }, limit: { type: "number" } } },
     handler: async (args, ctx) => {
@@ -193,6 +202,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "create_company",
+    mutates: true,
     description: "Create a company. Requires name.",
     inputSchema: {
       type: "object",
@@ -215,13 +225,14 @@ export const TOOLS: Tool[] = [
         createdAt: now,
         updatedAt: now,
       });
-      await audit(ctx.userId, "company.created", { objectType: "company", objectId: id, meta: { via: "mcp" } });
+      await audit(ctx.userId, "company.created", { objectType: "company", objectId: id, meta: { via: ctx.via ?? "mcp" } });
       const row = (await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1))[0]!;
       return redact(policy, "companies", { ...row, custom: JSON.parse(row.custom) });
     },
   },
   {
     name: "list_deals",
+    mutates: false,
     description: "List deals, most recently updated first.",
     inputSchema: { type: "object", properties: { limit: { type: "number" } } },
     handler: async (args, ctx) => {
@@ -237,6 +248,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "get_dashboard_stats",
+    mutates: false,
     description: "Return the CRM dashboard analytics (pipeline, forecast, win rate, hot leads, etc.).",
     inputSchema: { type: "object", properties: {} },
     handler: async (_args, ctx) => {
@@ -246,6 +258,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "list_custom_objects",
+    mutates: false,
     description: "List the workspace's no-code custom object types.",
     inputSchema: { type: "object", properties: {} },
     handler: async (_args, ctx) => {
@@ -255,6 +268,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "list_records",
+    mutates: false,
     description: "List records of a custom object by its api name.",
     inputSchema: {
       type: "object",
@@ -272,6 +286,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "create_record",
+    mutates: true,
     description: "Create a record of a custom object. `data` is validated against the object's fields.",
     inputSchema: {
       type: "object",
@@ -287,12 +302,13 @@ export const TOOLS: Tool[] = [
       const data = (args.data && typeof args.data === "object" ? args.data : {}) as Record<string, unknown>;
       const result = await createRecord(obj.id, data);
       if (!result.ok) throw new ToolError(result.error);
-      await audit(ctx.userId, "record.created", { objectType: obj.apiName, objectId: result.record.id, meta: { via: "mcp" } });
+      await audit(ctx.userId, "record.created", { objectType: obj.apiName, objectId: result.record.id, meta: { via: ctx.via ?? "mcp" } });
       return result.record;
     },
   },
   {
     name: "update_contact",
+    mutates: true,
     description: "Update a contact by id. Only the fields you pass change.",
     inputSchema: {
       type: "object",
@@ -332,7 +348,7 @@ export const TOOLS: Tool[] = [
         })
         .where(eq(tables.contacts.id, id));
       await logActivity({ type: "updated", entityType: "contact", entityId: id, actorId: ctx.userId });
-      await audit(ctx.userId, "contact.updated", { objectType: "contact", objectId: id, meta: { via: "mcp" } });
+      await audit(ctx.userId, "contact.updated", { objectType: "contact", objectId: id, meta: { via: ctx.via ?? "mcp" } });
       await recomputeContactScore(id);
       const row = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0]!;
       return redact(policy, "contacts", { ...row, custom: JSON.parse(row.custom) });
@@ -340,6 +356,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "delete_contact",
+    mutates: true,
     description:
       "Delete a contact by id. SAFE BY DEFAULT: without confirm=true this only previews what would be deleted.",
     inputSchema: {
@@ -363,12 +380,13 @@ export const TOOLS: Tool[] = [
       await db.delete(tables.contacts).where(eq(tables.contacts.id, id));
       await db.delete(tables.notes).where(eq(tables.notes.entityId, id));
       await db.delete(tables.activities).where(eq(tables.activities.entityId, id));
-      await audit(ctx.userId, "contact.deleted", { objectType: "contact", objectId: id, meta: { via: "mcp" } });
+      await audit(ctx.userId, "contact.deleted", { objectType: "contact", objectId: id, meta: { via: ctx.via ?? "mcp" } });
       return { deleted: true, type: "contact", id };
     },
   },
   {
     name: "update_company",
+    mutates: true,
     description: "Update a company by id. Only the fields you pass change.",
     inputSchema: {
       type: "object",
@@ -403,13 +421,14 @@ export const TOOLS: Tool[] = [
           updatedAt: Date.now(),
         })
         .where(eq(tables.companies.id, id));
-      await audit(ctx.userId, "company.updated", { objectType: "company", objectId: id, meta: { via: "mcp" } });
+      await audit(ctx.userId, "company.updated", { objectType: "company", objectId: id, meta: { via: ctx.via ?? "mcp" } });
       const row = (await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1))[0]!;
       return redact(policy, "companies", { ...row, custom: JSON.parse(row.custom) });
     },
   },
   {
     name: "delete_company",
+    mutates: true,
     description:
       "Delete a company by id. SAFE BY DEFAULT: without confirm=true this only previews what would be deleted.",
     inputSchema: {
@@ -435,12 +454,13 @@ export const TOOLS: Tool[] = [
       await db.update(tables.deals).set({ companyId: null }).where(eq(tables.deals.companyId, id));
       await db.delete(tables.notes).where(eq(tables.notes.entityId, id));
       await db.delete(tables.activities).where(eq(tables.activities.entityId, id));
-      await audit(ctx.userId, "company.deleted", { objectType: "company", objectId: id, meta: { via: "mcp" } });
+      await audit(ctx.userId, "company.deleted", { objectType: "company", objectId: id, meta: { via: ctx.via ?? "mcp" } });
       return { deleted: true, type: "company", id };
     },
   },
   {
     name: "create_deal",
+    mutates: true,
     description:
       "Create a deal. Requires name. Uses the default pipeline's first stage unless stageId is given. Returns the deal with its computed health score.",
     inputSchema: {
@@ -494,7 +514,7 @@ export const TOOLS: Tool[] = [
         updatedAt: now,
       });
       await logActivity({ type: "created", entityType: "deal", entityId: id, actorId: ctx.userId });
-      await audit(ctx.userId, "deal.created", { objectType: "deal", objectId: id, meta: { via: "mcp" } });
+      await audit(ctx.userId, "deal.created", { objectType: "deal", objectId: id, meta: { via: ctx.via ?? "mcp" } });
       await recomputeDealScore(id);
       const row = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0]!;
       await dispatchEvent({ event: "deal.created", entityType: "deal", entityId: id, snapshot: { ...row, custom: undefined } });
@@ -503,6 +523,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "update_deal",
+    mutates: true,
     description:
       "Update a deal by id. Pass stageId to move it along the pipeline (fires won/lost workflows). Recomputes the health score.",
     inputSchema: {
@@ -561,7 +582,7 @@ export const TOOLS: Tool[] = [
         if (newStage!.type === "won") await dispatchEvent({ event: "deal.won", entityType: "deal", entityId: id, snapshot });
         else if (newStage!.type === "lost") await dispatchEvent({ event: "deal.lost", entityType: "deal", entityId: id, snapshot });
       }
-      await audit(ctx.userId, "deal.updated", { objectType: "deal", objectId: id, meta: { via: "mcp" } });
+      await audit(ctx.userId, "deal.updated", { objectType: "deal", objectId: id, meta: { via: ctx.via ?? "mcp" } });
       await recomputeDealScore(id);
       const row = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0]!;
       return redact(policy, "deals", { ...row, custom: JSON.parse(row.custom) });
@@ -569,6 +590,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "delete_deal",
+    mutates: true,
     description:
       "Delete a deal by id. SAFE BY DEFAULT: without confirm=true this only previews what would be deleted.",
     inputSchema: {
@@ -592,12 +614,13 @@ export const TOOLS: Tool[] = [
       await db.delete(tables.deals).where(eq(tables.deals.id, id));
       await db.delete(tables.notes).where(eq(tables.notes.entityId, id));
       await db.delete(tables.activities).where(eq(tables.activities.entityId, id));
-      await audit(ctx.userId, "deal.deleted", { objectType: "deal", objectId: id, meta: { via: "mcp" } });
+      await audit(ctx.userId, "deal.deleted", { objectType: "deal", objectId: id, meta: { via: ctx.via ?? "mcp" } });
       return { deleted: true, type: "deal", id };
     },
   },
   {
     name: "create_task",
+    mutates: true,
     description: "Create a task. Requires title. Optionally link it to a contact/company/deal.",
     inputSchema: {
       type: "object",
@@ -618,12 +641,13 @@ export const TOOLS: Tool[] = [
       const now = Date.now();
       const id = newId();
       await db.insert(tables.tasks).values({ id, ...parsed.data, ownerId: ctx.userId, createdAt: now });
-      await audit(ctx.userId, "task.created", { objectType: "task", objectId: id, meta: { via: "mcp" } });
+      await audit(ctx.userId, "task.created", { objectType: "task", objectId: id, meta: { via: ctx.via ?? "mcp" } });
       return (await db.select().from(tables.tasks).where(eq(tables.tasks.id, id)).limit(1))[0]!;
     },
   },
   {
     name: "list_tasks",
+    mutates: false,
     description: "List tasks, newest first. Optional entity filter (entityType + entityId).",
     inputSchema: {
       type: "object",
@@ -646,6 +670,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "create_note",
+    mutates: true,
     description: "Add a note to a contact, company, or deal.",
     inputSchema: {
       type: "object",
@@ -664,7 +689,7 @@ export const TOOLS: Tool[] = [
       const id = newId();
       await db.insert(tables.notes).values({ id, ...parsed.data, authorId: ctx.userId, createdAt: now });
       await logActivity({ type: "note_added", entityType: parsed.data.entityType, entityId: parsed.data.entityId, actorId: ctx.userId });
-      await audit(ctx.userId, "note.created", { objectType: "note", objectId: id, meta: { via: "mcp" } });
+      await audit(ctx.userId, "note.created", { objectType: "note", objectId: id, meta: { via: ctx.via ?? "mcp" } });
       return (await db.select().from(tables.notes).where(eq(tables.notes.id, id)).limit(1))[0]!;
     },
   },

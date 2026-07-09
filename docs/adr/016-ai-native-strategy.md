@@ -1,6 +1,15 @@
-# ADR-015 — AI-native strategy: don't chase Twenty's platform; be the best substrate for AI
+# ADR-016 — AI-native strategy: don't chase Twenty's platform; be the best substrate for AI
 
 **Status:** Accepted — Tier 1 + Tier 2 + Tier 3 implemented · **Date:** 2026-07-09
+
+> **Relationship to ADR-015 (in-app AI agent / chat).** ADR-015 shipped an
+> optional in-app conversational agent with a **stop-at-write** loop (proposes
+> writes, a human confirms). This strategy ADR is complementary, not contradictory:
+> its "don't do" list warns against betting the roadmap on an agent *platform* /
+> apps-SDK — not against a single, guarded, off-by-default chat. The two share the
+> guardrails here (governance inheritance via the same MCP tools + `via` audit
+> tagging, human-in-the-loop on writes). Tier 3 below (the `FOURTY_AI_*` draft
+> layer) is a separate, narrower surface from ADR-015's chat.
 
 > **Implementation (2026-07-09).** Tier 1 shipped: the MCP tool catalogue grew
 > 10 → 20 (full CRUD for contacts/companies, deal create/update/delete, tasks,

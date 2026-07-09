@@ -135,6 +135,11 @@ describe("static guard: every API route authenticates", () => {
       // handleMcpRequest (same predicate authorize() wraps), like graphql above.
       "mcp",
       "locale", // UI-preference cookie: no tenant data, no RBAC object (authenticates only)
+      // AI chat authenticates, then enforces RBAC per tool via can() inside each
+      // tool handler (identical to graphql/MCP) — reads are open to every role and
+      // writes are human-confirmed then role-checked at execution, so there is no
+      // single route-level authorize() object/action that fits.
+      "ai/chat",
       // 2FA endpoints act on the caller's own account (users table), not tenant
       // data / an RBAC object — they authenticate via getSessionUser only.
       "2fa/setup",

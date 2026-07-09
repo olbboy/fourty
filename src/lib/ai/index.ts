@@ -1,5 +1,7 @@
 /**
- * Optional, bring-your-own-key generative layer (ADR-015, Tier 3).
+ * Optional, bring-your-own-key generative layer (ADR-016, Tier 3).
+ * Distinct from the in-app agent chat (ADR-015): this is a draft-only, workflow-
+ * driven layer under FOURTY_AI_* env, not the interactive chat under AI_*.
  *
  * OFF BY DEFAULT. Enabled only when `FOURTY_ENABLE_AI=1` and a provider key is
  * configured — exactly the dormant-until-env idiom Fourty uses for OAuth mail
@@ -46,25 +48,27 @@ export function aiClientFromEnv(): AiClient | null {
   if (override !== undefined) return override;
   if (process.env.FOURTY_ENABLE_AI !== "1") return null;
 
-  const provider = (process.env.AI_PROVIDER ?? "anthropic").toLowerCase();
-  const maxTokens = Number(process.env.AI_MAX_TOKENS ?? 1024);
+  // Namespaced FOURTY_AI_* so this draft layer stays fully independent of the
+  // in-app agent chat (ADR-015), which reads the generic AI_* vars.
+  const provider = (process.env.FOURTY_AI_PROVIDER ?? "anthropic").toLowerCase();
+  const maxTokens = Number(process.env.FOURTY_AI_MAX_TOKENS ?? 1024);
 
   if (provider === "anthropic") {
     const key = process.env.ANTHROPIC_API_KEY;
     if (!key) return null;
-    const model = process.env.AI_MODEL ?? "claude-opus-4-8";
+    const model = process.env.FOURTY_AI_MODEL ?? "claude-opus-4-8";
     return { provider, model, generate: (i) => anthropicGenerate(key, model, maxTokens, i) };
   }
   if (provider === "openai") {
     const key = process.env.OPENAI_API_KEY;
     if (!key) return null;
-    const model = process.env.AI_MODEL ?? "gpt-4o-mini";
+    const model = process.env.FOURTY_AI_MODEL ?? "gpt-4o-mini";
     return { provider, model, generate: (i) => openaiGenerate(key, model, maxTokens, i) };
   }
   if (provider === "ollama") {
     // Local model server — no API key; the operator points at their own host.
     const base = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
-    const model = process.env.AI_MODEL ?? "llama3.1";
+    const model = process.env.FOURTY_AI_MODEL ?? "llama3.1";
     return { provider, model, generate: (i) => ollamaGenerate(base, model, maxTokens, i) };
   }
   return null;

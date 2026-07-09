@@ -4,7 +4,7 @@ import { handleMcpRequest, type JsonRpcRequest } from "@/mcp/server";
 import type { ToolContext } from "@/mcp/tools";
 
 /**
- * HTTP transport for the Fourty MCP server (ADR-015, Tier 1). Complements the
+ * HTTP transport for the Fourty MCP server (ADR-016, Tier 1). Complements the
  * stdio transport (`npm run mcp`) so hosted/remote MCP clients (e.g. ChatGPT
  * connectors, web assistants) can reach a self-hosted Fourty over the network —
  * the one place Twenty ties MCP to its Cloud/OAuth offering.

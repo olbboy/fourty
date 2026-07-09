@@ -44,7 +44,7 @@ const handlers: { [N in JobName]: Handler<N> } = {
     await runWorkflowsForEvent(env.data.ctx);
   },
 
-  // Optional generative draft (ADR-015, Tier 3). Runs a BYO-key provider call
+  // Optional generative draft (ADR-016, Tier 3). Runs a BYO-key provider call
   // and writes the result as a DRAFT note on the entity — human-in-the-loop, the
   // AI never mutates a real field. No-ops when AI is disabled/unconfigured.
   "ai.generate": async (env) => {

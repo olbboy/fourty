@@ -11,8 +11,6 @@ Gaps vs Twenty 2.0, most-actionable framing. Impact/effort are rough.
 |---|---|---|---|
 | 1 | Define-as-code apps/SDK platform (model data + server logic + React layouts, git-backed) | Twenty 2.0 headline; a separate platform direction | XL |
 | 2 | Plugin/app install–uninstall framework | Rides on the apps platform (#1) | L |
-| 3 | AI agents / chat in-app | In-app conversational agent that reads+acts | XL |
-| 4 | Streaming ops → live UI | Agent results streamed to UI in realtime | L |
 | 5 | SAML SSO | XML-DSig, heavy, hard zero-dep; OIDC already covers modern IdPs | L |
 | 6 | Helm chart | Twenty's is community-only too | S |
 
@@ -20,6 +18,8 @@ Gaps vs Twenty 2.0, most-actionable framing. Impact/effort are rough.
 
 | # | Feature | Missing | Effort |
 |---|---|---|---|
+| 3 | AI agents / chat in-app | ✅ Round-1 shipped (ADR-015): in-app chat reads via tools + human-confirmed writes, BYO provider. Missing: per-record assistant, async/worker agent, `update_*`/`delete_*` + workflow-trigger tools, multi-conversation history UI | L |
+| 4 | Streaming ops → live UI | ✅ Round-1 shipped: chat replies + tool results stream over SSE. Missing: streaming for background/async agent ops (depends on #3 async agent) | S |
 | 7 | Typed TS SDK on npm | Only typed clients inside `@fourty/twenty-migrate`; no general dev SDK | M |
 | 8 | Calendar-over-OAuth | Mail OAuth done; provider calendar APIs return JSON → need JSON→event adapter (ICS feed covers it today) | M |
 | 9 | IMAP transport | `imap` provider enum exists, no fetch; only Gmail/Graph OAuth built | M |

@@ -20,6 +20,10 @@ function createPool(): pg.Pool {
     connectionString: process.env.DATABASE_URL ?? DEFAULT_DSN,
     max: Number(process.env.PGPOOL_MAX ?? 10),
     idleTimeoutMillis: 30_000,
+    // Fail fast when the pool is saturated instead of hanging app-wide. Chat can
+    // fan out several tool calls per turn against the shared pool (RT-G); a bounded
+    // acquisition wait surfaces contention as an error rather than a silent stall.
+    connectionTimeoutMillis: Number(process.env.PGPOOL_CONNECT_TIMEOUT_MS ?? 5_000),
   });
 }
 
