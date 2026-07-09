@@ -25,6 +25,7 @@ const actionSchema = z.discriminatedUnion("type", [
     value: z.union([z.string(), z.number(), z.boolean(), z.null()]),
   }),
   z.object({ type: z.literal("webhook"), url: z.string().url() }),
+  z.object({ type: z.literal("ai_draft"), prompt: z.string().min(1).max(2000) }),
   z.object({ type: z.literal("log"), message: z.string().min(1) }),
 ]);
 
