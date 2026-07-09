@@ -1,5 +1,8 @@
 # Architecture Decision Records
 
+> Part of the [Fourty documentation](../) · see also the
+> [Architecture overview](../architecture.md).
+
 Fourty is undergoing a foundational shift (**Direction B**): from a
 single-process, single-tenant SQLite app to a **Postgres multi-tenant** system
 competing head-on with Twenty. These ADRs record the load-bearing decisions made
