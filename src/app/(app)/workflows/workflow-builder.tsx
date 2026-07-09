@@ -41,6 +41,7 @@ const ACTION_TYPES = [
   { value: "add_note", label: "Add a note" },
   { value: "update_field", label: "Update a field" },
   { value: "webhook", label: "Call a webhook" },
+  { value: "ai_draft", label: "AI draft (BYO-key)" },
   { value: "log", label: "Write to run log" },
 ];
 
@@ -235,6 +236,7 @@ export function WorkflowBuilder({
                       add_note: { type, body: "" },
                       update_field: { type, field: "status", value: "" },
                       webhook: { type, url: "" },
+                      ai_draft: { type, prompt: "" },
                       log: { type, message: "" },
                     };
                     setActions((as) => as.map((x, idx) => (idx === i ? blank[type] : x)));
@@ -325,6 +327,21 @@ export function WorkflowBuilder({
                   className="input"
                   placeholder="https://hooks.example.com/… (POST, JSON payload)"
                 />
+              )}
+              {a.type === "ai_draft" && (
+                <div className="space-y-1">
+                  <textarea
+                    value={(a.prompt as string) ?? ""}
+                    onChange={(e) => setAction(i, { prompt: e.target.value })}
+                    className="input resize-y"
+                    rows={2}
+                    placeholder='AI prompt — e.g. "Draft a follow-up email for {{firstName}} at {{name}}."'
+                  />
+                  <p className="text-xs text-ink-muted">
+                    Writes the result as a draft note (human-in-the-loop). Requires a configured
+                    provider (FOURTY_ENABLE_AI); off by default.
+                  </p>
+                </div>
               )}
               {a.type === "log" && (
                 <input

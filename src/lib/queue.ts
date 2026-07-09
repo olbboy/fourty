@@ -34,6 +34,9 @@ export type JobPayloads = {
   // workspace signing secret are both in hand.
   "webhook.deliver": { url: string; body: string; event: string; headers?: Record<string, string> };
   "workflow.dispatch": { ctx: EventContext };
+  // Optional generative draft (ADR-016, Tier 3). Async so a slow provider call
+  // stays off the request path, with retry/backoff/DLQ like every other job.
+  "ai.generate": { entityType: string; entityId: string; prompt: string; system?: string };
 };
 
 export type JobName = keyof JobPayloads;
@@ -45,7 +48,7 @@ export type JobEnvelope<N extends JobName = JobName> = {
   data: JobPayloads[N];
 };
 
-export const JOB_NAMES: JobName[] = ["webhook.deliver", "workflow.dispatch"];
+export const JOB_NAMES: JobName[] = ["webhook.deliver", "workflow.dispatch", "ai.generate"];
 
 // Per-queue durability policy. retryBackoff=true → exponential backoff seeded by
 // retryDelay; exhausted jobs move to `<name>.dead` (retained, never auto-run).
@@ -56,6 +59,7 @@ const EXPIRE_SECONDS = Number(process.env.QUEUE_EXPIRE_SECONDS ?? 120);
 const QUEUE_CONFIG: Record<JobName, { retryLimit: number; expireInSeconds: number }> = {
   "webhook.deliver": { retryLimit: 5, expireInSeconds: EXPIRE_SECONDS },
   "workflow.dispatch": { retryLimit: 3, expireInSeconds: EXPIRE_SECONDS },
+  "ai.generate": { retryLimit: 2, expireInSeconds: EXPIRE_SECONDS },
 };
 
 export const deadLetterName = (name: JobName | string) => `${name}.dead`;

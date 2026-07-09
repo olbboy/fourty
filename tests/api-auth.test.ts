@@ -131,6 +131,9 @@ describe("static guard: every API route authenticates", () => {
       "auth/setup",
       "members/accept",
       "graphql",
+      // MCP HTTP transport: RBAC enforced per-tool via can()/requireRole inside
+      // handleMcpRequest (same predicate authorize() wraps), like graphql above.
+      "mcp",
       "locale", // UI-preference cookie: no tenant data, no RBAC object (authenticates only)
       // AI chat authenticates, then enforces RBAC per tool via can() inside each
       // tool handler (identical to graphql/MCP) — reads are open to every role and

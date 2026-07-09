@@ -23,6 +23,7 @@ are short by design.
 | [013](./013-webhook-signatures.md) | Signed webhooks: per-workspace HMAC-SHA256 | Accepted |
 | [014](./014-sso-oidc.md) | SSO: OIDC Authorization Code + PKCE, injectable transport | Accepted |
 | [015](./015-ai-agent-chat.md) | In-app AI agent / chat: stop-at-write loop, BYO OpenAI-compatible provider | Accepted |
+| [016](./016-ai-native-strategy.md) | AI-native strategy: be the substrate for AI, not a Twenty clone | Accepted (T1+T2+T3 done) |
 
 _Grounded via web research (Drizzle RLS docs, Postgres multi-tenancy patterns,
 Twenty's architecture, pg-boss vs BullMQ). Sources cited inline._

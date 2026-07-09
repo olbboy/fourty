@@ -186,13 +186,17 @@ describe("toProviderTools bridge + mutates flag", () => {
   });
 
   it("flags exactly the write tools as mutating", () => {
-    const writes = new Set(["create_contact", "create_company", "create_record"]);
+    // Every create/update/delete tool mutates CRM data; reads do not. Kept in sync
+    // with the Tier-1 MCP tool expansion (ADR-016).
+    const writes = new Set([
+      "create_contact", "update_contact", "delete_contact",
+      "create_company", "update_company", "delete_company",
+      "create_deal", "update_deal", "delete_deal",
+      "create_task", "create_note", "create_record",
+    ]);
     for (const t of TOOLS) {
-      expect(t.mutates).toBe(writes.has(t.name));
+      expect(t.mutates, `${t.name} mutates flag`).toBe(writes.has(t.name));
     }
-    // sanity: all three writes are present
-    expect(TOOLS.filter((t) => t.mutates).map((t) => t.name).sort()).toEqual(
-      ["create_company", "create_contact", "create_record"],
-    );
+    expect(TOOLS.filter((t) => t.mutates).map((t) => t.name).sort()).toEqual([...writes].sort());
   });
 });

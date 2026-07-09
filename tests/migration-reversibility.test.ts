@@ -30,8 +30,10 @@ const UP = [
   "drizzle/0009_two_factor.sql",
   "drizzle/0010_sso_oidc.sql",
   "drizzle/0011_ai_chat.sql",
+  "drizzle/0012_deal_score.sql",
 ];
 const DOWN = [
+  "drizzle/down/0012_deal_score.down.sql",
   "drizzle/down/0011_ai_chat.down.sql",
   "drizzle/down/0010_sso_oidc.down.sql",
   "drizzle/down/0009_two_factor.down.sql",

@@ -30,7 +30,11 @@ export type WorkflowAction =
   | { type: "add_note"; body: string }
   | { type: "update_field"; field: string; value: string | number | boolean | null }
   | { type: "webhook"; url: string }
-  | { type: "log"; message: string };
+  | { type: "log"; message: string }
+  // Optional generative draft (ADR-016, Tier 3). `prompt` supports {{templates}}.
+  // The result is written as a DRAFT note by the ai.generate worker; no-op when
+  // AI is disabled. Off by default — see src/lib/ai.
+  | { type: "ai_draft"; prompt: string };
 
 export type WorkflowTrigger = { event: WorkflowEvent };
 

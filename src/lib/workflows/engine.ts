@@ -4,6 +4,7 @@ import { newId } from "@/lib/id";
 import { logActivity } from "@/lib/activity";
 import { enqueue } from "@/lib/queue";
 import { getOrCreateSigningSecret, signatureHeaders } from "@/lib/webhook-sign";
+import { aiEnabled } from "@/lib/ai";
 import { evaluateConditions, renderTemplate } from "./evaluate";
 import type { EventContext, WorkflowAction, WorkflowDef } from "./types";
 
@@ -169,6 +170,22 @@ async function runAction(action: WorkflowAction, ctx: EventContext): Promise<str
     }
     case "log": {
       return renderTemplate(action.message, ctx.snapshot);
+    }
+    case "ai_draft": {
+      // Optional generative draft (Tier 3). Off by default: if no provider is
+      // configured, skip cleanly rather than queue a no-op job.
+      if (ctx.entityType === "task") return "skipped ai_draft: tasks have no notes";
+      if (!aiEnabled()) return "skipped ai_draft: AI disabled (set FOURTY_ENABLE_AI=1)";
+      const prompt = renderTemplate(action.prompt, ctx.snapshot);
+      const workspaceId = currentStore().workspaceId;
+      if (workspaceId) {
+        await enqueue(
+          "ai.generate",
+          { entityType: ctx.entityType, entityId: ctx.entityId, prompt },
+          { workspaceId },
+        );
+      }
+      return "ai draft queued";
     }
     default:
       return "unknown action";
