@@ -57,7 +57,7 @@ Job mới trong [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml), mi
 - [x] Job `test-and-build` và `security-audit` **không đổi**.
 - [x] README mục Testing nhắc `npm run db:e2e:setup` + `npm run test:e2e`.
 
-> CI chưa chạy thực tế trên runner (chưa push). Job đã viết đúng pattern, mirror `test-and-build`; xác nhận trên Actions sau khi push branch.
+> **Đã xác nhận trên Actions** (push `main`, run 28990390150): job `e2e` = `5 passed (37.0s)` (đọc log, không bị `continue-on-error` che), overall run success; `test-and-build` (222 test) + `security-audit` không đổi, vẫn xanh.
 
 ## Risk Assessment
 
