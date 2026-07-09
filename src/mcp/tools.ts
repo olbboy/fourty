@@ -21,12 +21,17 @@ import {
  * and writes are RBAC-gated by can(). Tools return plain JSON — the server wraps
  * them in MCP content blocks. Reused helpers keep behavior identical to REST.
  */
-export type ToolContext = { workspaceId: string; role: string; userId: string | null };
+// `via` records who drove the call in the audit trail: MCP passes nothing (→
+// "mcp"); the in-app AI agent passes "ai". So the tool's OWN audit row is already
+// correct and the agent must not fire a second audit() (RT-A).
+export type ToolContext = { workspaceId: string; role: string; userId: string | null; via?: string };
 
 export type Tool = {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
+  /** true = the tool writes CRM data. The AI agent proposes writes (human-confirmed) and runs reads inline. */
+  mutates: boolean;
   handler: (args: Record<string, unknown>, ctx: ToolContext) => Promise<unknown>;
 };
 
@@ -58,6 +63,7 @@ const num = (v: unknown, d: number): number => (typeof v === "number" && Number.
 export const TOOLS: Tool[] = [
   {
     name: "search",
+    mutates: false,
     description: "Search contacts, companies, and deals by name/email. Returns the top matches per type.",
     inputSchema: {
       type: "object",
@@ -100,6 +106,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "list_contacts",
+    mutates: false,
     description: "List contacts, most recently updated first. Optional text filter.",
     inputSchema: {
       type: "object",
@@ -125,6 +132,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "create_contact",
+    mutates: true,
     description: "Create a contact. Requires firstName; email/phone/jobTitle/companyId/status optional.",
     inputSchema: {
       type: "object",
@@ -156,7 +164,7 @@ export const TOOLS: Tool[] = [
         updatedAt: now,
       });
       await logActivity({ type: "created", entityType: "contact", entityId: id, actorId: ctx.userId });
-      await audit(ctx.userId, "contact.created", { objectType: "contact", objectId: id, meta: { via: "mcp" } });
+      await audit(ctx.userId, "contact.created", { objectType: "contact", objectId: id, meta: { via: ctx.via ?? "mcp" } });
       await recomputeContactScore(id);
       const row = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0]!;
       return redact(policy, "contacts", { ...row, custom: JSON.parse(row.custom) });
@@ -164,6 +172,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "list_companies",
+    mutates: false,
     description: "List companies, most recently updated first. Optional text filter.",
     inputSchema: { type: "object", properties: { query: { type: "string" }, limit: { type: "number" } } },
     handler: async (args, ctx) => {
@@ -181,6 +190,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "create_company",
+    mutates: true,
     description: "Create a company. Requires name.",
     inputSchema: {
       type: "object",
@@ -203,13 +213,14 @@ export const TOOLS: Tool[] = [
         createdAt: now,
         updatedAt: now,
       });
-      await audit(ctx.userId, "company.created", { objectType: "company", objectId: id, meta: { via: "mcp" } });
+      await audit(ctx.userId, "company.created", { objectType: "company", objectId: id, meta: { via: ctx.via ?? "mcp" } });
       const row = (await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1))[0]!;
       return redact(policy, "companies", { ...row, custom: JSON.parse(row.custom) });
     },
   },
   {
     name: "list_deals",
+    mutates: false,
     description: "List deals, most recently updated first.",
     inputSchema: { type: "object", properties: { limit: { type: "number" } } },
     handler: async (args, ctx) => {
@@ -225,6 +236,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "get_dashboard_stats",
+    mutates: false,
     description: "Return the CRM dashboard analytics (pipeline, forecast, win rate, hot leads, etc.).",
     inputSchema: { type: "object", properties: {} },
     handler: async (_args, ctx) => {
@@ -234,6 +246,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "list_custom_objects",
+    mutates: false,
     description: "List the workspace's no-code custom object types.",
     inputSchema: { type: "object", properties: {} },
     handler: async (_args, ctx) => {
@@ -243,6 +256,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "list_records",
+    mutates: false,
     description: "List records of a custom object by its api name.",
     inputSchema: {
       type: "object",
@@ -260,6 +274,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "create_record",
+    mutates: true,
     description: "Create a record of a custom object. `data` is validated against the object's fields.",
     inputSchema: {
       type: "object",
@@ -275,7 +290,7 @@ export const TOOLS: Tool[] = [
       const data = (args.data && typeof args.data === "object" ? args.data : {}) as Record<string, unknown>;
       const result = await createRecord(obj.id, data);
       if (!result.ok) throw new ToolError(result.error);
-      await audit(ctx.userId, "record.created", { objectType: obj.apiName, objectId: result.record.id, meta: { via: "mcp" } });
+      await audit(ctx.userId, "record.created", { objectType: obj.apiName, objectId: result.record.id, meta: { via: ctx.via ?? "mcp" } });
       return result.record;
     },
   },
