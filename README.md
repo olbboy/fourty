@@ -218,6 +218,18 @@ npm test             # vitest: unit + API integration + security, on real Postgr
 npm run build        # type-checks and compiles
 ```
 
+End-to-end smoke tests drive the real app in Chromium via Playwright (first-boot
+setup, login/logout, kanban drag, ⌘K palette) against a dedicated `fourty_e2e`
+database — separate from the vitest `fourty_test`:
+
+```bash
+npm run db:e2e:setup   # once: create the fourty_e2e database + fourty_app role
+npm run test:e2e       # playwright: build, boot the app, run the smoke suite
+```
+
+CI runs the same suite on every PR as a non-blocking `e2e` job (report + traces
+uploaded as artifacts on failure).
+
 ## Benchmarks
 
 A reproducible, one-command head-to-head harness lives in [`bench/`](./bench); every

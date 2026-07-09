@@ -12,6 +12,9 @@
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "db:e2e:setup": "bash scripts/e2e-db-setup.sh",
+    "db:e2e:reset": "tsx e2e/prepare-db.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed.ts",
@@ -31,6 +34,7 @@
     "zod": "^3.25.67"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4.1.10",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.15.32",

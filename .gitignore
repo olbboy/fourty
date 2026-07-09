@@ -13,3 +13,6 @@ data/*.db-shm
 *.tsbuildinfo
 next-env.d.ts
 coverage/
+playwright-report/
+test-results/
+e2e/.auth/
