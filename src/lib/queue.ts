@@ -34,7 +34,7 @@ export type JobPayloads = {
   // workspace signing secret are both in hand.
   "webhook.deliver": { url: string; body: string; event: string; headers?: Record<string, string> };
   "workflow.dispatch": { ctx: EventContext };
-  // Optional generative draft (ADR-015, Tier 3). Async so a slow provider call
+  // Optional generative draft (ADR-016, Tier 3). Async so a slow provider call
   // stays off the request path, with retry/backoff/DLQ like every other job.
   "ai.generate": { entityType: string; entityId: string; prompt: string; system?: string };
 };

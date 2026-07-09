@@ -40,12 +40,12 @@ describe("optional generative AI (Tier 3)", () => {
     __setAiClient(undefined);
     const saved = {
       FOURTY_ENABLE_AI: process.env.FOURTY_ENABLE_AI,
-      AI_PROVIDER: process.env.AI_PROVIDER,
+      FOURTY_AI_PROVIDER: process.env.FOURTY_AI_PROVIDER,
       ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
     };
     try {
       process.env.FOURTY_ENABLE_AI = "1";
-      process.env.AI_PROVIDER = "anthropic";
+      process.env.FOURTY_AI_PROVIDER = "anthropic";
       delete process.env.ANTHROPIC_API_KEY;
       expect(aiClientFromEnv()).toBeNull(); // enabled but no key → still off
 

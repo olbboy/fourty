@@ -74,9 +74,9 @@
 | Capability | Twenty 2.0 | Fourty | Notes |
 |---|---|---|---|
 | Native MCP server (self-host) | ✅ Claude/ChatGPT/Cursor read+write [4][6] | ✅ stdio JSON-RPC, 10 tools, RLS+RBAC (Gate B6, ADR-010) | `npm run mcp`; verified end-to-end + `mcp.test.ts`. |
-| AI agents / chat in-app | ✅ [4] | ❌ | |
+| AI agents / chat in-app | ✅ [4] | 🟡 Round-1 vertical slice: in-app chat agent (VI/EN) that reads via the 10 tools + proposes human-confirmed writes; BYO OpenAI-compatible provider, optional (ADR-015). No per-record/async agent yet | `ai-agent.test.ts`/`ai-chat-api.test.ts`; writes RBAC/RLS-gated + audited `via:'ai'`. |
 | JSON ops schema for LLMs | ✅ (SDK/MCP) | ✅ MCP `tools/list` JSON schemas + GraphQL introspection | |
-| Streaming ops → live UI | ✅ (agents) | ❌ | |
+| Streaming ops → live UI | ✅ (agents) | 🟡 Chat replies stream token-by-token over hand-rolled SSE; tool results + confirm cards render live | `ai-sse-client.test.ts`. |
 | `llms.txt` / AI integration guide | 🟡 | ✅ `public/llms.txt` (REST + GraphQL + MCP guide) | |
 
 ## E. Core CRM features (where Fourty is genuinely competitive)

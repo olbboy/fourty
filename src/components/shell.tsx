@@ -18,6 +18,7 @@ import {
   IconZap,
 } from "./icons";
 import { CommandPalette } from "./command-palette";
+import { AiChat } from "./ai-chat";
 import { LocaleProvider } from "@/lib/i18n/provider";
 import { translator, type Locale, type MessageKey } from "@/lib/i18n";
 
@@ -63,10 +64,12 @@ function ThemeToggle() {
 export function AppShell({
   user,
   locale,
+  aiEnabled,
   children,
 }: {
   user: { name: string; email: string };
   locale: Locale;
+  aiEnabled: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -218,6 +221,7 @@ export function AppShell({
       </main>
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <AiChat enabled={aiEnabled} />
     </div>
     </LocaleProvider>
   );

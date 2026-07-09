@@ -1,6 +1,6 @@
 /**
  * Automatic deal health / win-likelihood scoring — zero-config, deterministic,
- * NO LLM (ADR-015, Tier 2). Twenty lists automated scoring as "coming soon";
+ * NO LLM (ADR-016, Tier 2). Twenty lists automated scoring as "coming soon";
  * Fourty ships it as a pure, tunable, tested function — the same shape as the
  * contact lead scorer (src/lib/scoring.ts).
  *

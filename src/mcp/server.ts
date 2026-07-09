@@ -28,7 +28,7 @@ export type JsonRpcResponse = {
 
 const toolByName = new Map(TOOLS.map((t) => [t.name, t]));
 
-// MCP resources (ADR-015, Tier 1): named, read-only CRM context an LLM can pull
+// MCP resources (ADR-016, Tier 1): named, read-only CRM context an LLM can pull
 // without a tool call. Each maps to an existing tool handler, so RLS + RBAC +
 // field-permissions apply identically — a resource is not a bypass door.
 const RESOURCES: { uri: string; name: string; description: string; tool: string }[] = [
@@ -36,7 +36,7 @@ const RESOURCES: { uri: string; name: string; description: string; tool: string 
   { uri: "fourty://custom-objects", name: "Custom object types", description: "The workspace's no-code object definitions.", tool: "list_custom_objects" },
 ];
 
-// MCP prompts (ADR-015, Tier 1): reusable prompt templates. These return message
+// MCP prompts (ADR-016, Tier 1): reusable prompt templates. These return message
 // text ONLY — Fourty runs no model itself; the client's LLM consumes them. This
 // is the standards-based home for Fourty's AI templates without any dependency.
 const PROMPTS: {

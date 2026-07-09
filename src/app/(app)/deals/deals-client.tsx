@@ -148,6 +148,8 @@ export function DealsClient() {
               return (
                 <div
                   key={stage.id}
+                  data-testid="stage-column"
+                  data-stage-id={stage.id}
                   onDragOver={(e) => {
                     e.preventDefault();
                     setOverStage(stage.id);
@@ -174,7 +176,10 @@ export function DealsClient() {
                       <span className="text-sm font-semibold">{stage.name}</span>
                       <span className="text-xs text-ink-muted">{count}</span>
                     </div>
-                    <span className="text-xs font-medium text-ink-muted">
+                    <span
+                      data-testid="stage-total"
+                      className="text-xs font-medium text-ink-muted"
+                    >
                       {formatCompact(totalUsd, "USD")}
                     </span>
                   </div>
@@ -182,6 +187,8 @@ export function DealsClient() {
                     {inStage.map((deal) => (
                       <div
                         key={deal.id}
+                        data-testid="deal-card"
+                        data-deal-id={deal.id}
                         draggable
                         onDragStart={() => setDragId(deal.id)}
                         onDragEnd={() => setDragId(null)}

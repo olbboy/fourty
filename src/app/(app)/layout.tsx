@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { AppShell } from "@/components/shell";
 import { LOCALE_COOKIE, resolveLocale } from "@/lib/i18n";
+import { isAiEnabled } from "@/lib/ai/provider";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     acceptLanguage: hdrs.get("accept-language"),
   });
   return (
-    <AppShell user={{ name: user.name, email: user.email }} locale={locale}>
+    <AppShell user={{ name: user.name, email: user.email }} locale={locale} aiEnabled={isAiEnabled()}>
       {children}
     </AppShell>
   );

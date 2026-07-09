@@ -84,6 +84,7 @@ matrix._
 - **Custom fields & custom objects** — add text/number/date/select/checkbox/URL fields to any object from Settings, or define whole **no-code custom objects** (e.g. Projects, Tickets) whose records are validated on write and served over REST, GraphQL, and MCP.
 - **Typed GraphQL API** — a single `POST /api/graphql` with introspection: typed queries for every object plus custom records, and mutations for contacts/companies/custom records — auto-scoped by the same RLS + RBAC as REST.
 - **Native MCP server** — expose Fourty to Claude, Cursor, and other LLM clients with `npm run mcp` (self-hosted stdio JSON-RPC, 10 tools, workspace + role enforced).
+- **In-app AI agent / chat** *(optional, BYO key)* — a chat drawer where you ask about your CRM in English or Vietnamese; the agent **reads** data with the same 10 tools and **proposes** writes you confirm before they run (it never writes on its own). Replies stream token-by-token; every tool call runs under your role (RBAC + RLS + field-permissions, identical to REST/MCP) and every confirmed write lands in the immutable audit log. Point `AI_API_KEY` at any OpenAI-compatible endpoint (OpenAI, Groq, OpenRouter; local Ollama/LM Studio best-effort). Leave it unset and the feature is fully disabled — `docker compose up` is unchanged. See [`docs/adr/015`](./docs/adr/015-ai-agent-chat.md).
 - **Email & calendar sync** — connect a **Gmail or Microsoft** mailbox over OAuth (Authorization Code + PKCE, read-only) to pull recent mail, or push RFC822/iCalendar in; participants are matched to contacts, deduped, and threaded onto the activity timeline. Calendar via ICS feed URLs.
 - **i18n & accessibility** — English + Vietnamese out of the box (locale from cookie/browser), and an accessible UI (dialog/combobox semantics, focus management, landmarks, labels).
 - **CSV import/export** — imports match `First Name`/`first_name`/`firstname` alike, dedupe by email, and link or auto-create companies from a `company` column.
@@ -135,6 +136,11 @@ npm run migrate-from-sqlite -- --sqlite ./old/fourty.db            # copy data
 | `PGPOOL_MAX` | `10` | Connection pool size per process |
 | `FOURTY_INSECURE_COOKIE` | unset | Set to `1` to allow session cookies over plain HTTP (behind a VPN/LAN or the local Compose demo) |
 | `FOURTY_ALLOW_PRIVATE_WEBHOOKS` | unset | Set to `1` to let workflow webhooks reach private/loopback addresses (off = SSRF-blocked) |
+| `AI_API_KEY` | unset | OpenAI-compatible key. **Unset = AI chat disabled** (route + UI hidden). Setting it enables the in-app agent |
+| `AI_BASE_URL` | `https://api.openai.com/v1` | OpenAI-compatible endpoint (e.g. Groq, OpenRouter, or a local `…/v1`) |
+| `AI_MODEL` | `gpt-4o-mini` | Model id sent to the endpoint |
+| `AI_MAX_TOKENS` | `1024` | Cap per completion — the primary cost guardrail |
+| `AI_RATELIMIT_PER_HOUR` | `60` | Chat turns allowed per user per hour (every role); `429` when exceeded |
 | `PORT` | `3000` | HTTP port |
 
 ## REST API
@@ -211,6 +217,18 @@ npm run db:migrate   # apply schema to $DATABASE_URL (a test Postgres)
 npm test             # vitest: unit + API integration + security, on real Postgres
 npm run build        # type-checks and compiles
 ```
+
+End-to-end smoke tests drive the real app in Chromium via Playwright (first-boot
+setup, login/logout, kanban drag, ⌘K palette) against a dedicated `fourty_e2e`
+database — separate from the vitest `fourty_test`:
+
+```bash
+npm run db:e2e:setup   # once: create the fourty_e2e database + fourty_app role
+npm run test:e2e       # playwright: build, boot the app, run the smoke suite
+```
+
+CI runs the same suite on every PR as a non-blocking `e2e` job (report + traces
+uploaded as artifacts on failure).
 
 ## Benchmarks
 
