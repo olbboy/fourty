@@ -30,7 +30,8 @@ Postgres and asserts the schema is identical, so every migration is provably
 reversible. Migrations run as the **owner** role (`MIGRATE_DATABASE_URL`); the app runs
 as the non-owner role so RLS still applies.
 
-> **Warning.** Always back up before a major upgrade — see
+> [!WARNING]
+> Always back up before a major upgrade — see
 > [Operations → Backups](./operations.md#backups). The reversibility test covers schema
 > shape, not your data.
 

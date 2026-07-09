@@ -31,7 +31,8 @@ internal service (a self-hosted n8n, a localhost sidecar), opt in explicitly:
 FOURTY_ALLOW_PRIVATE_WEBHOOKS=1
 ```
 
-> **Warning.** Only enable this on a trusted network. It lets workflow authors reach
+> [!WARNING]
+> Only enable this on a trusted network. It lets workflow authors reach
 > internal addresses from the server. See
 > [Configuration → Security](../self-hosting/configuration.md#security).
 

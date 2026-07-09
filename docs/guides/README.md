@@ -20,4 +20,9 @@ feature is and why it matters, then how to use it in the app and over the API.
 - **[Email & calendar](./email-calendar.md)** — mailbox OAuth and ICS feeds.
 - **[AI assistant](./ai-assistant.md)** — the optional, BYO-key in-app chat.
 
-> Looking for the wire format instead? See the **[API section](../api/)**.
+### Learn by doing
+- **[Tutorials](./tutorials/)** — numbered, end-to-end walkthroughs.
+- **[FAQ](./faq.md)** — quick answers to common questions.
+
+> Looking for the wire format instead? See the **[API section](../api/)**. Stuck on a
+> setup issue? See **[Troubleshooting](../self-hosting/troubleshooting.md)**.

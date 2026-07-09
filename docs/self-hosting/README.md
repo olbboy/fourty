@@ -8,6 +8,7 @@ Fourty is built to be run by you, on your own Postgres, with nothing else to ope
   importing from SQLite or Twenty.
 - **[Operations](./operations.md)** — backups, observability, rate limits, and the
   security posture.
+- **[Troubleshooting](./troubleshooting.md)** — common issues, causes, and fixes.
 
 > New here? Start with the **[Quickstart](../getting-started/quickstart.md)**, then come
 > back for production topology and configuration.

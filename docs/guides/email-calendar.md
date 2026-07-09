@@ -17,7 +17,8 @@ OAuth (Authorization Code + PKCE, **read-only** scopes — Gmail `gmail.readonly
 You can also **push** mail in directly — POST RFC822 or iCalendar payloads to the sync
 endpoint — which is how you integrate a provider Fourty doesn't natively OAuth with.
 
-> **Note.** Mailbox OAuth requires one OAuth app per provider for the whole instance.
+> [!NOTE]
+> Mailbox OAuth requires one OAuth app per provider for the whole instance.
 > Register it, set the redirect URI to
 > `{origin}/api/sync/accounts/{id}/oauth/callback`, and set the credentials in your
 > environment — see [Configuration → Mailbox OAuth](../self-hosting/configuration.md#mailbox-oauth).
@@ -29,6 +30,7 @@ endpoint — which is how you integrate a provider Fourty doesn't natively OAuth
 Calendar sync is via **ICS feed URLs**: subscribe to a calendar's `.ics` link and
 Fourty ingests events onto the timeline.
 
+> [!NOTE]
 > **Parity note.** Provider *calendar-over-OAuth* (pulling Google/Microsoft calendars
 > through their APIs) is deferred — mail OAuth is done, calendar is ICS-based. This is
 > one of the honest gaps vs Twenty; see **[PARITY.md](../../PARITY.md)**.

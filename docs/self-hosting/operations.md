@@ -34,7 +34,8 @@ Every API request is rate-limited per caller + IP + route class, with `RateLimit
 response headers and `429` on exceed. Limits are tunable
 ([Configuration](./configuration.md#rate-limiting)).
 
-> **Warning.** The limiter is **in-process**. Behind multiple app replicas each
+> [!WARNING]
+> The limiter is **in-process**. Behind multiple app replicas each
 > instance counts separately — front them with a shared limiter at your gateway for a
 > global budget.
 
