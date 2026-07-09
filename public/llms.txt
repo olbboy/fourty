@@ -41,12 +41,21 @@ the response body (`errors[]` with `extensions.code`); HTTP stays 200.
 
 ## MCP server (for LLM agents)
 
-Fourty ships a self-hosted Model Context Protocol server over stdio. Start it with
-`FOURTY_API_KEY=<key> npm run mcp`. It authenticates once and serves
-newline-delimited JSON-RPC (`initialize`, `tools/list`, `tools/call`). Tools:
-`search`, `list_contacts`, `create_contact`, `list_companies`, `create_company`,
-`list_deals`, `get_dashboard_stats`, `list_custom_objects`, `list_records`,
-`create_record`. Every tool runs under the key's workspace (RLS) and role (RBAC).
+Fourty ships a self-hosted Model Context Protocol server over two transports:
+- **stdio**: `FOURTY_API_KEY=<key> npm run mcp` (for Claude Desktop/Cursor).
+- **HTTP**: `POST /api/mcp` with `Authorization: Bearer <key>` and a JSON-RPC body
+  (single message or a batch array) — for hosted/remote MCP clients.
+
+Both serve the same JSON-RPC methods: `initialize`, `tools/list`, `tools/call`,
+`resources/list`, `resources/read`, `prompts/list`, `prompts/get`, `ping`. Tools:
+`search`, `list_contacts`, `create_contact`, `update_contact`, `delete_contact`,
+`list_companies`, `create_company`, `update_company`, `delete_company`,
+`list_deals`, `create_deal`, `update_deal`, `delete_deal`, `list_tasks`,
+`create_task`, `create_note`, `get_dashboard_stats`, `list_custom_objects`,
+`list_records`, `create_record`. Delete tools are dry-run by default (pass
+`confirm: true` to apply). Resources: `fourty://dashboard`, `fourty://custom-objects`.
+Every tool/resource runs under the key's workspace (RLS) and role (RBAC), with
+field-level permissions applied — the HTTP transport is not a bypass door.
 
 Example Claude Desktop config entry:
 ```

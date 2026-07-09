@@ -245,6 +245,9 @@ export const deals = pgTable(
     expectedCloseDate: millis("expected_close_date"),
     closedAt: millis("closed_at"),
     stageEnteredAt: millis("stage_entered_at").notNull(),
+    // Deterministic deal health score 0-100 (ADR-015, Tier 2), recomputed on
+    // create/update by src/lib/services/deal-score.ts.
+    score: integer("score").notNull().default(0),
     custom: text("custom").notNull().default("{}"),
     createdAt: millis("created_at").notNull(),
     updatedAt: millis("updated_at").notNull(),
