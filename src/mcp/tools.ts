@@ -5,6 +5,7 @@ import { can } from "@/lib/permissions";
 import { loadFieldPolicy, redact, blockedWrites, type FieldPolicy } from "@/lib/field-permissions";
 import { audit } from "@/lib/audit";
 import { logActivity } from "@/lib/activity";
+import { changedKeys } from "@/lib/changed-fields";
 import { recomputeContactScore } from "@/lib/services/contact-score";
 import { recomputeDealScore } from "@/lib/services/deal-score";
 import {
@@ -179,6 +180,8 @@ export const TOOLS: Tool[] = [
       await audit(ctx.userId, "contact.created", { objectType: "contact", objectId: id, meta: { via: ctx.via ?? "mcp" } });
       await recomputeContactScore(id);
       const row = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0]!;
+      // Workflows see the full snapshot; the caller sees a redacted row.
+      await dispatchEvent({ event: "contact.created", entityType: "contact", entityId: id, snapshot: { ...row, custom: undefined } });
       return redact(policy, "contacts", { ...row, custom: JSON.parse(row.custom) });
     },
   },
@@ -225,8 +228,10 @@ export const TOOLS: Tool[] = [
         createdAt: now,
         updatedAt: now,
       });
+      await logActivity({ type: "created", entityType: "company", entityId: id, actorId: ctx.userId });
       await audit(ctx.userId, "company.created", { objectType: "company", objectId: id, meta: { via: ctx.via ?? "mcp" } });
       const row = (await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1))[0]!;
+      await dispatchEvent({ event: "company.created", entityType: "company", entityId: id, snapshot: { ...row, custom: undefined } });
       return redact(policy, "companies", { ...row, custom: JSON.parse(row.custom) });
     },
   },
@@ -337,6 +342,7 @@ export const TOOLS: Tool[] = [
       const existing = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0];
       if (!existing) throw new ToolError("Contact not found");
       const { custom, ...fields } = parsed.data;
+      const changed = changedKeys(fields, existing);
       await db
         .update(tables.contacts)
         .set({
@@ -347,10 +353,18 @@ export const TOOLS: Tool[] = [
           updatedAt: Date.now(),
         })
         .where(eq(tables.contacts.id, id));
-      await logActivity({ type: "updated", entityType: "contact", entityId: id, actorId: ctx.userId });
-      await audit(ctx.userId, "contact.updated", { objectType: "contact", objectId: id, meta: { via: ctx.via ?? "mcp" } });
+      if (changed.length > 0 || custom !== undefined) {
+        await logActivity({ type: "updated", entityType: "contact", entityId: id, actorId: ctx.userId, meta: { fields: changed } });
+      }
+      await audit(ctx.userId, "contact.updated", { objectType: "contact", objectId: id, meta: { via: ctx.via ?? "mcp", fields: changed } });
       await recomputeContactScore(id);
       const row = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0]!;
+      await dispatchEvent({
+        event: "contact.updated",
+        entityType: "contact",
+        entityId: id,
+        snapshot: { ...row, custom: undefined, changedFields: changed.join(",") },
+      });
       return redact(policy, "contacts", { ...row, custom: JSON.parse(row.custom) });
     },
   },
@@ -411,6 +425,7 @@ export const TOOLS: Tool[] = [
       const existing = (await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1))[0];
       if (!existing) throw new ToolError("Company not found");
       const { custom, ...fields } = parsed.data;
+      const changed = changedKeys(fields, existing);
       await db
         .update(tables.companies)
         .set({
@@ -421,7 +436,10 @@ export const TOOLS: Tool[] = [
           updatedAt: Date.now(),
         })
         .where(eq(tables.companies.id, id));
-      await audit(ctx.userId, "company.updated", { objectType: "company", objectId: id, meta: { via: ctx.via ?? "mcp" } });
+      if (changed.length > 0 || custom !== undefined) {
+        await logActivity({ type: "updated", entityType: "company", entityId: id, actorId: ctx.userId, meta: { fields: changed } });
+      }
+      await audit(ctx.userId, "company.updated", { objectType: "company", objectId: id, meta: { via: ctx.via ?? "mcp", fields: changed } });
       const row = (await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1))[0]!;
       return redact(policy, "companies", { ...row, custom: JSON.parse(row.custom) });
     },

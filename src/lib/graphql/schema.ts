@@ -20,6 +20,7 @@ import { can } from "@/lib/permissions";
 import { loadFieldPolicy, redact, blockedWrites, type FieldPolicy } from "@/lib/field-permissions";
 import { audit } from "@/lib/audit";
 import { logActivity } from "@/lib/activity";
+import { changedKeys } from "@/lib/changed-fields";
 import { dispatchEvent } from "@/lib/workflows/engine";
 import { recomputeContactScore } from "@/lib/services/contact-score";
 import { contactInput, contactPatch, companyInput, companyPatch } from "@/lib/validators";
@@ -418,6 +419,7 @@ const mutationFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
       if (!existing) throw new GraphQLError("Contact not found", { extensions: { code: "NOT_FOUND" } });
       const data = zparse(contactPatch, input);
       const { custom, ...fields } = data;
+      const changed = changedKeys(fields, existing);
       await db
         .update(tables.contacts)
         .set({
@@ -426,9 +428,19 @@ const mutationFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
           updatedAt: Date.now(),
         })
         .where(eq(tables.contacts.id, id));
+      if (changed.length > 0 || custom !== undefined) {
+        await logActivity({ type: "updated", entityType: "contact", entityId: id, actorId: ctx.auth.user?.id, meta: { fields: changed } });
+      }
       await recomputeContactScore(id);
-      await audit(ctx.auth.user?.id, "contact.updated", { objectType: "contact", objectId: id });
-      return redactRow(ctx, "contacts", await byId(tables.contacts, id));
+      await audit(ctx.auth.user?.id, "contact.updated", { objectType: "contact", objectId: id, meta: { fields: changed } });
+      const row = await byId(tables.contacts, id);
+      await dispatchEvent({
+        event: "contact.updated",
+        entityType: "contact",
+        entityId: id,
+        snapshot: { ...row, custom: undefined, changedFields: changed.join(",") },
+      });
+      return redactRow(ctx, "contacts", row);
     },
   },
   deleteContact: {
@@ -463,8 +475,12 @@ const mutationFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
         createdAt: now,
         updatedAt: now,
       });
+      await logActivity({ type: "created", entityType: "company", entityId: id, actorId: ctx.auth.user?.id });
       await audit(ctx.auth.user?.id, "company.created", { objectType: "company", objectId: id });
-      return redactRow(ctx, "companies", await byId(tables.companies, id));
+      const row = await byId(tables.companies, id);
+      // Workflows see the full snapshot; the API caller sees a redacted row.
+      await dispatchEvent({ event: "company.created", entityType: "company", entityId: id, snapshot: { ...row, custom: undefined } });
+      return redactRow(ctx, "companies", row);
     },
   },
   updateCompany: {
@@ -477,6 +493,7 @@ const mutationFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
       if (!existing) throw new GraphQLError("Company not found", { extensions: { code: "NOT_FOUND" } });
       const data = zparse(companyPatch, input);
       const { custom, ...fields } = data;
+      const changed = changedKeys(fields, existing);
       await db
         .update(tables.companies)
         .set({
@@ -485,7 +502,10 @@ const mutationFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
           updatedAt: Date.now(),
         })
         .where(eq(tables.companies.id, id));
-      await audit(ctx.auth.user?.id, "company.updated", { objectType: "company", objectId: id });
+      if (changed.length > 0 || custom !== undefined) {
+        await logActivity({ type: "updated", entityType: "company", entityId: id, actorId: ctx.auth.user?.id, meta: { fields: changed } });
+      }
+      await audit(ctx.auth.user?.id, "company.updated", { objectType: "company", objectId: id, meta: { fields: changed } });
       return redactRow(ctx, "companies", await byId(tables.companies, id));
     },
   },

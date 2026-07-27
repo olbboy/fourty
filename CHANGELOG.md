@@ -5,7 +5,23 @@ All notable changes to Fourty are documented here. This project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- **Workflows now run for records created or updated through the AI assistant,
+  MCP clients, and the GraphQL API.** Until now only the REST API reliably fired
+  workflow events, so a contact created by an agent silently skipped every
+  workflow — no error, no log. If you have workflows on contacts or companies,
+  expect them to start firing for these sources. Deal workflows are unaffected;
+  they already fired everywhere. Nothing fires on delete, on any surface — that
+  is unchanged.
+
 ### Fixed
+
+- **Activity timeline and audit entries no longer depend on which API you used.**
+  Creating or updating a company through GraphQL or MCP now appears on the
+  activity timeline, updates record which fields changed, and an update that
+  changes nothing no longer leaves a misleading "updated" entry. Audit entries
+  for updates now carry the changed field names on every surface.
 
 - **GraphQL deletes now clean up related data.** Deleting a contact or a company
   through the GraphQL API removes the record's notes and activities, and detaches

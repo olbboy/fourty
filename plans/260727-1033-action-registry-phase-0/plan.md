@@ -93,7 +93,7 @@ không. `tests/audit-log.test.ts` **không kiểm `meta`** → mất là không 
 | Phase | Name | Status |
 |-------|------|--------|
 | 1 | [Delete semantics data-integrity fix](./phase-01-delete-semantics.md) | Completed |
-| 2 | [Side-effect parity fix](./phase-02-side-effect-parity.md) | Pending |
+| 2 | [Side-effect parity fix](./phase-02-side-effect-parity.md) | Completed |
 | 3 | [Action kernel](./phase-03-action-kernel.md) | Pending |
 | 4 | [Contacts migration](./phase-04-contacts-migration.md) | Pending |
 | 5 | [Consolidation](./phase-05-consolidation.md) | Pending |
