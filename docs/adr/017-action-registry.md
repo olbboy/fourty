@@ -133,6 +133,17 @@ a test to accommodate the refactor is treated as a failed migration.
   a fourth adapter kind or a declarative effects DSL requires a new ADR.
 - The registry is **not** a public extension point. Documenting it as one, or
   loading actions from outside the repo, reopens ADR-016 and needs its own ADR.
+- **Dispatching an event is not atomic with the write that caused it.** The
+  kernel hands workflow events to the queue, which commits outside the request's
+  `withWorkspace()` transaction. If a later step throws and the transaction rolls
+  back, the workflow job still runs against a record that no longer exists. This
+  is pre-existing behaviour, inherited unchanged — the kernel neither worsens nor
+  fixes it. Closing it means an outbox pattern, which is its own decision.
+- **The kernel normalises an ordering the REST handlers disagree on.** Today
+  `create` audits before recomputing a score and `update` does the reverse. The
+  kernel always runs activity → audit → rescore → events. The two steps are
+  independent — audit never reads a score — so the choice is arbitrary, but it is
+  now fixed and pinned by a test rather than varying per handler.
 - **Workflow events cannot currently loop, but nothing enforces that.** Making
   every surface dispatch the same events widens the blast radius of a dispatch
   cycle. There is no cycle today: every workflow action in
