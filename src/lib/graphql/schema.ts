@@ -439,6 +439,8 @@ const mutationFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
       const existing = await byId(tables.contacts, id);
       if (!existing) return false;
       await db.delete(tables.contacts).where(eq(tables.contacts.id, id));
+      await db.delete(tables.notes).where(eq(tables.notes.entityId, id));
+      await db.delete(tables.activities).where(eq(tables.activities.entityId, id));
       await audit(ctx.auth.user?.id, "contact.deleted", { objectType: "contact", objectId: id });
       return true;
     },
@@ -495,6 +497,11 @@ const mutationFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
       const existing = await byId(tables.companies, id);
       if (!existing) return false;
       await db.delete(tables.companies).where(eq(tables.companies.id, id));
+      // detach children rather than cascade-delete
+      await db.update(tables.contacts).set({ companyId: null }).where(eq(tables.contacts.companyId, id));
+      await db.update(tables.deals).set({ companyId: null }).where(eq(tables.deals.companyId, id));
+      await db.delete(tables.notes).where(eq(tables.notes.entityId, id));
+      await db.delete(tables.activities).where(eq(tables.activities.entityId, id));
       await audit(ctx.auth.user?.id, "company.deleted", { objectType: "company", objectId: id });
       return true;
     },
