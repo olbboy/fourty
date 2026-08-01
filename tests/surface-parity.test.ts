@@ -353,6 +353,30 @@ describe("side-effect parity across REST / GraphQL / MCP", () => {
     expect((await activitiesFor(contactId)).map((a) => a.type)).toContain("task_completed");
   });
 
+  // ── every action reaches the surfaces it claims ───────────────────────────
+
+  it("serves every action on each surface it declares", async () => {
+    // An action's `expose` is a claim; the adapters record what was actually
+    // wired. Without this, an action could quietly stop being reachable from a
+    // surface and nothing would say so until someone asked for it there.
+    const { allActions, boundActions } = await import("@/lib/actions/registry");
+    // Importing these is what wires the adapters up in a running process.
+    await import("@/app/api/contacts/route");
+    await import("@/app/api/contacts/[id]/route");
+    await import("@/lib/graphql/schema");
+    await import("@/mcp/tools");
+
+    const actions = allActions();
+    expect(actions.length).toBeGreaterThan(0);
+    for (const surface of ["rest", "graphql", "mcp", "ai"] as const) {
+      const claimed = actions.filter((a) => a.expose[surface]).map((a) => a.name);
+      const served = boundActions(surface);
+      for (const name of claimed) {
+        expect(served, `${name} declares ${surface} but no ${surface} adapter serves it`).toContain(name);
+      }
+    }
+  });
+
   it.skip("GraphQL task completion — no task mutations exist yet (backlog #10)", () => {});
 
   it.skip("MCP task completion — no tool completes a task; create_task/list_tasks only", () => {});

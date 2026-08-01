@@ -28,8 +28,26 @@ export function allActions(): ActionDef<any, any>[] {
   return [...actions.values()];
 }
 
+export type Surface = "rest" | "graphql" | "mcp" | "ai";
+
 /** Actions a given surface is expected to serve. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function actionsFor(surface: "rest" | "graphql" | "mcp" | "ai"): ActionDef<any, any>[] {
+export function actionsFor(surface: Surface): ActionDef<any, any>[] {
   return allActions().filter((a) => a.expose[surface]);
+}
+
+/**
+ * What each surface actually wired up, as opposed to what the actions claim.
+ * Adapters record themselves here so the two can be compared: an action that
+ * says it is served over MCP but was never turned into a tool is a gap nobody
+ * would otherwise notice until an agent asked for it.
+ */
+const bound: Record<Surface, Set<string>> = { rest: new Set(), graphql: new Set(), mcp: new Set(), ai: new Set() };
+
+export function recordBinding(surface: Surface, name: string): void {
+  bound[surface].add(name);
+}
+
+export function boundActions(surface: Surface): string[] {
+  return [...bound[surface]];
 }

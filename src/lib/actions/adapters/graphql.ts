@@ -1,5 +1,6 @@
 import { GraphQLError } from "graphql";
 import { execute } from "../execute";
+import { recordBinding } from "../registry";
 import { ActionError, type ActionDef } from "../types";
 
 const CODE: Record<ActionError["kind"], string> = {
@@ -27,6 +28,7 @@ export function toResolver<I, O>(
   action: ActionDef<I, O>,
   opts: { onNotFound?: () => unknown; map?: (out: unknown) => unknown } = {},
 ) {
+  recordBinding("graphql", action.name);
   return async (_root: unknown, args: Record<string, unknown>, ctx: ResolverContext): Promise<unknown> => {
     try {
       const out = await execute(action, flatten(args), {

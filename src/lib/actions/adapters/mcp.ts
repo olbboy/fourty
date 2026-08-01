@@ -1,5 +1,6 @@
 import { execute } from "../execute";
 import { toJsonSchema } from "../json-schema";
+import { recordBinding } from "../registry";
 import type { ActionDef } from "../types";
 
 /**
@@ -43,6 +44,10 @@ export function toMcpTool<I, O>(
     max?: Record<string, number>;
   } = {},
 ): McpTool {
+  recordBinding("mcp", action.name);
+  // The in-app agent reads the same tool list, so becoming a tool is also what
+  // makes an action reachable from the AI surface.
+  recordBinding("ai", action.name);
   const schema = toJsonSchema(action.input);
   return {
     name: opts.name ?? action.name.replace(".", "_"),
