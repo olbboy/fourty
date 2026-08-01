@@ -95,7 +95,7 @@ không. `tests/audit-log.test.ts` **không kiểm `meta`** → mất là không 
 | 1 | [Delete semantics data-integrity fix](./phase-01-delete-semantics.md) | Completed |
 | 2 | [Side-effect parity fix](./phase-02-side-effect-parity.md) | Completed |
 | 3 | [Action kernel](./phase-03-action-kernel.md) | Completed |
-| 4 | [Contacts migration](./phase-04-contacts-migration.md) | Pending |
+| 4 | [Contacts migration](./phase-04-contacts-migration.md) | Completed |
 | 5 | [Consolidation](./phase-05-consolidation.md) | Pending |
 
 **Thứ tự bắt buộc:** 1 → 2 → 3 → 4 → 5. Phase 3 (kernel) độc lập về code với

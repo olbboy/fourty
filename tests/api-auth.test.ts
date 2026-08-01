@@ -104,12 +104,15 @@ describe("static guard: every API route authenticates", () => {
     // A data route must go through withAuth() (which authenticates AND enters the
     // workspace RLS transaction). Bare authenticate()/getSessionUser() is allowed
     // for routes that don't touch tenant data or predate a workspace (accept).
+    // toRouteHandler() is withAuth() plus the action kernel — a route built from
+    // it cannot skip authentication, because it never writes the handler itself.
     const missing: string[] = [];
     for (const { rel, file } of files) {
       if (PUBLIC_ROUTES.has(rel)) continue;
       const src = readFileSync(file, "utf8");
       if (
         !src.includes("withAuth(") &&
+        !src.includes("toRouteHandler(") &&
         !src.includes("authenticate(") &&
         !src.includes("getSessionUser(")
       )
@@ -150,8 +153,13 @@ describe("static guard: every API route authenticates", () => {
     for (const { rel, file } of files) {
       if (EXEMPT.has(rel)) continue;
       const src = readFileSync(file, "utf8");
-      const mutates = /export async function (POST|PATCH|DELETE)\b/.test(src);
-      if (mutates && !src.includes("authorize(")) missing.push(rel);
+      // Matches a handler however it is exported: written out as a function, or
+      // bound from toRouteHandler(). Missing the second form would let every
+      // route built on the kernel slip past this check unnoticed.
+      const mutates = /export (async function|const) (POST|PATCH|DELETE)\b/.test(src);
+      // An action declares the object and verb it needs, and the kernel refuses
+      // the call before running it — the same can() predicate authorize() wraps.
+      if (mutates && !src.includes("authorize(") && !src.includes("toRouteHandler(")) missing.push(rel);
     }
     expect(missing, `mutating routes missing authorize(): ${missing.join(", ")}`).toEqual([]);
   });

@@ -7,12 +7,9 @@ import { audit } from "@/lib/audit";
 import { logActivity } from "@/lib/activity";
 import { changedKeys } from "@/lib/changed-fields";
 import { toMcpTool } from "@/lib/actions/adapters/mcp";
-import { contactsCreate } from "@/lib/actions/contacts/create";
-import { recomputeContactScore } from "@/lib/services/contact-score";
+import { contactsCreate, contactsDelete, contactsList, contactsUpdate } from "@/lib/actions/contacts";
 import { recomputeDealScore } from "@/lib/services/deal-score";
 import {
-  contactInput,
-  contactPatch,
   companyInput,
   companyPatch,
   dealInput,
@@ -119,32 +116,13 @@ export const TOOLS: Tool[] = [
       };
     },
   },
-  {
+  toMcpTool(contactsList, {
     name: "list_contacts",
-    mutates: false,
-    description: "List contacts, most recently updated first. Optional text filter.",
-    inputSchema: {
-      type: "object",
-      properties: { query: { type: "string" }, limit: { type: "number" } },
-    },
-    handler: async (args, ctx) => {
-      requireRole(ctx, "contacts", "read");
-      const q = str(args.query)?.trim();
-      const where: SQL[] = [];
-      if (q) {
-        const like = `%${q.replace(/[%_]/g, "")}%`;
-        where.push(or(ilike(sql`${tables.contacts.firstName} || ' ' || ${tables.contacts.lastName}`, like), ilike(tables.contacts.email, like))!);
-      }
-      const rows = await db
-        .select()
-        .from(tables.contacts)
-        .where(where.length ? and(...where) : undefined)
-        .orderBy(desc(tables.contacts.updatedAt))
-        .limit(Math.min(num(args.limit, 50), 200));
-      const policy = await loadFieldPolicy(ctx.role);
-      return rows.map((r) => redact(policy, "contacts", { ...r, custom: JSON.parse(r.custom) }));
-    },
-  },
+    // This tool has always called the text filter `query` and returned 50 by
+    // default; the action calls it `q` and returns 200.
+    rename: { query: "q" },
+    defaults: { limit: 50 },
+  }),
   toMcpTool(contactsCreate, { name: "create_contact" }),
   {
     name: "list_companies",
@@ -272,93 +250,10 @@ export const TOOLS: Tool[] = [
       return result.record;
     },
   },
-  {
-    name: "update_contact",
-    mutates: true,
-    description: "Update a contact by id. Only the fields you pass change.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        id: { type: "string" },
-        firstName: { type: "string" },
-        lastName: { type: "string" },
-        email: { type: "string" },
-        phone: { type: "string" },
-        jobTitle: { type: "string" },
-        companyId: { type: "string" },
-        status: { type: "string", enum: ["lead", "qualified", "customer", "churned"] },
-        source: { type: "string" },
-      },
-      required: ["id"],
-    },
-    handler: async (args, ctx) => {
-      requireRole(ctx, "contacts", "update");
-      const id = str(args.id);
-      if (!id) throw new ToolError("id is required");
-      const rest: Record<string, unknown> = { ...args };
-      delete rest.id;
-      const policy = await requireWritableFields(ctx, "contacts", rest);
-      const parsed = contactPatch.safeParse(rest);
-      if (!parsed.success) throw new ToolError(parsed.error.issues[0].message);
-      const existing = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0];
-      if (!existing) throw new ToolError("Contact not found");
-      const { custom, ...fields } = parsed.data;
-      const changed = changedKeys(fields, existing);
-      await db
-        .update(tables.contacts)
-        .set({
-          ...fields,
-          ...(custom !== undefined
-            ? { custom: JSON.stringify({ ...JSON.parse(existing.custom), ...custom }) }
-            : {}),
-          updatedAt: Date.now(),
-        })
-        .where(eq(tables.contacts.id, id));
-      if (changed.length > 0 || custom !== undefined) {
-        await logActivity({ type: "updated", entityType: "contact", entityId: id, actorId: ctx.userId, meta: { fields: changed } });
-      }
-      await audit(ctx.userId, "contact.updated", { objectType: "contact", objectId: id, meta: { via: ctx.via ?? "mcp", fields: changed } });
-      await recomputeContactScore(id);
-      const row = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0]!;
-      await dispatchEvent({
-        event: "contact.updated",
-        entityType: "contact",
-        entityId: id,
-        snapshot: { ...row, custom: undefined, changedFields: changed.join(",") },
-      });
-      return redact(policy, "contacts", { ...row, custom: JSON.parse(row.custom) });
-    },
-  },
-  {
-    name: "delete_contact",
-    mutates: true,
-    description:
-      "Delete a contact by id. SAFE BY DEFAULT: without confirm=true this only previews what would be deleted.",
-    inputSchema: {
-      type: "object",
-      properties: { id: { type: "string" }, confirm: { type: "boolean" } },
-      required: ["id"],
-    },
-    handler: async (args, ctx) => {
-      requireRole(ctx, "contacts", "delete");
-      const id = str(args.id);
-      if (!id) throw new ToolError("id is required");
-      const existing = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0];
-      if (!existing) throw new ToolError("Contact not found");
-      if (args.confirm !== true) {
-        return {
-          dryRun: true,
-          wouldDelete: { type: "contact", id, name: `${existing.firstName} ${existing.lastName}`.trim() },
-          hint: "Re-call with confirm=true to actually delete (also removes its notes + activities).",
-        };
-      }
-      await db.delete(tables.contacts).where(eq(tables.contacts.id, id));
-      await db.delete(tables.notes).where(eq(tables.notes.entityId, id));
-      await db.delete(tables.activities).where(eq(tables.activities.entityId, id));
-      await audit(ctx.userId, "contact.deleted", { objectType: "contact", objectId: id, meta: { via: ctx.via ?? "mcp" } });
-      return { deleted: true, type: "contact", id };
-    },
-  },
+  toMcpTool(contactsUpdate, { name: "update_contact" }),
+  // Unlike the other surfaces, an unconfirmed call here only reports what it
+  // would remove — an agent shows its work before destroying anything.
+  toMcpTool(contactsDelete, { name: "delete_contact", defaults: { confirm: false } }),
   {
     name: "update_company",
     mutates: true,

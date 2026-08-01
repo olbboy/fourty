@@ -13,17 +13,28 @@ import { z } from "zod";
 /** Reference an existing record. */
 export const byIdInput = z.object({ id: z.string().min(1) });
 
-/** Delete a record. `confirm` exists for MCP's dry-run; other surfaces ignore it. */
-export const deleteInput = byIdInput.extend({ confirm: z.boolean().optional() });
+/**
+ * Delete a record. Deleting is the default because the REST and GraphQL
+ * handlers have always deleted outright; the MCP tool, where an agent is acting
+ * on someone's behalf, flips the default so an unconfirmed call only reports
+ * what it would remove.
+ */
+export const deleteInput = byIdInput.extend({ confirm: z.boolean().optional().default(true) });
 
-/** Shared list controls. Entity-specific filters extend this. */
-export const listInput = z.object({
+/**
+ * Contact list controls.
+ *
+ * `limit` and `sort` are deliberately unconstrained here: the REST list clamps
+ * an oversized limit rather than rejecting it, and falls back to the default
+ * sort for an unrecognised one. Encoding bounds as validation would turn calls
+ * that work today into errors, so the clamping stays in the action.
+ */
+export const listContactsInput = z.object({
   q: z.string().max(200).optional(),
-  limit: z.coerce.number().min(1).max(500).optional().default(200),
-});
-
-export const listContactsInput = listInput.extend({
-  status: z.enum(["lead", "qualified", "customer", "churned"]).optional(),
+  // A limit that cannot be read as a number falls back to the default rather
+  // than failing the request, which is how a query string has always behaved.
+  limit: z.coerce.number().optional().catch(undefined),
+  status: z.string().optional(),
   companyId: z.string().optional(),
-  sort: z.enum(["updatedAt", "createdAt", "name", "score"]).optional().default("updatedAt"),
+  sort: z.string().optional(),
 });
