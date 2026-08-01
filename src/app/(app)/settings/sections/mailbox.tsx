@@ -94,11 +94,19 @@ export function MailboxSection() {
   }
 
   async function setStatus(a: SyncAccount, status: string) {
-    await fetch(`/api/sync/accounts/${a.id}`, {
+    setError(null);
+    const res = await fetch(`/api/sync/accounts/${a.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ status }),
     });
+    // A viewer may reach this button — say so rather than appear to do nothing.
+    if (!res.ok) {
+      setError(
+        (await res.json().catch(() => ({}))).error ??
+          (status === "paused" ? "Failed to pause mailbox" : "Failed to resume mailbox"),
+      );
+    }
     load();
   }
 
