@@ -1,0 +1,118 @@
+type Query {
+  contacts(limit: Int, q: String): [Contact!]!
+  contact(id: ID!): Contact
+  companies(limit: Int, q: String): [Company!]!
+  company(id: ID!): Company
+  deals(limit: Int, q: String): [Deal!]!
+  deal(id: ID!): Deal
+  tasks(limit: Int): [Task!]!
+  notes(entityType: String, entityId: String): [Note!]!
+  customObjects: [CustomObjectDef!]!
+  records(object: String!, limit: Int): [Record!]!
+  record(object: String!, id: ID!): Record
+}
+
+type Contact {
+  id: ID!
+  createdAt: Float
+  updatedAt: Float
+  firstName: String!
+  lastName: String
+  email: String
+  phone: String
+  jobTitle: String
+  companyId: String
+  status: String
+  source: String
+  score: Int
+  linkedin: String
+  city: String
+  country: String
+  custom: JSON
+}
+
+"""Arbitrary JSON value"""
+scalar JSON
+
+type Company {
+  id: ID!
+  createdAt: Float
+  updatedAt: Float
+  name: String!
+  domain: String
+  industry: String
+  size: String
+  website: String
+  linkedin: String
+  city: String
+  country: String
+  annualRevenue: Float
+  custom: JSON
+}
+
+type Deal {
+  id: ID!
+  createdAt: Float
+  updatedAt: Float
+  name: String!
+  amount: Float
+  currency: String
+  pipelineId: String
+  stageId: String
+  companyId: String
+  contactId: String
+  expectedCloseDate: Float
+  closedAt: Float
+  custom: JSON
+}
+
+type Task {
+  id: ID!
+  createdAt: Float
+  updatedAt: Float
+  title: String!
+  description: String
+  dueDate: Float
+  completedAt: Float
+  priority: String
+  entityType: String
+  entityId: String
+}
+
+type Note {
+  id: ID!
+  createdAt: Float
+  updatedAt: Float
+  body: String!
+  entityType: String
+  entityId: String
+  authorId: String
+}
+
+type CustomObjectDef {
+  id: ID!
+  apiName: String!
+  nameSingular: String
+  namePlural: String
+  icon: String
+  description: String
+}
+
+type Record {
+  id: ID!
+  createdAt: Float
+  updatedAt: Float
+  data: JSON
+}
+
+type Mutation {
+  createContact(input: JSON!): Contact!
+  updateContact(id: ID!, input: JSON!): Contact!
+  deleteContact(id: ID!): Boolean!
+  createCompany(input: JSON!): Company!
+  updateCompany(id: ID!, input: JSON!): Company!
+  deleteCompany(id: ID!): Boolean!
+  createRecord(object: String!, data: JSON!): Record!
+  updateRecord(object: String!, id: ID!, data: JSON!): Record!
+  deleteRecord(object: String!, id: ID!): Boolean!
+}

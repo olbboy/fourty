@@ -30,7 +30,9 @@ export const deleteInput = byIdInput.extend({ confirm: z.boolean().optional().de
  * that work today into errors, so the clamping stays in the action.
  */
 export const listContactsInput = z.object({
-  q: z.string().max(200).optional(),
+  // No length bound: none of the handlers this replaced had one, and refusing a
+  // long search term would reject requests that used to simply find nothing.
+  q: z.string().optional(),
   // A limit that cannot be read as a number falls back to the default rather
   // than failing the request, which is how a query string has always behaved.
   limit: z.coerce.number().optional().catch(undefined),

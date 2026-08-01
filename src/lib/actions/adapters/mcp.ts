@@ -35,17 +35,23 @@ export function toMcpTool<I, O>(
     rename?: Record<string, string>;
     /** Defaults this tool already applies, where they differ from the action's. */
     defaults?: Record<string, unknown>;
+    /**
+     * Ceilings this tool already enforces. A tool answers an agent, whose
+     * context a huge result set would swamp, so its caps are tighter than the
+     * action's and are held here rather than loosened for everyone.
+     */
+    max?: Record<string, number>;
   } = {},
 ): McpTool {
   const schema = toJsonSchema(action.input);
   return {
     name: opts.name ?? action.name.replace(".", "_"),
     description: opts.description ?? action.description,
-    inputSchema: applyNaming(schema, opts.rename, opts.defaults),
+    inputSchema: applyNaming(schema, opts.rename, opts.defaults, opts.max),
     // Reads run inline for the AI agent; writes are proposed and confirmed.
     mutates: action.verb !== "read",
     handler: (args, ctx) =>
-      execute(action, { ...opts.defaults, ...translate(args, opts.rename) }, {
+      execute(action, clamp({ ...opts.defaults, ...translate(args, opts.rename) }, opts.max), {
         ...ctx,
         // Everything reaching a tool is agent-initiated; the AI chat marks its
         // own calls "ai" and anything else is a plain MCP client.
@@ -62,19 +68,34 @@ function translate(args: Record<string, unknown>, rename?: Record<string, string
   return out;
 }
 
-/** Advertise the tool's own argument names and defaults, not the action's. */
+/** Hold a numeric argument to this tool's own ceiling. */
+function clamp(args: Record<string, unknown>, max?: Record<string, number>): Record<string, unknown> {
+  if (!max) return args;
+  const out = { ...args };
+  for (const [key, ceiling] of Object.entries(max)) {
+    const value = Number(out[key]);
+    if (Number.isFinite(value) && value > ceiling) out[key] = ceiling;
+  }
+  return out;
+}
+
+/** Advertise the tool's own argument names, defaults and ceilings. */
 function applyNaming(
   schema: Record<string, unknown>,
   rename?: Record<string, string>,
   defaults?: Record<string, unknown>,
+  max?: Record<string, number>,
 ): Record<string, unknown> {
-  if (!rename && !defaults) return schema;
+  if (!rename && !defaults && !max) return schema;
   const reverse = Object.fromEntries(Object.entries(rename ?? {}).map(([tool, act]) => [act, tool]));
   const properties: Record<string, unknown> = {};
   for (const [key, spec] of Object.entries(schema.properties as Record<string, unknown>)) {
     const name = reverse[key] ?? key;
-    const overridden = defaults && name in defaults;
-    properties[name] = overridden ? { ...(spec as object), default: defaults[name] } : spec;
+    properties[name] = {
+      ...(spec as object),
+      ...(defaults && name in defaults ? { default: defaults[name] } : {}),
+      ...(max && name in max ? { maximum: max[name] } : {}),
+    };
   }
   const required = (schema.required as string[] | undefined)?.map((f) => reverse[f] ?? f);
   return { ...schema, properties, ...(required ? { required } : {}) };
