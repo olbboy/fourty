@@ -144,6 +144,43 @@ phí dừng ở đây bằng một entity; chi phí phát hiện ở route thứ
 Ngưỡng này ràng buộc: Phase 5 **không được** hợp lý hoá tiếp tục khi đã chạm một
 trong ba, chỉ vì đã bỏ công.
 
+### Kết quả thực đo sau Phase 4
+
+| # | Ngưỡng | Kết quả |
+|---|---|---|
+| 1 | Sửa test có sẵn | **ĐÃ CHẠM** — 4 file, +169/−11 (chi tiết dưới) |
+| 2 | `execute.ts` > 120 dòng | Không chạm — 91 dòng |
+| 3 | Khoá `effects` thứ 5 / lifecycle hook | Không chạm — vẫn 4 khoá, hàm thuần |
+
+**Ngưỡng #1 đã chạm.** User waive từng trường hợp sau khi được báo; ghi lại đây
+để quyết định nhân rộng 57 route dựa trên chi phí thật, không phải trí nhớ:
+
+| File | Vì sao phải sửa | Loại |
+|---|---|---|
+| `tests/api-auth.test.ts` | Hai guard bảo mật grep văn bản file route. Guard "phải xác thực" đỏ; guard "route ghi phải `authorize()`" **pass sai** vì regex chỉ khớp `export async function`, không khớp `export const`. Đã dạy pattern mới + nới regex. | Test **hành vi/bảo mật** — nghiêm trọng nhất |
+| `tests/action-json-schema.test.ts` | Lấy `TOOLS` làm mốc "schema viết tay"; thành tự tham chiếu khi tool được sinh ra. Đã đóng băng schema cũ thành fixture. | Test nội bộ kernel |
+| `tests/action-kernel.test.ts` | Thêm test cho `id` không bị tính là field đang ghi. | Test nội bộ kernel (thêm mới) |
+| `tests/action-adapters.test.ts` | Thêm test cho DELETE không đọc query string. | Test nội bộ kernel (thêm mới) |
+
+**Bài học cho ADR-017:** guard tĩnh dựa trên hình dạng file route sẽ mù với mọi
+route migrate sau này. Chi phí migrate một entity không chỉ là code — còn là rà
+lại các lưới an toàn dựa vào hình dạng cũ.
+
+### Số đo thực (b970186 → 12b3b2a)
+
+| File | Trước | Sau |
+|---|---|---|
+| `src/app/api/contacts/route.ts` | 97 | 10 |
+| `src/app/api/contacts/[id]/route.ts` | 88 | 15 |
+| `src/mcp/tools.ts` | 716 | 572 |
+| `src/lib/graphql/schema.ts` | 589 | 516 |
+| `src/lib/actions/execute.ts` | 85 | 91 |
+| `src/lib/actions/contacts/**` (mới) | 0 | 250 |
+
+Ròng: −271 dòng ở ba surface, +250 dòng định nghĩa dùng chung. Lợi ích thật
+không nằm ở số dòng mà ở chỗ chuỗi guard/side-effect chỉ còn **một** bản.
+`db.*` cho contact CRUD còn lại trong `tools.ts`/`schema.ts`: **0**.
+
 ## Acceptance criteria (toàn plan)
 
 - [ ] Side-effect đồng nhất: cùng operation → cùng tập event, cùng activity,
@@ -181,11 +218,21 @@ flag; xem Phase 2 bước 9).
 |---|---|
 | Cascade Phase 1 xoá nhầm | Revert commit Phase 1. Độc lập với mọi thứ khác. |
 | Phase 2 gây bão workflow | Revert commit Phase 2. Không kéo theo Phase 1. |
-| Phase 4 lỗi, **Phase 5 chưa ship** | Đổi import route/resolver/tool về đường cũ — code cũ vẫn còn. |
-| Phase 4 lỗi, **Phase 5 đã ship** | Revert **hai commit theo thứ tự: Phase 5 trước, rồi Phase 4.** Phase 5 đã xoá code cũ nên "đổi import" không còn khả dụng. |
+| Phase 4 lỗi | Revert theo thứ tự ngược: `12b3b2a` → `49d91c9` → `6ada1e4` → `bf35abd`. |
+| Phase 4 lỗi, **Phase 5 đã ship** | Revert commit Phase 5 **trước**, rồi bốn commit trên. |
 
-*(Hàng cuối thêm sau red-team #6 — bản trước khẳng định revert luôn chỉ là đổi
-import, sai sau khi phase dọn dẹp xoá code.)*
+**Sửa sau Phase 4 — kế hoạch cũ đã sai.** Bảng này từng ghi rollback trước
+Phase 5 chỉ là "đổi import về đường cũ, code cũ vẫn còn", theo thiết kế strangler
+ở [phase-04](./phase-04-contacts-migration.md). Thực tế implementation cũ đã bị
+xoá ngay trong `bf35abd`/`6ada1e4`, không đợi tới Phase 5.
+
+Lý do xoá luôn: MCP giữ tool trong một mảng `TOOLS` khoá theo tên, nên không thể
+để bản cũ nằm cạnh bản mới mà không trùng tên. Strangler theo nghĩa đen chỉ khả
+thi cho REST/GraphQL, tức là sẽ không đồng nhất giữa ba surface. `git revert` cho
+cùng khả năng quay lui mà không phải nuôi code chết.
+
+*(Hàng "Phase 5 đã ship" thêm sau red-team #6 — bản trước khẳng định revert luôn
+chỉ là đổi import, sai sau khi phase dọn dẹp xoá code.)*
 
 ## Red Team Review
 

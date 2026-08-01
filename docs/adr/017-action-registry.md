@@ -127,6 +127,19 @@ a test to accommodate the refactor is treated as a failed migration.
 **Costs / risks**
 - Cross-cutting refactor of 58 route files. Mitigated by strangler phasing and the
   unmodified-tests rule.
+- **The unmodified-tests rule did not survive the first entity.** Migrating
+  contacts required editing four test files. Two were the kernel's own and had
+  become self-referential, which is unremarkable. The other was not: two static
+  security guards in `tests/api-auth.test.ts` recognised routes by their source
+  text, so a route rebuilt on the shared handler stopped matching. One failed
+  loudly; the other silently stopped classifying the routes as mutating at all,
+  because its pattern only matched a handler exported as a function declaration.
+  Expect the same for every guard that reasons about the shape of a route file
+  rather than its behaviour, and budget for finding them — the silent failure is
+  the one that matters, and only reading the guard revealed it.
+- **Strangler migration is not available on the MCP surface.** Tools live in a
+  name-keyed array, so an old and a new implementation of the same tool cannot
+  coexist. Rollback is reverting the commit, not switching an import back.
 - A kernel is a chokepoint: a bug there hits every surface at once. Mitigated by
   the kernel being small, pure-ish and directly unit-tested.
 - Abstraction creep is the real failure mode. The three limits above are binding;
