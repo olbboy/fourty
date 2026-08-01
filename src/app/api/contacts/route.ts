@@ -1,13 +1,9 @@
 import { and, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { withAuth, authorize, json, apiError, parseBody } from "@/lib/api";
-import { newId } from "@/lib/id";
-import { logActivity } from "@/lib/activity";
-import { audit } from "@/lib/audit";
-import { dispatchEvent } from "@/lib/workflows/engine";
-import { recomputeContactScore } from "@/lib/services/contact-score";
-import { contactInput } from "@/lib/validators";
-import { loadFieldPolicy, redact, blockedWrites } from "@/lib/field-permissions";
+import { withAuth, json } from "@/lib/api";
+import { toRouteHandler } from "@/lib/actions/adapters/rest";
+import { contactsCreate } from "@/lib/actions/contacts/create";
+import { loadFieldPolicy, redact } from "@/lib/field-permissions";
 
 export async function GET(req: Request) {
   return withAuth(req, async (auth) => {
@@ -55,43 +51,8 @@ export async function GET(req: Request) {
   });
 }
 
-export async function POST(req: Request) {
-  return withAuth(req, async (auth) => {
-  const denied = authorize(auth, "contacts", "create");
-  if (denied) return denied;
-  const body = await parseBody(req, contactInput);
-  if (!body.ok) return body.response;
+const createContact = toRouteHandler(contactsCreate, { status: 201, body: (contact) => ({ contact }) });
 
-  const policy = await loadFieldPolicy(auth.role);
-  const blocked = blockedWrites(policy, "contacts", body.keys);
-  if (blocked.length) return apiError(`Not permitted to set field(s): ${blocked.join(", ")}`, 403);
-
-  const now = Date.now();
-  const id = newId();
-  const { custom, ...fields } = body.data;
-  await db.insert(tables.contacts)
-    .values({
-      id,
-      ...fields,
-      ownerId: auth.user?.id ?? null,
-      custom: JSON.stringify(custom ?? {}),
-      createdAt: now,
-      updatedAt: now,
-    });
-
-  await logActivity({ type: "created", entityType: "contact", entityId: id, actorId: auth.user?.id });
-  await audit(auth.user?.id, "contact.created", { objectType: "contact", objectId: id });
-  await recomputeContactScore(id);
-  const row = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0]!;
-  await dispatchEvent({
-    event: "contact.created",
-    entityType: "contact",
-    entityId: id,
-    snapshot: { ...row, custom: undefined },
-  });
-  return json(
-    { contact: redact(policy, "contacts", { ...row, custom: JSON.parse(row.custom) }) },
-    { status: 201 },
-  );
-  });
-}
+// Narrowed to one argument: this route has no dynamic segment, and Next checks
+// the exported handler's signature against the route's own parameters.
+export const POST = (req: Request) => createContact(req);

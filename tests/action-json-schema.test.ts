@@ -94,6 +94,77 @@ describe("zod → JSON Schema", () => {
 
   // ── compatibility with what MCP clients already see ───────────────────────
 
+/**
+ * The MCP tool schemas exactly as they were published before any tool was
+ * generated from a zod schema. Frozen here on purpose: this is what existing
+ * clients were told to send, so it is the only honest baseline for "did the
+ * generated schema stay compatible". Reading it back out of `TOOLS` would be
+ * self-referential once a tool is generated, and would assert nothing.
+ */
+const PUBLISHED: Record<string, { properties: Record<string, { type?: string; enum?: string[] }>; required?: string[] }> = {
+  create_contact: {
+    properties: {
+      firstName: { type: "string" },
+      lastName: { type: "string" },
+      email: { type: "string" },
+      phone: { type: "string" },
+      jobTitle: { type: "string" },
+      companyId: { type: "string" },
+      status: { type: "string", enum: ["lead", "qualified", "customer", "churned"] },
+    },
+    required: ["firstName"],
+  },
+  create_company: {
+    properties: { name: { type: "string" }, domain: { type: "string" }, industry: { type: "string" } },
+    required: ["name"],
+  },
+  create_task: {
+    properties: {
+      title: { type: "string" },
+      description: { type: "string" },
+      dueDate: { type: "number" },
+      priority: { type: "string", enum: ["low", "medium", "high"] },
+      entityType: { type: "string", enum: ["contact", "company", "deal"] },
+      entityId: { type: "string" },
+    },
+    required: ["title"],
+  },
+  create_note: {
+    properties: {
+      body: { type: "string" },
+      entityType: { type: "string", enum: ["contact", "company", "deal"] },
+      entityId: { type: "string" },
+    },
+    required: ["body", "entityType", "entityId"],
+  },
+  update_contact: {
+    properties: {
+      id: { type: "string" },
+      firstName: { type: "string" },
+      lastName: { type: "string" },
+      email: { type: "string" },
+      phone: { type: "string" },
+      jobTitle: { type: "string" },
+      companyId: { type: "string" },
+      status: { type: "string", enum: ["lead", "qualified", "customer", "churned"] },
+      source: { type: "string" },
+    },
+    required: ["id"],
+  },
+  update_company: {
+    properties: {
+      id: { type: "string" },
+      name: { type: "string" },
+      domain: { type: "string" },
+      industry: { type: "string" },
+      size: { type: "string" },
+    },
+    required: ["id"],
+  },
+  list_contacts: { properties: { query: { type: "string" }, limit: { type: "number" } } },
+  delete_contact: { properties: { id: { type: "string" }, confirm: { type: "boolean" } }, required: ["id"] },
+};
+
   /** Hand-written MCP tool schema → the zod schema that action would use. */
   const PAIRS: { tool: string; schema: z.ZodTypeAny; addsId?: boolean }[] = [
     { tool: "create_contact", schema: validators.contactInput },
@@ -105,7 +176,7 @@ describe("zod → JSON Schema", () => {
   ];
 
   it.each(PAIRS)("keeps $tool's required fields required", ({ tool, schema, addsId }) => {
-    const hand = TOOLS.find((t) => t.name === tool)!.inputSchema as { required?: string[] };
+    const hand = PUBLISHED[tool];
     const generated = toJsonSchema(schema) as { required?: string[] };
     // `id` is an argument of the operation, not a field of the record; the
     // action schemas add it separately (src/lib/actions/schemas.ts).
@@ -116,9 +187,7 @@ describe("zod → JSON Schema", () => {
   });
 
   it.each(PAIRS)("keeps $tool's enum values identical", ({ tool, schema }) => {
-    const hand = TOOLS.find((t) => t.name === tool)!.inputSchema as {
-      properties?: Record<string, { enum?: string[] }>;
-    };
+    const hand = PUBLISHED[tool];
     const generated = toJsonSchema(schema) as { properties: Record<string, { enum?: string[] }> };
     for (const [field, spec] of Object.entries(hand.properties ?? {})) {
       if (!spec.enum) continue;
@@ -129,7 +198,7 @@ describe("zod → JSON Schema", () => {
   it("only ever widens the accepted input, never narrows it", () => {
     // Every property a client can send today must still be described.
     for (const { tool, schema, addsId } of PAIRS) {
-      const hand = TOOLS.find((t) => t.name === tool)!.inputSchema as { properties?: Record<string, unknown> };
+      const hand = PUBLISHED[tool];
       const generated = toJsonSchema(schema) as { properties: Record<string, unknown> };
       for (const field of Object.keys(hand.properties ?? {})) {
         if (addsId && field === "id") continue;
@@ -143,9 +212,27 @@ describe("zod → JSON Schema", () => {
     // these are accepted by contactInput today but absent from create_contact's
     // advertised schema, so agents never knew they could send them.
     const generated = toJsonSchema(validators.contactInput) as { properties: Record<string, unknown> };
-    const hand = TOOLS.find((t) => t.name === "create_contact")!.inputSchema as { properties: Record<string, unknown> };
+    const hand = PUBLISHED.create_contact;
     const added = Object.keys(generated.properties).filter((f) => !(f in hand.properties));
     expect(added.sort()).toEqual(["city", "country", "custom", "linkedin", "source"]);
+  });
+
+  it("still advertises every argument clients were already sending", () => {
+    // The end of the chain: whatever a tool is built from now, `tools/list` must
+    // not have dropped an argument or changed an enum out from under a client.
+    for (const [name, published] of Object.entries(PUBLISHED)) {
+      const live = TOOLS.find((t) => t.name === name);
+      if (!live) continue; // tool not present in this build — covered elsewhere
+      const properties = (live.inputSchema as { properties: Record<string, { enum?: string[] }> }).properties;
+      for (const [field, spec] of Object.entries(published.properties)) {
+        expect(Object.keys(properties), `${name}.${field}`).toContain(field);
+        if (spec.enum) expect(properties[field].enum, `${name}.${field}`).toEqual(spec.enum);
+      }
+      const required = (live.inputSchema as { required?: string[] }).required ?? [];
+      for (const field of published.required ?? []) {
+        expect(required, `${name}.${field} required`).toContain(field);
+      }
+    }
   });
 
   // ── the operation schemas the kernel owns ─────────────────────────────────
