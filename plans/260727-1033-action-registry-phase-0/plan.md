@@ -1,7 +1,7 @@
 ---
 title: "Action Registry Phase 0 — parity fixes, kernel, contacts"
 description: "Sửa bug toàn vẹn dữ liệu khi delete và sai lệch side-effect giữa REST/GraphQL/MCP, rồi dựng Action Registry nội bộ và migrate contacts. TDD: đổi hành vi và đổi cấu trúc tách bạch."
-status: in_progress
+status: completed
 priority: P1
 branch: "main"
 tags: [refactor, architecture, tdd, action-registry, adr-017]
@@ -96,7 +96,7 @@ không. `tests/audit-log.test.ts` **không kiểm `meta`** → mất là không 
 | 2 | [Side-effect parity fix](./phase-02-side-effect-parity.md) | Completed |
 | 3 | [Action kernel](./phase-03-action-kernel.md) | Completed |
 | 4 | [Contacts migration](./phase-04-contacts-migration.md) | Completed |
-| 5 | [Consolidation](./phase-05-consolidation.md) | Pending |
+| 5 | [Consolidation](./phase-05-consolidation.md) | Completed |
 
 **Thứ tự bắt buộc:** 1 → 2 → 3 → 4 → 5. Phase 3 (kernel) độc lập về code với
 Phase 1-2 nhưng phải merge sau, để lưới test của chúng bảo vệ Phase 4.
@@ -175,9 +175,10 @@ lại các lưới an toàn dựa vào hình dạng cũ.
 | `src/mcp/tools.ts` | 716 | 572 |
 | `src/lib/graphql/schema.ts` | 589 | 516 |
 | `src/lib/actions/execute.ts` | 85 | 91 |
-| `src/lib/actions/contacts/**` (mới) | 0 | 250 |
+| `src/lib/actions/contacts/**` (mới) | 0 | 270 |
+| `src/lib/actions/` kernel + adapters | 0 | 613 |
 
-Ròng: −271 dòng ở ba surface, +250 dòng định nghĩa dùng chung. Lợi ích thật
+Ròng: −271 dòng ở ba surface, +270 dòng định nghĩa contacts (kernel 613 dòng dùng lại cho mọi entity sau). Lợi ích thật
 không nằm ở số dòng mà ở chỗ chuỗi guard/side-effect chỉ còn **một** bản.
 `db.*` cho contact CRUD còn lại trong `tools.ts`/`schema.ts`: **0**.
 

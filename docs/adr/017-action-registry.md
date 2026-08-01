@@ -1,6 +1,6 @@
 # ADR-017 — Action Registry: one definition, every surface
 
-**Status:** Proposed · **Date:** 2026-07-27
+**Status:** Accepted for contacts · **Date:** 2026-07-27 · **Reviewed:** 2026-08-01
 
 > **Relationship to ADR-016.** ADR-016 rejected an "AI SDK / apps platform" and an
 > "in-app agent framework as a core feature". **This ADR does not reverse either.**
@@ -180,3 +180,49 @@ a test to accommodate the refactor is treated as a failed migration.
 Public/plugin SDK, `create-fourty-app`, third-party action loading, autonomous
 agents that write without confirmation (ADR-015's stop-at-write loop stands),
 migrating off Next.js, and any new runtime process.
+
+## What it cost, measured
+
+Contacts were migrated first, alone, to find out. Every number below is
+reproducible from the repository at the commit that closed the work.
+
+| | Before | After |
+|---|---|---|
+| `src/app/api/contacts/route.ts` | 97 | 10 |
+| `src/app/api/contacts/[id]/route.ts` | 88 | 15 |
+| `src/mcp/tools.ts` | 716 | 572 |
+| `src/lib/graphql/schema.ts` | 589 | 516 |
+| `src/lib/actions/` — kernel + adapters | 0 | 613 |
+| `src/lib/actions/contacts/` | 0 | 270 |
+| Direct `db.*` calls for contact CRUD across the three surfaces | many | 0 |
+
+The three surfaces lost 271 lines; the shared code cost 883, of which 613 is the
+kernel every later entity reuses for free — so the marginal cost of an entity is
+the 270 its own definitions take. This first one did not pay for itself in lines
+and was never going to — the return is that the guard
+and side-effect chain exists once instead of three times that had already drifted
+apart into real bugs (see Context).
+
+**Three costs the plan did not anticipate**, each of which recurs per entity
+rather than once:
+
+1. **Static guards that recognise code by its shape go blind.** Two security
+   checks matched route files by source text. One failed loudly when the routes
+   changed shape; the other silently stopped classifying them as mutating at all,
+   because its pattern only matched a handler exported as a function declaration.
+   Only reading the guard revealed the second. Budget for auditing every
+   shape-based check, and assume the dangerous one fails quietly.
+2. **"Pure refactor" leaked three contract changes.** Unifying the surfaces
+   quietly widened an MCP page limit from 200 to 500, imposed a new 200-character
+   ceiling on search terms, and changed which fields a search matched. None broke
+   a test. Each surface's published limits have to be carried across deliberately,
+   not inherited from whichever implementation became the shared one.
+3. **The unmodified-tests rule was crossed.** Four test files changed. Two were
+   the kernel's own and had become self-referential — unremarkable. The other two
+   were not.
+
+**Decision: accepted for contacts, not yet for the rest.** The pattern works and
+the drift gate now exists, so contacts stay as they are. The remaining entities
+are *not* pre-approved: one entity is a thin basis for a 57-route commitment,
+and the three costs above are per-entity. Each next entity is its own decision,
+made against these numbers rather than against the original hope.

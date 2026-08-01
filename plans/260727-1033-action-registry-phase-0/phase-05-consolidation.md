@@ -1,7 +1,7 @@
 ---
 phase: 5
 title: "Consolidation"
-status: pending
+status: completed
 priority: P2
 effort: "S"
 dependencies: [4]
