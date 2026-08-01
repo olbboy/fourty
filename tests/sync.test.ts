@@ -393,3 +393,214 @@ describe("mail OAuth run + connect (real routes + Postgres)", () => {
     expect(res.headers.get("location")).toContain("sync=error");
   });
 });
+
+describe("sync account lifecycle (real routes + Postgres)", () => {
+  const TOKEN_ADMIN = "frty_life_admin";
+  const TOKEN_VIEWER = "frty_life_viewer";
+  const TOKEN_OTHER = "frty_life_other";
+  let db: typeof import("@/db").db;
+  let tables: typeof import("@/db").tables;
+  let withWorkspace: typeof import("@/db").withWorkspace;
+  let sha256: typeof import("@/lib/auth").sha256;
+  let newId: typeof import("@/lib/id").newId;
+  let accounts: typeof import("@/app/api/sync/accounts/route");
+  let account: typeof import("@/app/api/sync/accounts/[id]/route");
+  let wsA: string;
+
+  const req = (url: string, token: string, init?: RequestInit) =>
+    new Request(`http://localhost${url}`, {
+      headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
+      ...init,
+    });
+  const params = (id: string) => ({ params: Promise.resolve({ id }) });
+
+  /** A fresh account each test, so destructive cases stay independent. */
+  async function makeAccount(fields: Record<string, unknown> = {}): Promise<string> {
+    const id = newId();
+    await withWorkspace(wsA, async () => {
+      await db.insert(tables.syncAccounts).values({
+        id,
+        provider: "ics",
+        email: "me@myco.com",
+        label: "Original",
+        config: JSON.stringify({ url: "https://cal.example.com/feed.ics" }),
+        createdAt: Date.now(),
+        ...fields,
+      });
+    });
+    return id;
+  }
+
+  async function seedKey(ws: string, token: string, role: string) {
+    await db.insert(tables.apiKeys).values({
+      id: newId(),
+      workspaceId: ws,
+      name: "t",
+      prefix: token.slice(0, 8),
+      keyHash: sha256(token),
+      role,
+      createdAt: Date.now(),
+    });
+  }
+
+  beforeAll(async () => {
+    await resetDb();
+    ({ db, tables, withWorkspace } = await import("@/db"));
+    ({ sha256 } = await import("@/lib/auth"));
+    ({ newId } = await import("@/lib/id"));
+    accounts = await import("@/app/api/sync/accounts/route");
+    account = await import("@/app/api/sync/accounts/[id]/route");
+
+    wsA = await createWorkspace();
+    const wsB = await createWorkspace();
+    await seedKey(wsA, TOKEN_ADMIN, "admin");
+    await seedKey(wsA, TOKEN_VIEWER, "viewer");
+    await seedKey(wsB, TOKEN_OTHER, "admin");
+  });
+
+  it("renames an account and reports the new label", async () => {
+    const id = await makeAccount();
+    const res = await account.PATCH(
+      req(`/api/sync/accounts/${id}`, TOKEN_ADMIN, {
+        method: "PATCH",
+        body: JSON.stringify({ label: "Team calendar" }),
+      }),
+      params(id),
+    );
+    expect(res.status).toBe(200);
+    expect((await res.json()).account.label).toBe("Team calendar");
+  });
+
+  it("pauses and resumes an account", async () => {
+    const id = await makeAccount();
+    const paused = await account.PATCH(
+      req(`/api/sync/accounts/${id}`, TOKEN_ADMIN, { method: "PATCH", body: JSON.stringify({ status: "paused" }) }),
+      params(id),
+    );
+    expect((await paused.json()).account.status).toBe("paused");
+
+    const resumed = await account.PATCH(
+      req(`/api/sync/accounts/${id}`, TOKEN_ADMIN, { method: "PATCH", body: JSON.stringify({ status: "active" }) }),
+      params(id),
+    );
+    expect((await resumed.json()).account.status).toBe("active");
+  });
+
+  it("refuses to let a client claim the account is in error", async () => {
+    // `error` is set by the sync run when a pull actually fails. Letting a client
+    // set it would let the UI lie about the health of the integration.
+    const id = await makeAccount();
+    const res = await account.PATCH(
+      req(`/api/sync/accounts/${id}`, TOKEN_ADMIN, { method: "PATCH", body: JSON.stringify({ status: "error" }) }),
+      params(id),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("never returns config secrets when updating", async () => {
+    const id = await makeAccount({ config: JSON.stringify({ host: "imap.myco.com", password: "secret", refreshToken: "r1" }) });
+    const res = await account.PATCH(
+      req(`/api/sync/accounts/${id}`, TOKEN_ADMIN, { method: "PATCH", body: JSON.stringify({ label: "x" }) }),
+      params(id),
+    );
+    const body = (await res.json()).account;
+    expect(body.config.host).toBe("imap.myco.com");
+    expect(body.config.password).toBeUndefined();
+    expect(body.config.refreshToken).toBeUndefined();
+    expect(body.connected).toBe(true);
+  });
+
+  it("deletes an account and the mail it had filed against it", async () => {
+    const id = await makeAccount();
+    await withWorkspace(wsA, async () => {
+      await db.insert(tables.emailMessages).values({
+        id: newId(), accountId: id, messageId: "m@example.com", toAddrs: "[]", createdAt: Date.now(),
+      });
+      await db.insert(tables.calendarEvents).values({
+        id: newId(), accountId: id, uid: "e@example.com", attendees: "[]", createdAt: Date.now(),
+      });
+    });
+
+    const res = await account.DELETE(
+      req(`/api/sync/accounts/${id}`, TOKEN_ADMIN, { method: "DELETE" }),
+      params(id),
+    );
+    expect(res.status).toBe(200);
+
+    const list = await accounts.GET(req("/api/sync/accounts", TOKEN_ADMIN));
+    expect((await list.json()).accounts.map((a: { id: string }) => a.id)).not.toContain(id);
+
+    // The dedup ledger is keyed by account, so it is dead weight once the account
+    // is gone — drop it rather than leave rows pointing at an id that no longer
+    // resolves. Contact timeline activities are keyed to the contact and stay.
+    await withWorkspace(wsA, async () => {
+      const msgs = (await db.select().from(tables.emailMessages)).filter((m) => m.accountId === id);
+      const events = (await db.select().from(tables.calendarEvents)).filter((e) => e.accountId === id);
+      expect(msgs).toHaveLength(0);
+      expect(events).toHaveLength(0);
+    });
+  });
+
+  it("records who changed and who removed an account", async () => {
+    const id = await makeAccount();
+    await account.PATCH(
+      req(`/api/sync/accounts/${id}`, TOKEN_ADMIN, { method: "PATCH", body: JSON.stringify({ label: "audited" }) }),
+      params(id),
+    );
+    await account.DELETE(req(`/api/sync/accounts/${id}`, TOKEN_ADMIN, { method: "DELETE" }), params(id));
+
+    await withWorkspace(wsA, async () => {
+      const keys = (await db.select().from(tables.auditLog))
+        .filter((a) => a.objectId === id)
+        .map((a) => a.action);
+      expect(keys).toContain("sync_account.updated");
+      expect(keys).toContain("sync_account.deleted");
+    });
+  });
+
+  it("404s on an account that does not exist", async () => {
+    const missing = newId();
+    const patched = await account.PATCH(
+      req(`/api/sync/accounts/${missing}`, TOKEN_ADMIN, { method: "PATCH", body: JSON.stringify({ label: "x" }) }),
+      params(missing),
+    );
+    expect(patched.status).toBe(404);
+    const deleted = await account.DELETE(
+      req(`/api/sync/accounts/${missing}`, TOKEN_ADMIN, { method: "DELETE" }),
+      params(missing),
+    );
+    expect(deleted.status).toBe(404);
+  });
+
+  it("denies a viewer both writes", async () => {
+    const id = await makeAccount();
+    const patched = await account.PATCH(
+      req(`/api/sync/accounts/${id}`, TOKEN_VIEWER, { method: "PATCH", body: JSON.stringify({ label: "x" }) }),
+      params(id),
+    );
+    expect(patched.status).toBe(403);
+    const deleted = await account.DELETE(
+      req(`/api/sync/accounts/${id}`, TOKEN_VIEWER, { method: "DELETE" }),
+      params(id),
+    );
+    expect(deleted.status).toBe(403);
+  });
+
+  it("hides another workspace's account from both writes (RLS)", async () => {
+    const id = await makeAccount();
+    const patched = await account.PATCH(
+      req(`/api/sync/accounts/${id}`, TOKEN_OTHER, { method: "PATCH", body: JSON.stringify({ label: "x" }) }),
+      params(id),
+    );
+    expect(patched.status).toBe(404);
+    const deleted = await account.DELETE(
+      req(`/api/sync/accounts/${id}`, TOKEN_OTHER, { method: "DELETE" }),
+      params(id),
+    );
+    expect(deleted.status).toBe(404);
+
+    // Still there for its owner.
+    const list = await accounts.GET(req("/api/sync/accounts", TOKEN_ADMIN));
+    expect((await list.json()).accounts.map((a: { id: string }) => a.id)).toContain(id);
+  });
+});
