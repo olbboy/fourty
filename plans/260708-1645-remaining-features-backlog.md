@@ -23,7 +23,7 @@ Gaps vs Twenty 2.0, most-actionable framing. Impact/effort are rough.
 | 7 | Typed TS SDK on npm | Only typed clients inside `@fourty/twenty-migrate`; no general dev SDK | M |
 | 8 | Calendar-over-OAuth | Mail OAuth done; provider calendar APIs return JSON → need JSON→event adapter (ICS feed covers it today) | M |
 | 9 | IMAP transport | `imap` provider enum exists, no fetch; only Gmail/Graph OAuth built | M |
-| 10 | GraphQL mutations for deals/tasks/notes | Currently read-only via GraphQL, writes go through REST (side effects live there) | M |
+| 10 | GraphQL mutations for deals/tasks/notes | Currently read-only via GraphQL, writes go through REST (side effects live there). Contacts now define each operation once (`src/lib/actions/contacts/`) and all three APIs call it, so adding a GraphQL mutation for these is a resolver line rather than a third copy of the side effects — see [ADR-017](../docs/adr/017-action-registry.md) | M |
 | 11 | Admin UI for SSO + mailbox connect | Backend/routes exist (SSO CRUD, `…/connect`), but no Settings page to drive them — API-only | M |
 | 12 | Zero-downtime migration | Expand→contract + k6 drill only authored, not a full guarantee | M |
 | 13 | Virtualized list for large datasets | Not verified, likely absent (PARITY 📏) | S |

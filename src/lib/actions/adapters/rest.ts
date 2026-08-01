@@ -1,5 +1,6 @@
 import { withAuth, json, apiError } from "@/lib/api";
 import { execute } from "../execute";
+import { recordBinding } from "../registry";
 import { ActionError, type ActionDef } from "../types";
 
 const STATUS: Record<ActionError["kind"], number> = {
@@ -22,6 +23,7 @@ export function toRouteHandler<I, O>(
   action: ActionDef<I, O>,
   opts: { status?: number; body?: (out: unknown) => unknown } = {},
 ) {
+  recordBinding("rest", action.name);
   return (req: Request, route?: RouteParams): Promise<Response> =>
     withAuth(req, async (auth) => {
       let input: Record<string, unknown>;
