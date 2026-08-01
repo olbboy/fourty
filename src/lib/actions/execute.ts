@@ -47,7 +47,10 @@ export async function execute<I, O>(
 
   const parsed = action.input.safeParse(rawInput);
   if (!parsed.success) {
-    throw new ActionError("invalid", parsed.error.issues[0].message);
+    // "firstName: Required" — naming the field is what makes the message useful,
+    // and it is the wording the REST and GraphQL handlers already return.
+    const issue = parsed.error.issues[0];
+    throw new ActionError("invalid", `${issue.path.join(".") || "input"}: ${issue.message}`);
   }
   const input = parsed.data;
 

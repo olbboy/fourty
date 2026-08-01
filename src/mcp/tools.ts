@@ -6,6 +6,8 @@ import { loadFieldPolicy, redact, blockedWrites, type FieldPolicy } from "@/lib/
 import { audit } from "@/lib/audit";
 import { logActivity } from "@/lib/activity";
 import { changedKeys } from "@/lib/changed-fields";
+import { toMcpTool } from "@/lib/actions/adapters/mcp";
+import { contactsCreate } from "@/lib/actions/contacts/create";
 import { recomputeContactScore } from "@/lib/services/contact-score";
 import { recomputeDealScore } from "@/lib/services/deal-score";
 import {
@@ -143,48 +145,7 @@ export const TOOLS: Tool[] = [
       return rows.map((r) => redact(policy, "contacts", { ...r, custom: JSON.parse(r.custom) }));
     },
   },
-  {
-    name: "create_contact",
-    mutates: true,
-    description: "Create a contact. Requires firstName; email/phone/jobTitle/companyId/status optional.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        firstName: { type: "string" },
-        lastName: { type: "string" },
-        email: { type: "string" },
-        phone: { type: "string" },
-        jobTitle: { type: "string" },
-        companyId: { type: "string" },
-        status: { type: "string", enum: ["lead", "qualified", "customer", "churned"] },
-      },
-      required: ["firstName"],
-    },
-    handler: async (args, ctx) => {
-      requireRole(ctx, "contacts", "create");
-      const policy = await requireWritableFields(ctx, "contacts", args);
-      const parsed = contactInput.safeParse(args);
-      if (!parsed.success) throw new ToolError(parsed.error.issues[0].message);
-      const now = Date.now();
-      const id = newId();
-      const { custom, ...fields } = parsed.data;
-      await db.insert(tables.contacts).values({
-        id,
-        ...fields,
-        ownerId: ctx.userId,
-        custom: JSON.stringify(custom ?? {}),
-        createdAt: now,
-        updatedAt: now,
-      });
-      await logActivity({ type: "created", entityType: "contact", entityId: id, actorId: ctx.userId });
-      await audit(ctx.userId, "contact.created", { objectType: "contact", objectId: id, meta: { via: ctx.via ?? "mcp" } });
-      await recomputeContactScore(id);
-      const row = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0]!;
-      // Workflows see the full snapshot; the caller sees a redacted row.
-      await dispatchEvent({ event: "contact.created", entityType: "contact", entityId: id, snapshot: { ...row, custom: undefined } });
-      return redact(policy, "contacts", { ...row, custom: JSON.parse(row.custom) });
-    },
-  },
+  toMcpTool(contactsCreate, { name: "create_contact" }),
   {
     name: "list_companies",
     mutates: false,

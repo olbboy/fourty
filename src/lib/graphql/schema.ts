@@ -21,6 +21,8 @@ import { loadFieldPolicy, redact, blockedWrites, type FieldPolicy } from "@/lib/
 import { audit } from "@/lib/audit";
 import { logActivity } from "@/lib/activity";
 import { changedKeys } from "@/lib/changed-fields";
+import { toResolver } from "@/lib/actions/adapters/graphql";
+import { contactsCreate } from "@/lib/actions/contacts/create";
 import { dispatchEvent } from "@/lib/workflows/engine";
 import { recomputeContactScore } from "@/lib/services/contact-score";
 import { contactInput, contactPatch, companyInput, companyPatch } from "@/lib/validators";
@@ -121,6 +123,14 @@ async function guardWrites(ctx: GqlContext, object: string, input: unknown): Pro
 }
 
 // Common column set for the polymorphic types.
+/**
+ * The `custom` blob reaches this layer either as the raw column text or already
+ * parsed, depending on whether the field came straight off a query or through
+ * an action. Both mean the same value.
+ */
+const parseCustom = (custom: unknown): Record<string, unknown> =>
+  typeof custom === "string" ? JSON.parse(custom || "{}") : ((custom ?? {}) as Record<string, unknown>);
+
 const S = GraphQLString;
 const timestamps = {
   id: { type: new GraphQLNonNull(GraphQLID) },
@@ -144,7 +154,7 @@ const Contact = new GraphQLObjectType({
     linkedin: { type: S },
     city: { type: S },
     country: { type: S },
-    custom: { type: JSONScalar, resolve: (r) => JSON.parse(r.custom ?? "{}") },
+    custom: { type: JSONScalar, resolve: (r) => parseCustom(r.custom) },
   },
 });
 
@@ -393,29 +403,7 @@ const mutationFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
   createContact: {
     type: new GraphQLNonNull(Contact),
     args: { input: { type: new GraphQLNonNull(JSONScalar) } },
-    resolve: async (_r, { input }, ctx) => {
-      requireRbac(ctx, "contacts", "create");
-      await guardWrites(ctx, "contacts", input);
-      const data = zparse(contactInput, input);
-      const now = Date.now();
-      const id = newId();
-      const { custom, ...fields } = data;
-      await db.insert(tables.contacts).values({
-        id,
-        ...fields,
-        ownerId: ctx.auth.user?.id ?? null,
-        custom: JSON.stringify(custom ?? {}),
-        createdAt: now,
-        updatedAt: now,
-      });
-      await logActivity({ type: "created", entityType: "contact", entityId: id, actorId: ctx.auth.user?.id });
-      await audit(ctx.auth.user?.id, "contact.created", { objectType: "contact", objectId: id });
-      await recomputeContactScore(id);
-      const row = await byId(tables.contacts, id);
-      // Workflows see the full snapshot; the API caller sees a redacted row.
-      await dispatchEvent({ event: "contact.created", entityType: "contact", entityId: id, snapshot: { ...row, custom: undefined } });
-      return redactRow(ctx, "contacts", row);
-    },
+    resolve: toResolver(contactsCreate),
   },
   updateContact: {
     type: new GraphQLNonNull(Contact),
