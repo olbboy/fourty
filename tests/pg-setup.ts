@@ -14,6 +14,14 @@ import { runMigrations } from "@/db/migrate";
 const OWNER_DSN =
   process.env.MIGRATE_DATABASE_URL ?? "postgresql://fourty:fourty@localhost:5432/fourty_test";
 
+// resetDb() truncates every table it finds, so it refuses to connect to a
+// database whose name does not mark it as disposable. Set TEST_DATABASE_URL and
+// TEST_MIGRATE_DATABASE_URL (see vitest.config.ts) to point the suite elsewhere.
+const dbName = new URL(OWNER_DSN).pathname.replace(/^\//, "");
+if (!/test/i.test(dbName)) {
+  throw new Error(`Refusing to truncate database "${dbName}" — expected a test database`);
+}
+
 let migrated = false;
 
 export async function resetDb(): Promise<void> {

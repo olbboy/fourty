@@ -17,10 +17,15 @@ export default defineConfig({
     env: {
       // App/query pool connects as the RLS-subject app role; migrations +
       // truncation use the owner role. Both target the dedicated test database.
+      //
+      // Overridden through TEST_-prefixed variables, deliberately not through
+      // DATABASE_URL: the suite truncates everything it connects to, and a
+      // DATABASE_URL exported for local development would otherwise silently
+      // redirect it at a real database.
       DATABASE_URL:
-        process.env.DATABASE_URL ?? "postgresql://fourty_app:fourty_app@localhost:5432/fourty_test",
+        process.env.TEST_DATABASE_URL ?? "postgresql://fourty_app:fourty_app@localhost:5432/fourty_test",
       MIGRATE_DATABASE_URL:
-        process.env.MIGRATE_DATABASE_URL ?? "postgresql://fourty:fourty@localhost:5432/fourty_test",
+        process.env.TEST_MIGRATE_DATABASE_URL ?? "postgresql://fourty:fourty@localhost:5432/fourty_test",
       NODE_ENV: "test",
     },
   },

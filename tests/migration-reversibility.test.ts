@@ -14,8 +14,23 @@ import { createHash } from "node:crypto";
  *
  * Runs on the dedicated `fourty_revtest` database (owner role) so it never
  * disturbs the migrator state of the shared test database.
+ *
+ * Point `REVTEST_DATABASE_URL` elsewhere when the default port is taken. The
+ * name guard below is the real protection: this test drops every table it
+ * finds, so it refuses to run against anything not named as a test database.
  */
-const DSN = "postgresql://fourty:fourty@localhost:5432/fourty_revtest";
+const DSN =
+  process.env.REVTEST_DATABASE_URL ?? "postgresql://fourty:fourty@localhost:5432/fourty_revtest";
+
+assertTestDatabase(DSN);
+
+/** Refuse to touch a database whose name does not mark it as disposable. */
+function assertTestDatabase(dsn: string): void {
+  const name = new URL(dsn).pathname.replace(/^\//, "");
+  if (!/test/i.test(name)) {
+    throw new Error(`Refusing to run destructive migration tests against database "${name}" — expected a test database`);
+  }
+}
 
 const UP = [
   "drizzle/0000_init.sql",

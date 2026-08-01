@@ -35,6 +35,21 @@ See [Upgrading & migrations](../self-hosting/upgrading.md).
 | `npm run db:e2e:reset` | Reset the E2E database between runs. |
 | `npm run lint` | Lint with `next lint`. |
 
+The suite defaults to `fourty_test` and `fourty_revtest` on `localhost:5432`. Point
+it elsewhere — a different port, say, when 5432 is already taken — with these,
+**not** with `DATABASE_URL`:
+
+| Variable | Used by |
+|---|---|
+| `TEST_DATABASE_URL` | The app/query pool (`fourty_app` role, RLS-subject). |
+| `TEST_MIGRATE_DATABASE_URL` | Migrations and truncation (owner role). |
+| `REVTEST_DATABASE_URL` | The migration-reversibility test's own database. |
+
+They are deliberately separate from `DATABASE_URL`: the suite truncates
+everything it connects to, so a `DATABASE_URL` exported for local development
+must never be able to redirect it. Each connection is also refused unless the
+database name contains `test`.
+
 ## Operations
 
 | Command | What it does |
