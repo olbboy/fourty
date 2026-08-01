@@ -81,6 +81,25 @@ describe("GraphQL API (real handler + Postgres + RLS)", () => {
     expect(listed.body.data.contacts.some((x: { email: string }) => x.email === "ada@analytical.engine")).toBe(true);
   });
 
+  it("searches contacts over the same fields the REST list searches", async () => {
+    // Searching only by first name made the GraphQL list quietly less useful
+    // than the REST one: a lookup by surname, email, or job title found nothing.
+    await run(ADMIN_A, `mutation ($i: JSON!) { createContact(input: $i) { id } }`, {
+      i: { firstName: "Grace", lastName: "Hopper", email: "grace@navy.mil", jobTitle: "Rear Admiral" },
+    });
+    const found = async (q: string) =>
+      (await run(ADMIN_A, `query ($q: String) { contacts(q: $q) { lastName } }`, { q })).body.data.contacts.map(
+        (c: { lastName: string }) => c.lastName,
+      );
+
+    expect(await found("Grace")).toContain("Hopper");
+    expect(await found("Hopper")).toContain("Hopper");
+    expect(await found("navy.mil")).toContain("Hopper");
+    expect(await found("Admiral")).toContain("Hopper");
+    expect(await found("  Hopper  ")).toContain("Hopper");
+    expect(await found("nobody-by-this-name")).not.toContain("Hopper");
+  });
+
   it("denies a viewer key from mutating (RBAC in resolver)", async () => {
     const res = await run(VIEWER_A, `mutation ($i: JSON!) { createContact(input: $i) { id } }`, {
       i: { firstName: "Nope" },

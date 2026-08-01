@@ -17,6 +17,11 @@ All notable changes to Fourty are documented here. This project adheres to
 
 ### Fixed
 
+- **Searching contacts over GraphQL now looks at the same fields as the REST
+  API.** `contacts(q:)` only matched a contact's first name, so a search by
+  surname, email address, or job title returned nothing — the REST list has
+  always matched all of those. Surrounding whitespace in the search term is now
+  ignored too, again matching REST.
 - **Activity timeline and audit entries no longer depend on which API you used.**
   Creating or updating a company through GraphQL or MCP now appears on the
   activity timeline, updates record which fields changed, and an update that

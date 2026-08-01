@@ -13,7 +13,7 @@ import {
   Kind,
   type GraphQLFieldConfigMap,
 } from "graphql";
-import { and, desc, eq, ilike, type SQL } from "drizzle-orm";
+import { and, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { newId } from "@/lib/id";
 import { can } from "@/lib/permissions";
@@ -239,6 +239,22 @@ async function listCore(table: any, where: SQL | undefined, limit: number): Prom
   return db.select().from(table).where(where).orderBy(desc(table.updatedAt)).limit(Math.min(limit, 500));
 }
 
+/**
+ * Free-text contact filter, matching what the REST list searches: full name,
+ * email, and job title. Kept identical on purpose — a search that finds a
+ * contact through one API and not another is a bug, not a feature of the API.
+ */
+function contactSearch(q: string | undefined): SQL | undefined {
+  const term = q?.trim();
+  if (!term) return undefined;
+  const pattern = `%${term.replace(/[%_]/g, "")}%`;
+  return or(
+    ilike(sql`${tables.contacts.firstName} || ' ' || ${tables.contacts.lastName}`, pattern),
+    ilike(tables.contacts.email, pattern),
+    ilike(tables.contacts.jobTitle, pattern),
+  );
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function byId(table: any, id: string): Promise<any> {
   return (await db.select().from(table).where(eq(table.id, id)).limit(1))[0];
@@ -258,15 +274,7 @@ const queryFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
     args: { limit: { type: GraphQLInt }, q: { type: GraphQLString } },
     resolve: async (_r, { limit, q }, ctx) => {
       requireRbac(ctx, "contacts", "read");
-      const where = q
-        ? ilike(
-            // first || ' ' || last
-            // reuse contacts name search
-            tables.contacts.firstName,
-            `%${String(q).replace(/[%_]/g, "")}%`,
-          )
-        : undefined;
-      const rows = await listCore(tables.contacts, where, limit ?? 200);
+      const rows = await listCore(tables.contacts, contactSearch(q as string | undefined), limit ?? 200);
       const policy = await fieldPolicy(ctx);
       return rows.map((r) => redact(policy, "contacts", r));
     },
