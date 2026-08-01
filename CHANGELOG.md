@@ -27,6 +27,11 @@ All notable changes to Fourty are documented here. This project adheres to
 - **Asking a contact list for `limit=0` now returns the default page** over the
   GraphQL and MCP APIs, instead of an empty list; the REST list has always
   behaved this way, and the three now agree.
+- **Listing contacts over MCP now matches job title as well as name and email.**
+  The `list_contacts` tool searched only names and email addresses, so an agent
+  looking for "Rear Admiral" found nobody while the same search over REST found
+  them. All three APIs now search the same three fields. The page size and its
+  200-row ceiling are unchanged.
 
 ### Fixed
 

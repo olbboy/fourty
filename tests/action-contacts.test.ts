@@ -135,6 +135,24 @@ describe("contact actions across every surface", () => {
     expect(await callTool("list_contacts", { query: term })).toEqual([]);
   });
 
+  it("finds a contact by job title from every surface", async () => {
+    // The REST list has always matched job title; GraphQL and MCP matched only
+    // name and email, so the same search found different people depending on
+    // which API asked. All three now match the same three fields.
+    await callTool("create_contact", { firstName: "Grace", lastName: "Hopper", jobTitle: "Rear Admiral" });
+
+    const rest = await contactRoutes.GET(new Request("http://localhost/api/contacts?q=Admiral", { headers }));
+    expect((await rest.json()).contacts.map((c: { lastName: string }) => c.lastName)).toContain("Hopper");
+
+    const graphql = (await runGql(`query($q: String) { contacts(q: $q) { lastName } }`, { q: "Admiral" })) as {
+      contacts: { lastName: string }[];
+    };
+    expect(graphql.contacts.map((c) => c.lastName)).toContain("Hopper");
+
+    const mcp = (await callTool("list_contacts", { query: "Admiral" })) as { lastName: string }[];
+    expect(mcp.map((c) => c.lastName)).toContain("Hopper");
+  });
+
   // ── each surface keeps its own ceiling ────────────────────────────────────
 
   it("holds an MCP contact list to 200 rows however many are asked for", async () => {
