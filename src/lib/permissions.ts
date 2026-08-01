@@ -9,7 +9,8 @@
  * truth for `authorize()` in src/lib/api.ts.
  */
 
-export type Role = "admin" | "member" | "viewer";
+export const ROLES = ["admin", "member", "viewer"] as const;
+export type Role = (typeof ROLES)[number];
 export type Action = "read" | "create" | "update" | "delete";
 
 // CRM objects: members read+write, viewers read-only. Names match the API route

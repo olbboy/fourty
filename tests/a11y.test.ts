@@ -6,6 +6,8 @@ import path from "node:path";
 import { Modal, Field } from "@/components/ui";
 import { IconDashboard } from "@/components/icons";
 import { SavedViewsBar } from "@/components/saved-views";
+import { SsoSection } from "@/app/(app)/settings/sections/sso";
+import { MailboxSection } from "@/app/(app)/settings/sections/mailbox";
 
 /**
  * Accessibility guarantees (Gate C5). Two layers: render the reusable primitives
@@ -52,6 +54,27 @@ describe("rendered a11y attributes", () => {
     );
     expect(html).toContain('role="toolbar"');
     expect(html).toContain("aria-pressed");
+  });
+});
+
+/**
+ * The settings panels for SSO and mailboxes are the only screens driving those
+ * two features, and no end-to-end spec visits /settings — so without this a crash
+ * on render would reach a release with a green suite behind it. Rendering to
+ * static markup runs no effects, so neither panel fetches; both show their
+ * loading state, which is exactly the first frame a user sees.
+ */
+describe("settings panels render", () => {
+  it("the SSO panel renders while its providers are still loading", () => {
+    const html = renderToStaticMarkup(createElement(SsoSection));
+    expect(html).toContain("Single sign-on");
+    expect(html).toContain("Add provider");
+  });
+
+  it("the mailbox panel renders while its accounts are still loading", () => {
+    const html = renderToStaticMarkup(createElement(MailboxSection));
+    expect(html).toContain("Mailboxes");
+    expect(html).toContain("Add mailbox");
   });
 });
 
