@@ -75,6 +75,10 @@ unset to keep a provider disabled (ICS + push ingestion still work). See
 | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | Gmail mailbox OAuth. |
 | `MICROSOFT_OAUTH_CLIENT_ID` / `MICROSOFT_OAUTH_CLIENT_SECRET` | Microsoft Graph mailbox OAuth. |
 
+Once the instance credentials are set, individual mailboxes are added and connected
+from **Settings → Mailboxes & calendars**, which also runs a pull on demand, pauses a
+mailbox, and disconnects one.
+
 ## AI assistant
 
 The optional in-app chat ([ADR-015](../adr/015-ai-agent-chat.md)). **Disabled entirely

@@ -51,7 +51,9 @@ response headers and `429` on exceed. Limits are tunable
 - **2FA** — TOTP + backup codes ([ADR-012](../adr/012-two-factor-auth.md)).
 - **Signed webhooks** — per-workspace HMAC-SHA256 ([ADR-013](../adr/013-webhook-signatures.md)).
 - **SSO** — OIDC Authorization Code + PKCE, real JWKS/RS256 verification, JIT
-  provisioning ([ADR-014](../adr/014-sso-oidc.md)).
+  provisioning ([ADR-014](../adr/014-sso-oidc.md)). Providers are managed from
+  **Settings → Single sign-on** (admins only); the client secret is write-only —
+  the API reports whether one is set and never returns it.
 - **SSRF protection** — workflow webhooks can't reach private/loopback addresses unless
   you explicitly opt in.
 - **Secure cookies** — enforced unless `FOURTY_INSECURE_COOKIE=1` (demo only).
