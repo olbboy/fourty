@@ -76,19 +76,28 @@ export function SsoSection() {
     }
   }
 
+  /** Surface why a write was refused; silence would read as success. */
+  async function report(res: Response, fallback: string) {
+    if (!res.ok) setError((await res.json().catch(() => ({}))).error ?? fallback);
+  }
+
   async function toggle(c: SsoConnection) {
-    await fetch(`/api/sso/connections/${c.id}`, {
+    setError(null);
+    const res = await fetch(`/api/sso/connections/${c.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ enabled: !c.enabled }),
     });
+    await report(res, c.enabled ? "Failed to disable provider" : "Failed to enable provider");
     load();
   }
 
   async function remove(c: SsoConnection) {
     if (!confirm(`Delete "${c.label}"? Anyone who signs in through this provider loses access immediately.`))
       return;
-    await fetch(`/api/sso/connections/${c.id}`, { method: "DELETE" });
+    setError(null);
+    const res = await fetch(`/api/sso/connections/${c.id}`, { method: "DELETE" });
+    await report(res, "Failed to delete provider");
     load();
   }
 
@@ -110,6 +119,8 @@ export function SsoSection() {
           <IconPlus width={15} height={15} /> Add provider
         </button>
       </div>
+      {/* Failures from the row buttons land here; the form has its own copy. */}
+      {error && editing === null && <p className="mb-3 text-sm text-red-500">{error}</p>}
       {!connections ? (
         <Spinner />
       ) : connections.length === 0 ? (
