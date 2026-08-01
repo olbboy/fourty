@@ -18,8 +18,8 @@ const OWNER_DSN =
 // database whose name does not mark it as disposable. Set TEST_DATABASE_URL and
 // TEST_MIGRATE_DATABASE_URL (see vitest.config.ts) to point the suite elsewhere.
 const dbName = new URL(OWNER_DSN).pathname.replace(/^\//, "");
-if (!/test/i.test(dbName)) {
-  throw new Error(`Refusing to truncate database "${dbName}" — expected a test database`);
+if (!/(test|e2e)/i.test(dbName)) {
+  throw new Error(`Refusing to truncate database "${dbName}" — expected a test or e2e database`);
 }
 
 let migrated = false;
