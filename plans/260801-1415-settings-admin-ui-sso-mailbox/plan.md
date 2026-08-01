@@ -1,7 +1,7 @@
 ---
 title: "Settings admin UI cho SSO + mailbox"
 description: "Backlog #11: SSO connections và sync accounts đã có backend nhưng chỉ dùng được qua API. Bổ sung vòng đời còn thiếu của sync account (DELETE/PATCH) rồi dựng hai section Settings điều khiển chúng."
-status: pending
+status: completed
 priority: P2
 branch: "main"
 tags: [ui, settings, sso, sync, backlog-11]
@@ -32,9 +32,9 @@ cái để điều khiển.
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 1 | [Sync account lifecycle API](./phase-01-sync-account-lifecycle-api.md) | Pending |
-| 2 | [SSO settings section](./phase-02-sso-settings-section.md) | Pending |
-| 3 | [Mailbox settings section](./phase-03-mailbox-settings-section.md) | Pending |
+| 1 | [Sync account lifecycle API](./phase-01-sync-account-lifecycle-api.md) | Completed |
+| 2 | [SSO settings section](./phase-02-sso-settings-section.md) | Completed |
+| 3 | [Mailbox settings section](./phase-03-mailbox-settings-section.md) | Completed |
 
 **Thứ tự bắt buộc:** 1 → 3. Phase 2 độc lập (SSO backend đã đủ), có thể làm
 song song với 1, nhưng ship tuần tự cho commit sạch.
@@ -102,23 +102,79 @@ phải **đỏ** → khôi phục. Guard không được kiểm chứng là guar
 
 ## Acceptance criteria (toàn plan)
 
-- [ ] `DELETE /api/sync/accounts/[id]` gỡ account, trả 404 khi không tồn tại,
+- [x] `DELETE /api/sync/accounts/[id]` gỡ account, trả 404 khi không tồn tại,
       ghi audit, chặn bằng `sync:delete`
-- [ ] `PATCH /api/sync/accounts/[id]` sửa được `label` và `status`
+- [x] `PATCH /api/sync/accounts/[id]` sửa được `label` và `status`
       (`active`/`paused`), trả 404 khi không tồn tại, ghi audit, chặn bằng
       `sync:update`
-- [ ] `tests/api-auth.test.ts` **nhìn thấy** route mới — đã kiểm chứng bằng cách
+- [x] `tests/api-auth.test.ts` **nhìn thấy** route mới — đã kiểm chứng bằng cách
       cố ý làm đỏ
-- [ ] Settings có section SSO: liệt kê, tạo, sửa, xoay secret, bật/tắt, xoá;
+- [x] Settings có section SSO: liệt kê, tạo, sửa, xoay secret, bật/tắt, xoá;
       ẩn hoàn toàn với non-admin (403 → không render, như `MembersSection`)
-- [ ] Settings có section Mailbox: liệt kê + trạng thái, thêm account, nối OAuth
+- [x] Settings có section Mailbox: liệt kê + trạng thái, thêm account, nối OAuth
       qua điều hướng trình duyệt, "Sync now", pause/resume, gỡ
-- [ ] `clientSecret` và mọi secret của `config` không xuất hiện trong bất kỳ
+- [x] `clientSecret` và mọi secret của `config` không xuất hiện trong bất kỳ
       response nào UI gọi
-- [ ] Toàn bộ test hiện có pass **không chỉnh sửa** (test mới thì được thêm)
-- [ ] `npx tsc --noEmit` + `npm run build` xanh
-- [ ] `git diff --stat package.json` rỗng
-- [ ] Backlog #11 chuyển sang shipped kèm dẫn chứng
+- [x] Toàn bộ test hiện có pass **không chỉnh sửa** (test mới thì được thêm)
+- [x] `npx tsc --noEmit` + `npm run build` xanh
+- [x] `git diff --stat package.json` rỗng
+- [x] Backlog #11 chuyển sang shipped kèm dẫn chứng
+
+## Kết quả thực đo
+
+| Kiểm | Kết quả |
+|---|---|
+| Test suite | 406 pass / 2 skip (từ 401/2) — **+5 test, 0 test cũ bị sửa** |
+| e2e Playwright | 5/5 |
+| `npx tsc --noEmit` | sạch |
+| `npm run build` | xanh — **gián tiếp**: webServer của Playwright chạy `next build` rồi boot thành công. Gọi trực tiếp bị hook `scout-block.cjs` của máy dev chặn (pattern `build`), không phải lỗi repo. |
+| `package.json` | không đổi |
+| Dependency mới | 0 |
+
+### Số dòng
+
+| File | Trước | Sau |
+|---|---|---|
+| `settings-client.tsx` | 493 | 57 (chỉ compose) |
+| `sections/sso.tsx` (mới) | 0 | 224 |
+| `sections/mailbox.tsx` (mới) | 0 | 240 |
+| `sections/{members,api-keys,custom-fields,language}.tsx` | 0 | 555 (di chuyển nguyên vẹn) |
+| `api/sync/accounts/[id]/route.ts` (mới) | 0 | 83 |
+| `lib/sync/account-view.ts` (mới) | 0 | 20 |
+
+Tách file diễn ra ở **commit riêng sau** commit tính năng, theo nguyên tắc
+ADR-017 đặt ra: đổi hành vi và đổi cấu trúc không nằm chung một commit. Code
+reviewer xác nhận bốn panel di chuyển là **byte-identical** ngoài từ khoá
+`export`.
+
+### Ba điều rủi ro cao — đã kiểm chứng, không chỉ khai báo
+
+1. **Guard `api-auth` thấy route mới** — gỡ `authorize()` → đỏ, nêu đúng
+   `sync/accounts/[id]` → khôi phục → xanh. (Chi phí #1 của ADR-017.)
+2. **Smoke render bắt được crash** — cố ý làm hỏng `MailboxSection` → chỉ đúng
+   test đó đỏ → khôi phục. Cần thiết vì **không e2e spec nào ghé `/settings`**,
+   nên crash ở đây sẽ ship sau một suite xanh.
+3. **Empty secret không xoá secret cũ** — khoá bằng test
+   `leaves the secret alone when an update omits it` (`tests/sso.test.ts`).
+
+### Quyết định đã chốt trong lúc làm
+
+- **DELETE cascade `emailMessages` + `calendarEvents`.** Hai bảng không có
+  reader nào trong `src/` (chỉ ingest ghi), dedup key gồm `accountId` nên vô
+  dụng sau khi account biến mất. `activities` khoá theo contact → **không đụng**,
+  timeline người dùng còn nguyên. Reviewer verify độc lập là an toàn.
+- **`imap` giữ trong dropdown, ghi nhãn "receive only", ẩn nút Sync now.**
+  `runMailSync` chỉ nhận google/microsoft; nhánh còn lại đòi `ics` + `url`. Nó
+  vẫn nhận thư đẩy qua `/ingest` nên là lựa chọn thật, chỉ không kéo được.
+- **`ROLES` chuyển vào `src/lib/permissions.ts`**, `Role` derive từ nó — file đó
+  đã giữ type tương ứng và đã dùng đúng pattern này cho `CRM_OBJECTS`.
+
+### Code review
+
+[Báo cáo](../reports/code-reviewer-260801-1859-settings-sso-mailbox-ui-report.md) —
+0 Critical, 0 High. Một Medium đã sửa (`e851e77`): pause/resume, enable/disable
+và delete nuốt lỗi im lặng, trái tiêu chí "nút ghi trả 403 thì hiện lỗi" của
+Phase 3. Panel SSO còn thiếu chỗ hiển thị lỗi ngoài Modal — đã thêm.
 
 ## Dependencies
 

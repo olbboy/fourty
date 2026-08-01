@@ -1,7 +1,7 @@
 ---
 phase: 2
 title: "SSO settings section"
-status: pending
+status: completed
 priority: P2
 effort: "M"
 dependencies: []
