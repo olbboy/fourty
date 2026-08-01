@@ -108,6 +108,25 @@ describe("action adapters", () => {
     expect(await res.json()).toEqual({ seen: "abc" });
   });
 
+  it("ignores query parameters on a DELETE", async () => {
+    // A DELETE is addressed by its path alone. Reading the query string would
+    // start rejecting stray parameters that used to be harmlessly ignored.
+    const del = defineAction({
+      name: "test.echo.del",
+      object: "contacts",
+      verb: "delete",
+      description: "echoes what it received",
+      input: z.object({ id: z.string(), confirm: z.boolean().optional().default(true) }),
+      expose: { rest: true },
+      run: async (input) => ({ id: input.id, confirm: input.confirm }),
+    });
+    const res = await toRouteHandler(del)(req("/api/x/abc?confirm=false", { method: "DELETE" }), {
+      params: Promise.resolve({ id: "abc" }),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ id: "abc", confirm: true });
+  });
+
   it("answers a malformed body with a 400 rather than throwing", async () => {
     const create = defineAction({ ...echo, name: "test.echo.badjson", verb: "create" });
     const res = await toRouteHandler(create)(req("/api/x", { method: "POST", body: "{not json" }));

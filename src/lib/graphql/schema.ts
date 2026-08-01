@@ -13,7 +13,7 @@ import {
   Kind,
   type GraphQLFieldConfigMap,
 } from "graphql";
-import { and, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, ilike, type SQL } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { newId } from "@/lib/id";
 import { can } from "@/lib/permissions";
@@ -22,10 +22,9 @@ import { audit } from "@/lib/audit";
 import { logActivity } from "@/lib/activity";
 import { changedKeys } from "@/lib/changed-fields";
 import { toResolver } from "@/lib/actions/adapters/graphql";
-import { contactsCreate } from "@/lib/actions/contacts/create";
+import { contactsCreate, contactsDelete, contactsGet, contactsList, contactsUpdate } from "@/lib/actions/contacts";
 import { dispatchEvent } from "@/lib/workflows/engine";
-import { recomputeContactScore } from "@/lib/services/contact-score";
-import { contactInput, contactPatch, companyInput, companyPatch } from "@/lib/validators";
+import { companyInput, companyPatch } from "@/lib/validators";
 import {
   listObjects,
   listRecords,
@@ -249,22 +248,6 @@ async function listCore(table: any, where: SQL | undefined, limit: number): Prom
   return db.select().from(table).where(where).orderBy(desc(table.updatedAt)).limit(Math.min(limit, 500));
 }
 
-/**
- * Free-text contact filter, matching what the REST list searches: full name,
- * email, and job title. Kept identical on purpose — a search that finds a
- * contact through one API and not another is a bug, not a feature of the API.
- */
-function contactSearch(q: string | undefined): SQL | undefined {
-  const term = q?.trim();
-  if (!term) return undefined;
-  const pattern = `%${term.replace(/[%_]/g, "")}%`;
-  return or(
-    ilike(sql`${tables.contacts.firstName} || ' ' || ${tables.contacts.lastName}`, pattern),
-    ilike(tables.contacts.email, pattern),
-    ilike(tables.contacts.jobTitle, pattern),
-  );
-}
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function byId(table: any, id: string): Promise<any> {
   return (await db.select().from(table).where(eq(table.id, id)).limit(1))[0];
@@ -282,20 +265,12 @@ const queryFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
   contacts: {
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Contact))),
     args: { limit: { type: GraphQLInt }, q: { type: GraphQLString } },
-    resolve: async (_r, { limit, q }, ctx) => {
-      requireRbac(ctx, "contacts", "read");
-      const rows = await listCore(tables.contacts, contactSearch(q as string | undefined), limit ?? 200);
-      const policy = await fieldPolicy(ctx);
-      return rows.map((r) => redact(policy, "contacts", r));
-    },
+    resolve: toResolver(contactsList),
   },
   contact: {
     type: Contact,
     args: { id: { type: new GraphQLNonNull(GraphQLID) } },
-    resolve: async (_r, { id }, ctx) => {
-      requireRbac(ctx, "contacts", "read");
-      return redactRow(ctx, "contacts", await byId(tables.contacts, id));
-    },
+    resolve: toResolver(contactsGet, { onNotFound: () => null }),
   },
   companies: {
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Company))),
@@ -408,50 +383,14 @@ const mutationFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
   updateContact: {
     type: new GraphQLNonNull(Contact),
     args: { id: { type: new GraphQLNonNull(GraphQLID) }, input: { type: new GraphQLNonNull(JSONScalar) } },
-    resolve: async (_r, { id, input }, ctx) => {
-      requireRbac(ctx, "contacts", "update");
-      await guardWrites(ctx, "contacts", input);
-      const existing = await byId(tables.contacts, id);
-      if (!existing) throw new GraphQLError("Contact not found", { extensions: { code: "NOT_FOUND" } });
-      const data = zparse(contactPatch, input);
-      const { custom, ...fields } = data;
-      const changed = changedKeys(fields, existing);
-      await db
-        .update(tables.contacts)
-        .set({
-          ...fields,
-          ...(custom !== undefined ? { custom: JSON.stringify({ ...JSON.parse(existing.custom), ...custom }) } : {}),
-          updatedAt: Date.now(),
-        })
-        .where(eq(tables.contacts.id, id));
-      if (changed.length > 0 || custom !== undefined) {
-        await logActivity({ type: "updated", entityType: "contact", entityId: id, actorId: ctx.auth.user?.id, meta: { fields: changed } });
-      }
-      await recomputeContactScore(id);
-      await audit(ctx.auth.user?.id, "contact.updated", { objectType: "contact", objectId: id, meta: { fields: changed } });
-      const row = await byId(tables.contacts, id);
-      await dispatchEvent({
-        event: "contact.updated",
-        entityType: "contact",
-        entityId: id,
-        snapshot: { ...row, custom: undefined, changedFields: changed.join(",") },
-      });
-      return redactRow(ctx, "contacts", row);
-    },
+    resolve: toResolver(contactsUpdate),
   },
   deleteContact: {
     type: new GraphQLNonNull(GraphQLBoolean),
     args: { id: { type: new GraphQLNonNull(GraphQLID) } },
-    resolve: async (_r, { id }, ctx) => {
-      requireRbac(ctx, "contacts", "delete");
-      const existing = await byId(tables.contacts, id);
-      if (!existing) return false;
-      await db.delete(tables.contacts).where(eq(tables.contacts.id, id));
-      await db.delete(tables.notes).where(eq(tables.notes.entityId, id));
-      await db.delete(tables.activities).where(eq(tables.activities.entityId, id));
-      await audit(ctx.auth.user?.id, "contact.deleted", { objectType: "contact", objectId: id });
-      return true;
-    },
+    // Answering `false` for an unknown id is the idiom this API has always
+    // used; it is deliberately not the 404 the REST route returns.
+    resolve: toResolver(contactsDelete, { onNotFound: () => false, map: () => true }),
   },
   createCompany: {
     type: new GraphQLNonNull(Company),

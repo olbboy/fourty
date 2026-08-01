@@ -38,7 +38,10 @@ export async function execute<I, O>(
   // contacts, it does not set anyone's status, and refusing it would deny a
   // filter to a role that is merely barred from editing that field.
   if (action.verb === "create" || action.verb === "update") {
-    const inputKeys = rawInput && typeof rawInput === "object" ? Object.keys(rawInput) : [];
+    // `id` says which record to write, not what to write into it — every
+    // handler this replaced excluded it, and a rule against writing it would
+    // otherwise block updates that never touch the field.
+    const inputKeys = (rawInput && typeof rawInput === "object" ? Object.keys(rawInput) : []).filter((k) => k !== "id");
     const blocked = blockedWrites(policy, action.object, inputKeys);
     if (blocked.length) {
       throw new ActionError("forbidden", `Forbidden: cannot write ${action.object} field(s): ${blocked.join(", ")}`);

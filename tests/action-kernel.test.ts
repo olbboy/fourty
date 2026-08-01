@@ -143,6 +143,33 @@ describe("action kernel", () => {
     expect(out.matched).toBe("ada@example.com");
   });
 
+  it("does not treat the record's id as a field being written", async () => {
+    // `id` says which record to update. A rule forbidding writes to it must not
+    // block an update that never touches the field.
+    await withWorkspace(ws, () =>
+      db.insert(tables.fieldPermissions).values({
+        id: newId(),
+        object: "contacts",
+        field: "id",
+        role: "member",
+        canRead: 1,
+        canWrite: 0,
+        createdAt: Date.now(),
+      }),
+    );
+    const rename = defineAction({
+      name: "test.rename",
+      object: "contacts",
+      verb: "update",
+      description: "test rename",
+      input: z.object({ id: z.string(), firstName: z.string() }),
+      expose: { rest: true },
+      run: async (input) => ({ id: input.id, firstName: input.firstName }),
+    });
+    const out = (await run(() => execute(rename, { id: "r1", firstName: "Ada" }, member))) as Record<string, unknown>;
+    expect(out.firstName).toBe("Ada");
+  });
+
   it("rejects invalid input without running the action", async () => {
     const err = await run(() => execute(createThing, { firstName: "" }, admin)).catch((e) => e);
     expect(err).toBeInstanceOf(ActionError);

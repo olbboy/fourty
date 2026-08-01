@@ -44,6 +44,10 @@ function unwrap(schema: z.ZodTypeAny): { node: z.ZodTypeAny; nullable: boolean; 
     } else if (node instanceof z.ZodNullable) {
       nullable = true;
       node = node._def.innerType;
+    } else if (node instanceof z.ZodCatch) {
+      // A fallback value means an unusable input is ignored, not refused — the
+      // field is still described by whatever it wraps.
+      node = node._def.innerType;
     } else {
       return { node, nullable, optional };
     }

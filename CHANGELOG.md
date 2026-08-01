@@ -15,6 +15,19 @@ All notable changes to Fourty are documented here. This project adheres to
   they already fired everywhere. Nothing fires on delete, on any surface — that
   is unchanged.
 
+### Changed
+
+- **Two error messages about contacts changed wording.** Refusing a write to a
+  field your role may not edit now reads `Forbidden: cannot write contacts
+  field(s): status` on the REST API, matching what the GraphQL and MCP APIs
+  already said; it used to read `Not permitted to set field(s): status`. The
+  HTTP status is still 403. Invalid input reported by an MCP tool now names the
+  field first — `firstName: Required` instead of `Required` — again matching the
+  other two APIs. If you match on these strings, update your patterns.
+- **Asking a contact list for `limit=0` now returns the default page** over the
+  GraphQL and MCP APIs, instead of an empty list; the REST list has always
+  behaved this way, and the three now agree.
+
 ### Fixed
 
 - **Searching contacts over GraphQL now looks at the same fields as the REST

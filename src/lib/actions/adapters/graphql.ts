@@ -23,14 +23,18 @@ type ResolverContext = { auth: { workspaceId: string; role: string; user: { id: 
  * mutations answer `false` rather than erroring, and unifying that would be a
  * breaking change to a published API.
  */
-export function toResolver<I, O>(action: ActionDef<I, O>, opts: { onNotFound?: () => unknown } = {}) {
+export function toResolver<I, O>(
+  action: ActionDef<I, O>,
+  opts: { onNotFound?: () => unknown; map?: (out: unknown) => unknown } = {},
+) {
   return async (_root: unknown, args: Record<string, unknown>, ctx: ResolverContext): Promise<unknown> => {
     try {
-      return await execute(action, flatten(args), {
+      const out = await execute(action, flatten(args), {
         workspaceId: ctx.auth.workspaceId,
         role: ctx.auth.role,
         userId: ctx.auth.user?.id ?? null,
       });
+      return opts.map ? opts.map(out) : out;
     } catch (err) {
       if (!(err instanceof ActionError)) throw err;
       if (err.kind === "not_found" && opts.onNotFound) return opts.onNotFound();

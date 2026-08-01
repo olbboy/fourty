@@ -244,8 +244,13 @@ const PUBLISHED: Record<string, { properties: Record<string, { type?: string; en
     };
     // Everything about a list is optional — it has usable defaults.
     expect(list.required ?? []).toEqual([]);
-    expect(list.properties.limit).toMatchObject({ type: "number", minimum: 1, maximum: 500 });
-    expect(list.properties.status).toMatchObject({ enum: ["lead", "qualified", "customer", "churned"] });
+    expect(Object.keys(list.properties).sort()).toEqual(["companyId", "limit", "q", "sort", "status"]);
+    // `limit` and `sort` carry no bounds or enum on purpose: the REST list
+    // clamps an oversized limit and ignores an unknown sort rather than
+    // rejecting either, and validating them here would turn calls that work
+    // today into errors.
+    expect(list.properties.limit).toEqual({ type: "number" });
+    expect(list.properties.sort).toEqual({ type: "string" });
 
     const byId = toJsonSchema(actionSchemas.byIdInput) as { required: string[] };
     expect(byId.required).toEqual(["id"]);
@@ -255,13 +260,25 @@ const PUBLISHED: Record<string, { properties: Record<string, { type?: string; en
       properties: Record<string, Record<string, unknown>>;
     };
     expect(del.required).toEqual(["id"]);
+    // `confirm` has a default, so it is never required of the caller.
     expect(del.properties.confirm).toMatchObject({ type: "boolean" });
   });
 
   it("keeps list filters usable as query strings", () => {
     // Query parameters arrive as text; the schema has to accept "5" for limit.
     expect(actionSchemas.listContactsInput.parse({ limit: "5" }).limit).toBe(5);
-    expect(actionSchemas.listContactsInput.parse({}).limit).toBe(200);
+    expect(actionSchemas.listContactsInput.parse({}).limit).toBeUndefined();
+    // A limit that is not a number is ignored, not refused — a list request
+    // with a junk parameter has always still returned contacts.
+    expect(actionSchemas.listContactsInput.parse({ limit: "abc" }).limit).toBeUndefined();
+    // `null` reads as 0, which the list treats as "no limit given" — the same
+    // answer, reached the same way it always was.
+    expect(actionSchemas.listContactsInput.parse({ limit: null }).limit).toBe(0);
+  });
+
+  it("deletes unless told otherwise, which is what every surface but MCP wants", () => {
+    expect(actionSchemas.deleteInput.parse({ id: "x" }).confirm).toBe(true);
+    expect(actionSchemas.deleteInput.parse({ id: "x", confirm: false }).confirm).toBe(false);
   });
 
   // ── the subset is a fence, not a suggestion ───────────────────────────────

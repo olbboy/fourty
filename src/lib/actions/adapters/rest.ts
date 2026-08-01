@@ -44,10 +44,13 @@ export function toRouteHandler<I, O>(
     });
 }
 
-/** Query string for reads, JSON body for writes — matching the existing routes. */
+/**
+ * Query string for reads, JSON body for writes — matching the existing routes.
+ * A DELETE takes neither: it is addressed entirely by its path, and reading the
+ * query string would start rejecting stray parameters that were always ignored.
+ */
 async function readInput(req: Request): Promise<Record<string, unknown>> {
-  if (req.method === "GET" || req.method === "DELETE") {
-    return Object.fromEntries(new URL(req.url).searchParams);
-  }
+  if (req.method === "DELETE") return {};
+  if (req.method === "GET") return Object.fromEntries(new URL(req.url).searchParams);
   return (await req.json()) as Record<string, unknown>;
 }
