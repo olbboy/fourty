@@ -122,6 +122,7 @@ export const TOOLS: Tool[] = [
     // default; the action calls it `q` and returns 200.
     rename: { query: "q" },
     defaults: { limit: 50 },
+    max: { limit: 200 },
   }),
   toMcpTool(contactsCreate, { name: "create_contact" }),
   {
