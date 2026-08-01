@@ -1,7 +1,7 @@
 ---
 phase: 1
 title: "Sync account lifecycle API"
-status: pending
+status: completed
 priority: P2
 effort: "S"
 dependencies: []

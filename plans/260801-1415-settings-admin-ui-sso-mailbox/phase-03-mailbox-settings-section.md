@@ -1,7 +1,7 @@
 ---
 phase: 3
 title: "Mailbox settings section"
-status: pending
+status: completed
 priority: P2
 effort: "M"
 dependencies: [1]
