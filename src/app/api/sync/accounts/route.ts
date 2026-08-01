@@ -4,6 +4,7 @@ import { db, tables } from "@/db";
 import { withAuth, authorize, json, parseBody } from "@/lib/api";
 import { newId } from "@/lib/id";
 import { audit } from "@/lib/audit";
+import { redactAccount } from "@/lib/sync/account-view";
 
 /**
  * Sync accounts (Gate C6): connect a mailbox/calendar. The `config` blob holds
@@ -17,25 +18,13 @@ const input = z.object({
   config: z.record(z.string(), z.unknown()).optional().default({}),
 });
 
-/** Strip secret-bearing config keys from an account before returning it. */
-function redact(row: typeof tables.syncAccounts.$inferSelect) {
-  const cfg = JSON.parse(row.config) as Record<string, unknown>;
-  const safe: Record<string, unknown> = {};
-  // Only surface non-secret hints (e.g. the ICS URL host, IMAP host) — never creds
-  // or OAuth tokens. `connected` tells the UI a refresh token is present.
-  if (typeof cfg.host === "string") safe.host = cfg.host;
-  if (typeof cfg.url === "string") safe.url = cfg.url;
-  const { config: _c, ...rest } = row;
-  return { ...rest, config: safe, connected: typeof cfg.refreshToken === "string" };
-}
-
 export async function GET(req: Request) {
   return withAuth(req, async () => {
     const rows = await db
       .select()
       .from(tables.syncAccounts)
       .orderBy(desc(tables.syncAccounts.createdAt));
-    return json({ accounts: rows.map(redact) });
+    return json({ accounts: rows.map(redactAccount) });
   });
 }
 
@@ -58,6 +47,6 @@ export async function POST(req: Request) {
     const row = (
       await db.select().from(tables.syncAccounts).where(eq(tables.syncAccounts.id, id)).limit(1)
     )[0]!;
-    return json({ account: redact(row) }, { status: 201 });
+    return json({ account: redactAccount(row) }, { status: 201 });
   });
 }
