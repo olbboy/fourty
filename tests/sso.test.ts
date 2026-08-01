@@ -356,3 +356,94 @@ describe("SSO login flow (real handlers + Postgres)", () => {
     expect(rows[0].id).toBe(existingId);
   });
 });
+
+/**
+ * The shape the Settings screen reads. These are not tests of the admin routes'
+ * behaviour — `redactConnection` and the CRUD are covered above and in
+ * `permissions.test.ts`. They pin the two properties the UI cannot recover from
+ * if they change silently: the secret never arrives, and `enabled` arrives as the
+ * integer the column stores rather than a boolean.
+ */
+describe("SSO admin API shape (what Settings renders)", () => {
+  const TOKEN_ADMIN = "frty_ssoadmin_key";
+  const TOKEN_MEMBER = "frty_ssomember_key";
+  let db: typeof import("@/db").db;
+  let tables: typeof import("@/db").tables;
+  let sha256: typeof import("@/lib/auth").sha256;
+  let newId: typeof import("@/lib/id").newId;
+  let connections: typeof import("@/app/api/sso/connections/route");
+  let connection: typeof import("@/app/api/sso/connections/[id]/route");
+  let connId: string;
+
+  const req = (url: string, token: string, init?: RequestInit) =>
+    new Request(`http://localhost${url}`, {
+      headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
+      ...init,
+    });
+
+  beforeAll(async () => {
+    await resetDb();
+    ({ db, tables } = await import("@/db"));
+    ({ sha256 } = await import("@/lib/auth"));
+    ({ newId } = await import("@/lib/id"));
+    connections = await import("@/app/api/sso/connections/route");
+    connection = await import("@/app/api/sso/connections/[id]/route");
+
+    const ws = await createWorkspace();
+    for (const [token, role] of [
+      [TOKEN_ADMIN, "admin"],
+      [TOKEN_MEMBER, "member"],
+    ] as const) {
+      await db.insert(tables.apiKeys).values({
+        id: newId(), workspaceId: ws, name: "t", prefix: token.slice(0, 8),
+        keyHash: sha256(token), role, createdAt: Date.now(),
+      });
+    }
+
+    const created = await connections.POST(
+      req("/api/sso/connections", TOKEN_ADMIN, {
+        method: "POST",
+        body: JSON.stringify({
+          label: "Okta", issuer: "https://idp.test/", clientId: "cid",
+          clientSecret: "shhh", defaultRole: "member",
+        }),
+      }),
+    );
+    connId = (await created.json()).connection.id;
+  });
+
+  it("reports whether a secret is set without ever sending it", async () => {
+    const res = await connections.GET(req("/api/sso/connections", TOKEN_ADMIN));
+    const body = await res.text();
+    expect(body).not.toContain("shhh");
+    const conn = JSON.parse(body).connections[0];
+    expect(conn.hasClientSecret).toBe(true);
+    expect(conn.clientSecret).toBeUndefined();
+  });
+
+  it("sends `enabled` as the integer the column stores", async () => {
+    const res = await connections.GET(req("/api/sso/connections", TOKEN_ADMIN));
+    expect((await res.json()).connections[0].enabled).toBe(1);
+  });
+
+  it("leaves the secret alone when an update omits it", async () => {
+    // The edit form sends every field it shows; leaving the secret box empty must
+    // mean "keep the current one", never "clear it" — a cleared secret breaks
+    // every login through this provider with no visible cause.
+    await connection.PATCH(
+      req(`/api/sso/connections/${connId}`, TOKEN_ADMIN, {
+        method: "PATCH",
+        body: JSON.stringify({ label: "Okta renamed" }),
+      }),
+      { params: Promise.resolve({ id: connId }) },
+    );
+    const row = (await db.select().from(tables.ssoConnections))[0];
+    expect(row.label).toBe("Okta renamed");
+    expect(row.clientSecret).toBe("shhh");
+  });
+
+  it("hides the whole thing from a non-admin", async () => {
+    const res = await connections.GET(req("/api/sso/connections", TOKEN_MEMBER));
+    expect(res.status).toBe(403);
+  });
+});
