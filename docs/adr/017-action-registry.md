@@ -146,6 +146,15 @@ a test to accommodate the refactor is treated as a failed migration.
   a fourth adapter kind or a declarative effects DSL requires a new ADR.
 - The registry is **not** a public extension point. Documenting it as one, or
   loading actions from outside the repo, reopens ADR-016 and needs its own ADR.
+- **Nothing ties an action's declared `object` to the tables it actually
+  touches.** The permission check reads `object` from the declaration, so an
+  action that says `contacts` while writing to `deals` would be checked against
+  the wrong thing and no test would notice. The claim above — that the AI path
+  cannot bypass RBAC because there is no second path — holds only while every
+  declaration stays honest, and that is a convention, not a mechanism. With one
+  entity migrated it is not worth building enforcement; the cheap version, when
+  it becomes worth it, is a test that runs each action against a `db` proxy and
+  records which tables it reached.
 - **Dispatching an event is not atomic with the write that caused it.** The
   kernel hands workflow events to the queue, which commits outside the request's
   `withWorkspace()` transaction. If a later step throws and the transaction rolls
