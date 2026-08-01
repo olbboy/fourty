@@ -24,7 +24,7 @@ Gaps vs Twenty 2.0, most-actionable framing. Impact/effort are rough.
 | 8 | Calendar-over-OAuth | Mail OAuth done; provider calendar APIs return JSON → need JSON→event adapter (ICS feed covers it today) | M |
 | 9 | IMAP transport | `imap` provider enum exists, no fetch; only Gmail/Graph OAuth built | M |
 | 10 | GraphQL mutations for deals/tasks/notes | Currently read-only via GraphQL, writes go through REST (side effects live there). Contacts now define each operation once (`src/lib/actions/contacts/`) and all three APIs call it, so adding a GraphQL mutation for these is a resolver line rather than a third copy of the side effects — see [ADR-017](../docs/adr/017-action-registry.md) | M |
-| 11 | Admin UI for SSO + mailbox connect | Backend/routes exist (SSO CRUD, `…/connect`), but no Settings page to drive them — API-only | M |
+| ~~11~~ | ~~Admin UI for SSO + mailbox connect~~ | ✅ **Shipped.** Settings drives both: single sign-on (add/edit/rotate secret/enable/delete, admin-only) and mailboxes (add/OAuth connect/sync now/pause/disconnect). Also filled the lifecycle gap this exposed — `PATCH`/`DELETE /api/sync/accounts/[id]` did not exist | — |
 | 12 | Zero-downtime migration | Expand→contract + k6 drill only authored, not a full guarantee | M |
 | 13 | Virtualized list for large datasets | Not verified, likely absent (PARITY 📏) | S |
 
@@ -47,7 +47,7 @@ Gaps vs Twenty 2.0, most-actionable framing. Impact/effort are rough.
 
 ## Suggested priority (if continuing)
 
-- **High value / low effort:** #11 admin UI (turns already-built D4/C6 into usable), #10 full GraphQL writes, #14 mail auto-sync.
+- **High value / low effort:** ~~#11 admin UI~~ (done), #10 full GraphQL writes, #14 mail auto-sync.
 - **Security:** #15 encrypt secrets at rest.
 - **Strategic / large:** #1 apps/SDK platform (own direction), #3 AI agents.
 

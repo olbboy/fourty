@@ -5,6 +5,22 @@ All notable changes to Fourty are documented here. This project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- **Single sign-on and mailboxes can be set up from Settings.** Both features
+  already worked, but only over the API — adding an OIDC provider meant a curl
+  request with a client secret on the command line. Settings now lists and
+  manages OIDC providers (admins only) and mailbox/calendar connections,
+  including running the OAuth connect, pulling on demand, pausing, and
+  disconnecting. The SSO client secret stays write-only: it is never returned,
+  and leaving the field blank when editing keeps the existing one.
+- **A mailbox can be renamed, paused, and disconnected** —
+  `PATCH` and `DELETE /api/sync/accounts/{id}`, which did not exist before.
+  Disconnecting also drops the ingested mail and calendar rows recorded against
+  that account; email and meeting entries already filed on a contact's timeline
+  are keyed to the contact and stay. Only a failed pull can put an account into
+  the error state, so the update endpoint accepts `active` and `paused` only.
+
 ### Changed
 
 - **Workflows now run for records created or updated through the AI assistant,
