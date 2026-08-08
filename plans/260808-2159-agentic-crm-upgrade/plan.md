@@ -36,9 +36,35 @@ Move Fourty's AI from *a chat box that reads the CRM* to *a background worker th
 | 2 | Agent work ledger + two-lane dispatcher ✅ done | M | 0 | [phase-02](./phase-02-agent-work-ledger.md) |
 | 3 | Keyless research pass (mail/calendar → evidence) — keyless half ✅ done, model-backed lane open | L | 1, 2 | [phase-03](./phase-03-keyless-research-pass.md) |
 | 4 | Per-record agent panel + durable conversations ✅ done | M | 0 (1/3 for content) | [phase-04](./phase-04-per-record-agent-panel.md) |
-| 5 | Custom agents with typed permission manifests | L | 1, 2, 4 | [phase-05](./phase-05-custom-agents.md) |
+| 5 | Custom agents with typed permission manifests — ⛔ gated, not started | L | 1, 2, 4 | [phase-05](./phase-05-custom-agents.md) |
 
 Phases 1 and 2 are independent of each other and can run in parallel (disjoint files). Phase 3 needs both. Phase 1's dependency on 0 is soft (quality, not files) — it may start in parallel if needed; the only hard edges are 3 → 1+2 and 5 → 1,2,4.
+
+### Where this stops (2026-08-09)
+
+**Phases 0–4 are done and the goal at the top of this file is met.** Fourty's AI
+is a background worker that keeps the CRM true, on one process and one Postgres,
+with zero new runtime dependencies.
+
+**Phase 5 is not started, and starting it is not a coding decision.** ADR-016's
+matrix still reads **NO** for both *in-app autonomous AI agents (as a core
+feature)* and *AI SDK / apps platform* — Phase 5 is those two lines. Decision 6
+above says it may not begin until that is formally amended, and an amendment
+arrived at as a side effect of a code change is exactly the accident that rule
+exists to prevent. The order, if it ever happens, is: **ADR first** (an ADR-016
+amendment or an ADR-019 saying why NO becomes YES and inside which bounds), then
+`manifest.ts` + `authorize.ts` as pure modules, then tables and runner, then the
+natural-language builder last and draft-only.
+
+**Two optional continuations, neither blocking:**
+
+- **Phase 3b — the model-backed lane.** `session-pass.ts`, `budget.ts`, the
+  `contact.research` / `recheck` handlers, and the egress tests for the rules
+  already written into ADR-018 §8. Worth doing once the keyless pass has been
+  trusted on real mail.
+- **Polish.** Field-permission redaction in the record grounding block, a partial
+  unique index on an open `(workspace, entity, kind)`, an e2e run with a provider
+  configured.
 
 ## Acceptance criteria (whole plan)
 
