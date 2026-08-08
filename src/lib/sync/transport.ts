@@ -1,15 +1,18 @@
-import { eq } from "drizzle-orm";
-import { db, tables } from "@/db";
+import type { tables } from "@/db";
 import { clientFromEnv, refreshAccessToken, type MailProvider } from "./oauth";
 import { fetchRawMessages } from "./fetch-mail";
 import { syncFetcher, type HttpFetcher } from "./http";
-import { ingestEmails, type IngestResult } from "./ingest";
 
 /**
- * Mail-sync transport orchestration (Gate C6 completion, ADR-009): keep a valid
- * OAuth access token (refresh + persist when expired), then pull recent mail and
- * hand the raw messages to the ingestion engine. Must run inside a withWorkspace()
- * transaction — it reads and writes the RLS-scoped sync_accounts row.
+ * Mail-sync transport (Gate C6 completion, ADR-009): keep a valid OAuth access
+ * token, then pull recent mail.
+ *
+ * **Nothing here touches the database, and nothing here runs inside a
+ * transaction.** A token refresh and a mailbox fetch are provider round-trips;
+ * holding a Postgres transaction open across one idles a connection for as long
+ * as Google takes to answer, which is the mistake ADR-015 refused for LLM
+ * streaming. So this module returns what needs persisting and lets `pull.ts`
+ * write it in a short transaction of its own.
  */
 
 type SyncAccount = typeof tables.syncAccounts.$inferSelect;
@@ -24,10 +27,19 @@ export type OAuthTokenConfig = {
 const EXPIRY_SKEW_MS = 60_000;
 
 /**
- * Return a usable access token for the account, refreshing and persisting it when
- * the cached one is missing or within the skew window of expiry.
+ * A usable access token, plus the account config to persist when the token had
+ * to be refreshed. `config` is null when the cached token was still good.
+ *
+ * The caller persists it *before* fetching mail: a refresh that succeeds and is
+ * then dropped because the fetch failed means refreshing again on every pull.
  */
-export async function getValidAccessToken(account: SyncAccount, fetchImpl: HttpFetcher): Promise<string> {
+export type TokenResult = { token: string; config: string | null };
+
+/** Return a usable access token, refreshing it when the cached one has expired. */
+export async function accessTokenFor(
+  account: SyncAccount,
+  fetchImpl: HttpFetcher = syncFetcher(),
+): Promise<TokenResult> {
   const provider = account.provider as MailProvider;
   const client = clientFromEnv(provider);
   if (!client) {
@@ -35,7 +47,7 @@ export async function getValidAccessToken(account: SyncAccount, fetchImpl: HttpF
   }
   const cfg = JSON.parse(account.config) as OAuthTokenConfig & Record<string, unknown>;
   if (cfg.accessToken && cfg.expiresAt && cfg.expiresAt - EXPIRY_SKEW_MS > Date.now()) {
-    return cfg.accessToken;
+    return { token: cfg.accessToken, config: null };
   }
   if (!cfg.refreshToken) throw new Error("account is not connected (no refresh token)");
 
@@ -48,17 +60,15 @@ export async function getValidAccessToken(account: SyncAccount, fetchImpl: HttpF
     refreshToken: refreshed.refresh_token ?? cfg.refreshToken,
     expiresAt: Date.now() + (refreshed.expires_in ?? 3600) * 1000,
   };
-  await db
-    .update(tables.syncAccounts)
-    .set({ config: JSON.stringify(next) })
-    .where(eq(tables.syncAccounts.id, account.id));
-  return refreshed.access_token;
+  return { token: refreshed.access_token, config: JSON.stringify(next) };
 }
 
-/** Pull recent mail via OAuth and run it through the ingestion engine. */
-export async function runMailSync(account: SyncAccount, opts: { limit?: number } = {}): Promise<IngestResult> {
-  const fetchImpl = syncFetcher();
-  const token = await getValidAccessToken(account, fetchImpl);
-  const raws = await fetchRawMessages(account.provider as MailProvider, token, { limit: opts.limit }, fetchImpl);
-  return ingestEmails(account.id, raws);
+/** Fetch recent raw messages. No database, no transaction — just the provider. */
+export async function fetchMail(
+  account: SyncAccount,
+  token: string,
+  opts: { limit?: number } = {},
+  fetchImpl: HttpFetcher = syncFetcher(),
+): Promise<string[]> {
+  return fetchRawMessages(account.provider as MailProvider, token, { limit: opts.limit }, fetchImpl);
 }

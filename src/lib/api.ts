@@ -122,6 +122,29 @@ export async function withAuth(
   req: Request,
   handler: (auth: AuthOk) => Promise<Response> | Response,
 ): Promise<Response> {
+  return authenticated(req, (auth) => withWorkspace(auth.workspaceId, async () => handler(auth)));
+}
+
+/**
+ * `withAuth` without the transaction, for a handler that makes a network call.
+ *
+ * Everything else is identical — authentication, rate limit, metrics, access
+ * log. What changes is that the handler is responsible for its own
+ * `withWorkspace()` calls, so a provider round-trip does not sit inside one
+ * (the mistake ADR-015 refused for LLM streaming). Use it only where that is
+ * true; every ordinary data route wants `withAuth`.
+ */
+export async function withAuthOutsideTransaction(
+  req: Request,
+  handler: (auth: AuthOk) => Promise<Response> | Response,
+): Promise<Response> {
+  return authenticated(req, (auth) => handler(auth));
+}
+
+async function authenticated(
+  req: Request,
+  run: (auth: AuthOk) => Promise<Response> | Response,
+): Promise<Response> {
   const startedAt = performance.now();
   const requestId = randomUUID();
   const route = normalizeRoute(new URL(req.url).pathname);
@@ -147,8 +170,8 @@ export async function withAuth(
     return finish(res, auth.workspaceId);
   }
 
-  const response = await withContext({ requestId, workspaceId: auth.workspaceId }, () =>
-    withWorkspace(auth.workspaceId, async () => handler(auth)),
+  const response = await withContext({ requestId, workspaceId: auth.workspaceId }, async () =>
+    run(auth),
   );
   setRateLimitHeaders(response, rl);
   return finish(response, auth.workspaceId);

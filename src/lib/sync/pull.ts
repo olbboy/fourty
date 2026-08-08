@@ -1,25 +1,33 @@
 import { eq } from "drizzle-orm";
-import { db, tables } from "@/db";
+import { db, tables, withWorkspace } from "@/db";
 import { checkWebhookUrl } from "@/lib/net";
-import { ingestCalendar, type IngestResult } from "./ingest";
-import { runMailSync } from "./transport";
+import { ingestCalendar, ingestEmails, type IngestResult } from "./ingest";
+import { accessTokenFor, fetchMail } from "./transport";
 
 /**
  * Pull one connected account (ADR-009). Extracted from the "Sync now" route so
  * the scheduled `mailbox.pull` task and the button do the same thing — a second
  * copy of this would drift, and the background copy is the one nobody watches.
  *
- * Runs inside the caller's `withWorkspace()` transaction. Provider network calls
- * go through the injectable edge (`src/lib/sync/http.ts`); the ICS fetch is
- * SSRF-guarded because the feed URL is user-supplied.
+ * **This function owns its transactions, and never holds one across the
+ * network.** It used to run entirely inside the caller's `withWorkspace()`,
+ * which meant a Postgres connection sat idle for the whole Gmail round-trip;
+ * Phase 2 recorded that as debt and Phase 3 is what makes the volume matter. The
+ * shape is now: short transaction to read the account, network with nothing
+ * open, short transaction to persist a refreshed token, network to fetch, short
+ * transaction to ingest and mark.
+ *
+ * So callers pass a `workspaceId` and do **not** wrap the call.
  */
 
 export type PullResult =
   | { ok: true; emails?: IngestResult; calendar?: IngestResult }
   | { ok: false; status: number; reason: string };
 
+type SyncAccount = typeof tables.syncAccounts.$inferSelect;
+
 /** Which accounts Fourty can go and fetch itself; IMAP is push-only. */
-export function canPull(account: typeof tables.syncAccounts.$inferSelect): boolean {
+export function canPull(account: SyncAccount): boolean {
   const cfg = safeConfig(account.config);
   if (account.provider === "ics") return typeof cfg.url === "string";
   if (account.provider === "google" || account.provider === "microsoft") {
@@ -28,24 +36,12 @@ export function canPull(account: typeof tables.syncAccounts.$inferSelect): boole
   return false;
 }
 
-export async function pullAccount(accountId: string): Promise<PullResult> {
-  const [account] = await db
-    .select()
-    .from(tables.syncAccounts)
-    .where(eq(tables.syncAccounts.id, accountId))
-    .limit(1);
+export async function pullAccount(workspaceId: string, accountId: string): Promise<PullResult> {
+  const account = await withWorkspace(workspaceId, () => loadAccount(accountId));
   if (!account) return { ok: false, status: 404, reason: "Account not found" };
 
   if (account.provider === "google" || account.provider === "microsoft") {
-    try {
-      const emails = await runMailSync(account, { limit: 50 });
-      await markSynced(accountId);
-      return { ok: true, emails };
-    } catch (err) {
-      const reason = message(err, "sync failed");
-      await markFailed(accountId, reason);
-      return { ok: false, status: 502, reason: `Mail sync failed: ${reason}` };
-    }
+    return pullMail(workspaceId, account);
   }
 
   const cfg = safeConfig(account.config);
@@ -56,24 +52,69 @@ export async function pullAccount(accountId: string): Promise<PullResult> {
       reason: `Live run not supported for provider '${account.provider}' without a feed URL`,
     };
   }
+  return pullFeed(workspaceId, accountId, cfg.url);
+}
 
-  const check = await checkWebhookUrl(cfg.url);
+async function pullMail(workspaceId: string, account: SyncAccount): Promise<PullResult> {
+  let raws: string[];
+  try {
+    // No transaction is open here — a token refresh and a mailbox fetch are
+    // provider round-trips, and the connection belongs back in the pool.
+    const { token, config } = await accessTokenFor(account);
+    // Persisted before the fetch: a refresh that succeeded and was then thrown
+    // away because the fetch failed means refreshing again on every pull.
+    if (config) await withWorkspace(workspaceId, () => persistConfig(account.id, config));
+    raws = await fetchMail(account, token, { limit: 50 });
+  } catch (err) {
+    const reason = message(err, "sync failed");
+    await withWorkspace(workspaceId, () => markFailed(account.id, reason));
+    return { ok: false, status: 502, reason: `Mail sync failed: ${reason}` };
+  }
+
+  return withWorkspace(workspaceId, async () => {
+    const emails = await ingestEmails(account.id, raws);
+    await markSynced(account.id);
+    return { ok: true, emails };
+  });
+}
+
+async function pullFeed(workspaceId: string, accountId: string, url: string): Promise<PullResult> {
+  // The feed URL is user-supplied, so the SSRF guard runs before the fetch.
+  const check = await checkWebhookUrl(url);
   if (!check.ok) return { ok: false, status: 400, reason: `Refusing to fetch feed: ${check.reason}` };
 
   let ics: string;
   try {
-    const res = await fetch(cfg.url, { signal: AbortSignal.timeout(15_000) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
     if (!res.ok) throw new Error(`feed responded ${res.status}`);
     ics = await res.text();
   } catch (err) {
     const reason = message(err, "fetch failed");
-    await markFailed(accountId, reason);
+    await withWorkspace(workspaceId, () => markFailed(accountId, reason));
     return { ok: false, status: 502, reason: `Feed fetch failed: ${reason}` };
   }
 
-  const calendar = await ingestCalendar(accountId, ics);
-  await markSynced(accountId);
-  return { ok: true, calendar };
+  return withWorkspace(workspaceId, async () => {
+    const calendar = await ingestCalendar(accountId, ics);
+    await markSynced(accountId);
+    return { ok: true, calendar };
+  });
+}
+
+async function loadAccount(accountId: string): Promise<SyncAccount | null> {
+  const [account] = await db
+    .select()
+    .from(tables.syncAccounts)
+    .where(eq(tables.syncAccounts.id, accountId))
+    .limit(1);
+  return account ?? null;
+}
+
+async function persistConfig(accountId: string, config: string): Promise<void> {
+  await db
+    .update(tables.syncAccounts)
+    .set({ config })
+    .where(eq(tables.syncAccounts.id, accountId));
 }
 
 /**
