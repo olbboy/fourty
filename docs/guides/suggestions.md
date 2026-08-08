@@ -1,7 +1,7 @@
 # Suggestions & the evidence ledger
 
 *What a background pass believes about your records, why it believes it, and the
-one narrow case where it may fill a blank field on its own.*
+one narrow case where it may write a field on its own.*
 
 Fourty records **observations**, never confidences. A source reports what it saw —
 "their signature on 14 July reads Head of Operations" — and a pure function prices
@@ -14,14 +14,15 @@ The whole design is recorded in **[ADR-018](../adr/018-evidence-and-research.md)
 
 ## What you see
 
-Under an empty field on a contact or company page, a suggestion shows:
+Under the field it is about on a contact or company page, a suggestion shows:
 
 - **the value** it proposes,
 - **why** — the evidence, in the words the source used, with a link where there is one,
 - **Accept** (writes it, as your edit) and **Dismiss** (retires that exact value for good).
 
-Where a deterministic pass filled a blank field itself, the field carries a one-line
-note saying what filled it and a **Revert** that puts back what was there before.
+Every applied fact — one a pass wrote itself, or one you accepted — carries a one-line
+note saying where the value came from and a **Revert** that puts back what was there
+before and retires the reverted value.
 
 ## What may be filled without asking
 
@@ -30,7 +31,7 @@ a prompt:
 
 | Constraint | Meaning |
 |---|---|
-| **Empty field only** | A value you or an import typed is never replaced. A job change against a field you filled is *proposed*. |
+| **Never over your value** | A value you typed, imported or accepted is never replaced — a job change against it is *proposed*. A field that is still empty, or still holding the pass's own earlier answer, it may write. |
 | **VERIFIED band** | ≥0.85 combined score. |
 | **A primary source** | Something that identifies *this person* — a reply from their own address, their signature, a thread reply, meeting attendance. Supporting evidence may combine to a proposal; it never fills a field alone. |
 | **A deterministic source** | A pure parser. Anything a model touched caps at *probable* and stays a suggestion. |
