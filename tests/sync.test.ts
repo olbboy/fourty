@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { resetDb, createWorkspace } from "./pg-setup";
-import { parseEmail } from "@/lib/sync/parse-email";
+import { parseEmail, threadIdOf } from "@/lib/sync/parse-email";
 import { parseIcs, parseIcsDate } from "@/lib/sync/parse-ics";
 import { buildConsentUrl, exchangeCode, refreshAccessToken } from "@/lib/sync/oauth";
 import { fetchRawMessages } from "@/lib/sync/fetch-mail";
@@ -61,6 +61,85 @@ describe("sync parsers (pure)", () => {
   it("parses all-day and floating ICS dates", () => {
     expect(parseIcsDate("20260708")).toBe(Date.UTC(2026, 6, 8));
     expect(parseIcsDate("20260708T090000")).toBe(Date.UTC(2026, 6, 8, 9, 0, 0));
+  });
+
+  // Phase 3: the signature extractor reads the *end* of a body, so the parser
+  // has to hand it the whole decoded text rather than a naive slice.
+  it("prefers the text/plain half of a multipart/alternative message", () => {
+    const raw = [
+      "Message-ID: <mp-1@mail.example.com>",
+      "From: Ada <ada@acme.example>",
+      "To: me@myco.com",
+      "Subject: Renewal",
+      'Content-Type: multipart/alternative; boundary="B1"',
+      "",
+      "--B1",
+      "Content-Type: text/plain; charset=utf-8",
+      "",
+      "Plain half.",
+      "--B1",
+      "Content-Type: text/html; charset=utf-8",
+      "",
+      "<p>HTML half.</p>",
+      "--B1--",
+    ].join("\n");
+    expect(parseEmail(raw).body).toBe("Plain half.");
+  });
+
+  it("decodes quoted-printable and base64 bodies", () => {
+    const qp = [
+      "Message-ID: <qp@mail.example.com>",
+      "Content-Type: text/plain; charset=utf-8",
+      "Content-Transfer-Encoding: quoted-printable",
+      "",
+      "Caf=C3=A9 at 3pm =E2=80=94 bring the=20",
+      "renewal deck.",
+    ].join("\n");
+    expect(parseEmail(qp).body).toContain("Café at 3pm — bring the");
+
+    const b64 = [
+      "Message-ID: <b64@mail.example.com>",
+      "Content-Type: text/plain; charset=utf-8",
+      "Content-Transfer-Encoding: base64",
+      "",
+      Buffer.from("Head of Security, Acme").toString("base64"),
+    ].join("\n");
+    expect(parseEmail(b64).body).toBe("Head of Security, Acme");
+  });
+
+  it("falls back to text/html, keeping the line breaks a signature needs", () => {
+    const raw = [
+      "Message-ID: <html@mail.example.com>",
+      "Content-Type: text/html; charset=utf-8",
+      "",
+      "<div>Thanks!</div><div>Ada Marchetti<br>Head of Security, Acme</div>",
+    ].join("\n");
+    expect(parseEmail(raw).body?.split("\n")).toContain("Head of Security, Acme");
+  });
+
+  it("decodes RFC 2047 encoded subjects", () => {
+    const raw = [
+      "Message-ID: <ew@mail.example.com>",
+      "Subject: =?utf-8?B?UsOpc2lsaWF0aW9u?=",
+      "",
+      "body",
+    ].join("\n");
+    expect(parseEmail(raw).subject).toBe("Résiliation");
+  });
+
+  it("puts a reply and the message it answers on one thread", () => {
+    const root = parseEmail(["Message-ID: <root@x.example>", "", "hi"].join("\n"));
+    const reply = parseEmail(
+      [
+        "Message-ID: <reply@x.example>",
+        "In-Reply-To: <root@x.example>",
+        "References: <root@x.example>",
+        "",
+        "hi back",
+      ].join("\n"),
+    );
+    expect(threadIdOf(root)).toBe("root@x.example");
+    expect(threadIdOf(reply)).toBe("root@x.example");
   });
 });
 
