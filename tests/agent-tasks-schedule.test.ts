@@ -248,6 +248,25 @@ describe("the agent work ledger", () => {
       expect(task.outcome).toMatch(/gave up after/);
     });
 
+    it("does not let the next booking overwrite a retry backoff", async () => {
+      // The bug this pins: bookRecurringWork used to move dueAt on every tick.
+      // A mailbox that has never synced has lastSyncedAt = null, so its computed
+      // dueAt is in 1970 — the failed task would come due again immediately and
+      // burn its whole budget within a few ticks instead of backing off.
+      await connectedMailbox();
+      setFetcher(async () => ({ status: 400, json: async () => ({}), text: async () => "nope" }));
+
+      await dispatchTick(ws); // one failed attempt → backoff
+      const [afterFailure] = await inWs(() => db.select().from(tables.agentTasks));
+      expect(afterFailure.attempts).toBe(1);
+      expect(afterFailure.dueAt).toBeGreaterThan(Date.now());
+
+      await dispatchTick(ws); // the tick that used to reset dueAt to 1970
+      const [afterTick] = await inWs(() => db.select().from(tables.agentTasks));
+      expect(afterTick.dueAt).toBe(afterFailure.dueAt);
+      expect(afterTick.attempts).toBe(1);
+    });
+
     it("never books a pull for a mailbox it cannot fetch from", async () => {
       // IMAP is push-only, and an OAuth account with no refresh token is not
       // connected yet — booking either would queue work that can only fail.
