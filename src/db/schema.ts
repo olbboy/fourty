@@ -633,10 +633,24 @@ export const aiConversations = pgTable(
     workspaceId: workspaceId(),
     userId: text("user_id"),
     title: text("title"),
+    // The record this conversation is about (Phase 4), or null for the global
+    // chat drawer, which is about no single record. Written server-side from a
+    // record the caller could read — never from a client-supplied id.
+    entityType: text("entity_type"),
+    entityId: text("entity_id"),
     createdAt: millis("created_at").notNull(),
     updatedAt: millis("updated_at").notNull(),
   },
-  (t) => [index("ai_conversations_ws_updated_idx").on(t.workspaceId, t.updatedAt)],
+  (t) => [
+    index("ai_conversations_ws_updated_idx").on(t.workspaceId, t.updatedAt),
+    index("ai_conversations_record_idx").on(
+      t.workspaceId,
+      t.entityType,
+      t.entityId,
+      t.userId,
+      t.updatedAt,
+    ),
+  ],
 );
 
 // One turn of a thread. `tool_calls`/`tool_call_id` carry the provider round-trip
