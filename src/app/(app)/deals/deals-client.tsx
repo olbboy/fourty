@@ -89,6 +89,7 @@ export function DealsClient() {
               <select
                 value={pipelineId}
                 onChange={(e) => setPipelineId(e.target.value)}
+                aria-label="Pipeline"
                 className="input w-auto"
               >
                 {pipelines.map((p) => (

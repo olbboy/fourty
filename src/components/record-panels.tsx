@@ -147,6 +147,7 @@ export function NotesPanel({ entityType, entityId, onChanged }: EntityRef & { on
           onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === "Enter") add();
           }}
+          aria-label="New note"
           rows={2}
           placeholder="Write a note… (⌘⏎ to save)"
           className="input resize-y"
@@ -207,6 +208,7 @@ export function TasksPanel({ entityType, entityId, onChanged }: EntityRef & { on
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && add()}
+          aria-label="New task"
           placeholder="Add a task…"
           className="input"
         />

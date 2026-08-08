@@ -83,9 +83,12 @@ export function ContactsClient() {
       />
 
       <div className="mb-4 flex flex-wrap gap-2">
+        {/* A filter bar has no visible labels, so each control carries its own —
+            a placeholder is a fallback name at best, and the selects have none. */}
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
+          aria-label="Search contacts"
           placeholder="Search name, email, title…"
           className="input max-w-xs"
         />
@@ -95,6 +98,7 @@ export function ContactsClient() {
             setStatus(e.target.value);
             setActiveView(null);
           }}
+          aria-label="Filter by status"
           className="input w-auto"
         >
           <option value="">All statuses</option>
@@ -109,6 +113,7 @@ export function ContactsClient() {
             setSort(e.target.value);
             setActiveView(null);
           }}
+          aria-label="Sort contacts"
           className="input w-auto"
         >
           <option value="updatedAt">Recently updated</option>

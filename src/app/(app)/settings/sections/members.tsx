@@ -82,15 +82,23 @@ export function MembersSection() {
         </p>
       </div>
       <div className="mb-3 flex flex-wrap gap-2">
+        {/* An unlabelled invite row: the placeholder is a fallback name at best
+            and the role picker has nothing at all. */}
         <input
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && sendInvite()}
+          aria-label="Email address to invite"
           className="input max-w-xs"
           placeholder="teammate@company.com"
           type="email"
         />
-        <select value={role} onChange={(e) => setRole(e.target.value)} className="input max-w-[8rem]">
+        <select
+          value={role}
+          onChange={(e) => setRole(e.target.value)}
+          aria-label="Role for the invitee"
+          className="input max-w-[8rem]"
+        >
           {ROLES.map((r) => (
             <option key={r} value={r}>
               {r}
