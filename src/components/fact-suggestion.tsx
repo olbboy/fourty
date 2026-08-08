@@ -36,12 +36,19 @@ type Props = {
   onDecided: () => void;
 };
 
-/** Fetch this record's suggestions plus what the pass has already applied. */
-export function useFacts(entityType: string, entityId: string, refreshKey: number) {
+/**
+ * Fetch this record's suggestions plus what the pass has already applied.
+ *
+ * `enabled` exists for surfaces that are mounted before they are looked at — a
+ * tab renders long before anyone opens it, and two callers on one page would
+ * otherwise ask the same question twice on every record view.
+ */
+export function useFacts(entityType: string, entityId: string, refreshKey: number, enabled = true) {
   const [proposed, setProposed] = useState<RecordFact[]>([]);
   const [applied, setApplied] = useState<RecordFact[]>([]);
 
   useEffect(() => {
+    if (!enabled) return;
     let live = true;
     const load = async (status: string) => {
       const res = await fetch(
@@ -58,7 +65,7 @@ export function useFacts(entityType: string, entityId: string, refreshKey: numbe
     return () => {
       live = false;
     };
-  }, [entityType, entityId, refreshKey]);
+  }, [entityType, entityId, refreshKey, enabled]);
 
   return { proposed, applied };
 }

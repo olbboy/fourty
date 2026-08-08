@@ -81,6 +81,35 @@ Fourty has two independent, off-by-default AI features — don't confuse them:
 Both inherit the same guardrails: governance through the real tools, human-in-the-loop
 on writes, `via` audit tagging.
 
+## The Agent tab on a record
+
+Every contact, company and deal has a **Timeline | Agent** switch. The Agent tab
+is a conversation *about that record* — it already knows which one, so you do not
+paste an id or a name into your question. The record travels as an id the server
+re-checks against your own workspace and role; it is never spliced into your
+message text.
+
+- **Your threads are yours.** Two reps asking about the same contact are having
+  two conversations. Old threads stay in the picker; the open one is in the URL,
+  so a link opens the conversation you were reading.
+- **The transcript is stored, not remembered.** Reload, switch tabs, come back
+  tomorrow — it is still there. Leaving the tab never cancels an answer in
+  flight.
+- **The composer says what is actually true.** *Working* is a wait of seconds.
+  *Ended* is permanent and offers a new conversation. *Offline* means we could
+  not reach a provider — a fact about the install, not about your thread. They
+  are never used interchangeably.
+
+**With no AI provider configured the tab is still worth opening.** The composer
+says so plainly, and below it sits *What research found* — every suggestion and
+every auto-filled field on this record, with the evidence behind each. That half
+is produced by the [keyless research pass](./research.md) and needs no model at
+all.
+
+Background work — what the agent has queued about this record and why — stays
+where it has always been, in the left-hand column, visible whichever tab you are
+on.
+
 ## Design principles
 
 The whole approach — be the safest substrate for *your* AI rather than a bundled

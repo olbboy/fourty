@@ -7,7 +7,8 @@ import type { Company, Contact, Deal, Pipeline } from "@/lib/types";
 import { formatMoney, convert } from "@/lib/currency";
 import { timeAgo, formatDate } from "@/lib/format";
 import { Modal, Spinner, Avatar } from "@/components/ui";
-import { Timeline, NotesPanel, TasksPanel } from "@/components/record-panels";
+import { NotesPanel, TasksPanel } from "@/components/record-panels";
+import { RecordTabs } from "@/components/agent-panel/record-tabs";
 import { CustomFieldsDisplay, useCustomFields } from "@/components/custom-fields";
 import { IconEdit, IconTrash } from "@/components/icons";
 import { AgentQueue } from "@/components/agent-queue";
@@ -173,10 +174,12 @@ export function DealDetail({ id }: { id: string }) {
           </div>
         </div>
 
-        <div className="card p-4">
-          <h2 className="mb-3 text-sm font-semibold">Timeline</h2>
-          <Timeline entityType="deal" entityId={id} refreshKey={refreshKey} />
-        </div>
+        <RecordTabs
+          entityType="deal"
+          entityId={id}
+          refreshKey={refreshKey}
+          onChanged={bump}
+        />
 
         <div className="space-y-4">
           <AgentQueue entityType="deal" entityId={id} />
