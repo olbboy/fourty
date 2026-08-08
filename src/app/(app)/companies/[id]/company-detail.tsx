@@ -11,6 +11,7 @@ import { Timeline, NotesPanel, TasksPanel } from "@/components/record-panels";
 import { CustomFieldsDisplay, useCustomFields } from "@/components/custom-fields";
 import { FactsForField, useFacts } from "@/components/fact-suggestion";
 import { IconEdit, IconTrash } from "@/components/icons";
+import { AgentQueue } from "@/components/agent-queue";
 import { CompanyForm } from "../company-form";
 
 export function CompanyDetail({ id }: { id: string }) {
@@ -133,6 +134,7 @@ export function CompanyDetail({ id }: { id: string }) {
             <CustomFieldsDisplay defs={defs} values={company.custom} />
           </div>
 
+          <AgentQueue entityType="company" entityId={id} />
           <div className="card p-4">
             <h2 className="mb-3 text-sm font-semibold">People ({contacts.length})</h2>
             <div className="space-y-2">

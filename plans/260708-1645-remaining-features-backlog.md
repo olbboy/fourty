@@ -32,7 +32,7 @@ Gaps vs Twenty 2.0, most-actionable framing. Impact/effort are rough.
 
 | # | Feature | Context |
 |---|---|---|
-| 14 | Periodic mail auto-pull worker (pg-boss cron) | `…/run` is manual/trigger-driven today |
+| ~~14~~ | ~~Periodic mail auto-pull worker~~ **done (2026-08-09)** — not a cron: a `mailbox.pull` row in the agent work ledger, due one interval after the last sync | was `…/run` only, manual |
 | 15 | Encrypt secrets at rest (SSO client_secret, OAuth tokens, IMAP password) | Q2 defer; stored plaintext + redacted on read |
 | 16 | Per-workspace SSO + email-domain routing | Currently instance-global (fits self-host single-org) |
 
@@ -47,7 +47,7 @@ Gaps vs Twenty 2.0, most-actionable framing. Impact/effort are rough.
 
 ## Suggested priority (if continuing)
 
-- **High value / low effort:** ~~#11 admin UI~~ (done), #10 full GraphQL writes, #14 mail auto-sync.
+- **High value / low effort:** ~~#11 admin UI~~ (done), ~~#14 mail auto-sync~~ (done), #10 full GraphQL writes.
 - **Security:** #15 encrypt secrets at rest.
 - **Strategic / large:** #1 apps/SDK platform (own direction), #3 AI agents.
 
@@ -55,4 +55,4 @@ Gaps vs Twenty 2.0, most-actionable framing. Impact/effort are rough.
 
 - Is a single Fourty instance ever multi-org (drives #16 per-workspace SSO)?
 - Do backups/dumps land where the app key doesn't (drives #15 urgency)?
-- Which is the next target — #11, #10, #14, or start #1?
+- Which is the next target — #10, or continue the agentic upgrade plan?

@@ -24,6 +24,7 @@ error shapes.
 | Custom object definitions | `/api/custom-objects` (+ `/fields`) |
 | Custom object records | `/api/objects/{apiName}`, `/api/objects/{apiName}/{id}` |
 | Suggestions (evidence ledger) | `/api/facts`, `/api/facts/{id}` |
+| Background agent queue (read-only) | `/api/agent-tasks?entityType=&entityId=` |
 | Saved views | `/api/saved-views` |
 | Export | `/api/export/{contacts,companies,deals}` |
 | Import | `/api/import/contacts` |

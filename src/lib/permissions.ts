@@ -31,6 +31,9 @@ export const CRM_OBJECTS = [
   // administration one: a member settles what a background pass found about a
   // record they own, and a viewer may read the reasoning without acting on it.
   "facts",
+  // What the background agent has queued about a record, and why. A read-only
+  // surface today: work is booked by connecting a mailbox, not by asking.
+  "agent-tasks",
   "saved-views",
   "pipelines",
   "stages",

@@ -10,6 +10,7 @@ import { Timeline, NotesPanel, TasksPanel, LogTouchpoint } from "@/components/re
 import { CustomFieldsDisplay, useCustomFields } from "@/components/custom-fields";
 import { FactsForField, useFacts } from "@/components/fact-suggestion";
 import { IconEdit, IconTrash } from "@/components/icons";
+import { AgentQueue } from "@/components/agent-queue";
 import { ContactForm } from "../contact-form";
 import { formatMoney } from "@/lib/currency";
 
@@ -149,6 +150,7 @@ export function ContactDetail({ id }: { id: string }) {
               <p className="mt-0.5 text-sm">{timeAgo(contact.lastActivityAt)}</p>
             </div>
           </div>
+          <AgentQueue entityType="contact" entityId={id} />
           <div className="card p-4">
             <h2 className="mb-3 text-sm font-semibold">Log a touchpoint</h2>
             <LogTouchpoint entityType="contact" entityId={id} onLogged={bump} />

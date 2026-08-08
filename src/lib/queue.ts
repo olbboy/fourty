@@ -37,6 +37,9 @@ export type JobPayloads = {
   // Optional generative draft (ADR-016, Tier 3). Async so a slow provider call
   // stays off the request path, with retry/backoff/DLQ like every other job.
   "ai.generate": { entityType: string; entityId: string; prompt: string; system?: string };
+  // The agent dispatcher tick (Phase 2). Carries nothing: the work is rows in
+  // `agent_tasks`, and the job only says "look now".
+  "agent.dispatch": Record<string, never>;
 };
 
 export type JobName = keyof JobPayloads;
@@ -48,7 +51,17 @@ export type JobEnvelope<N extends JobName = JobName> = {
   data: JobPayloads[N];
 };
 
-export const JOB_NAMES: JobName[] = ["webhook.deliver", "workflow.dispatch", "ai.generate"];
+export const JOB_NAMES: JobName[] = ["webhook.deliver", "workflow.dispatch", "ai.generate", "agent.dispatch"];
+
+/**
+ * Jobs the worker drives itself instead of through `runJob`.
+ *
+ * `runJob` wraps a handler in one workspace transaction and claims an
+ * idempotency key. The dispatcher wants neither: it must not hold a transaction
+ * open across a mailbox fetch, and claiming a task row is already atomic, so a
+ * duplicate tick finds the rows leased and does nothing.
+ */
+export const SELF_MANAGED_JOBS: JobName[] = ["agent.dispatch"];
 
 // Per-queue durability policy. retryBackoff=true → exponential backoff seeded by
 // retryDelay; exhausted jobs move to `<name>.dead` (retained, never auto-run).
@@ -60,6 +73,9 @@ const QUEUE_CONFIG: Record<JobName, { retryLimit: number; expireInSeconds: numbe
   "webhook.deliver": { retryLimit: 5, expireInSeconds: EXPIRE_SECONDS },
   "workflow.dispatch": { retryLimit: 3, expireInSeconds: EXPIRE_SECONDS },
   "ai.generate": { retryLimit: 2, expireInSeconds: EXPIRE_SECONDS },
+  // A tick that fails is not worth retrying hard: the next one is a minute away
+  // and the work is still sitting in `agent_tasks`.
+  "agent.dispatch": { retryLimit: 1, expireInSeconds: EXPIRE_SECONDS },
 };
 
 export const deadLetterName = (name: JobName | string) => `${name}.dead`;

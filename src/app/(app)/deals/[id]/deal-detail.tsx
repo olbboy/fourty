@@ -10,6 +10,7 @@ import { Modal, Spinner, Avatar } from "@/components/ui";
 import { Timeline, NotesPanel, TasksPanel } from "@/components/record-panels";
 import { CustomFieldsDisplay, useCustomFields } from "@/components/custom-fields";
 import { IconEdit, IconTrash } from "@/components/icons";
+import { AgentQueue } from "@/components/agent-queue";
 import { DealForm } from "../deal-form";
 
 export function DealDetail({ id }: { id: string }) {
@@ -178,6 +179,7 @@ export function DealDetail({ id }: { id: string }) {
         </div>
 
         <div className="space-y-4">
+          <AgentQueue entityType="deal" entityId={id} />
           <div className="card p-4">
             <h2 className="mb-3 text-sm font-semibold">Notes</h2>
             <NotesPanel entityType="deal" entityId={id} onChanged={bump} />
