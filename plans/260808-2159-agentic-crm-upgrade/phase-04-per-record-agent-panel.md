@@ -1,6 +1,72 @@
 # Phase 4 — Per-record agent panel + durable conversations
 
-**Size:** M · **Depends on:** Phase 0 (content from 1 + 3) · **Closes:** backlog #3 (per-record assistant, multi-conversation history UI), #4 (streaming background ops)
+**Size:** M · **Depends on:** Phase 0 (content from 1 + 3) · **Status:** done (2026-08-09) · **Closes:** backlog #3 (per-record assistant, multi-conversation history UI), #4 (streaming background ops)
+
+## Delivered
+
+A **Timeline | Agent** tab on contact, company and deal detail.
+`src/components/agent-panel/{composer-state,transcript,index,record-tabs}.tsx`,
+`src/lib/ai/{record-context,principals}.ts`, `GET /api/ai/conversations` and
+`/api/ai/conversations/[id]` (owner-scoped), migration `0016_conversation_record`
+(+ down, reversible in CI), and `src/components/ai-enabled.tsx` so a client page
+knows whether a provider exists without calling an admin-only route.
+Tests: `tests/agent-panel-composer-state.test.ts` (12, pure),
+`tests/agent-panel-transcript.test.ts` (10, pure), `tests/ai-conversations.test.ts`
+(6, real PG), `e2e/agent-panel.spec.ts` (3). Full suite 573 passed, 17 e2e, build green.
+
+### Deviations from this plan, all deliberate
+
+- **Five composer states, not four.** Fourty's agent stops at every write
+  (ADR-015) and the send route answers 409 until a proposal is resolved, so
+  `confirming` is a real state here. Folding it into `working` would tell the
+  user to wait for something that is waiting for *them* — the exact class of lie
+  the other four states exist to prevent.
+- **The Agent tab does not repeat "Background work".** Step 5 asks the tab to
+  list this record's `agent_tasks`. That panel is already on screen the whole
+  time, in the left column, and duplicating it inside the tab is the opposite of
+  "compose, don't replace". The tab carries the half that has nowhere else to
+  live: **what research found** — every proposal and every applied fact with its
+  rationale — which is also what makes the tab worth opening with no provider
+  configured.
+- **`?thread=` is not cleared on a tab switch.** Changing record clears it by
+  navigating. Clearing it on a tab switch would drop the open thread every time
+  someone glanced at the timeline, which is the same complaint as failure #3
+  from the other direction.
+- **Grounding is a prompt block, not a tool call.** `record-context.ts` loads the
+  record and its neighbour ids server-side, under the caller's own workspace and
+  role, and renders one markdown block. A record the caller cannot read gets the
+  same 404 as one that is not there.
+- **`useFacts` gained an `enabled` flag.** The panel is mounted before it is
+  looked at, and two callers on one page were asking `/api/facts` the same
+  question twice on every record view.
+
+### Fixed after review
+
+- **A stream outlives the thread it belongs to.** `/contacts/[id]` re-renders
+  this component rather than remounting it, so switching record or conversation
+  mid-answer left the old SSE loop writing into the new panel — one contact's
+  answer arriving on another contact's record. Every run now carries a
+  generation token and a superseded run drains its response without writing.
+- **A second Enter opened a second conversation.** The turn was claimed only
+  once the response arrived, leaving a window where the composer still read
+  `ready`. It is claimed before the request goes out.
+- **The transcript route did not make the role check its sibling makes.**
+  Ownership answers *is this yours*; it does not answer *may you still read that
+  kind of record*.
+- **The transcript fetch could land on top of a live answer** — found while
+  building, before review: creating a thread mid-stream set `threadId`, which
+  woke the read-it-back effect. A `loaded` ref keeps the stream's own thread from
+  being fetched over the top of itself.
+
+### Carried forward
+
+- The role check on the transcript route is defensive only: every current role
+  (admin/member/viewer) may read CRM objects, so there is no role that fails it
+  and therefore no test that proves it. It becomes real the first time a
+  narrower role exists.
+- No automated cover for the composer states in a browser — the pure machine is
+  exhaustively tested and the e2e asserts the `offline` case, which is the one a
+  fresh install sees.
 
 ## Why
 

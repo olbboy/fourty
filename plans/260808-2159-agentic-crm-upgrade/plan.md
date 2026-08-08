@@ -35,7 +35,7 @@ Move Fourty's AI from *a chat box that reads the CRM* to *a background worker th
 | 1 | Evidence ledger + suggestion inbox ✅ done | M | 0 | [phase-01](./phase-01-evidence-ledger.md) |
 | 2 | Agent work ledger + two-lane dispatcher ✅ done | M | 0 | [phase-02](./phase-02-agent-work-ledger.md) |
 | 3 | Keyless research pass (mail/calendar → evidence) — keyless half ✅ done, model-backed lane open | L | 1, 2 | [phase-03](./phase-03-keyless-research-pass.md) |
-| 4 | Per-record agent panel + durable conversations | M | 0 (1/3 for content) | [phase-04](./phase-04-per-record-agent-panel.md) |
+| 4 | Per-record agent panel + durable conversations ✅ done | M | 0 (1/3 for content) | [phase-04](./phase-04-per-record-agent-panel.md) |
 | 5 | Custom agents with typed permission manifests | L | 1, 2, 4 | [phase-05](./phase-05-custom-agents.md) |
 
 Phases 1 and 2 are independent of each other and can run in parallel (disjoint files). Phase 3 needs both. Phase 1's dependency on 0 is soft (quality, not files) — it may start in parallel if needed; the only hard edges are 3 → 1+2 and 5 → 1,2,4.
@@ -44,7 +44,7 @@ Phases 1 and 2 are independent of each other and can run in parallel (disjoint f
 
 1. ✅ (2026-08-09) A fresh install with **no** API keys, once a mailbox is connected: **empty** contact fields (job title, company link) are auto-filled from mailbox evidence with a visible source for each; a job change against a **human-owned** field is *proposed*, never overwritten.
 2. No AI-originated value ever overwrites a human-entered one, and no dismissed suggestion is ever re-offered. Both proven by tests against real Postgres.
-3. Every background decision is answerable: *what will the agent do to this record, when, and why* — from a table, not a log.
+3. ✅ (2026-08-09) Every background decision is answerable: *what will the agent do to this record, when, and why* — from a table, not a log.
 4. `npm test`, `npm run test:e2e`, `npm run build` stay green; migrations stay reversible in CI.
 5. Runtime dependency count unchanged through Phase 4.
 
@@ -54,6 +54,6 @@ Bun/Turbo/Nest/tRPC/Prisma migration · splitting the deployment · a model sand
 
 ## Backlog items this closes
 
-- **#3** AI agents — per-record assistant (Phase 4), async/worker agent (Phases 2–3), multi-conversation history UI (Phase 4).
-- **#4** Streaming for background ops (Phase 4).
+- **#3** AI agents — per-record assistant (Phase 4), async/worker agent (Phases 2–3), multi-conversation history UI (Phase 4). ✅ done
+- **#4** Streaming for background ops (Phase 4). ✅ done — scoped honestly: the chat streams, and background work is a task list plus findings refreshed on reload. A parser has no tokens to stream.
 - **#14** Periodic mail auto-pull (Phase 2 — a task kind, not a cron). ✅ done

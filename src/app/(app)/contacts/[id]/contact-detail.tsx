@@ -6,7 +6,8 @@ import { useCallback, useEffect, useState } from "react";
 import type { Contact, Company, Deal, Pipeline } from "@/lib/types";
 import { timeAgo, formatDate } from "@/lib/format";
 import { Modal, StatusChip, ScoreBadge, Avatar, Spinner } from "@/components/ui";
-import { Timeline, NotesPanel, TasksPanel, LogTouchpoint } from "@/components/record-panels";
+import { NotesPanel, TasksPanel, LogTouchpoint } from "@/components/record-panels";
+import { RecordTabs } from "@/components/agent-panel/record-tabs";
 import { CustomFieldsDisplay, useCustomFields } from "@/components/custom-fields";
 import { FactsForField, useFacts } from "@/components/fact-suggestion";
 import { IconEdit, IconTrash } from "@/components/icons";
@@ -184,10 +185,12 @@ export function ContactDetail({ id }: { id: string }) {
         </div>
 
         {/* Middle: timeline */}
-        <div className="card p-4">
-          <h2 className="mb-3 text-sm font-semibold">Timeline</h2>
-          <Timeline entityType="contact" entityId={id} refreshKey={refreshKey} />
-        </div>
+        <RecordTabs
+          entityType="contact"
+          entityId={id}
+          refreshKey={refreshKey}
+          onChanged={bump}
+        />
 
         {/* Right: notes + tasks */}
         <div className="space-y-4">

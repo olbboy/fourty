@@ -7,7 +7,8 @@ import type { Company, Contact, Deal, Pipeline } from "@/lib/types";
 import { timeAgo } from "@/lib/format";
 import { formatMoney, formatCompact } from "@/lib/currency";
 import { Modal, Avatar, StatusChip, ScoreBadge, Spinner } from "@/components/ui";
-import { Timeline, NotesPanel, TasksPanel } from "@/components/record-panels";
+import { NotesPanel, TasksPanel } from "@/components/record-panels";
+import { RecordTabs } from "@/components/agent-panel/record-tabs";
 import { CustomFieldsDisplay, useCustomFields } from "@/components/custom-fields";
 import { FactsForField, useFacts } from "@/components/fact-suggestion";
 import { IconEdit, IconTrash } from "@/components/icons";
@@ -189,10 +190,12 @@ export function CompanyDetail({ id }: { id: string }) {
           </div>
         </div>
 
-        <div className="card p-4">
-          <h2 className="mb-3 text-sm font-semibold">Timeline</h2>
-          <Timeline entityType="company" entityId={id} refreshKey={refreshKey} />
-        </div>
+        <RecordTabs
+          entityType="company"
+          entityId={id}
+          refreshKey={refreshKey}
+          onChanged={bump}
+        />
 
         <div className="space-y-4">
           <div className="card p-4">

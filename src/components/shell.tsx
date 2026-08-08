@@ -19,6 +19,7 @@ import {
 } from "./icons";
 import { CommandPalette } from "./command-palette";
 import { AiChat } from "./ai-chat";
+import { AiEnabledProvider } from "./ai-enabled";
 import { LocaleProvider } from "@/lib/i18n/provider";
 import { translator, type Locale, type MessageKey } from "@/lib/i18n";
 
@@ -217,7 +218,7 @@ export function AppShell({
       </nav>
 
       <main id="main" className="min-w-0 flex-1 px-4 pb-24 pt-16 md:ml-56 md:px-8 md:pb-10 md:pt-8">
-        {children}
+        <AiEnabledProvider enabled={aiEnabled}>{children}</AiEnabledProvider>
       </main>
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />

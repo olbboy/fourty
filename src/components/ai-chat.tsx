@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { IconX, IconZap, IconArrowRight } from "./icons";
 import { useLocale } from "@/lib/i18n/provider";
 import { parseSseStream } from "@/lib/ai/sse-client";
+import { toItems, type Item, type StoredMessage } from "./agent-panel/transcript";
 
 /**
  * Global AI chat drawer (Phase 4). Consumes the POST-SSE contract: streams
@@ -21,21 +22,6 @@ type ServerEvent =
   | { type: "awaiting_confirmation" }
   | { type: "done"; finishReason: string }
   | { type: "error"; message: string };
-
-type StoredMessage = {
-  id: string;
-  role: "user" | "assistant" | "tool";
-  content: string;
-  toolCalls: { id: string; name: string; arguments: Record<string, unknown> }[] | null;
-  status: "complete" | "pending_confirmation" | "executing" | "rejected";
-};
-
-type Item =
-  | { kind: "user"; content: string }
-  | { kind: "assistant"; content: string }
-  | { kind: "tool"; name: string; ok: boolean }
-  | { kind: "proposal"; messageId: string; name: string; args: Record<string, unknown>; resolved?: "approved" | "rejected" }
-  | { kind: "error"; message: string };
 
 type Labels = {
   title: string;
@@ -118,17 +104,9 @@ export function AiChat({ enabled }: { enabled: boolean }) {
       if (!res.ok) return;
       const data = (await res.json()) as { conversationId: string | null; messages: StoredMessage[] };
       setConversationId(data.conversationId);
-      const next: Item[] = [];
-      for (const m of data.messages) {
-        if (m.role === "user") next.push({ kind: "user", content: m.content });
-        else if (m.role === "assistant") {
-          if (m.content.trim()) next.push({ kind: "assistant", content: m.content });
-        } else if (m.status === "pending_confirmation" && m.toolCalls?.[0]) {
-          // RT-F: a persisted-but-unconfirmed write must come back as a live card.
-          const c = m.toolCalls[0];
-          next.push({ kind: "proposal", messageId: m.id, name: c.name, args: c.arguments });
-        }
-      }
+      // Shared with the per-record panel: one mapping from stored messages to
+      // rows, so a pending write comes back as a live card in both (RT-F).
+      const next = toItems(data.messages);
       setItems(next);
       if (next.some((i) => i.kind === "proposal")) setStatus("awaiting_confirmation");
     } catch {
