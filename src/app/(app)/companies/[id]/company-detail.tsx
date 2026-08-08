@@ -88,7 +88,12 @@ export function CompanyDetail({ id }: { id: string }) {
           <button onClick={() => setEditing(true)} className="btn-ghost">
             <IconEdit width={15} height={15} /> Edit
           </button>
-          <button onClick={remove} className="btn-ghost !text-red-500">
+          {/* Icon-only, so the record has to be named in the label. */}
+          <button
+            onClick={remove}
+            aria-label={`Delete ${company.name}`}
+            className="btn-ghost !text-red-500"
+          >
             <IconTrash width={15} height={15} />
           </button>
         </div>

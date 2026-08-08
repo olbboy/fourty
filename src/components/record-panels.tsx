@@ -210,7 +210,8 @@ export function TasksPanel({ entityType, entityId, onChanged }: EntityRef & { on
           placeholder="Add a task…"
           className="input"
         />
-        <button onClick={add} disabled={!draft.trim()} className="btn-ghost">
+        {/* Icon-only; the adjacent input's placeholder does not name this. */}
+        <button onClick={add} disabled={!draft.trim()} aria-label="Add task" className="btn-ghost">
           <IconPlus width={15} height={15} />
         </button>
       </div>
