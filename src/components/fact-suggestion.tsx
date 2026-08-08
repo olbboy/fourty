@@ -25,6 +25,7 @@ export type RecordFact = {
   evidence: { kind: string; detail: string; sourceUrl?: string }[];
   status: string;
   method: string;
+  decidedBy: string | null;
   observedAt: number;
 };
 
@@ -130,14 +131,20 @@ export function FactSuggestion({ fact, onDecided }: { fact: RecordFact; onDecide
   );
 }
 
-/** An applied fact: what filled the field, and the one click that undoes it. */
+/**
+ * An applied fact: what filled the field, and the one click that undoes it.
+ * Every APPLIED fact carries a Revert (ADR-018 §5), including one a person
+ * accepted — Revert undoes *this ledger write*, and who made it is not what
+ * decides whether it can be taken back.
+ */
 export function AppliedFact({ fact, onDecided }: { fact: RecordFact; onDecided: () => void }) {
   const [busy, setBusy] = useState(false);
-  // A fact a person accepted is their own edit; only the pass's own writes are
-  // offered a Revert here.
   return (
     <p className="mt-0.5 flex items-center gap-2 text-xs text-ink-muted">
-      <span>Filled from {fact.evidence[0]?.detail ?? "mailbox evidence"}</span>
+      <span>
+        {fact.decidedBy ? "Accepted from" : "Filled from"}{" "}
+        {fact.evidence[0]?.detail ?? "mailbox evidence"}
+      </span>
       <button
         onClick={async () => {
           setBusy(true);
@@ -170,7 +177,7 @@ export function FactsForField({
   applied: RecordFact[];
 } & Pick<Props, "onDecided">) {
   const suggestions = proposed.filter((f) => f.field === field);
-  const filled = applied.filter((f) => f.field === field && f.method === "research");
+  const filled = applied.filter((f) => f.field === field);
   if (suggestions.length === 0 && filled.length === 0) return null;
   return (
     <>

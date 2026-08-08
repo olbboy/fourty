@@ -156,6 +156,9 @@ describe("evidence ledger write path (Postgres + RLS)", () => {
       );
       expect(second.ok && second.applied).toBe(true);
       expect((await contactRow()).jobTitle).toBe("COO");
+      // The reason has to say which case this was; "applied to an empty field"
+      // here would be a lie a reader would believe.
+      expect(second.ok && second.reason).toMatch(/superseding "Head of Ops"/);
 
       // The supersession IS the job change, with its date and its source.
       const history = await inWs(() => listFacts({ entityId: contactId, status: "SUPERSEDED" }));
@@ -194,6 +197,11 @@ describe("evidence ledger write path (Postgres + RLS)", () => {
       const userId = newId();
       await inWs(() => decideFact((proposal as { fact: { id: string } }).fact.id, "accept", human(userId)));
       expect((await contactRow()).jobTitle).toBe("Head of Ops");
+
+      // It is still an APPLIED fact, so the record page still offers a Revert:
+      // undoing a ledger write does not depend on who made it (ADR-018 §5).
+      const applied = await inWs(() => listFacts({ entityId: contactId, status: "APPLIED" }));
+      expect(applied.map((f) => f.decidedBy)).toEqual([userId]);
 
       const later = await inWs(() =>
         recordFact(

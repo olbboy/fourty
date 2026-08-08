@@ -208,7 +208,14 @@ export async function recordFact(
     },
   });
 
-  return { ok: true, fact: (await factById(fact.id))!, applied: true, reason: "Applied to an empty field." };
+  return {
+    ok: true,
+    fact: (await factById(fact.id))!,
+    applied: true,
+    reason: applied
+      ? `Applied, superseding "${applied.value}" — the pass correcting its own earlier value.`
+      : "Applied to an empty field.",
+  };
 }
 
 /**
