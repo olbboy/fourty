@@ -8,6 +8,7 @@ import type { ToolContext } from "@/mcp/tools";
 import { isAiEnabled, streamChat } from "@/lib/ai/provider";
 import { runAgent, GENERIC_PROVIDER_ERROR, type AgentInput, type SseEvent } from "@/lib/ai/agent";
 import { buildSystemPrompt, localeFromRequest } from "@/lib/ai/prompt";
+import { grounding } from "@/lib/capabilities";
 import { aiTurnQuota } from "@/lib/ai/quota";
 import { getConversation, hasUnresolvedPending, latestConversation, listMessages } from "@/lib/ai/store";
 
@@ -111,7 +112,10 @@ export async function POST(req: Request): Promise<Response> {
     }
   }
 
-  const systemPrompt = buildSystemPrompt(localeFromRequest(req), new Date());
+  // One short transaction for the grounding read, closed before the stream opens
+  // (decision #2: no transaction spans the LLM call).
+  const ground = await withWorkspace(ctx.workspaceId, () => grounding());
+  const systemPrompt = buildSystemPrompt(localeFromRequest(req), new Date(), ground);
   const stream = sseStream(() => runAgent({ ctx, ownerId, systemPrompt, deps: { streamChat } }, input), {
     requestId,
     workspaceId: ctx.workspaceId,

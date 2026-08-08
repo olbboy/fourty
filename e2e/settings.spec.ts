@@ -2,9 +2,9 @@ import { test, expect, type Page } from "@playwright/test";
 import { ADMIN } from "./helpers/auth";
 
 /**
- * Settings — the SSO and mailbox panels, driven through the browser.
+ * Settings — the SSO, mailbox and diagnostics panels, driven through the browser.
  *
- * These two panels are the only interface to features that were API-only until
+ * These panels are the only interface to features that were API-only until
  * recently, and their unit coverage stops at "renders without crashing". Every
  * assertion here is about the round trip: the form reaches the API, the API's
  * answer reaches the list, and the destructive paths actually destroy.
@@ -200,5 +200,37 @@ test.describe("Mailboxes", () => {
     await acceptNextConfirm(page);
     await row.getByRole("button", { name: `Disconnect ${OAUTH_EMAIL}` }).click();
     await expect(row).toHaveCount(0);
+  });
+});
+
+test.describe("Diagnostics", () => {
+  /**
+   * The capability list is read from per-workspace rows, so a wrong probe shows
+   * up here as a panel that claims a mailbox nobody connected — and the identity
+   * line is a write path with no other interface. Both are invisible to a unit
+   * test that stops at "renders without crashing".
+   */
+  test("lists capabilities and round-trips the identity line", async ({ page }) => {
+    await page.goto("/settings");
+
+    const panel = page.locator(".card", { has: page.getByRole("heading", { name: "Diagnostics" }) });
+    await expect(panel).toBeVisible();
+    await expect(panel).toContainText("Mailbox sync");
+    await expect(panel).toContainText("Custom objects");
+
+    const about = panel.getByLabel(/What .* does/);
+    await about.fill("We sell fleet telematics to EU logistics operators.");
+    await panel.getByRole("button", { name: "Save" }).click();
+    // Save disables itself once the server's answer matches the field — proof the
+    // PATCH landed, not just that the button was clicked.
+    await expect(panel.getByRole("button", { name: "Save" })).toBeDisabled();
+
+    await page.reload();
+    await expect(about).toHaveValue("We sell fleet telematics to EU logistics operators.");
+
+    // Leave the workspace as it was found.
+    await about.fill("");
+    await panel.getByRole("button", { name: "Save" }).click();
+    await expect(panel.getByRole("button", { name: "Save" })).toBeDisabled();
   });
 });
