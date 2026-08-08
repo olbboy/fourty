@@ -106,12 +106,15 @@ describe("static guard: every API route authenticates", () => {
     // for routes that don't touch tenant data or predate a workspace (accept).
     // toRouteHandler() is withAuth() plus the action kernel — a route built from
     // it cannot skip authentication, because it never writes the handler itself.
+    // withAuthOutsideTransaction() authenticates identically and leaves the
+    // transaction to the handler, for the routes that call a provider.
     const missing: string[] = [];
     for (const { rel, file } of files) {
       if (PUBLIC_ROUTES.has(rel)) continue;
       const src = readFileSync(file, "utf8");
       if (
         !src.includes("withAuth(") &&
+        !src.includes("withAuthOutsideTransaction(") &&
         !src.includes("toRouteHandler(") &&
         !src.includes("authenticate(") &&
         !src.includes("getSessionUser(")
