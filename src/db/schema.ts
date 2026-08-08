@@ -563,6 +563,14 @@ export const emailMessages = pgTable(
     toAddrs: text("to_addrs").notNull().default("[]"),
     subject: text("subject"),
     snippet: text("snippet"),
+    // What the sender's signature block said, extracted while the body was
+    // still in memory at ingest (Phase 3). Fourty stores no body, so these four
+    // columns plus the snippet are all that survives a message. `signatureRaw`
+    // is the block quoted back to a rep as the rationale for a fact.
+    signatureTitle: text("signature_title"),
+    signatureEmployer: text("signature_employer"),
+    signaturePhone: text("signature_phone"),
+    signatureRaw: text("signature_raw"),
     contactId: text("contact_id"),
     sentAt: millis("sent_at"),
     createdAt: millis("created_at").notNull(),
