@@ -1,4 +1,5 @@
 import { LOCALE_COOKIE, resolveLocale, type Locale } from "@/lib/i18n";
+import { capabilitiesMarkdown, workspaceMarkdown, type Grounding } from "@/lib/capabilities";
 
 /**
  * System prompt + locale resolution for the agent. The chat route bypasses
@@ -19,12 +20,21 @@ export function localeFromRequest(req: Request): Locale {
  * The agent's system prompt: role, reply language, grounding + confirmation
  * discipline, and prompt-injection hardening (CRM record text is data, not
  * instructions). `now` is injected so the prompt is deterministic under test.
+ *
+ * `grounding` says who this workspace is and what it can reach. It is optional
+ * only so the prompt stays a pure function testable without a database — the
+ * chat route always passes it, because an agent that does not know a mailbox is
+ * missing will plan around one and fail at the tool call instead of at the plan.
+ * The identity block comes first: it frames everything after it.
  */
-export function buildSystemPrompt(locale: Locale, now: Date): string {
+export function buildSystemPrompt(locale: Locale, now: Date, grounding?: Grounding): string {
   const language = locale === "vi" ? "Vietnamese" : "English";
   const date = now.toISOString().slice(0, 10);
   return [
     `You are Fourty's built-in CRM assistant. Today's date is ${date}.`,
+    ...(grounding
+      ? [workspaceMarkdown(grounding.workspace), capabilitiesMarkdown(grounding.capabilities)]
+      : []),
     `Always reply in ${language} — the user's language.`,
     `Ground every answer in real CRM data by calling the provided tools. Never invent contacts, companies, deals, records, or numbers; if a tool returns nothing, say so.`,
     `You may read data freely. For any change (creating a contact, company, or record) you PROPOSE the action via its tool — the user must confirm before it runs. Never state that a change was made until it is confirmed.`,

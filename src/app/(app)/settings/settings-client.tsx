@@ -9,13 +9,14 @@ import { MailboxSection } from "./sections/mailbox";
 import { LanguageSection } from "./sections/language";
 import { CustomFieldsSection } from "./sections/custom-fields";
 import { ApiKeysSection } from "./sections/api-keys";
+import { DiagnosticsSection } from "./sections/diagnostics";
 
 export function SettingsClient() {
   return (
     <div className="animate-fade-up space-y-6">
       <PageHeader
         title="Settings"
-        subtitle="Team, single sign-on, mailboxes, custom fields, API access, and data tools."
+        subtitle="Team, single sign-on, mailboxes, custom fields, API access, diagnostics, and data tools."
       />
       <MembersSection />
       <SsoSection />
@@ -23,6 +24,7 @@ export function SettingsClient() {
       <LanguageSection />
       <CustomFieldsSection />
       <ApiKeysSection />
+      <DiagnosticsSection />
       <div className="card p-4">
         <h2 className="mb-1 text-sm font-semibold">Data import</h2>
         <p className="mb-3 text-sm text-ink-muted">

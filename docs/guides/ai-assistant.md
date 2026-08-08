@@ -36,6 +36,36 @@ Tool-calling is tested against OpenAI / Groq / OpenRouter; local **Ollama / LM S
 are best-effort (the agent degrades to a text-only assistant if the model emits no
 tool calls). Full details in [Configuration](../self-hosting/configuration.md#ai-assistant).
 
+## What it knows about your install
+
+Before it plans anything, the assistant is told two things about the workspace it is
+pointed at — so it stops proposing steps that depend on an integration you never
+connected, and stops turning that into a thrown error mid-conversation.
+
+**Who you are.** One line, at most 320 characters, set in **Settings → Diagnostics**:
+what you sell and to whom. It opens the prompt, so write it like an introduction to a
+new rep.
+
+**What it can reach.** A per-workspace capability list, also shown read-only in
+**Settings → Diagnostics**:
+
+| Capability | Configured from | What it gives the assistant |
+|---|---|---|
+| **AI assistant** | `AI_API_KEY` in the environment | The chat itself and any model-backed pass |
+| **Mailbox sync** | Settings → Mailboxes | Threads, replies and signature blocks |
+| **Calendar** | Settings → Mailboxes (an ICS feed) | Meeting attendance |
+| **Outbound webhooks** | Automations → a workflow with a webhook action | Notifying other systems |
+| **Custom objects** | Settings → Custom objects | Extra record types it may read |
+
+Everything except the API key is a **per-workspace row**, not an environment variable:
+changing what the assistant can see never needs a redeploy. Anything not configured is
+named in the prompt as *not set up here*, so the assistant says so instead of failing at
+a tool call. On an install with nothing connected the list is not an apology — everything
+the assistant can learn is already in the CRM.
+
+Diagnostics is admin-only and renders booleans and labels only: never a key, not even a
+redacted one.
+
 ## Two separate AI surfaces
 
 Fourty has two independent, off-by-default AI features — don't confuse them:
