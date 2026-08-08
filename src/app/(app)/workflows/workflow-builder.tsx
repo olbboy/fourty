@@ -137,12 +137,14 @@ export function WorkflowBuilder({
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
           When…
         </p>
+        {/* The "When…" heading above is a paragraph, not a label. */}
         <select
           value={event}
           onChange={(e) => {
             setEvent(e.target.value as WorkflowEvent);
             setConditions([]);
           }}
+          aria-label="Trigger event"
           className="input"
         >
           {Object.entries(EVENT_LABELS).map(([value, label]) => (
@@ -171,9 +173,12 @@ export function WorkflowBuilder({
           )}
           {conditions.map((c, i) => (
             <div key={i} className="flex flex-wrap items-center gap-2">
+              {/* Conditions repeat, so each control names its own row — otherwise
+                  a screen reader reads the same three unnamed fields over again. */}
               <select
                 value={c.field}
                 onChange={(e) => setCondition(i, { field: e.target.value })}
+                aria-label={`Condition ${i + 1} field`}
                 className="input !w-auto"
               >
                 {fields.map((f) => (
@@ -185,6 +190,7 @@ export function WorkflowBuilder({
               <select
                 value={c.op}
                 onChange={(e) => setCondition(i, { op: e.target.value })}
+                aria-label={`Condition ${i + 1} operator`}
                 className="input !w-auto"
               >
                 {OPS.map((o) => (
@@ -197,6 +203,7 @@ export function WorkflowBuilder({
                 <input
                   value={c.value ?? ""}
                   onChange={(e) => setCondition(i, { value: e.target.value })}
+                  aria-label={`Condition ${i + 1} value`}
                   className="input !w-36"
                   placeholder="value"
                 />
@@ -241,6 +248,7 @@ export function WorkflowBuilder({
                     };
                     setActions((as) => as.map((x, idx) => (idx === i ? blank[type] : x)));
                   }}
+                  aria-label={`Action ${i + 1} type`}
                   className="input !w-auto"
                 >
                   {ACTION_TYPES.map((t) => (
@@ -263,12 +271,14 @@ export function WorkflowBuilder({
                   <input
                     value={(a.title as string) ?? ""}
                     onChange={(e) => setAction(i, { title: e.target.value })}
+                    aria-label={`Action ${i + 1} task title`}
                     className="input sm:col-span-3"
                     placeholder='Task title — use {{firstName}}, {{name}}, etc.'
                   />
                   <select
                     value={(a.priority as string) ?? "medium"}
                     onChange={(e) => setAction(i, { priority: e.target.value })}
+                    aria-label={`Action ${i + 1} task priority`}
                     className="input"
                   >
                     <option value="low">Low</option>
@@ -280,6 +290,7 @@ export function WorkflowBuilder({
                     min={0}
                     value={(a.dueInDays as number) ?? ""}
                     onChange={(e) => setAction(i, { dueInDays: e.target.value })}
+                    aria-label={`Action ${i + 1} days until due`}
                     className="input"
                     placeholder="Due in days"
                   />
@@ -289,6 +300,7 @@ export function WorkflowBuilder({
                 <textarea
                   value={(a.body as string) ?? ""}
                   onChange={(e) => setAction(i, { body: e.target.value })}
+                  aria-label={`Action ${i + 1} note body`}
                   className="input resize-y"
                   rows={2}
                   placeholder='Note body — templates like {{name}} are filled in.'
@@ -299,6 +311,7 @@ export function WorkflowBuilder({
                   <select
                     value={(a.field as string) ?? ""}
                     onChange={(e) => setAction(i, { field: e.target.value })}
+                    aria-label={`Action ${i + 1} field to update`}
                     className="input !w-auto"
                   >
                     {(entity === "contact"
@@ -315,6 +328,7 @@ export function WorkflowBuilder({
                   <input
                     value={(a.value as string) ?? ""}
                     onChange={(e) => setAction(i, { value: e.target.value })}
+                    aria-label={`Action ${i + 1} new value`}
                     className="input !w-44"
                     placeholder="new value"
                   />
@@ -324,6 +338,7 @@ export function WorkflowBuilder({
                 <input
                   value={(a.url as string) ?? ""}
                   onChange={(e) => setAction(i, { url: e.target.value })}
+                  aria-label={`Action ${i + 1} webhook URL`}
                   className="input"
                   placeholder="https://hooks.example.com/… (POST, JSON payload)"
                 />
@@ -333,6 +348,7 @@ export function WorkflowBuilder({
                   <textarea
                     value={(a.prompt as string) ?? ""}
                     onChange={(e) => setAction(i, { prompt: e.target.value })}
+                    aria-label={`Action ${i + 1} AI prompt`}
                     className="input resize-y"
                     rows={2}
                     placeholder='AI prompt — e.g. "Draft a follow-up email for {{firstName}} at {{name}}."'
@@ -347,6 +363,7 @@ export function WorkflowBuilder({
                 <input
                   value={(a.message as string) ?? ""}
                   onChange={(e) => setAction(i, { message: e.target.value })}
+                  aria-label={`Action ${i + 1} log message`}
                   className="input"
                   placeholder="Message for the run log"
                 />

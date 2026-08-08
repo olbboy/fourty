@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { Modal, Field } from "@/components/ui";
 import { IconDashboard } from "@/components/icons";
@@ -75,6 +75,85 @@ describe("settings panels render", () => {
     const html = renderToStaticMarkup(createElement(MailboxSection));
     expect(html).toContain("Mailboxes");
     expect(html).toContain("Add mailbox");
+  });
+});
+
+/**
+ * Every form control must end up with an accessible name.
+ *
+ * This is a source scan, so it can only see the shapes it knows: an aria-label
+ * or aria-labelledby on the tag, a wrapping <Field> or <label>, or an id some
+ * htmlFor in the same file points at. A control named some other way would be
+ * reported here as a false positive — fix that by teaching this check, not by
+ * silencing it. A placeholder does not count: it is a fallback name at best,
+ * disappears the moment anything is typed, and several of these controls had
+ * nothing else.
+ *
+ * A regex cannot find where a JSX tag ends — `onChange={(e) => ...}` puts a `>`
+ * inside a brace expression — so the attributes are read with a depth-aware walk.
+ * Getting that wrong is silent: the scan sees truncated attributes and calls a
+ * labelled control unlabelled, or worse, misses one entirely.
+ */
+describe("every form control has an accessible name", () => {
+  function tsxFiles(dir: string): string[] {
+    const out: string[] = [];
+    for (const entry of readdirSync(dir)) {
+      const full = path.join(dir, entry);
+      if (statSync(full).isDirectory()) out.push(...tsxFiles(full));
+      else if (entry.endsWith(".tsx")) out.push(full);
+    }
+    return out;
+  }
+
+  /** Attributes of the tag whose `<` is at `start`, honouring braces and quotes. */
+  function readTagAttrs(source: string, start: number): string {
+    let depth = 0;
+    let quote: string | null = null;
+    for (let i = start; i < source.length; i++) {
+      const c = source[i];
+      if (quote) {
+        if (c === quote) quote = null;
+      } else if (c === '"' || c === "'" || c === "`") quote = c;
+      else if (c === "{") depth++;
+      else if (c === "}") depth--;
+      else if (c === ">" && depth === 0) return source.slice(start, i);
+    }
+    return source.slice(start);
+  }
+
+  function unnamedControls(file: string): string[] {
+    const source = readFileSync(file, "utf8");
+    const labelledIds = new Set(
+      [...source.matchAll(/htmlFor="([^"]+)"/g)].map((m) => m[1]),
+    );
+    const found: string[] = [];
+
+    for (const m of source.matchAll(/<(input|textarea|select)\b/g)) {
+      const attrs = readTagAttrs(source, m.index + m[1].length + 1);
+      if (/type="hidden"/.test(attrs)) continue;
+
+      const before = source.slice(0, m.index);
+      const openCount = (open: RegExp, close: RegExp) =>
+        (before.match(open) ?? []).length - (before.match(close) ?? []).length;
+
+      const id = attrs.match(/\bid="([^"]+)"/)?.[1];
+      const named =
+        /\baria-label\b|\baria-labelledby\b|\btitle=/.test(attrs) ||
+        openCount(/<Field\b/g, /<\/Field>/g) > 0 ||
+        openCount(/<label\b/g, /<\/label>/g) > 0 ||
+        (id !== undefined && labelledIds.has(id));
+
+      if (!named) {
+        const line = before.split("\n").length;
+        found.push(`${path.relative(path.resolve(__dirname, ".."), file)}:${line} <${m[1]}>`);
+      }
+    }
+    return found;
+  }
+
+  it("names every input, textarea and select in the app", () => {
+    const unnamed = tsxFiles(path.resolve(__dirname, "../src")).flatMap(unnamedControls);
+    expect(unnamed, `form controls with no accessible name:\n${unnamed.join("\n")}`).toEqual([]);
   });
 });
 

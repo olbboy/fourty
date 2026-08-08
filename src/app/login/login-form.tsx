@@ -39,15 +39,23 @@ export function LoginForm({ mode }: { mode: "setup" | "login" }) {
 
   return (
     <form onSubmit={onSubmit} className="card space-y-4 p-6">
+      {/* Each label sits beside its input rather than wrapping it, so the pairing
+          only exists if htmlFor says so — without it the text is decoration and
+          the field announces as unlabelled. */}
       {mode === "setup" && (
         <div>
-          <label className="mb-1.5 block text-sm font-medium">Your name</label>
-          <input name="name" required className="input" placeholder="Ada Lovelace" />
+          <label htmlFor="login-name" className="mb-1.5 block text-sm font-medium">
+            Your name
+          </label>
+          <input id="login-name" name="name" required className="input" placeholder="Ada Lovelace" />
         </div>
       )}
       <div>
-        <label className="mb-1.5 block text-sm font-medium">Email</label>
+        <label htmlFor="login-email" className="mb-1.5 block text-sm font-medium">
+          Email
+        </label>
         <input
+          id="login-email"
           name="email"
           type="email"
           required
@@ -57,8 +65,11 @@ export function LoginForm({ mode }: { mode: "setup" | "login" }) {
         />
       </div>
       <div>
-        <label className="mb-1.5 block text-sm font-medium">Password</label>
+        <label htmlFor="login-password" className="mb-1.5 block text-sm font-medium">
+          Password
+        </label>
         <input
+          id="login-password"
           name="password"
           type="password"
           required

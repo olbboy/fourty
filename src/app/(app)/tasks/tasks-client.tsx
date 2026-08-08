@@ -98,10 +98,13 @@ export function TasksClient() {
         <div className="card divide-y divide-line/60">
           {tasks.map((t) => (
             <div key={t.id} className="flex items-start gap-3 px-4 py-3">
+              {/* The title sits in a sibling element rather than a wrapping
+                  label, so the checkbox has to name the task itself. */}
               <input
                 type="checkbox"
                 checked={!!t.completedAt}
                 onChange={() => toggle(t)}
+                aria-label={`Mark "${t.title}" complete`}
                 className="mt-1 h-4 w-4 accent-indigo-600"
               />
               <div className="min-w-0 flex-1">

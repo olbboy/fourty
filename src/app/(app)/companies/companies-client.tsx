@@ -49,9 +49,12 @@ export function CompaniesClient() {
       />
 
       <div className="mb-4">
+        {/* No visible label above the box, and a placeholder is a fallback name
+            at best — say what it searches. */}
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
+          aria-label="Search companies"
           placeholder="Search name, domain, industry…"
           className="input max-w-xs"
         />
