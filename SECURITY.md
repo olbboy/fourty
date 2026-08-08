@@ -34,6 +34,35 @@ Gate B2). Understand these properties before exposing it to untrusted users:
 
 See `CLAIMS.md`, `PROGRESS.md`, and `docs/adr/001-tenancy-model.md` for detail.
 
+## Mailbox research: what is read, what is stored, how to switch it off
+
+Once a mailbox is connected, a background pass reads that mailbox to keep contact
+records true (`docs/guides/research.md`). It is **on by default** and independent
+of any AI setting — it is a parser, not a model.
+
+- **What it reads:** messages and calendar events already synced into your own
+  tenant, scoped by RLS to the workspace that owns the mailbox. Contacts are
+  matched by exact email address only, never by name.
+- **What leaves:** nothing. The pass makes no network calls of any kind — no
+  vendor, no model, no telemetry. Fourty ships no phone-home.
+- **What is stored:** Fourty does not store message bodies. Signature extraction
+  runs at ingest on the in-memory body; what persists is `signature_title`,
+  `signature_employer`, `signature_phone` and `signature_raw` (≤500 chars) on
+  `email_messages`, alongside the 280-char snippet that was already stored. The
+  body is discarded when the sync finishes.
+- **What it may change:** only `job_title` and `company_id`, and only when the
+  field is empty or still holds this pass's own earlier value. A value a person
+  entered is never overwritten — it gets a suggestion instead. Every automatic
+  write is audited as `via: "research"` with a null actor, and has one-click
+  Revert.
+- **How to switch it off:** Settings → Diagnostics → "Read connected mailboxes for
+  facts", or `PATCH /api/diagnostics {"keylessResearch": false}`. Off stops the
+  reading for the whole workspace at once.
+
+Connecting a mailbox is the consent to process that mail inside the tenant. If
+your deployment cannot make that assumption for its users, turn the switch off
+before connecting anything.
+
 ## Hardening already in place
 
 - **Multi-tenant isolation via Postgres RLS** (FORCE) on all workspace data,

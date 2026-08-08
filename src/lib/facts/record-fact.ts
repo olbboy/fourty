@@ -150,13 +150,13 @@ export async function recordFact(
     klass === "B" && band === "VERIFIED" && assessment.hasPrimary && owner !== "human";
 
   const now = Date.now();
-  const fact: typeof tables.recordFacts.$inferInsert = {
-    id: newId(),
+  const previousValue = canApply ? currentValue(resolved, target) : null;
+  const values: Omit<typeof tables.recordFacts.$inferInsert, "id"> = {
     entityType: input.entityType,
     entityId: input.entityId,
     field: input.field,
     value,
-    previousValue: canApply ? currentValue(resolved, target) : null,
+    previousValue,
     score: assessment.score,
     band,
     evidence: JSON.stringify(assessment.evidence),
@@ -167,12 +167,25 @@ export async function recordFact(
     decidedAt: canApply ? now : null,
     observedAt: now,
   };
-  await db.insert(tables.recordFacts).values(fact);
+
+  // A pass that runs on a schedule meets the same evidence again on every run,
+  // and the table has no uniqueness constraint on an open proposal. So refresh
+  // the proposal that is already open for this exact (record, field, value)
+  // rather than stacking a second identical row — the newer evidence and
+  // `observed_at` land on the row a rep is already looking at. Phase 1 could
+  // leave this out because only a human wrote facts; Phase 3 cannot.
+  const openProposal = existing.find((f) => f.status === "PROPOSED" && f.value === value);
+  const factId = openProposal?.id ?? newId();
+  if (openProposal) {
+    await db.update(tables.recordFacts).set(values).where(eq(tables.recordFacts.id, factId));
+  } else {
+    await db.insert(tables.recordFacts).values({ id: factId, ...values });
+  }
 
   if (!canApply) {
     return {
       ok: true,
-      fact: (await factById(fact.id))!,
+      fact: (await factById(factId))!,
       applied: false,
       reason: notAppliedReason({ klass, band, owner, unresolvedCompany, field: fieldLabel(resolved) }),
     };
@@ -200,9 +213,9 @@ export async function recordFact(
     objectId: input.entityId,
     meta: {
       via: "research",
-      factId: fact.id,
+      factId,
       field: input.field,
-      old: fact.previousValue,
+      old: previousValue,
       new: value,
       score: assessment.score,
     },
@@ -210,7 +223,7 @@ export async function recordFact(
 
   return {
     ok: true,
-    fact: (await factById(fact.id))!,
+    fact: (await factById(factId))!,
     applied: true,
     reason: applied
       ? `Applied, superseding "${applied.value}" — the pass correcting its own earlier value.`

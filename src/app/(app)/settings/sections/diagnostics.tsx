@@ -31,6 +31,7 @@ export function DiagnosticsSection() {
   const [saved, setSaved] = useState<string | null>(null);
   const [hidden, setHidden] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [research, setResearch] = useState(true);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/diagnostics");
@@ -45,6 +46,7 @@ export function DiagnosticsSection() {
     setName(data.workspace.name);
     setAbout(data.workspace.about ?? "");
     setSaved(data.workspace.about ?? "");
+    setResearch(data.keylessResearch);
   }, []);
   useEffect(() => {
     load();
@@ -60,6 +62,18 @@ export function DiagnosticsSection() {
     });
     if (res.ok) setSaved(((await res.json()).workspace.about as string | null) ?? "");
     setSaving(false);
+  }
+
+  /** The switch is optimistic, then reconciled with what the server stored. */
+  async function toggleResearch(next: boolean) {
+    setResearch(next);
+    const res = await fetch("/api/diagnostics", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ keylessResearch: next }),
+    });
+    if (res.ok) setResearch((await res.json()).keylessResearch as boolean);
+    else setResearch(!next);
   }
 
   if (hidden) return null;
@@ -97,6 +111,31 @@ export function DiagnosticsSection() {
           ))}
         </ul>
       )}
+
+      <div className="mb-4 border-t border-line pt-3">
+        <label htmlFor="keyless-research" className="flex items-start gap-3 text-sm">
+          <input
+            id="keyless-research"
+            type="checkbox"
+            checked={research}
+            onChange={(e) => toggleResearch(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>
+            <strong className="font-medium">Read connected mailboxes for facts</strong>
+            <span className="text-ink-muted">
+              {" "}
+              — signatures, replies and meetings become suggestions on a contact, with the source shown.
+              No API key, no vendor and no AI model is involved, so this works on a fresh install.
+            </span>
+            <br />
+            <span className="text-xs text-ink-muted">
+              Turning it off stops the reading. Facts already on your records stay, and can be reverted
+              one by one.
+            </span>
+          </span>
+        </label>
+      </div>
 
       <form onSubmit={saveAbout} className="border-t border-line pt-3">
         <label htmlFor="workspace-about" className="mb-1 block text-sm font-medium">
