@@ -1,7 +1,7 @@
 # MCP server
 
 *Expose Fourty to Claude, Cursor, and other LLM clients over the Model Context
-Protocol — 20 tools, on stdio or HTTP, every call scoped by workspace and role.*
+Protocol — 23 tools, on stdio or HTTP, every call scoped by workspace and role.*
 
 Fourty ships a **hand-rolled, dependency-free** MCP server ([ADR-010](../adr/010-mcp-server.md))
 — no SDK, consistent with the ~10-dependency ethos. It's the centerpiece of Fourty's
@@ -33,10 +33,23 @@ MCP to Cloud/OAuth, Fourty's HTTP transport runs on the OSS build.
 `initialize`, `tools/list`, `tools/call`, `resources/list`, `resources/read`,
 `prompts/list`, `prompts/get`, `ping`.
 
-## Tools (20)
+## Tools (23)
 
-**Read:** `search`, `list_contacts`, `list_companies`, `list_deals`, `list_tasks`,
-`get_dashboard_stats`, `list_custom_objects`, `list_records`.
+**Read:** `search`, `get_contact`, `get_company`, `get_deal`, `list_contacts`,
+`list_companies`, `list_deals`, `list_tasks`, `get_dashboard_stats`,
+`list_custom_objects`, `list_records`.
+
+> [!TIP]
+> **Walk the graph, don't search twice.** `get_contact` / `get_company` / `get_deal`
+> return the record *plus the ids around it* — a contact's company, deals and
+> colleagues; a company's contacts and deals; a deal's company, contacts and stage
+> clock. `search` is **exact or prefix only**, deliberately: a fuzzy match that
+> returns "Marchetta" for "Marchetti" gives a caller no way to tell a near-miss from
+> a hit. An empty result says so rather than ending the conversation.
+>
+> A tool whose capability is not configured in the workspace returns
+> `{ ok: false, configured: false, reason }` instead of throwing — a configuration
+> gap is not a failure, and retrying will not fix it.
 
 **Write:** `create_contact`, `update_contact`, `delete_contact`, `create_company`,
 `update_company`, `delete_company`, `create_deal`, `update_deal`, `delete_deal`,

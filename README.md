@@ -55,7 +55,7 @@ Read the full rationale in **[Why Fourty](./docs/getting-started/why-fourty.md)*
 | Lead scoring | ✅ Automatic, zero-config | ❌ ("coming soon") | Einstein ($$) |
 | Workflow automation | ✅ Visual builder, durable queue | Limited | Flow ($$) |
 | REST **and** GraphQL API | ✅ Both | GraphQL-first | ✅ |
-| MCP server (AI agents) | ✅ Self-host, 20 tools, stdio + HTTP | ✅ (Cloud/OAuth) | ❌ |
+| MCP server (AI agents) | ✅ Self-host, 23 tools, stdio + HTTP | ✅ (Cloud/OAuth) | ❌ |
 | License | **MIT** | AGPL | Proprietary |
 
 _A **small-team lens** — out-of-the-box experience for one team, not full
