@@ -10,6 +10,7 @@ import { TASK_KINDS, type TaskKind } from "@/lib/agent-tasks/kinds";
 import {
   completeTask,
   failTask,
+  openTask,
   retireExhausted,
   retireLane,
   scheduleTask,
@@ -148,14 +149,22 @@ const HANDLERS: Partial<Record<TaskKind, TaskHandler>> = {
  * interval after its last successful sync — so a mailbox connected an hour ago
  * is due now, and one synced a minute ago is not.
  *
- * `scheduleTask` is idempotent per (entity, kind), so running this every tick
- * moves a booking rather than stacking bookings.
+ * This only ever creates. Moving an open booking would overwrite a retry
+ * backoff, so a task that already exists is left exactly where `failTask` or
+ * the last completion put it.
  */
 async function bookRecurringWork(): Promise<number> {
   const accounts = await db.select().from(tables.syncAccounts).where(eq(tables.syncAccounts.status, "active"));
   let booked = 0;
   for (const account of accounts) {
     if (!canPull(account)) continue;
+    // Only ever *create* here, never move an open booking. `scheduleTask` moves
+    // `dueAt`, so re-booking a task that is mid-retry would overwrite the
+    // backoff `failTask` just set — and for an account that has never synced
+    // successfully, `lastSyncedAt` is null, so the computed dueAt is in 1970 and
+    // the task would be due again on every single tick, burning its whole budget
+    // in a few minutes. The next pull is booked once this one has finished.
+    if (await openTask("mailbox.pull", "sync_account", account.id)) continue;
     await scheduleTask({
       kind: "mailbox.pull",
       entityType: "sync_account",
