@@ -9,6 +9,7 @@ import { formatMoney, formatCompact } from "@/lib/currency";
 import { Modal, Avatar, StatusChip, ScoreBadge, Spinner } from "@/components/ui";
 import { Timeline, NotesPanel, TasksPanel } from "@/components/record-panels";
 import { CustomFieldsDisplay, useCustomFields } from "@/components/custom-fields";
+import { FactsForField, useFacts } from "@/components/fact-suggestion";
 import { IconEdit, IconTrash } from "@/components/icons";
 import { CompanyForm } from "../company-form";
 
@@ -22,6 +23,7 @@ export function CompanyDetail({ id }: { id: string }) {
   const [editing, setEditing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [missing, setMissing] = useState(false);
+  const { proposed, applied: appliedFacts } = useFacts("company", id, refreshKey);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/companies/${id}`);
@@ -103,17 +105,29 @@ export function CompanyDetail({ id }: { id: string }) {
         <div className="space-y-4">
           <div className="card space-y-3 p-4">
             <h2 className="text-sm font-semibold">Details</h2>
+            {/* `field` names the fact-ledger field, where there is one. */}
             {[
-              ["Domain", company.domain],
-              ["Website", company.website],
-              ["LinkedIn", company.linkedin],
-              ["Annual revenue", company.annualRevenue ? formatCompact(company.annualRevenue, "USD") : null],
-            ].map(([label, value]) => (
-              <div key={label as string}>
+              { label: "Domain", value: company.domain },
+              { label: "Website", value: company.website },
+              { label: "LinkedIn", value: company.linkedin, field: "linkedin" },
+              {
+                label: "Annual revenue",
+                value: company.annualRevenue ? formatCompact(company.annualRevenue, "USD") : null,
+              },
+            ].map(({ label, value, field }) => (
+              <div key={label}>
                 <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
                   {label}
                 </p>
                 <p className="mt-0.5 break-words text-sm">{value || "—"}</p>
+                {field && (
+                  <FactsForField
+                    field={field}
+                    proposed={proposed}
+                    applied={appliedFacts}
+                    onDecided={bump}
+                  />
+                )}
               </div>
             ))}
             <CustomFieldsDisplay defs={defs} values={company.custom} />

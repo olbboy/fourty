@@ -27,6 +27,10 @@ export const CRM_OBJECTS = [
   "custom-objects",
   "objects",
   "sync",
+  // Suggestions from the evidence ledger (ADR-018). A CRM object, not an
+  // administration one: a member settles what a background pass found about a
+  // record they own, and a viewer may read the reasoning without acting on it.
+  "facts",
   "saved-views",
   "pipelines",
   "stages",

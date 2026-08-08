@@ -32,7 +32,7 @@ Move Fourty's AI from *a chat box that reads the CRM* to *a background worker th
 | # | Phase | Size | Depends on | File |
 |---|---|---|---|---|
 | 0 | Capability registry, prompt grounding, non-dead-end reads ✅ done | S | — | [phase-00](./phase-00-capabilities-and-grounding.md) |
-| 1 | Evidence ledger + suggestion inbox | M | 0 | [phase-01](./phase-01-evidence-ledger.md) |
+| 1 | Evidence ledger + suggestion inbox ✅ done | M | 0 | [phase-01](./phase-01-evidence-ledger.md) |
 | 2 | Agent work ledger + two-lane dispatcher | M | 0 | [phase-02](./phase-02-agent-work-ledger.md) |
 | 3 | Keyless research pass (mail/calendar → evidence) | L | 1, 2 | [phase-03](./phase-03-keyless-research-pass.md) |
 | 4 | Per-record agent panel + durable conversations | M | 0 (1/3 for content) | [phase-04](./phase-04-per-record-agent-panel.md) |

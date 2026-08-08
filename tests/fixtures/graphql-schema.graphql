@@ -1,6 +1,7 @@
 type Query {
   contacts(limit: Int, q: String): [Contact!]!
   contact(id: ID!): Contact
+  factSuggestions(entityType: String, entityId: ID, status: String, limit: Int): [RecordFact!]!
   companies(limit: Int, q: String): [Company!]!
   company(id: ID!): Company
   deals(limit: Int, q: String): [Deal!]!
@@ -33,6 +34,25 @@ type Contact {
 
 """Arbitrary JSON value"""
 scalar JSON
+
+type RecordFact {
+  id: ID!
+  entityType: String!
+  entityId: ID!
+  field: String!
+  value: String!
+  previousValue: String
+  score: Float
+  band: String
+  evidence: JSON
+  method: String
+  sourceUrl: String
+  status: String
+  decidedBy: String
+  decidedAt: Float
+  observedAt: Float
+  supersededAt: Float
+}
 
 type Company {
   id: ID!
@@ -108,6 +128,8 @@ type Record {
 type Mutation {
   createContact(input: JSON!): Contact!
   updateContact(id: ID!, input: JSON!): Contact!
+  recordFact(input: JSON!): FactResult!
+  decideFact(id: ID!, decision: String!): FactResult!
   deleteContact(id: ID!): Boolean!
   createCompany(input: JSON!): Company!
   updateCompany(id: ID!, input: JSON!): Company!
@@ -115,4 +137,11 @@ type Mutation {
   createRecord(object: String!, data: JSON!): Record!
   updateRecord(object: String!, id: ID!, data: JSON!): Record!
   deleteRecord(object: String!, id: ID!): Boolean!
+}
+
+type FactResult {
+  ok: Boolean!
+  applied: Boolean
+  reason: String!
+  fact: RecordFact
 }

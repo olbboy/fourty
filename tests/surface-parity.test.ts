@@ -363,6 +363,8 @@ describe("side-effect parity across REST / GraphQL / MCP", () => {
     // Importing these is what wires the adapters up in a running process.
     await import("@/app/api/contacts/route");
     await import("@/app/api/contacts/[id]/route");
+    await import("@/app/api/facts/route");
+    await import("@/app/api/facts/[id]/route");
     await import("@/lib/graphql/schema");
     await import("@/mcp/tools");
 

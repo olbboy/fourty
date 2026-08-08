@@ -403,6 +403,45 @@ export const workflowRuns = pgTable(
 
 // API keys belong to one workspace. Looked up by hash during auth (before a
 // workspace context exists), so this table is app-scoped, not RLS-enforced.
+// Evidence ledger (ADR-018). One row per observed claim about a field of a
+// record: what was observed, what it scored, which band that puts it in, and
+// what happened to it. Polymorphic (`entity_type`/`entity_id`) like tasks/notes/
+// activities, so companies and later custom objects cost no second table.
+//
+// `previous_value` is what the column held when a fact was APPLIED — kept
+// because Revert has to restore it, and deriving it from the superseded row is
+// wrong the moment a human edited in between.
+//
+// `decided_by` is how ownership stays derivable without an `is_human_edited`
+// column: a fact applied by the research pass has none, a fact a person accepted
+// carries theirs, and a field whose value matches neither is human-owned.
+export const recordFacts = pgTable(
+  "record_facts",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    entityType: text("entity_type").notNull(), // contact | company
+    entityId: text("entity_id").notNull(),
+    field: text("field").notNull(), // job_title | company_id | linkedin | cf:<id>
+    value: text("value").notNull(),
+    previousValue: text("previous_value"),
+    score: doublePrecision("score").notNull(),
+    band: text("band").notNull(), // VERIFIED | PROBABLE | POSSIBLE
+    evidence: text("evidence").notNull().default("[]"), // the observations, as given
+    method: text("method").notNull().default("research"), // research | ai | agent:<id>
+    sourceUrl: text("source_url"),
+    status: text("status").notNull().default("PROPOSED"), // PROPOSED | APPLIED | DISMISSED | SUPERSEDED
+    decidedBy: text("decided_by"),
+    decidedAt: millis("decided_at"),
+    observedAt: millis("observed_at").notNull(),
+    supersededAt: millis("superseded_at"),
+  },
+  (t) => [
+    index("record_facts_target_idx").on(t.workspaceId, t.entityType, t.entityId, t.field, t.status),
+    index("record_facts_inbox_idx").on(t.workspaceId, t.status, t.observedAt),
+  ],
+);
+
 export const apiKeys = pgTable("api_keys", {
   id: text("id").primaryKey(),
   workspaceId: workspaceId(),

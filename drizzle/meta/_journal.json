@@ -92,6 +92,13 @@
       "when": 1783500600000,
       "tag": "0012_deal_score",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1783587000000,
+      "tag": "0013_record_facts",
+      "breakpoints": true
     }
   ]
 }

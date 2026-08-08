@@ -1,6 +1,53 @@
 # Phase 1 — Evidence ledger + suggestion inbox
 
-**Size:** M · **Depends on:** Phase 0 · **Blocks:** Phase 3, Phase 5
+**Size:** M · **Depends on:** Phase 0 · **Blocks:** Phase 3, Phase 5 · **Status:** done (2026-08-09)
+
+## Delivered
+
+`src/lib/facts/{evidence,fields,record-fact}.ts`, migration `0013_record_facts`
+(+ down, reversible in CI), the three actions (`facts.record` / `facts.list` /
+`facts.decide`) served over REST, GraphQL, MCP and the AI agent from one
+definition, and the suggestion chip under the fields it is about on the contact
+and company pages. Tests: `tests/facts-evidence.test.ts` (16, pure),
+`tests/facts-write-path.test.ts` (27, real Postgres), `e2e/fact-suggestions.spec.ts`.
+Full suite 479 passed, 14 e2e, build green.
+
+### Deviations from this plan, all deliberate
+
+- **A human-owned field gets a proposal, not a rejection.** Step 3 below says
+  "human-owns → reject". Taken literally that would make a job change against a
+  field a rep typed invisible, which contradicts plan.md AC1 ("proposed, never
+  overwritten") and ADR-018 §2 ("a proposal is a correct outcome"). The rejection
+  applies to the *apply*, and the reason names the field.
+- **The pass may supersede its own applied value, not only fill an empty field.**
+  ADR-018 §3 says "empty field only"; §4.1 says a previous applied fact does not
+  outrank a new one, and §5's job-change detection is impossible otherwise. Owner
+  is derived as empty / research / human, and only `human` blocks a write.
+- **Accepting makes the field human-owned.** `decided_by` is set, so a later pass
+  proposes rather than replaces what a person signed off on. Without this, Accept
+  would quietly leave the value research-owned and overwritable.
+- **A class-A caller caps the *band* (ADR-018 §3), not just the status** (the
+  requirement below says PROPOSED). Band-capping is the stricter of the two and
+  satisfies both. A class-C human is not capped: their observation is priced
+  honestly, it simply does not apply.
+- **`evidence` is `text`, not `jsonb`.** Every JSON blob in this schema is text
+  (`custom`, `config`, `meta`, `actions`) and nothing queries inside the array.
+- **`previous_value` added to the table.** Revert has to restore what the column
+  held; deriving it from the SUPERSEDED row is wrong the moment a human edited in
+  between.
+- **Two companies on one domain resolves to nothing.** ADR-018 §7 says exact
+  domain match; it does not say which of two rows. Guessing is how a contact ends
+  up on the wrong subsidiary.
+- **`src/lib/actions/json-schema.ts` gained arrays and `url`.** An evidence list
+  is the first input shape that cannot be flattened. The module is designed to
+  throw rather than guess, and it did — that is the gap being closed, with tests.
+- **The frozen GraphQL SDL fixture was regenerated.** Additive only (`RecordFact`,
+  `FactResult`, three fields); the diff is the review, and anything *removed* in
+  it would have been a breaking change rather than a fixture to update.
+
+Not built here, deliberately: the pass that produces the observations. Phase 1
+ships the ledger and its surfaces; nothing writes `crm.signature-block` evidence
+until Phase 3 extracts it at ingest.
 
 ## Why
 
