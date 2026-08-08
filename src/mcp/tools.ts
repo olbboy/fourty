@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, ilike, ne, or, sql, type SQL } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { newId } from "@/lib/id";
 import { can } from "@/lib/permissions";
@@ -18,6 +18,7 @@ import {
   noteInput,
 } from "@/lib/validators";
 import { computeDashboardStats } from "@/lib/services/stats";
+import { unavailable } from "@/lib/capabilities";
 import { dispatchEvent } from "@/lib/workflows/engine";
 import { ensureDefaultPipeline } from "@/db/seed";
 import {
@@ -69,6 +70,28 @@ async function requireWritableFields(
   return policy;
 }
 
+/** Neighbour id lists are a navigation aid, not a page — capped, never paged. */
+const NEIGHBOUR_LIMIT = 25;
+
+/**
+ * A custom-object name that does not resolve. Two different situations, and the
+ * difference matters to the caller: this workspace defines no custom objects at
+ * all (nothing to retry — the capability is off), or it defines some and this is
+ * the wrong name (retry with one of these). Neither throws: an agent that gets an
+ * error here abandons the task, where the useful move is to pick another name or
+ * say the feature is not set up.
+ */
+async function unknownObject(apiName: string) {
+  const objects = await listObjects();
+  if (objects.length === 0) return unavailable("CUSTOM_OBJECTS");
+  return {
+    ok: false as const,
+    configured: true as const,
+    reason: `No custom object named "${apiName}" in this workspace.`,
+    available: objects.map((o) => o.apiName),
+  };
+}
+
 const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
 const num = (v: unknown, d: number): number => (typeof v === "number" && Number.isFinite(v) ? v : d);
 
@@ -76,7 +99,8 @@ export const TOOLS: Tool[] = [
   {
     name: "search",
     mutates: false,
-    description: "Search contacts, companies, and deals by name/email. Returns the top matches per type.",
+    description:
+      "Search contacts, companies, and deals by name/email. EXACT or PREFIX match only — this is not a fuzzy search, so a misspelling returns nothing rather than the nearest name. Returns the top matches per type.",
     inputSchema: {
       type: "object",
       properties: { query: { type: "string", description: "Search text" }, limit: { type: "number" } },
@@ -86,7 +110,10 @@ export const TOOLS: Tool[] = [
       requireRole(ctx, "contacts", "read");
       const q = str(args.query)?.trim();
       if (!q) return { contacts: [], companies: [], deals: [] };
-      const like = `%${q.replace(/[%_]/g, "")}%`;
+      // Prefix, not infix: a caller that gets "Marchetta" back for "Marchetti"
+      // has no way to tell a near-miss from a hit, and acting on the wrong
+      // record is worse than an empty result the caller can ask about.
+      const like = `${q.replace(/[%_]/g, "")}%`;
       const limit = Math.min(num(args.limit, 10), 25);
       const contacts = await db
         .select({ id: tables.contacts.id, firstName: tables.contacts.firstName, lastName: tables.contacts.lastName, email: tables.contacts.email })
@@ -109,10 +136,124 @@ export const TOOLS: Tool[] = [
         .where(ilike(tables.deals.name, like))
         .limit(limit);
       const policy = await loadFieldPolicy(ctx.role);
+      const empty = contacts.length === 0 && companies.length === 0 && deals.length === 0;
       return {
         contacts: contacts.map((r) => redact(policy, "contacts", r)),
         companies: companies.map((r) => redact(policy, "companies", r)),
         deals: deals.map((r) => redact(policy, "deals", r)),
+        // Without this a caller reads "no results" as "no such person" and ends
+        // the conversation, when the real cause is usually a spelling variant.
+        ...(empty
+          ? {
+              note: `No exact or prefix match for "${q}". This search is not fuzzy — try a shorter prefix, the surname alone, or an email address.`,
+            }
+          : {}),
+      };
+    },
+  },
+  {
+    name: "get_contact",
+    mutates: false,
+    description:
+      "Fetch one contact by id, plus the ids of everything adjacent to it: its company, its deals, and colleagues at the same company. Use this instead of a second search to walk the graph.",
+    inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+    handler: async (args, ctx) => {
+      requireRole(ctx, "contacts", "read");
+      const id = str(args.id);
+      if (!id) throw new ToolError("id is required");
+      const row = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0];
+      if (!row) throw new ToolError("Contact not found");
+      const deals = await db
+        .select({ id: tables.deals.id })
+        .from(tables.deals)
+        .where(eq(tables.deals.contactId, id))
+        .limit(NEIGHBOUR_LIMIT);
+      const colleagues = row.companyId
+        ? await db
+            .select({ id: tables.contacts.id })
+            .from(tables.contacts)
+            .where(and(eq(tables.contacts.companyId, row.companyId), ne(tables.contacts.id, id)))
+            .limit(NEIGHBOUR_LIMIT)
+        : [];
+      const policy = await loadFieldPolicy(ctx.role);
+      return {
+        contact: redact(policy, "contacts", { ...row, custom: JSON.parse(row.custom) }),
+        neighbours: {
+          companyId: row.companyId,
+          dealIds: deals.map((d) => d.id),
+          colleagueIds: colleagues.map((c) => c.id),
+        },
+      };
+    },
+  },
+  {
+    name: "get_company",
+    mutates: false,
+    description:
+      "Fetch one company by id, plus the ids of its contacts and deals. Use this instead of a second search to walk the graph.",
+    inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+    handler: async (args, ctx) => {
+      requireRole(ctx, "companies", "read");
+      const id = str(args.id);
+      if (!id) throw new ToolError("id is required");
+      const row = (await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1))[0];
+      if (!row) throw new ToolError("Company not found");
+      const contacts = await db
+        .select({ id: tables.contacts.id })
+        .from(tables.contacts)
+        .where(eq(tables.contacts.companyId, id))
+        .limit(NEIGHBOUR_LIMIT);
+      const deals = await db
+        .select({ id: tables.deals.id })
+        .from(tables.deals)
+        .where(eq(tables.deals.companyId, id))
+        .limit(NEIGHBOUR_LIMIT);
+      const policy = await loadFieldPolicy(ctx.role);
+      return {
+        company: redact(policy, "companies", { ...row, custom: JSON.parse(row.custom) }),
+        neighbours: { contactIds: contacts.map((c) => c.id), dealIds: deals.map((d) => d.id) },
+      };
+    },
+  },
+  {
+    name: "get_deal",
+    mutates: false,
+    description:
+      "Fetch one deal by id, plus its company and contact ids and its stage clock (which stage, and how long it has sat there).",
+    inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+    handler: async (args, ctx) => {
+      requireRole(ctx, "deals", "read");
+      const id = str(args.id);
+      if (!id) throw new ToolError("id is required");
+      const row = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0];
+      if (!row) throw new ToolError("Deal not found");
+      const stage = (await db.select().from(tables.stages).where(eq(tables.stages.id, row.stageId)).limit(1))[0];
+      // The deal's own contact plus everyone else at its company: "who do I talk
+      // to about this" is one hop, not a second search.
+      const contacts = row.companyId
+        ? await db
+            .select({ id: tables.contacts.id })
+            .from(tables.contacts)
+            .where(eq(tables.contacts.companyId, row.companyId))
+            .limit(NEIGHBOUR_LIMIT)
+        : [];
+      const contactIds = [...new Set([row.contactId, ...contacts.map((c) => c.id)].filter((v): v is string => !!v))];
+      const policy = await loadFieldPolicy(ctx.role);
+      return {
+        deal: redact(policy, "deals", { ...row, custom: JSON.parse(row.custom) }),
+        neighbours: {
+          companyId: row.companyId,
+          contactIds,
+          stage: {
+            id: row.stageId,
+            name: stage?.name ?? null,
+            type: stage?.type ?? null,
+            enteredAt: row.stageEnteredAt,
+            daysInStage: row.stageEnteredAt
+              ? Math.floor((Date.now() - row.stageEnteredAt) / 86_400_000)
+              : null,
+          },
+        },
       };
     },
   },
@@ -225,7 +366,7 @@ export const TOOLS: Tool[] = [
       const apiName = str(args.object);
       if (!apiName) throw new ToolError("object is required");
       const obj = await objectByApiName(apiName);
-      if (!obj) throw new ToolError(`Unknown object: ${apiName}`);
+      if (!obj) return await unknownObject(apiName);
       return listRecords(obj.id, num(args.limit, 50));
     },
   },
@@ -243,7 +384,7 @@ export const TOOLS: Tool[] = [
       const apiName = str(args.object);
       if (!apiName) throw new ToolError("object is required");
       const obj = await objectByApiName(apiName);
-      if (!obj) throw new ToolError(`Unknown object: ${apiName}`);
+      if (!obj) return await unknownObject(apiName);
       const data = (args.data && typeof args.data === "object" ? args.data : {}) as Record<string, unknown>;
       const result = await createRecord(obj.id, data);
       if (!result.ok) throw new ToolError(result.error);

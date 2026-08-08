@@ -119,8 +119,14 @@ describe("MCP server (handler + Postgres + RLS)", () => {
   it("confines tool results to the caller's workspace (RLS)", async () => {
     const asB = await callTool(ctxB, "search", { query: "grace" });
     expect(asB.data.contacts.length).toBe(0);
+    // The asset object belongs to workspace A, so B cannot see it — and since B
+    // defines no custom objects at all, the tool declines structurally instead of
+    // throwing (Phase 0). Either way no record and no object name crosses over.
     const objB = await callTool(ctxB, "list_records", { object: "asset" });
-    expect(objB.isError).toBe(true); // asset object belongs to workspace A
+    expect(objB.isError).toBe(false);
+    expect(objB.data.ok).toBe(false);
+    expect(objB.data.capability).toBe("CUSTOM_OBJECTS");
+    expect(Array.isArray(objB.data)).toBe(false);
   });
 
   it("unknown method returns a JSON-RPC error", async () => {
