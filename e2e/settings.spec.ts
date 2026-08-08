@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { ADMIN } from "./helpers/auth";
 
 /**
  * Settings — the SSO and mailbox panels, driven through the browser.
@@ -74,6 +75,57 @@ test.describe("SSO providers", () => {
     await acceptNextConfirm(page);
     await row.getByRole("button", { name: `Delete ${LABEL}` }).click();
     await expect(row).toHaveCount(0);
+  });
+});
+
+test.describe("Row controls are named", () => {
+  /**
+   * Every settings panel repeats the same row control down a list, and the
+   * destructive one is an icon with no text. The icon is hidden from assistive
+   * tech, so without an explicit label these announce as an unnamed button and a
+   * screen-reader user gets a column of identical "button, button, button" with
+   * no way to tell which record each belongs to.
+   *
+   * `getByRole(..., { name })` matches the accessible name the browser actually
+   * computes, so this fails the moment a label is dropped — which a source scan
+   * or a static render could not tell us, since the rows only exist once data
+   * has loaded.
+   */
+  test("members, API keys and custom fields name their per-row controls", async ({ page }) => {
+    await page.goto("/settings");
+
+    // ── Members: the admin created by the setup wizard is already a row. ──────
+    const members = page.locator(".card", { has: page.getByRole("heading", { name: "Team members" }) });
+    await expect(members).toBeVisible();
+    // Asserted, never clicked — removing this member would end the session the
+    // rest of the suite runs on.
+    await expect(members.getByRole("button", { name: `Remove ${ADMIN.name}` })).toBeVisible();
+    await expect(members.getByRole("combobox", { name: `Role for ${ADMIN.name}` })).toBeVisible();
+
+    // ── API keys ─────────────────────────────────────────────────────────────
+    const keys = page.locator(".card", { has: page.getByRole("heading", { name: "API keys" }) });
+    const keyName = "E2E a11y key";
+    await keys.getByPlaceholder("Key name, e.g. Zapier").fill(keyName);
+    await keys.getByRole("button", { name: "Generate" }).click();
+    const revoke = keys.getByRole("button", { name: `Revoke ${keyName}` });
+    await expect(revoke).toBeVisible();
+    acceptNextConfirm(page);
+    await revoke.click();
+    await expect(revoke).toHaveCount(0);
+
+    // ── Custom fields ────────────────────────────────────────────────────────
+    const custom = page.locator(".card", { has: page.getByRole("heading", { name: "Custom fields" }) });
+    const fieldLabel = "E2E a11y field";
+    await custom.getByRole("button", { name: "New field" }).click();
+    const dialog = page.getByRole("dialog", { name: "New contact field" });
+    // Exact: the key field's label also contains the word "label".
+    await dialog.getByLabel("Label", { exact: true }).fill(fieldLabel);
+    await dialog.getByRole("button", { name: "Create field" }).click();
+    const del = custom.getByRole("button", { name: `Delete ${fieldLabel}` });
+    await expect(del).toBeVisible();
+    acceptNextConfirm(page);
+    await del.click();
+    await expect(del).toHaveCount(0);
   });
 });
 

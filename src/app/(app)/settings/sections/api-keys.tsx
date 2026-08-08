@@ -100,7 +100,11 @@ export function ApiKeysSection() {
                 </p>
               </div>
               {!k.revokedAt && (
-                <button onClick={() => revoke(k)} className="btn-ghost !px-2 !text-red-400">
+                <button
+                  onClick={() => revoke(k)}
+                  aria-label={`Revoke ${k.name}`}
+                  className="btn-ghost !px-2 !text-red-400"
+                >
                   <IconTrash width={14} height={14} />
                 </button>
               )}

@@ -129,9 +129,12 @@ export function MembersSection() {
               </div>
               {!m.deactivatedAt && (
                 <>
+                  {/* One control per row, so each needs the member's name in its
+                      own label — the visible text sits in a sibling element. */}
                   <select
                     value={m.role}
                     onChange={(e) => changeRole(m, e.target.value)}
+                    aria-label={`Role for ${m.name}`}
                     className="input !w-auto !py-1 text-xs"
                   >
                     {ROLES.map((r) => (
@@ -140,7 +143,11 @@ export function MembersSection() {
                       </option>
                     ))}
                   </select>
-                  <button onClick={() => remove(m)} className="btn-ghost !px-2 !text-red-400">
+                  <button
+                    onClick={() => remove(m)}
+                    aria-label={`Remove ${m.name}`}
+                    className="btn-ghost !px-2 !text-red-400"
+                  >
                     <IconTrash width={14} height={14} />
                   </button>
                 </>
