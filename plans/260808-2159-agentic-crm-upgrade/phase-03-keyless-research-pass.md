@@ -78,7 +78,7 @@ Recall from Phase 1: a lone `crm.signature-block` (0.80) is PROBABLE — a propo
 
 1. Signature extraction first, with fixtures. It is the highest-value parser and the easiest to get subtly wrong (quoted replies, disclaimers, mobile footers, non-Latin scripts). Table-driven fixtures; no regex sprawl in the handler.
 2. Identity: exact address only. A contact with no email is not matched, full stop — a wrong record about a real person is worse than a blank field.
-3. `mail-pass`: bounded per run (N contacts, M messages each), idempotent — re-running yields "already on the record, nothing changed", not a duplicate.
+3. `mail-pass`: bounded per run (N contacts, M messages each), idempotent — re-running yields "already on the record, nothing changed", not a duplicate. **Carried from Phase 1:** the ledger has no uniqueness constraint on an open proposal, so nothing stops a re-run stacking identical PROPOSED rows for the same (entity, field, value). Phase 1 accepted that because only a human wrote facts; a pass that runs on a schedule must reuse the open proposal (refresh its evidence and `observed_at`) rather than add a second one.
 4. Field permissions and RLS apply to every read the pass makes.
 5. Model-backed pass last, and only for what parsing cannot do (a written brief, reconciling a contradiction into a question for a rep). It gets the Phase 0 capability block, the workspace block, the egress rules, and a budget. It books its own `recheck` with a reason.
 6. Egress tests: (a) no synced message body or subject can appear in an outbound provider request payload — derived fields only; (b) no body text in logs (pino field allowlist on the research handlers); (c) MCP/AI evidence tools return observations and rationales, never raw mail.
