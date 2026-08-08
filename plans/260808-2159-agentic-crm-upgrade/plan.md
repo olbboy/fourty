@@ -33,7 +33,7 @@ Move Fourty's AI from *a chat box that reads the CRM* to *a background worker th
 |---|---|---|---|---|
 | 0 | Capability registry, prompt grounding, non-dead-end reads ✅ done | S | — | [phase-00](./phase-00-capabilities-and-grounding.md) |
 | 1 | Evidence ledger + suggestion inbox ✅ done | M | 0 | [phase-01](./phase-01-evidence-ledger.md) |
-| 2 | Agent work ledger + two-lane dispatcher | M | 0 | [phase-02](./phase-02-agent-work-ledger.md) |
+| 2 | Agent work ledger + two-lane dispatcher ✅ done | M | 0 | [phase-02](./phase-02-agent-work-ledger.md) |
 | 3 | Keyless research pass (mail/calendar → evidence) | L | 1, 2 | [phase-03](./phase-03-keyless-research-pass.md) |
 | 4 | Per-record agent panel + durable conversations | M | 0 (1/3 for content) | [phase-04](./phase-04-per-record-agent-panel.md) |
 | 5 | Custom agents with typed permission manifests | L | 1, 2, 4 | [phase-05](./phase-05-custom-agents.md) |
@@ -56,4 +56,4 @@ Bun/Turbo/Nest/tRPC/Prisma migration · splitting the deployment · a model sand
 
 - **#3** AI agents — per-record assistant (Phase 4), async/worker agent (Phases 2–3), multi-conversation history UI (Phase 4).
 - **#4** Streaming for background ops (Phase 4).
-- **#14** Periodic mail auto-pull (Phase 2 — becomes a task kind, not a cron).
+- **#14** Periodic mail auto-pull (Phase 2 — a task kind, not a cron). ✅ done

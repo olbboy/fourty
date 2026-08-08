@@ -14,6 +14,22 @@ OAuth (Authorization Code + PKCE, **read-only** scopes — Gmail `gmail.readonly
 - **Threads** each message onto the [activity timeline](./records.md) of the contacts
   and deals it concerns.
 
+## It pulls by itself
+
+Once connected, a mailbox is pulled on a schedule — nobody has to press **Sync now**.
+That schedule is not a cron expression: the worker keeps a `mailbox.pull` row in the
+agent work ledger for each connected account, due one interval after its last
+successful sync. Settings → Mailboxes shows when each one is next due, and the panel
+shows a failed sync on the account itself rather than only in a log.
+
+The interval is `AGENT_MAIL_PULL_MINUTES` (default 15). Setting `AGENT_TICK_SECONDS=0`
+turns the background agent off entirely; the **Sync now** button still works, and runs
+exactly the same code the schedule does.
+
+A pull that keeps failing — an expired refresh token, a feed that stopped answering —
+stops after a handful of attempts and says so, on the account and in the task's
+outcome. Nothing retries forever in silence.
+
 You can also **push** mail in directly — POST RFC822 or iCalendar payloads to the sync
 endpoint — which is how you integrate a provider Fourty doesn't natively OAuth with.
 

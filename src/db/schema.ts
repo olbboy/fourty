@@ -403,6 +403,41 @@ export const workflowRuns = pgTable(
 
 // API keys belong to one workspace. Looked up by hash during auth (before a
 // workspace context exists), so this table is app-scoped, not RLS-enforced.
+// Agent work ledger (Phase 2 of the agentic upgrade). One row per unit of
+// background work, with the reason a human reads, when it is due, and what came
+// of it. pg-boss stays the transport; this table is the *intent* — a job payload
+// is opaque, is deleted on completion, and cannot be joined to a contact.
+//
+// `budget` is how many attempts this task may spend and `attempts` how many it
+// has. An attempt is counted at claim time, not at completion, so a task that
+// kills its worker every time still runs out and retires visibly.
+export const agentTasks = pgTable(
+  "agent_tasks",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    // Null for a workspace-wide sweep, which is about no single record.
+    entityType: text("entity_type"),
+    entityId: text("entity_id"),
+    kind: text("kind").notNull(),
+    reason: text("reason").notNull(), // shown to the user, verbatim
+    lane: text("lane").notNull().default("direct"), // direct | session
+    priority: integer("priority").notNull().default(0),
+    budget: integer("budget").notNull().default(3),
+    attempts: integer("attempts").notNull().default(0),
+    dueAt: millis("due_at").notNull(),
+    leasedUntil: millis("leased_until"),
+    startedAt: millis("started_at"),
+    finishedAt: millis("finished_at"),
+    outcome: text("outcome"),
+    createdAt: millis("created_at").notNull(),
+  },
+  (t) => [
+    index("agent_tasks_due_idx").on(t.workspaceId, t.dueAt, t.leasedUntil),
+    index("agent_tasks_entity_idx").on(t.workspaceId, t.entityType, t.entityId),
+  ],
+);
+
 // Evidence ledger (ADR-018). One row per observed claim about a field of a
 // record: what was observed, what it scored, which band that puts it in, and
 // what happened to it. Polymorphic (`entity_type`/`entity_id`) like tasks/notes/

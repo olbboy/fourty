@@ -34,11 +34,20 @@ const MAILBOX_PROVIDERS = [
   },
 ] as const;
 
+/** When a booked pull comes round, in words. */
+function whenDue(dueAt: number): string {
+  const minutes = Math.round((dueAt - Date.now()) / 60_000);
+  if (minutes <= 0) return "is due now";
+  if (minutes < 60) return `in ${minutes} min`;
+  return `in ${Math.round(minutes / 60)} h`;
+}
+
 /** Providers whose mail Fourty can go and fetch itself. */
 const CAN_PULL = new Set(["google", "microsoft", "ics"]);
 
 export function MailboxSection() {
   const [accounts, setAccounts] = useState<SyncAccount[] | null>(null);
+  const [nextPull, setNextPull] = useState<Record<string, string>>({});
   const [showNew, setShowNew] = useState(false);
   const [provider, setProvider] = useState<string>("google");
   const [busy, setBusy] = useState<string | null>(null);
@@ -47,7 +56,22 @@ export function MailboxSection() {
 
   const load = useCallback(async () => {
     const res = await fetch("/api/sync/accounts");
-    if (res.ok) setAccounts((await res.json()).accounts);
+    if (!res.ok) return;
+    const rows: SyncAccount[] = (await res.json()).accounts;
+    setAccounts(rows);
+    // One request per account, and there are never many. Reading each account's
+    // own booking is what makes "it pulls by itself now" visible rather than a
+    // claim in a changelog.
+    const due: Record<string, string> = {};
+    await Promise.all(
+      rows.map(async (a) => {
+        const r = await fetch(`/api/agent-tasks?entityType=sync_account&entityId=${a.id}`);
+        if (!r.ok) return;
+        const task = ((await r.json()).tasks ?? [])[0] as { dueAt: number } | undefined;
+        if (task) due[a.id] = whenDue(task.dueAt);
+      }),
+    );
+    setNextPull(due);
   }, []);
   useEffect(() => {
     load();
@@ -165,6 +189,11 @@ export function MailboxSection() {
                   </p>
                   {a.status === "error" && a.lastError && (
                     <p className="mt-0.5 break-all text-xs text-red-500">Last sync failed: {a.lastError}</p>
+                  )}
+                  {/* Pulling is scheduled work, not a cron: the booking is a row,
+                      so the panel can say when this mailbox is next due. */}
+                  {nextPull[a.id] && (
+                    <p className="mt-0.5 text-xs text-ink-muted">Next automatic pull {nextPull[a.id]}</p>
                   )}
                 </div>
                 {needsConnect ? (

@@ -1,6 +1,48 @@
 # Phase 2 — Agent work ledger + two-lane dispatcher
 
-**Size:** M · **Depends on:** Phase 0 · **Blocks:** Phase 3, Phase 5
+**Size:** M · **Depends on:** Phase 0 · **Blocks:** Phase 3, Phase 5 · **Status:** done (2026-08-09)
+
+## Delivered
+
+`agent_tasks` (migration `0014`, reversible in CI), `src/lib/agent-tasks/{kinds,schedule,claim}.ts`,
+`src/worker/dispatch.ts`, the `agent.dispatch` tick registered on pg-boss, the
+`mailbox.pull` kind closing backlog **#14**, `GET /api/agent-tasks`, and a
+"Background work" panel on the contact / company / deal pages plus a next-pull
+line in Settings → Mailboxes. Tests: `tests/agent-tasks-claim.test.ts` (9, the
+ship gate), `tests/agent-tasks-schedule.test.ts` (15). Full suite 504 passed,
+14 e2e, build green.
+
+### Deviations from this plan, all deliberate
+
+- **The tick is not one transaction, and tasks run one at a time.** Step 4 asks
+  for concurrency 6 in the direct lane. A pg-boss job handler runs inside one
+  `withWorkspace()` transaction, i.e. one connection — six "concurrent" tasks
+  would serialise on it anyway, and the transaction would stay open across a
+  Gmail round-trip, which is the mistake ADR-015 refused for LLM streaming. So
+  `agent.dispatch` is self-managed (`SELF_MANAGED_JOBS` in `src/lib/queue.ts`):
+  it opens a short transaction per step and runs tasks sequentially.
+- **The tick is enqueued per workspace by the worker**, which enumerates
+  `workspaces` (the tenant registry, not tenant data — no RLS policy). A
+  per-minute idempotency key collapses two workers ticking the same workspace.
+- **Recurrence is booked in one place.** The `mailbox.pull` handler does *not*
+  book its own next run: `scheduleTask` is idempotent per (entity, kind), so
+  booking while the current task is still open only moves that row, and
+  completing it would then leave nothing queued. `bookRecurringWork()` re-books
+  after the drain instead. This was found by a test, not by review.
+- **Metrics are counters, not gauges.** The plan asks for due/leased/retired
+  counts per kind on `/metrics`. That endpoint has no workspace, so a query over
+  `agent_tasks` would be RLS-scoped to nothing; `fourty_agent_tasks_total{kind,outcome}`
+  is incremented as work finishes instead, and survives the rows being closed.
+- **`deal.health` has a handler but nothing books it yet.** Booking a recompute
+  for every deal on a timer is a scheduling decision this phase does not need to
+  make; the handler exists so the kind is not a stub.
+- **Kinds with no handler retire with a reason** rather than looping —
+  `contact.evidence`, `contact.research`, `sweep.backfill` and `recheck` arrive
+  with Phases 3 and 5.
+
+Along the way: `src/lib/metrics.ts` turned out to contain eight NUL bytes, which
+made git and ripgrep treat it as binary. Repaired, with
+`tests/source-hygiene.test.ts` so no source file can carry one again.
 
 ## Why
 

@@ -29,6 +29,20 @@ pg-boss manages its own `pgboss` schema, so it connects as the owner role
 | `QUEUE_DATABASE_URL` | falls back to `MIGRATE_DATABASE_URL` | Connection for the job queue (owner role). |
 | `QUEUE_DRIVER` | `pgboss` (prod), `inline` (tests) | `pgboss` = durable, needs a running worker. `inline` = run jobs in-request, single-process only. |
 
+### Background agent
+
+The worker also drains the **agent work ledger** (`agent_tasks`): a table of what
+the background agent intends to do about a record, when, and why. Connected
+mailboxes are pulled from here, so no cron is involved — the row is the schedule.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `AGENT_TICK_SECONDS` | `60` | How often the worker asks each workspace to look at its queue. `0` disables the agent entirely. |
+| `AGENT_MAIL_PULL_MINUTES` | `15` | How long after its last sync a connected mailbox is pulled again. |
+| `AGENT_LEASE_MS` | `300000` | How long a claimed task is held before another worker may take it. A killed worker's tasks come back when the lease expires. |
+| `AGENT_DIRECT_BATCH` | `60` | Deterministic tasks claimed per tick (parse, fetch, derive — no model). |
+| `AGENT_SESSION_BATCH` | `12` | Model-backed tasks claimed per tick. Never scheduled at all without an AI provider. |
+
 ## Observability
 
 | Variable | Default | Purpose |
