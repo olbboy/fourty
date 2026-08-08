@@ -40,7 +40,7 @@
 - **[GraphQL API](../api/graphql.md)** — a single typed `POST /api/graphql` with
   introspection.
 - **[MCP server](../api/mcp.md)** — expose Fourty to Claude, Cursor, and other LLM
-  clients over stdio or HTTP (23 tools, workspace + role enforced).
+  clients over stdio or HTTP (26 tools, workspace + role enforced).
 - **[AI assistant](../guides/ai-assistant.md)** *(optional, BYO key)* — an in-app chat
   that reads your CRM and **proposes** writes you confirm. Off unless you set a key.
 

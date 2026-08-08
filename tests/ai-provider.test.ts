@@ -193,6 +193,10 @@ describe("toProviderTools bridge + mutates flag", () => {
       "create_company", "update_company", "delete_company",
       "create_deal", "update_deal", "delete_deal",
       "create_task", "create_note", "create_record",
+      // The evidence ledger writes too: recording an observation adds a row, and
+      // deciding one can write the record's field. Both are proposed to the user
+      // for confirmation like any other write (ADR-015).
+      "record_fact", "decide_fact",
     ]);
     for (const t of TOOLS) {
       expect(t.mutates, `${t.name} mutates flag`).toBe(writes.has(t.name));

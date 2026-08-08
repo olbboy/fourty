@@ -281,6 +281,34 @@ const PUBLISHED: Record<string, { properties: Record<string, { type?: string; en
     expect(actionSchemas.deleteInput.parse({ id: "x", confirm: false }).confirm).toBe(false);
   });
 
+  // ── arrays, added with the evidence ledger ────────────────────────────────
+
+  it("describes an array of objects, so an agent knows what an entry looks like", () => {
+    const schema = toJsonSchema(
+      z.object({
+        evidence: z
+          .array(z.object({ kind: z.enum(["a", "b"]), detail: z.string().max(500) }))
+          .min(1),
+      }),
+    ) as { properties: { evidence: Record<string, unknown> } };
+    const evidence = schema.properties.evidence;
+    expect(evidence.type).toBe("array");
+    expect(evidence.minItems).toBe(1);
+    expect(evidence.items).toMatchObject({
+      type: "object",
+      properties: { kind: { type: "string", enum: ["a", "b"] }, detail: { type: "string", maxLength: 500 } },
+    });
+  });
+
+  it("describes a url string as a uri, which is what a client reads", () => {
+    const schema = toJsonSchema(z.object({ sourceUrl: z.string().url().optional() })) as {
+      properties: { sourceUrl: Record<string, unknown> };
+      required: string[];
+    };
+    expect(schema.properties.sourceUrl).toMatchObject({ type: "string", format: "uri" });
+    expect(schema.required).not.toContain("sourceUrl");
+  });
+
   // ── the subset is a fence, not a suggestion ───────────────────────────────
 
   it("refuses a construct outside the supported subset instead of guessing", () => {

@@ -74,6 +74,11 @@ describe("contact actions across every surface", () => {
   it("publishes the same GraphQL schema as before the resolvers were rewired", () => {
     // Frozen from the commit before contact operations moved behind the shared
     // definitions. The resolvers changed; the contract they serve must not.
+    //
+    // An additive change (the evidence ledger added RecordFact, FactResult and
+    // three fields) regenerates this fixture on purpose, and the diff is the
+    // review: anything *removed or renamed* in it is a breaking change to a
+    // published API, not a fixture that needs updating.
     const frozen = readFileSync(path.resolve(__dirname, "fixtures/graphql-schema.graphql"), "utf8");
     expect(printSchema(fourtySchema())).toBe(frozen);
   });

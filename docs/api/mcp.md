@@ -1,7 +1,7 @@
 # MCP server
 
 *Expose Fourty to Claude, Cursor, and other LLM clients over the Model Context
-Protocol — 23 tools, on stdio or HTTP, every call scoped by workspace and role.*
+Protocol — 26 tools, on stdio or HTTP, every call scoped by workspace and role.*
 
 Fourty ships a **hand-rolled, dependency-free** MCP server ([ADR-010](../adr/010-mcp-server.md))
 — no SDK, consistent with the ~10-dependency ethos. It's the centerpiece of Fourty's
@@ -33,11 +33,11 @@ MCP to Cloud/OAuth, Fourty's HTTP transport runs on the OSS build.
 `initialize`, `tools/list`, `tools/call`, `resources/list`, `resources/read`,
 `prompts/list`, `prompts/get`, `ping`.
 
-## Tools (23)
+## Tools (26)
 
 **Read:** `search`, `get_contact`, `get_company`, `get_deal`, `list_contacts`,
 `list_companies`, `list_deals`, `list_tasks`, `get_dashboard_stats`,
-`list_custom_objects`, `list_records`.
+`list_custom_objects`, `list_records`, `list_fact_suggestions`.
 
 > [!TIP]
 > **Walk the graph, don't search twice.** `get_contact` / `get_company` / `get_deal`
@@ -53,12 +53,17 @@ MCP to Cloud/OAuth, Fourty's HTTP transport runs on the OSS build.
 
 **Write:** `create_contact`, `update_contact`, `delete_contact`, `create_company`,
 `update_company`, `delete_company`, `create_deal`, `update_deal`, `delete_deal`,
-`create_task`, `create_note`, `create_record`.
+`create_task`, `create_note`, `create_record`, `record_fact`, `decide_fact`.
 
 > [!IMPORTANT]
 > **Write safety.** Every tool carries a `mutates` flag, and the **delete** tools are
 > **dry-run by default** — pass `confirm: true` to actually delete. Created/updated
 > deals come back with a [health score](../guides/lead-scoring.md#deal-health).
+>
+> `record_fact` takes **no score and no confidence** — you report what you observed,
+> from a closed set of evidence kinds, and a pure function prices it. An observation
+> a model chose caps at *probable*, so it becomes a
+> [suggestion for a human](../guides/suggestions.md), never a write.
 
 ## Resources & prompts
 

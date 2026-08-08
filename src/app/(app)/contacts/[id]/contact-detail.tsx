@@ -8,6 +8,7 @@ import { timeAgo, formatDate } from "@/lib/format";
 import { Modal, StatusChip, ScoreBadge, Avatar, Spinner } from "@/components/ui";
 import { Timeline, NotesPanel, TasksPanel, LogTouchpoint } from "@/components/record-panels";
 import { CustomFieldsDisplay, useCustomFields } from "@/components/custom-fields";
+import { FactsForField, useFacts } from "@/components/fact-suggestion";
 import { IconEdit, IconTrash } from "@/components/icons";
 import { ContactForm } from "../contact-form";
 import { formatMoney } from "@/lib/currency";
@@ -22,6 +23,7 @@ export function ContactDetail({ id }: { id: string }) {
   const [editing, setEditing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [missing, setMissing] = useState(false);
+  const { proposed, applied: appliedFacts } = useFacts("contact", id, refreshKey);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/contacts/${id}`);
@@ -112,19 +114,31 @@ export function ContactDetail({ id }: { id: string }) {
         <div className="space-y-4">
           <div className="card space-y-3 p-4">
             <h2 className="text-sm font-semibold">Details</h2>
+            {/* `field` names the fact-ledger field, where there is one: an empty
+                row is exactly where a suggestion belongs (ADR-018). */}
             {[
-              ["Email", contact.email],
-              ["Phone", contact.phone],
-              ["Source", contact.source],
-              ["LinkedIn", contact.linkedin],
-              ["City", contact.city],
-              ["Country", contact.country],
-            ].map(([label, value]) => (
+              { label: "Job title", value: contact.jobTitle, field: "job_title" },
+              { label: "Company", value: company?.name, field: "company_id" },
+              { label: "Email", value: contact.email },
+              { label: "Phone", value: contact.phone },
+              { label: "Source", value: contact.source },
+              { label: "LinkedIn", value: contact.linkedin, field: "linkedin" },
+              { label: "City", value: contact.city },
+              { label: "Country", value: contact.country },
+            ].map(({ label, value, field }) => (
               <div key={label}>
                 <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
                   {label}
                 </p>
                 <p className="mt-0.5 break-words text-sm">{value || "—"}</p>
+                {field && (
+                  <FactsForField
+                    field={field}
+                    proposed={proposed}
+                    applied={appliedFacts}
+                    onDecided={bump}
+                  />
+                )}
               </div>
             ))}
             <CustomFieldsDisplay defs={defs} values={contact.custom} />

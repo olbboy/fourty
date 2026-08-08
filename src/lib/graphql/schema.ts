@@ -23,6 +23,7 @@ import { logActivity } from "@/lib/activity";
 import { changedKeys } from "@/lib/changed-fields";
 import { toResolver } from "@/lib/actions/adapters/graphql";
 import { contactsCreate, contactsDelete, contactsGet, contactsList, contactsUpdate } from "@/lib/actions/contacts";
+import { factsDecide, factsList, factsRecord } from "@/lib/actions/facts";
 import { dispatchEvent } from "@/lib/workflows/engine";
 import { companyInput, companyPatch } from "@/lib/validators";
 import {
@@ -174,6 +175,44 @@ const Company = new GraphQLObjectType({
   },
 });
 
+/**
+ * A claim the evidence ledger holds about one field (ADR-018). `evidence` is the
+ * observations as given — it is data a client renders as text, never as HTML,
+ * and it is what makes a suggestion answerable rather than merely scored.
+ */
+const RecordFact = new GraphQLObjectType({
+  name: "RecordFact",
+  fields: {
+    id: { type: new GraphQLNonNull(GraphQLID) },
+    entityType: { type: new GraphQLNonNull(S) },
+    entityId: { type: new GraphQLNonNull(GraphQLID) },
+    field: { type: new GraphQLNonNull(S) },
+    value: { type: new GraphQLNonNull(S) },
+    previousValue: { type: S },
+    score: { type: GraphQLFloat },
+    band: { type: S },
+    evidence: { type: JSONScalar, resolve: (r) => JSON.parse(r.evidence ?? "[]") },
+    method: { type: S },
+    sourceUrl: { type: S },
+    status: { type: S },
+    decidedBy: { type: S },
+    decidedAt: { type: GraphQLFloat },
+    observedAt: { type: GraphQLFloat },
+    supersededAt: { type: GraphQLFloat },
+  },
+});
+
+/** What recording or deciding answered. `reason` is written for a human to read. */
+const FactResult = new GraphQLObjectType({
+  name: "FactResult",
+  fields: {
+    ok: { type: new GraphQLNonNull(GraphQLBoolean) },
+    applied: { type: GraphQLBoolean },
+    reason: { type: new GraphQLNonNull(S) },
+    fact: { type: RecordFact },
+  },
+});
+
 const Deal = new GraphQLObjectType({
   name: "Deal",
   fields: {
@@ -271,6 +310,16 @@ const queryFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
     type: Contact,
     args: { id: { type: new GraphQLNonNull(GraphQLID) } },
     resolve: toResolver(contactsGet, { onNotFound: () => null }),
+  },
+  factSuggestions: {
+    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(RecordFact))),
+    args: {
+      entityType: { type: GraphQLString },
+      entityId: { type: GraphQLID },
+      status: { type: GraphQLString },
+      limit: { type: GraphQLInt },
+    },
+    resolve: toResolver(factsList),
   },
   companies: {
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Company))),
@@ -384,6 +433,19 @@ const mutationFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
     type: new GraphQLNonNull(Contact),
     args: { id: { type: new GraphQLNonNull(GraphQLID) }, input: { type: new GraphQLNonNull(JSONScalar) } },
     resolve: toResolver(contactsUpdate),
+  },
+  recordFact: {
+    type: new GraphQLNonNull(FactResult),
+    args: { input: { type: new GraphQLNonNull(JSONScalar) } },
+    resolve: toResolver(factsRecord),
+  },
+  decideFact: {
+    type: new GraphQLNonNull(FactResult),
+    args: {
+      id: { type: new GraphQLNonNull(GraphQLID) },
+      decision: { type: new GraphQLNonNull(GraphQLString) },
+    },
+    resolve: toResolver(factsDecide),
   },
   deleteContact: {
     type: new GraphQLNonNull(GraphQLBoolean),

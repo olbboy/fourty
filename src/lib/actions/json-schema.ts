@@ -66,6 +66,9 @@ function describe(node: z.ZodTypeAny, nullable: boolean): Record<string, unknown
         out.minLength = check.value;
         out.maxLength = check.value;
       } else if (check.kind === "email") out.format = "email";
+      // An agent reading `format: "uri"` sends a URL; zod is still what refuses
+      // one that is not.
+      else if (check.kind === "url") out.format = "uri";
       else throw new Error(`toJsonSchema: unsupported string check "${check.kind}"`);
     }
     return out;
@@ -93,6 +96,17 @@ function describe(node: z.ZodTypeAny, nullable: boolean): Record<string, unknown
 
   if (node instanceof z.ZodObject) {
     return nullable ? { ...toJsonSchema(node), type: ["object", "null"] } : toJsonSchema(node);
+  }
+
+  // Arrays arrived with the evidence ledger: an observation list is the one
+  // input shape that genuinely cannot be flattened, since each entry carries its
+  // own kind and its own rationale.
+  if (node instanceof z.ZodArray) {
+    const inner = unwrap(node._def.type as z.ZodTypeAny);
+    const out: Record<string, unknown> = { ...withNull("array"), items: describe(inner.node, inner.nullable) };
+    if (node._def.minLength) out.minItems = node._def.minLength.value;
+    if (node._def.maxLength) out.maxItems = node._def.maxLength.value;
+    return out;
   }
 
   throw new Error(`toJsonSchema: unsupported schema ${typeName(node)}`);

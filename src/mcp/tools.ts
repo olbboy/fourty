@@ -8,6 +8,7 @@ import { logActivity } from "@/lib/activity";
 import { changedKeys } from "@/lib/changed-fields";
 import { toMcpTool } from "@/lib/actions/adapters/mcp";
 import { contactsCreate, contactsDelete, contactsList, contactsUpdate } from "@/lib/actions/contacts";
+import { factsDecide, factsList, factsRecord } from "@/lib/actions/facts";
 import { recomputeDealScore } from "@/lib/services/deal-score";
 import {
   companyInput,
@@ -392,6 +393,12 @@ export const TOOLS: Tool[] = [
       return result.record;
     },
   },
+  // The evidence ledger (ADR-018). An external agent may report what it observed
+  // and read what is waiting on a human; it cannot assert a confidence, and its
+  // observations cap at PROBABLE because a model chose them.
+  toMcpTool(factsRecord, { name: "record_fact" }),
+  toMcpTool(factsList, { name: "list_fact_suggestions" }),
+  toMcpTool(factsDecide, { name: "decide_fact" }),
   toMcpTool(contactsUpdate, { name: "update_contact" }),
   // Unlike the other surfaces, an unconfirmed call here only reports what it
   // would remove — an agent shows its work before destroying anything.
