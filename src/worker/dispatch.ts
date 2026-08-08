@@ -4,6 +4,7 @@ import { isAiEnabled } from "@/lib/ai/provider";
 import { log } from "@/lib/logger";
 import { recordAgentTask } from "@/lib/metrics";
 import { recomputeDealScore } from "@/lib/services/deal-score";
+import { runContactEvidencePass } from "@/lib/research/mail-pass";
 import { canPull, pullAccount } from "@/lib/sync/pull";
 import { claimDue } from "@/lib/agent-tasks/claim";
 import { TASK_KINDS, type TaskKind } from "@/lib/agent-tasks/kinds";
@@ -120,7 +121,9 @@ const HANDLERS: Partial<Record<TaskKind, TaskHandler>> = {
   "mailbox.pull": async (workspaceId, task) => {
     const accountId = task.entityId;
     if (!accountId) return "no account on this task";
-    const result = await withWorkspace(workspaceId, () => pullAccount(accountId));
+    // Not wrapped: `pullAccount` opens its own short transactions around the
+    // provider round-trip rather than holding one across it.
+    const result = await pullAccount(workspaceId, accountId);
     if (!result.ok) {
       // The account already carries the error (pull.ts writes status/lastError),
       // so this throw is only about whether to try again — and the budget is
@@ -133,6 +136,15 @@ const HANDLERS: Partial<Record<TaskKind, TaskHandler>> = {
     // `bookRecurringWork` re-books it once this one has finished.
     if (result.emails) return `pulled ${result.emails.ingested} message(s), linked ${result.emails.linked}`;
     return `pulled ${result.calendar?.ingested ?? 0} event(s), linked ${result.calendar?.linked ?? 0}`;
+  },
+
+  "contact.evidence": async (workspaceId, task) => {
+    if (!task.entityId) return "no contact on this task";
+    const id = task.entityId;
+    // Deterministic and keyless: no provider, no network, no model. This is the
+    // lane that still runs on an install with no API key at all.
+    const result = await withWorkspace(workspaceId, () => runContactEvidencePass(id));
+    return result.outcome;
   },
 
   "deal.health": async (workspaceId, task) => {

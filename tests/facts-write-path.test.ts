@@ -263,6 +263,62 @@ describe("evidence ledger write path (Postgres + RLS)", () => {
     });
   });
 
+  /**
+   * A pass that runs on a schedule meets the same evidence on every run, and
+   * the table has no uniqueness constraint on an open proposal. The open
+   * proposal is therefore refreshed rather than duplicated.
+   */
+  describe("an open proposal is reused, not stacked", () => {
+    const openFacts = async () =>
+      inWs(async () =>
+        db
+          .select()
+          .from(tables.recordFacts)
+          .where(and(eq(tables.recordFacts.entityId, contactId), eq(tables.recordFacts.field, "job_title"))),
+      );
+
+    it("refreshes the same row when the same claim is recorded again", async () => {
+      const first = await inWs(() =>
+        recordFact(
+          { entityType: "contact", entityId: contactId, field: "job_title", value: "Head of Ops", evidence: [SIGNATURE] },
+          research,
+        ),
+      );
+      const second = await inWs(() =>
+        recordFact(
+          { entityType: "contact", entityId: contactId, field: "job_title", value: "Head of Ops", evidence: [SIGNATURE] },
+          research,
+        ),
+      );
+
+      expect(second.ok && second.fact.id).toBe(first.ok && first.fact.id);
+      expect(await openFacts()).toHaveLength(1);
+    });
+
+    it("promotes that row when the evidence later reaches VERIFIED", async () => {
+      const first = await inWs(() =>
+        recordFact(
+          { entityType: "contact", entityId: contactId, field: "job_title", value: "Head of Ops", evidence: [SIGNATURE] },
+          research,
+        ),
+      );
+      expect(first.ok && first.fact.status).toBe("PROPOSED");
+
+      const second = await inWs(() =>
+        recordFact(
+          { entityType: "contact", entityId: contactId, field: "job_title", value: "Head of Ops", evidence: VERIFIED },
+          research,
+        ),
+      );
+
+      expect(second.ok && second.applied).toBe(true);
+      expect(second.ok && second.fact.id).toBe(first.ok && first.fact.id);
+      expect(second.ok && second.fact.status).toBe("APPLIED");
+      expect(await openFacts()).toHaveLength(1);
+      expect((await contactRow()).jobTitle).toBe("Head of Ops");
+    });
+  });
+
   describe("invariant 3 — never apply without a primary source", () => {
     it("caps supporting-only evidence at PROBABLE however much of it agrees", async () => {
       const out = await inWs(() =>

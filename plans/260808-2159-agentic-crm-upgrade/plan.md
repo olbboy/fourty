@@ -34,7 +34,7 @@ Move Fourty's AI from *a chat box that reads the CRM* to *a background worker th
 | 0 | Capability registry, prompt grounding, non-dead-end reads ✅ done | S | — | [phase-00](./phase-00-capabilities-and-grounding.md) |
 | 1 | Evidence ledger + suggestion inbox ✅ done | M | 0 | [phase-01](./phase-01-evidence-ledger.md) |
 | 2 | Agent work ledger + two-lane dispatcher ✅ done | M | 0 | [phase-02](./phase-02-agent-work-ledger.md) |
-| 3 | Keyless research pass (mail/calendar → evidence) | L | 1, 2 | [phase-03](./phase-03-keyless-research-pass.md) |
+| 3 | Keyless research pass (mail/calendar → evidence) — keyless half ✅ done, model-backed lane open | L | 1, 2 | [phase-03](./phase-03-keyless-research-pass.md) |
 | 4 | Per-record agent panel + durable conversations | M | 0 (1/3 for content) | [phase-04](./phase-04-per-record-agent-panel.md) |
 | 5 | Custom agents with typed permission manifests | L | 1, 2, 4 | [phase-05](./phase-05-custom-agents.md) |
 
@@ -42,7 +42,7 @@ Phases 1 and 2 are independent of each other and can run in parallel (disjoint f
 
 ## Acceptance criteria (whole plan)
 
-1. A fresh install with **no** API keys, once a mailbox is connected: **empty** contact fields (job title, company link) are auto-filled from mailbox evidence with a visible source for each; a job change against a **human-owned** field is *proposed*, never overwritten.
+1. ✅ (2026-08-09) A fresh install with **no** API keys, once a mailbox is connected: **empty** contact fields (job title, company link) are auto-filled from mailbox evidence with a visible source for each; a job change against a **human-owned** field is *proposed*, never overwritten.
 2. No AI-originated value ever overwrites a human-entered one, and no dismissed suggestion is ever re-offered. Both proven by tests against real Postgres.
 3. Every background decision is answerable: *what will the agent do to this record, when, and why* — from a table, not a log.
 4. `npm test`, `npm run test:e2e`, `npm run build` stay green; migrations stay reversible in CI.

@@ -174,7 +174,15 @@ a mail archive.
 
 `crm.signature-block` weighs 0.80 → **PROBABLE**. A lone signature produces a
 proposal, not a write. It reaches VERIFIED only combined with another primary
-source (e.g. `profile.email-match`, → ~0.99).
+source.
+
+In the shipped mail pass that second source is `crm.thread-reply` (→ 0.97) or
+`crm.meeting-attendance` (→ 0.94). It is deliberately **not**
+`profile.email-match`: the pass selects a contact's messages *by* their address,
+so counting "this came from their address" as evidence would be the pass
+confirming its own query, and would let a single email auto-apply a title. For
+the same reason a message contributes exactly one observation — the one that
+carried the signature contributes the signature and nothing else.
 
 This is stated here so that nobody raises the weight to make a demo look better.
 If signature-only auto-apply is ever wanted, it needs its own explicit

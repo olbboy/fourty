@@ -300,8 +300,10 @@ describe("the agent work ledger", () => {
     });
 
     it("closes a kind it has no handler for rather than looping on it", async () => {
+      // `sweep.backfill` is booked by no phase yet — the catalogue names it so a
+      // later version can, and this version says so instead of retrying.
       await inWs(() =>
-        scheduleTask({ kind: "contact.evidence", entityType: "contact", entityId: "c1", reason: "read the mail" }),
+        scheduleTask({ kind: "sweep.backfill", entityType: "contact", entityId: "c1", reason: "look at it" }),
       );
       await dispatchTick(ws);
       const last = await inWs(() => lastDecision("contact", "c1"));
