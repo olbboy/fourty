@@ -84,7 +84,7 @@ Full tour: **[Key features](./docs/getting-started/key-features.md)**.
 | 📖 **[User guide](./docs/guides/)** | Records, pipeline, scoring, analytics, workflows, custom objects, AI. |
 | 🐳 **[Self-hosting](./docs/self-hosting/)** | Install, configure, upgrade, and operate your instance. |
 | 🔌 **[API & developers](./docs/api/)** | REST, GraphQL, the MCP server, webhooks. |
-| 🏛 **[Architecture](./docs/architecture.md)** | How Fourty is built, plus [16 decision records](./docs/adr/). |
+| 🏛 **[Architecture](./docs/architecture.md)** | How Fourty is built, plus [18 decision records](./docs/adr/). |
 
 ## Quickstart
 
