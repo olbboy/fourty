@@ -44,6 +44,33 @@ Along the way: `src/lib/metrics.ts` turned out to contain eight NUL bytes, which
 made git and ripgrep treat it as binary. Repaired, with
 `tests/source-hygiene.test.ts` so no source file can carry one again.
 
+### Fixed after review
+
+`bookRecurringWork` used to call `scheduleTask` unconditionally, and
+`scheduleTask` moves `dueAt` on an open row. So every tick overwrote whatever
+`failTask` had just set: a failing pull lost its backoff, and an account that had
+never synced successfully (`lastSyncedAt` null → computed dueAt in 1970) came due
+again on every tick and burned its whole budget in minutes. It now only ever
+*creates*, and a regression test pins the backoff surviving the next tick.
+
+### Carried forward, deliberately
+
+- **The mailbox pull still holds a transaction across the network.** The tick no
+  longer does, but `withWorkspace(ws, () => pullAccount(id))` wraps a Gmail
+  round-trip in one. The fix is to split it — short transaction to read the
+  account, network with no transaction open, short transaction to ingest and mark
+  — and it belongs with Phase 3, which is what makes the volume matter. The
+  "Sync now" route has always had the same shape and should be split with it.
+- **No partial unique index on an open (workspace, entity, kind).** `scheduleTask`
+  checks then inserts, so two schedulers racing could create two open rows for one
+  booking. Today one worker ticks per workspace per minute and nothing else books,
+  so the window is theoretical; the fix is a `UNIQUE … WHERE finished_at IS NULL`
+  index when a second scheduler exists.
+- **`needsProvider()` is not consulted at booking time.** Nothing in this phase
+  books a session kind at all, so "never scheduled without a provider" is
+  currently vacuous, and the retire-at-drain path covers a provider removed later.
+  Phase 3 books the first session kind and should check it there.
+
 ## Why
 
 pg-boss is a good job queue and a bad answer to *"what is the agent going to do about this contact, when, and why"*. A job payload is opaque, it is deleted when it completes, and it cannot be joined to a contact row. Comp AI's insight is that the **intent** belongs in a domain table and the queue merely drains it:
