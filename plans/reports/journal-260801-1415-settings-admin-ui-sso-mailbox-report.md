@@ -115,6 +115,20 @@ returns a 400 would be a small lie repeated to every operator.
 2. Backlog #15 (encrypt secrets at rest) is untouched and now slightly more
    visible: the UI writes SSO client secrets that land in Postgres as plaintext.
    The UI does not make this worse, but it makes it easier to do more often.
-3. Neither new panel has end-to-end coverage. The render smoke test proves they
-   do not crash; it proves nothing about whether the buttons work against a live
-   server.
+3. ~~Neither new panel has end-to-end coverage.~~ **Closed 2026-08-08** —
+   `e2e/settings.spec.ts` drives both panels against a live server: create, edit,
+   toggle, and delete round trips for SSO, and add/pause/resume/disconnect for
+   mailboxes.
+
+   The claim above that the OAuth connect button had **no** automated defence
+   turned out to be wrong, in the useful direction: an end-to-end test *can*
+   assert the control resolves as a link, and `getByRole("link")` fails outright
+   the moment it becomes a button. Verified by making exactly the "helpful
+   tidy-up" edit the source comment warns about and watching that spec go red.
+
+   Verifying the empty-secret path the same way turned up something the original
+   write-up missed: the API rejects `clientSecret: ""` with a 400, because the
+   update schema requires a minimum length. The defence was two layers deep the
+   whole time, not one. The client-side omission is still the right behaviour —
+   it is what makes the field mean "unchanged" rather than an error — but the
+   risk of a silent broken login was lower than recorded.
