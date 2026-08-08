@@ -12,6 +12,7 @@ import {
   listMessages,
   setToolResult,
   type AiMessage,
+  type RecordBinding,
 } from "./store";
 
 /**
@@ -61,6 +62,12 @@ export type AgentConfig = {
    * for cookie sessions where the two coincide.
    */
   ownerId?: string | null;
+  /**
+   * The record a new conversation is about (Phase 4). Resolved by the route from
+   * an id the caller could read, so by the time it reaches here it is a fact.
+   * Only used when creating a thread — an existing one carries its own binding.
+   */
+  binding?: RecordBinding | null;
   tools?: Tool[];
   maxSteps?: number;
 };
@@ -138,7 +145,11 @@ export async function* runAgent(config: AgentConfig, input: AgentInput): AsyncGe
       );
     } else {
       const created = await withWorkspace(ctx.workspaceId, () =>
-        createConversationWithFirstMessage(ownerId, { role: "user", content: input.message }),
+        createConversationWithFirstMessage(
+          ownerId,
+          { role: "user", content: input.message },
+          config.binding,
+        ),
       );
       conversationId = created.conversationId;
     }

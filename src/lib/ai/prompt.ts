@@ -1,5 +1,6 @@
 import { LOCALE_COOKIE, resolveLocale, type Locale } from "@/lib/i18n";
 import { capabilitiesMarkdown, workspaceMarkdown, type Grounding } from "@/lib/capabilities";
+import { recordMarkdown, type RecordContext } from "./record-context";
 
 /**
  * System prompt + locale resolution for the agent. The chat route bypasses
@@ -27,7 +28,12 @@ export function localeFromRequest(req: Request): Locale {
  * missing will plan around one and fail at the tool call instead of at the plan.
  * The identity block comes first: it frames everything after it.
  */
-export function buildSystemPrompt(locale: Locale, now: Date, grounding?: Grounding): string {
+export function buildSystemPrompt(
+  locale: Locale,
+  now: Date,
+  grounding?: Grounding,
+  record?: RecordContext,
+): string {
   const language = locale === "vi" ? "Vietnamese" : "English";
   const date = now.toISOString().slice(0, 10);
   return [
@@ -35,6 +41,10 @@ export function buildSystemPrompt(locale: Locale, now: Date, grounding?: Groundi
     ...(grounding
       ? [workspaceMarkdown(grounding.workspace), capabilitiesMarkdown(grounding.capabilities)]
       : []),
+    // The record the panel is open on, resolved server-side (Phase 4). It is a
+    // prompt block rather than text prepended to the user's message: a message
+    // is something the next sentence can argue with.
+    ...(record ? [recordMarkdown(record)] : []),
     `Always reply in ${language} — the user's language.`,
     `Ground every answer in real CRM data by calling the provided tools. Never invent contacts, companies, deals, records, or numbers; if a tool returns nothing, say so.`,
     `You may read data freely. For any change (creating a contact, company, or record) you PROPOSE the action via its tool — the user must confirm before it runs. Never state that a change was made until it is confirmed.`,

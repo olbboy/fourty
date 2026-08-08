@@ -96,13 +96,23 @@ export async function appendMessage(msg: NewMessage): Promise<AiMessage> {
 }
 
 /**
+ * The record a conversation is about (Phase 4). Absent for the global chat
+ * drawer, which is about no single record.
+ */
+export type RecordBinding = { entityType: string; entityId: string };
+
+/**
  * Create the conversation AND its first message atomically. Because the caller
  * wraps this in a single withWorkspace() transaction, there is no window where a
  * conversation exists without its first message (RT-K).
+ *
+ * `binding` is resolved server-side by the route from a record the caller was
+ * able to read; nothing here trusts an id off the wire.
  */
 export async function createConversationWithFirstMessage(
   userId: string | null,
   firstMsg: Omit<NewMessage, "conversationId">,
+  binding?: RecordBinding | null,
 ): Promise<{ conversationId: string }> {
   const now = Date.now();
   const conversationId = newId();
@@ -110,11 +120,40 @@ export async function createConversationWithFirstMessage(
     id: conversationId,
     userId,
     title: null,
+    entityType: binding?.entityType ?? null,
+    entityId: binding?.entityId ?? null,
     createdAt: now,
     updatedAt: now,
   });
   await appendMessage({ ...firstMsg, conversationId });
   return { conversationId };
+}
+
+/**
+ * This user's threads about this record, newest first.
+ *
+ * Owner-scoped as well as RLS-scoped, and the two are different checks: RLS puts
+ * a workspace-mate's row within reach, and the `user_id` predicate is what keeps
+ * them from reading it. Two reps asking about one contact are having two
+ * conversations, not sharing one.
+ */
+export async function listConversationsFor(
+  binding: RecordBinding,
+  userId: string | null,
+): Promise<AiConversation[]> {
+  if (userId === null) return [];
+  return db
+    .select()
+    .from(tables.aiConversations)
+    .where(
+      and(
+        eq(tables.aiConversations.entityType, binding.entityType),
+        eq(tables.aiConversations.entityId, binding.entityId),
+        eq(tables.aiConversations.userId, userId),
+      ),
+    )
+    .orderBy(desc(tables.aiConversations.updatedAt))
+    .limit(50);
 }
 
 /** The conversation IFF owned by `userId` (RT-C). */
