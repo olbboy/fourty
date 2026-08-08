@@ -145,7 +145,12 @@ export function MailboxSection() {
           {accounts.map((a) => {
             const needsConnect = (a.provider === "google" || a.provider === "microsoft") && !a.connected;
             return (
-              <div key={a.id} className="flex flex-wrap items-center gap-3 py-2.5">
+              <div
+                key={a.id}
+                data-testid="mailbox-account"
+                data-account-id={a.id}
+                className="flex flex-wrap items-center gap-3 py-2.5"
+              >
                 <div className="min-w-[12rem] flex-1">
                   <p className={`text-sm font-medium ${a.status === "paused" ? "text-ink-muted line-through" : ""}`}>
                     {a.label || a.email}
@@ -188,7 +193,12 @@ export function MailboxSection() {
                 >
                   {a.status === "paused" ? "Resume" : "Pause"}
                 </button>
-                <button onClick={() => remove(a)} className="btn-ghost !px-2 !text-red-400">
+                {/* Icon-only, so the mailbox has to be named in the label. */}
+                <button
+                  onClick={() => remove(a)}
+                  aria-label={`Disconnect ${a.email}`}
+                  className="btn-ghost !px-2 !text-red-400"
+                >
                   <IconTrash width={14} height={14} />
                 </button>
               </div>

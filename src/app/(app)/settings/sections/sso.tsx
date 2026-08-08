@@ -130,7 +130,12 @@ export function SsoSection() {
       ) : (
         <div className="divide-y divide-line/60">
           {connections.map((c) => (
-            <div key={c.id} className="flex flex-wrap items-center gap-3 py-2.5">
+            <div
+              key={c.id}
+              data-testid="sso-connection"
+              data-connection-id={c.id}
+              className="flex flex-wrap items-center gap-3 py-2.5"
+            >
               <div className="min-w-[12rem] flex-1">
                 <p className={`text-sm font-medium ${c.enabled ? "" : "text-ink-muted line-through"}`}>
                   {c.label}
@@ -143,10 +148,19 @@ export function SsoSection() {
               <button onClick={() => toggle(c)} className="btn-ghost !px-2 text-xs">
                 {c.enabled ? "Disable" : "Enable"}
               </button>
-              <button onClick={() => setEditing(c)} className="btn-ghost !px-2">
+              {/* Icon-only, so the provider name has to come from the label. */}
+              <button
+                onClick={() => setEditing(c)}
+                aria-label={`Edit ${c.label}`}
+                className="btn-ghost !px-2"
+              >
                 <IconEdit width={14} height={14} />
               </button>
-              <button onClick={() => remove(c)} className="btn-ghost !px-2 !text-red-400">
+              <button
+                onClick={() => remove(c)}
+                aria-label={`Delete ${c.label}`}
+                className="btn-ghost !px-2 !text-red-400"
+              >
                 <IconTrash width={14} height={14} />
               </button>
             </div>
