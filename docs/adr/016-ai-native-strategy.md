@@ -11,6 +11,13 @@
 > tagging, human-in-the-loop on writes). Tier 3 below (the `FOURTY_AI_*` draft
 > layer) is a separate, narrower surface from ADR-015's chat.
 
+> **Amended by [ADR-018](./018-evidence-and-research.md) (2026-08-09) — guardrail
+> #4 is now scoped to generative paths.** A deterministic mail-derived research
+> pass (no model, pure-function evidence scoring) may write to an **empty** field
+> at VERIFIED with a primary source, with a one-click revert and an audited
+> `via:"research"` trail. Everything a model touches — this ADR's Tier 3, ADR-015's
+> chat — remains propose-only. Read #4 below together with ADR-018 §3.
+
 > **Implementation (2026-07-09).** Tier 1 shipped: the MCP tool catalogue grew
 > 10 → 20 (full CRUD for contacts/companies, deal create/update/delete, tasks,
 > notes; delete tools are dry-run unless `confirm: true`), an **HTTP transport**
@@ -125,6 +132,9 @@ risk (for a young, no-E2E codebase), and whether Twenty is actually strong here:
    helpers, never raw `db` calls, so they inherit `withWorkspace` (RLS), `can`
    (RBAC), field-permissions, and audit for free.
 4. **Human-in-the-loop** — AI drafts; a human commits to the system of record.
+   **Scoped by [ADR-018](./018-evidence-and-research.md):** binding on every
+   generative path; a deterministic, evidence-scored research pass may fill an
+   empty field under the four constraints in ADR-018 §3.
 5. **Keep the identity** — MIT + dependency-light: thin `fetch` over a heavy SDK;
    the core stays ~10 deps and installs in 30 seconds.
 
