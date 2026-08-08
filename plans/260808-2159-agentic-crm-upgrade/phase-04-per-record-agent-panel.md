@@ -60,6 +60,15 @@ Tests: `tests/agent-panel-composer-state.test.ts` (12, pure),
 
 ### Carried forward
 
+- **The grounding block is object-scoped, not field-scoped.** `loadRecordContext`
+  gates on `can(role, "contacts", "read")` and then renders a handful of the
+  record's fields into the prompt. If a workspace has narrowed a *field* with
+  `field_permissions`, that field is still hidden from the REST payloads and from
+  the tools — but the prompt block does not run `redact()` over its own lines, so
+  a role that cannot see a field could hear it in an answer. The fix is one call
+  to `loadFieldPolicy` + `redact` in `record-context.ts`; it is left out of v1
+  deliberately, and should be closed before field permissions are recommended for
+  anything sensitive.
 - The role check on the transcript route is defensive only: every current role
   (admin/member/viewer) may read CRM objects, so there is no role that fails it
   and therefore no test that proves it. It becomes real the first time a
