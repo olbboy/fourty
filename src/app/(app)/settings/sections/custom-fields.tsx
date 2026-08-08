@@ -105,7 +105,11 @@ export function CustomFieldsSection() {
                   {f.type === "select" && f.options.length > 0 && ` (${f.options.join(", ")})`}
                 </p>
               </div>
-              <button onClick={() => remove(f)} className="btn-ghost !px-2 !text-red-400">
+              <button
+                onClick={() => remove(f)}
+                aria-label={`Delete ${f.label}`}
+                className="btn-ghost !px-2 !text-red-400"
+              >
                 <IconTrash width={14} height={14} />
               </button>
             </div>
