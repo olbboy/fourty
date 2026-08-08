@@ -13,9 +13,9 @@
 > paths** rather than deleted. The carve-out was written this way because the
 > lawyerly reading — *"a regex is not AI, so #4 does not apply"* — is true and
 > insufficient: the spirit of #4 is that nothing silently mutates the system of
-> record, and that spirit is honoured below by four mechanisms (empty-field-only,
-> VERIFIED-with-primary, one-click revert, audited), not by an argument about
-> definitions.
+> record, and that spirit is honoured below by four mechanisms
+> (never-over-a-human, VERIFIED-with-primary, one-click revert, audited), not by
+> an argument about definitions.
 >
 > Note also that this ADR *fulfils* ADR-016 guardrail #2 (*"Determinism-first —
 > prefer a rule to an LLM wherever a rule suffices"*): the pass that writes is the
@@ -69,7 +69,7 @@ which is precisely the arithmetic this design exists to prevent.
 
 | Band | Floor | What happens |
 |---|---|---|
-| VERIFIED | ≥0.85 **and** ≥1 primary source | Applied to the record — **class B only, empty field only** (§3) |
+| VERIFIED | ≥0.85 **and** ≥1 primary source | Applied to the record — **class B only, never over a human's value** (§3) |
 | PROBABLE | ≥0.55 | Stored as a proposal for a human |
 | POSSIBLE | ≥0.30 | Stored, never surfaced |
 | — | below | Not stored |
@@ -83,7 +83,7 @@ may "look for more evidence" to push a claim over a line.
 | Class | Who | May write a field? |
 |---|---|---|
 | **A — generative** | Chat (ADR-015), model-backed research, custom agents | **Never.** Caps at PROBABLE whatever the band. ADR-015's loop is unchanged. |
-| **B — deterministic** | Pure parsers + the ledger (signature, thread-reply, meeting attendance) | **Only** when the field is empty **and** band is VERIFIED **and** ≥1 primary source. |
+| **B — deterministic** | Pure parsers + the ledger (signature, thread-reply, meeting attendance) | **Only** when the field is **not human-owned** (empty, or holding this pass's own applied value — see §4) **and** band is VERIFIED **and** ≥1 primary source. |
 | **C — human** | UI, import, REST/GraphQL/MCP as a user | Normal writes. |
 
 Class B is not "the AI writing to the CRM". It is mailbox mining held to the same
@@ -95,7 +95,10 @@ person sent us, which is why the further constraints below exist.
 
 1. **Never overwrite a human.** A value a person or an import put there outranks
    anything found. A value a *previous applied fact* put there does not — the
-   pass may correct itself.
+   pass may correct itself, and §3's gate is therefore "not human-owned", not
+   "empty". Freezing a field after the first apply would leave a wrong title in
+   place until someone reverted it by hand, and would delete §5's job-change
+   detection, which *is* a SUPERSEDED → APPLIED transition.
 2. **Never re-offer a dismissal.** A dismissed exact value is dismissed forever.
 3. **Never apply without a primary source.** Supporting evidence may combine to
    PROBABLE; it may never reach VERIFIED alone.
@@ -183,7 +186,7 @@ primary-kind allowlist rule and its own amendment — **not** a weight bump.
 |---|---|
 | Let the model attach a confidence and write above a threshold | The failure this ADR exists to prevent. Self-graded certainty is wrong in the flattering direction. |
 | Propose-only for everything; no background apply at all | Safe and useless. The differentiator degrades to a chip inbox a rep must clear by hand, which is the manual data entry we set out to remove. |
-| Auto-apply to non-empty fields when the score is high | Breaks invariant 1. A rep who typed a title and finds it changed will not trust the field again, and correctly. |
+| Auto-apply over a **human-owned** value when the score is high | Breaks invariant 1. A rep who typed a title and finds it changed will not trust the field again, and correctly. (Superseding the pass's *own* earlier value is a different case, and is allowed — §4.) |
 | A `confidence` column instead of an evidence array | Loses the rationale. A rep asked to accept a suggestion needs to read *why*, not a number. |
 | Store full message bodies and parse later | Turns a CRM into a mail archive: a much larger privacy and storage surface for a parse we can do once, at ingest. |
 | Free-text `employer` alongside `company_id` | Two sources of truth for the same fact; drifts from `companies` immediately. |

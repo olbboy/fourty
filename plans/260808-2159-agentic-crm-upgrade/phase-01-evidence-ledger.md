@@ -20,9 +20,11 @@ Full suite 479 passed, 14 e2e, build green.
   overwritten") and ADR-018 §2 ("a proposal is a correct outcome"). The rejection
   applies to the *apply*, and the reason names the field.
 - **The pass may supersede its own applied value, not only fill an empty field.**
-  ADR-018 §3 says "empty field only"; §4.1 says a previous applied fact does not
-  outrank a new one, and §5's job-change detection is impossible otherwise. Owner
-  is derived as empty / research / human, and only `human` blocks a write.
+  ADR-018 §3 said "empty field only" while §4.1 said a previous applied fact does
+  not outrank a new one, and §5's job-change detection is impossible without it.
+  Owner is derived as empty / research / human, and only `human` blocks a write.
+  **ADR-018 §3 and the ADR-016 pointer were amended (2026-08-09) to say so**, so
+  the next reader does not "fix" a working feature back to empty-only.
 - **Accepting makes the field human-owned.** `decided_by` is set, so a later pass
   proposes rather than replaces what a person signed off on. Without this, Accept
   would quietly leave the value research-owned and overwritable.
@@ -55,13 +57,13 @@ Fourty's only AI safety mechanism is *a human clicks confirm in chat*. That does
 
 This is the same philosophy Fourty already ships for lead scoring ("pure functions you can tune"), applied to writes.
 
-**[ADR-018](../../docs/adr/018-evidence-and-research.md) is written and Accepted (2026-08-09) — ahead of this phase, not inside it.** The migration below implements it; a divergence from the ADR is a bug in the migration, not a licence to amend the ADR in passing. VERIFIED auto-apply is a strategy change against ADR-015 (stop-at-write) and ADR-016 guardrail #4 ("AI drafts; a human commits", binding). The carve-out per plan.md Decision 2: only deterministic class-B research applies, only to empty fields, with Revert; generative writes stay propose-only. Background research is then "mailbox mining with the same pure-function discipline as lead scoring" (Tier-2 DNA), not a betrayal of stop-at-write.
+**[ADR-018](../../docs/adr/018-evidence-and-research.md) is written and Accepted (2026-08-09) — ahead of this phase, not inside it.** The migration below implements it; a divergence from the ADR is a bug in the migration, not a licence to amend the ADR in passing. VERIFIED auto-apply is a strategy change against ADR-015 (stop-at-write) and ADR-016 guardrail #4 ("AI drafts; a human commits", binding). The carve-out per plan.md Decision 2: only deterministic class-B research applies, and never over a human's value, with Revert; generative writes stay propose-only. Background research is then "mailbox mining with the same pure-function discipline as lead scoring" (Tier-2 DNA), not a betrayal of stop-at-write.
 
 ## Requirements
 
 - No tool may pass a score, a confidence, or a bare `sourceUrl` offered as proof. It passes `{ kind, detail, sourceUrl? }` where `kind` is a closed enum of things one can *observe*.
 - Scoring is a pure function: combination `1 − Π(1−wᵢ)`, ceiling 0.99, a `contradiction` entry caps the result at 0.45 rather than reducing it.
-- Bands are behaviour, not labels: **VERIFIED** (≥0.85 **and** at least one primary source) → applied to the record **only for a class-B (deterministic) caller on an empty field**; a class-A (generative) caller caps at PROPOSED whatever the band. **PROBABLE** (≥0.55) → proposed for a human; **POSSIBLE** (≥0.3) → stored, not surfaced; below → not stored.
+- Bands are behaviour, not labels: **VERIFIED** (≥0.85 **and** at least one primary source) → applied to the record **only for a class-B (deterministic) caller, and never over a human-owned value** (empty or research-owned — see the deviations above); a class-A (generative) caller caps at PROPOSED whatever the band. **PROBABLE** (≥0.55) → proposed for a human; **POSSIBLE** (≥0.3) → stored, not surfaced; below → not stored.
 - Three invariants enforced in the transaction, not the prompt: **never overwrite a human**, **never re-offer a dismissed value**, **never apply without a primary source**.
 - Applying supersedes the previous applied fact rather than deleting it — which is how "changed employer in March" is answerable for free.
 
@@ -116,13 +118,13 @@ Supporting: `web.cited-claim` .40 · `handle.name-form` .35 · `search.cites-pro
 
 1. Pure module + its test first. One entry per **independent** source: two facts on one page are one observation. Test that the combination is order-independent and that a contradiction holds rather than nudges.
 2. Migration + RLS + reversibility check.
-3. `recordFact()` in one transaction: empty → reject; below floor → reject with *find a source, do not raise the score*; dismissed-same-value → reject; already-applied-same-value → no-op; human-owns → reject naming the field; else insert, and if VERIFIED **and** the caller is class B (deterministic) supersede + write the column. Class-A (generative) callers cap at PROPOSED regardless of band.
+3. `recordFact()` in one transaction: empty → reject; below floor → reject with *find a source, do not raise the score*; dismissed-same-value → reject; already-applied-same-value → no-op; human-owns → **do not apply, still insert PROPOSED**, with a reason naming the field; else insert, and if VERIFIED **and** the caller is class B (deterministic) supersede + write the column. Class-A (generative) callers cap at PROPOSED regardless of band.
 4. "Human owns", without a new column: non-null column with no APPLIED fact matching the current value → human/import owns; current value equals the latest APPLIED fact → research owns and may supersede; a human edits after an apply → value diverges → human owns again. Pin all three with real-PG tests — this is the whole safety claim.
 5. **`company_id` resolution, not an employer string.** An employer observation applies only when it resolves to an existing company by **exact domain match** (v1); otherwise it is stored as a PROBABLE text proposal for a rep. A wrong `company_id` is worse than an empty field.
 6. **Revert.** Every APPLIED fact row shows a one-click Revert: restore the previous value from the SUPERSEDED fact (or clear if none), mark the reverted value DISMISSED so the invariants block re-offer, append `fact.reverted` to audit with `{ via:"human", previousFactId, field, old, new }`. Reversal is a new decision, never a deleted audit row.
 7. Audit actors: an applied class-B fact audits `audit(null, …, { meta: { via:"research", factId } })` — `actorId` is nullable by design (`src/lib/audit.ts`); never fake a user. A human decision audits the human.
 8. Action-registry entries so all four APIs get it from one definition.
-9. UI: an empty field with a proposal shows the value, the rationale in plain words ("their signature on 14 July reads …"), and Accept / Dismiss. Dismiss is permanent for that exact value.
+9. UI: a field with a proposal shows the value, the rationale in plain words ("their signature on 14 July reads …"), and Accept / Dismiss. Dismiss is permanent for that exact value.
 
 ## Validation
 
