@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db, tables, withWorkspace } from "@/db";
 import { checkWebhookUrl } from "@/lib/net";
 import { ingestCalendar, ingestEmails, type IngestResult } from "./ingest";
+import { peekAccountConfig } from "./account-config";
 import { accessTokenFor, fetchMail } from "./transport";
 
 /**
@@ -28,7 +29,7 @@ type SyncAccount = typeof tables.syncAccounts.$inferSelect;
 
 /** Which accounts Fourty can go and fetch itself; IMAP is push-only. */
 export function canPull(account: SyncAccount): boolean {
-  const cfg = safeConfig(account.config);
+  const cfg = peekAccountConfig(account.config);
   if (account.provider === "ics") return typeof cfg.url === "string";
   if (account.provider === "google" || account.provider === "microsoft") {
     return typeof cfg.refreshToken === "string";
@@ -44,7 +45,7 @@ export async function pullAccount(workspaceId: string, accountId: string): Promi
     return pullMail(workspaceId, account);
   }
 
-  const cfg = safeConfig(account.config);
+  const cfg = peekAccountConfig(account.config);
   if (account.provider !== "ics" || typeof cfg.url !== "string") {
     return {
       ok: false,
@@ -134,14 +135,6 @@ async function markSynced(accountId: string): Promise<void> {
     .update(tables.syncAccounts)
     .set({ lastSyncedAt: Date.now(), status: "active", lastError: null })
     .where(eq(tables.syncAccounts.id, accountId));
-}
-
-function safeConfig(raw: string): Record<string, unknown> {
-  try {
-    return JSON.parse(raw) as Record<string, unknown>;
-  } catch {
-    return {};
-  }
 }
 
 const message = (err: unknown, fallback: string): string =>

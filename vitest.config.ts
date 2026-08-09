@@ -26,6 +26,10 @@ export default defineConfig({
         process.env.TEST_DATABASE_URL ?? "postgresql://fourty_app:fourty_app@localhost:5432/fourty_test",
       MIGRATE_DATABASE_URL:
         process.env.TEST_MIGRATE_DATABASE_URL ?? "postgresql://fourty:fourty@localhost:5432/fourty_test",
+      // A fixed key so the suite exercises the *encrypted* path by default —
+      // the interesting bugs are there, not in the legacy plaintext fallback,
+      // which tests/secrets.test.ts covers by unsetting this deliberately.
+      FOURTY_SECRET_KEY: "Zm91cnR5LXRlc3Qta2V5LWRvLW5vdC11c2UtaW4tcHI=",
       NODE_ENV: "test",
     },
   },

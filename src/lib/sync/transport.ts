@@ -2,6 +2,7 @@ import type { tables } from "@/db";
 import { clientFromEnv, refreshAccessToken, type MailProvider } from "./oauth";
 import { fetchRawMessages } from "./fetch-mail";
 import { syncFetcher, type HttpFetcher } from "./http";
+import { readAccountConfig, writeAccountConfig } from "./account-config";
 
 /**
  * Mail-sync transport (Gate C6 completion, ADR-009): keep a valid OAuth access
@@ -45,7 +46,7 @@ export async function accessTokenFor(
   if (!client) {
     throw new Error(`OAuth client for '${provider}' is not configured (set the provider env vars)`);
   }
-  const cfg = JSON.parse(account.config) as OAuthTokenConfig & Record<string, unknown>;
+  const cfg = readAccountConfig(account.config) as OAuthTokenConfig & Record<string, unknown>;
   if (cfg.accessToken && cfg.expiresAt && cfg.expiresAt - EXPIRY_SKEW_MS > Date.now()) {
     return { token: cfg.accessToken, config: null };
   }
@@ -60,7 +61,7 @@ export async function accessTokenFor(
     refreshToken: refreshed.refresh_token ?? cfg.refreshToken,
     expiresAt: Date.now() + (refreshed.expires_in ?? 3600) * 1000,
   };
-  return { token: refreshed.access_token, config: JSON.stringify(next) };
+  return { token: refreshed.access_token, config: writeAccountConfig(next, account.config) };
 }
 
 /** Fetch recent raw messages. No database, no transaction — just the provider. */
