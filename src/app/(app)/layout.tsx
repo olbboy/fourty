@@ -15,8 +15,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     cookie: jar.get(LOCALE_COOKIE)?.value,
     acceptLanguage: hdrs.get("accept-language"),
   });
+  // shadcn's Sidebar persists its collapsed state in this cookie; reading it here
+  // means the server renders the rail in the state the user left it.
+  const defaultSidebarOpen = jar.get("sidebar_state")?.value !== "false";
   return (
-    <AppShell user={{ name: user.name, email: user.email }} locale={locale} aiEnabled={isAiEnabled()}>
+    <AppShell
+      user={{ name: user.name, email: user.email }}
+      locale={locale}
+      aiEnabled={isAiEnabled()}
+      defaultSidebarOpen={defaultSidebarOpen}
+    >
       {children}
     </AppShell>
   );
