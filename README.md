@@ -20,7 +20,8 @@ Twice the CRM, half the complexity. One process, one Postgres, zero infrastructu
 > typed **GraphQL API**, saved views, i18n + a11y, email/calendar ingestion with
 > Google/Microsoft **mail OAuth**, a native **MCP server** (stdio + HTTP), the
 > **`@fourty/twenty-migrate`** CLI, **2FA/TOTP**, **signed webhooks**, **SSO via
-> OIDC**, and an optional in-app **AI assistant**. **Not done yet:** **SAML**, a
+> OIDC**, **keyless mailbox research** with an evidence ledger behind every
+> automatic write, and an optional in-app **AI assistant**. **Not done yet:** **SAML**, a
 > define-as-code apps/SDK platform, and **calendar-over-OAuth** (mail OAuth is done;
 > calendar is via ICS feeds) — so it is not yet a drop-in enterprise Twenty
 > replacement. Every claim is cross-checked against code and tests in
@@ -33,6 +34,12 @@ Most open-source CRMs make you operate a distributed system before you can add a
 contact. Fourty is a **single Next.js process and one Postgres** — no Redis, no broker,
 ten server dependencies plus a shadcn/ui component layer — that still ships forecasting, lead scoring, workflow
 automation, a REST **and** GraphQL API, and a native MCP server for AI agents.
+
+And it keeps the records true on its own. Connect a mailbox and Fourty fills in
+job titles and company links from the signatures and replies already in it —
+**no API key, no data vendor, no AI model**. Every automatic write shows the
+evidence it came from, never overwrites a value a person typed, and reverts in
+one click.
 
 ```bash
 git clone https://github.com/olbboy/fourty && cd fourty
@@ -71,7 +78,9 @@ calendar-over-OAuth. See the honest, cited matrix in [`PARITY.md`](./PARITY.md).
 - **Workflow automation** — visual builder on a durable Postgres queue; five action types + run history. → [guide](./docs/guides/workflows.md)
 - **Custom fields & no-code objects** — extend the data model, served over REST, GraphQL, and MCP. → [guide](./docs/guides/custom-objects.md)
 - **APIs** — [REST](./docs/api/rest.md), typed [GraphQL](./docs/api/graphql.md), a native [MCP server](./docs/api/mcp.md), and signed [webhooks](./docs/api/webhooks.md).
-- **Optional AI assistant** — BYO-key in-app chat that reads your CRM and proposes writes you confirm; off by default. → [guide](./docs/guides/ai-assistant.md)
+- **Keyless research** — a background pass mines your own mailbox for job titles and company links and fills in what nobody has typed over, with the source shown. No API key, no vendor, no model; per-workspace off switch. → [guide](./docs/guides/research.md)
+- **Suggestions you can audit** — every finding is priced by a pure function, not by a model grading its own confidence. Weak claims stay suggestions, a contradiction holds the field, a human's value is never overwritten, and any automatic write reverts in one click. → [guide](./docs/guides/suggestions.md)
+- **Optional AI assistant** — BYO-key chat, per record or global, that reads your CRM and proposes writes you confirm; off by default and useful without it. → [guide](./docs/guides/ai-assistant.md)
 - **Platform** — RLS multi-tenancy, RBAC + field permissions, immutable audit log, 2FA, SSO (OIDC), i18n, PWA, ⌘K palette.
 
 Full tour: **[Key features](./docs/getting-started/key-features.md)**.
@@ -84,7 +93,7 @@ Full tour: **[Key features](./docs/getting-started/key-features.md)**.
 | 📖 **[User guide](./docs/guides/)** | Records, pipeline, scoring, analytics, workflows, custom objects, AI. |
 | 🐳 **[Self-hosting](./docs/self-hosting/)** | Install, configure, upgrade, and operate your instance. |
 | 🔌 **[API & developers](./docs/api/)** | REST, GraphQL, the MCP server, webhooks. |
-| 🏛 **[Architecture](./docs/architecture.md)** | How Fourty is built, plus [18 decision records](./docs/adr/). |
+| 🏛 **[Architecture](./docs/architecture.md)** | How Fourty is built, plus [19 decision records](./docs/adr/). |
 
 ## Quickstart
 

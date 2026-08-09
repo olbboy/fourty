@@ -56,6 +56,10 @@ export default defineConfig({
         process.env.MIGRATE_DATABASE_URL ?? "postgresql://fourty:fourty@localhost:5432/fourty_e2e",
       // Session cookies default to Secure; allow them over plain HTTP localhost.
       FOURTY_INSECURE_COOKIE: "1",
+      // Connecting any mailbox — including an ICS feed, whose URL is itself a
+      // credential (ADR-019) — needs a key, so the E2E install is configured
+      // like a real one. Test-only value.
+      FOURTY_SECRET_KEY: "ZTJlLW9ubHkta2V5LW5vdC1mb3ItcHJvZHVjdGlvbiE=",
       NODE_ENV: "production",
       // Boot on the dedicated E2E port (matches APP_URL above).
       PORT: "3100",

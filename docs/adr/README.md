@@ -29,6 +29,7 @@ are short by design.
 | [016](./016-ai-native-strategy.md) | AI-native strategy: be the substrate for AI, not a Twenty clone | Accepted (T1+T2+T3 done) |
 | [017](./017-action-registry.md) | Action Registry: one definition, every surface | Accepted for contacts |
 | [018](./018-evidence-and-research.md) | Evidence, not confidence: how a background pass may write | Accepted |
+| [019](./019-secrets-at-rest.md) | Mailbox credentials encrypted at rest, key outside the database | Accepted |
 
 _Grounded via web research (Drizzle RLS docs, Postgres multi-tenancy patterns,
 Twenty's architecture, pg-boss vs BullMQ). Sources cited inline._
