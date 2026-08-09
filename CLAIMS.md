@@ -6,72 +6,98 @@
 > **MISSING** (claimed capability not in code), **FALSE** (claim contradicts
 > reality/is fabricated).
 >
-> Audited commit: `9de80c7` (branch `claude/fourty-production-readiness-8q6wyl`).
-> Date: 2026-07-07. Method: read all of `src/**` (~8.1k LOC), ran the test suite
-> and production build, exercised route handlers via new integration tests.
+> Audited commit: `0c85c10` (branch `main`). Date: 2026-08-09.
+> Method: each README claim traced to the code that implements it and the test
+> that pins it; full suite, production build and E2E run locally against real
+> Postgres 16. Counts below were counted, not quoted.
 >
 > **Verified facts up front:**
-> - Test suite: **55 tests passing** (was 33 before this session; +22 API
->   integration / auth / security tests added here). `npx vitest run` → green.
-> - Production build: `npm run build` → **green** (Next.js 15, 24 routes).
-> - Architecture: **Next.js App Router + SQLite (better-sqlite3) + Drizzle**, a
->   single Node process. **~8.1k LOC.**
+> - Test suite: **573 passing, 2 skipped**, 57 files, on **real Postgres + RLS**
+>   (`npx vitest run` → green). The 2 skips are declared gaps, listed below.
+> - E2E: **16 Playwright smoke tests** across 7 files (+1 setup project) → green.
+> - Production build: `npm run build` → **green** (Next.js **16.3.0**, 80 routes).
+> - Architecture: **Next.js App Router + Postgres 16 + Drizzle**, one web process
+>   plus one worker. **~23.5k LOC** across `src/` and `packages/`.
+> - Runtime dependencies: **10** — drizzle-orm, graphql, next, pg, pg-boss, pino,
+>   react, react-dom, recharts, zod.
+> - Migrations: **17 up + 17 down**, reversibility asserted in CI.
 
 ## Feature claims
 
 | # | Claim (README) | Verdict | Evidence / caveat |
 |---|---|---|---|
-| 1 | "Deploys in 30 seconds", one process, SQLite | **DONE** | `npm run build && npm start` works; `Dockerfile` present; single `better-sqlite3` process; DB auto-bootstraps via DDL in `src/db/index.ts`. |
-| 2 | Analytics: forecast, funnel, win-rate, sales-cycle, revenue trend, aging, sources, stale deals | **DONE** | Real implementations in `src/lib/services/stats.ts` (`computeDashboardStats`, `computeReportStats`: `winRate`, `funnel`, cycle length, `sourceBreakdown`, `aging`, `scoreBands`, `winLoss`). Exposed at `/api/stats/dashboard`, `/api/stats/reports`. **Not yet covered by tests** (logic only). |
-| 3 | Automatic lead scoring, zero-config, 0–100 | **DONE** | `src/lib/scoring.ts` (pure, 7 passing tests in `tests/scoring.test.ts`); recompute service `src/lib/services/contact-score.ts`; invoked on contact create. |
-| 4 | Workflow automation: visual builder, 5 action types, conditions, `{{templates}}`, run history, in-process | **DONE** | Engine `src/lib/workflows/engine.ts` (create_task, add_note, update_field, webhook, log); conditions `evaluate.ts`; builder UI `workflow-builder.tsx`; `workflow_runs` table records history. Tested: `tests/engine.test.ts`, `tests/workflow-evaluate.test.ts` + new HTTP-level dispatch test in `tests/api-integration.test.ts`. |
-| 5 | Multi-currency, 12 currencies, USD-normalized reporting | **DONE** | `src/lib/currency.ts` (6 passing tests). |
-| 6 | Responsive PWA + bottom nav, dark mode | **PARTIAL** | `src/app/manifest.ts`, mobile nav in `src/components/shell.tsx`, theme toggle present. Verified to *build*; **no automated UI/E2E test or Playwright trace** yet, so responsiveness/PWA-install is asserted by code inspection only. |
-| 7 | Custom fields: UI-managed, "instant in forms & **API**" | **PARTIAL** | `custom_field_defs` table + `custom-fields` UI + CRUD API exist. Values pass through as opaque JSON on write (`custom` column). **Caveat: writes are NOT validated/typed against the field definitions** — the API accepts any `custom` object regardless of defined fields/types/required flags. "Appears in API" = true; "enforced by API" = false. |
-| 8 | CSV import: fuzzy header mapping + company auto-linking; export | **DONE** | `src/lib/csv.ts` (RFC-4180, 8 passing tests); `/api/import/contacts` fuzzy `pick()` + company auto-create; `/api/export/[entity]`. |
-| 9 | REST API for every resource, Bearer-token API keys | **DONE** | 24 route files; 21 call `authenticate()` (the 3 that don't are the auth endpoints themselves). Keys SHA-256-hashed (`api_keys.keyHash`), revocable (`revokedAt`). Now covered by `tests/api-auth.test.ts` + `tests/api-integration.test.ts`. |
-| 10 | ⌘K command palette, global search | **PARTIAL** | `src/components/command-palette.tsx` + `/api/search`. Present; no test. |
-| 11 | License MIT | **DONE** | `LICENSE` (MIT). |
-| 12 | Polymorphic activity timeline on every record | **DONE** | `activities` table (entityType/entityId), written on create/update/stage-change; timeline UI in record pages. |
-| 13 | API keys "SHA-256-hashed at rest and revocable" | **DONE** | `sha256(key)` stored; `authenticate()` checks `isNull(revokedAt)`; revoked-key rejection now tested. |
-| 14 | Outbound webhooks (workflow action) | **DONE (hardened)** | `webhook` action in engine. **This session added SSRF protection** (`src/lib/net.ts`) — see Security below. |
-| 15 | Self-initializing schema + default 7-stage pipeline + demo seed | **DONE** | DDL bootstrap in `src/db/index.ts`; `ensureDefaultPipeline()` + `seedDemoData()` in `src/db/seed.ts`. |
+| 1 | "Deploys in 30 seconds" — Compose brings up Postgres, migrates, starts app **and worker** | **DONE** | `docker-compose.yml` (postgres → migrate → app + worker), `Dockerfile`. |
+| 2 | One process + one Postgres, **no Redis**, ~10 runtime deps | **DONE** | 10 dependencies, counted. Queue is pg-boss on Postgres (`src/lib/queue.ts`); no Redis anywhere. |
+| 3 | Postgres **multi-tenancy with Row-Level Security** | **DONE** | 9 migrations enable RLS, **27 policies**; app connects as non-owner `fourty_app` under FORCE RLS. `tests/tenant-isolation.test.ts` proves cross-tenant reads return zero rows via a direct connection. |
+| 4 | Versioned **reversible migrations** + real-PG CI | **DONE** | 17 up/down pairs; `tests/migration-reversibility.test.ts` does up → checksum → down → re-apply and compares schema. CI provisions a dedicated reversibility DB. |
+| 5 | Object-level **RBAC** + **field-level permissions** | **DONE** | `src/lib/permissions.ts` (`can()`), `authorize()` on every mutating route with a static guard in `tests/api-auth.test.ts`. Field permissions enforced by `redact()` on REST, **and** inside GraphQL resolvers and MCP tools — not only at one surface. |
+| 6 | **Immutable audit log** | **DONE** | Enforced by the database, not by convention: `0004_audit_rls.sql` REVOKEs UPDATE/DELETE from `fourty_app` and adds `DO INSTEAD NOTHING` rules. |
+| 7 | **Durable queue/worker** with retry, backoff, dead-lettering | **DONE** | pg-boss on Postgres; `src/worker/`; idempotency ledger `job_receipts` (ADR-004). |
+| 8 | Custom fields & **no-code custom objects** | **DONE** | `custom_field_defs` / custom objects with CRUD over REST, GraphQL (`createRecord`/`updateRecord`/`deleteRecord`) and MCP (`list_records`/`create_record`). |
+| 9 | Typed **GraphQL API** | **PARTIAL** | Real typed schema, RBAC per resolver, field-permission redaction, frozen SDL fixture. **Write surface is narrower than REST:** 11 mutations covering contacts, companies, custom records and facts — **no deal, task or note mutations**. "REST **and** GraphQL" is true for reads and partly true for writes. |
+| 10 | Native **MCP server**, "**26 tools**, stdio + HTTP" | **DONE** | Exactly **26** tools counted in `src/mcp/tools.ts`; stdio (`src/mcp/stdio.ts`) + HTTP route. **Caveat:** no tool completes a task (`create_task`/`list_tasks` only). |
+| 11 | Analytics — forecast, win rate, sales cycle, funnel, win/loss, sources, aging, stale deals | **DONE** | `src/lib/services/stats.ts`; `tests/deal-scoring.test.ts` + report routes. |
+| 12 | Automatic 0–100 **lead scoring and deal health**, pure functions | **DONE** | `src/lib/scoring.ts` (7 tests), `deal-score` service (9 tests). Pure and tunable, as claimed. |
+| 13 | Workflow automation — visual builder, **5 action types**, run history, durable queue | **DONE** | 5 actions counted (`create_task`, `add_note`, `update_field`, `webhook`, `log`); `workflow_runs` history; `tests/engine.test.ts`, `tests/workflow-evaluate.test.ts`. |
+| 14 | Multi-currency, **12 currencies**, USD-normalised | **DONE** | 12 counted in `src/lib/currency.ts` (6 tests). |
+| 15 | **Signed webhooks** | **DONE** | `src/lib/webhook-sign.ts`, `tests/webhook-signature.test.ts`; SSRF guard on the destination (`src/lib/net.ts`). |
+| 16 | **2FA / TOTP** | **DONE** | `src/lib/totp.ts`, `tests/two-factor.test.ts`. |
+| 17 | **SSO via OIDC** | **DONE** | `src/lib/sso/`, `/api/auth/sso/[id]`, `tests/sso.test.ts`, E2E covers add/edit/disable/delete. |
+| 18 | **i18n + a11y** | **DONE** | `src/lib/i18n/` with locale files (9 tests); `tests/a11y.test.ts` (9) asserts skip link, landmarks, `aria-current`, named controls; E2E asserts accessible names on destructive controls. |
+| 19 | Email/calendar ingestion, Google/Microsoft **mail OAuth** | **DONE** | `src/lib/sync/` — OAuth refresh + fetch + ingest; ICS for calendar. Matches the README's own carve-out that calendar is **not** over OAuth. |
+| 20 | **`@fourty/twenty-migrate`** CLI | **DONE** | `packages/twenty-migrate`, `tests/twenty-migrate.test.ts` (7). |
+| 21 | Optional in-app **AI assistant**, BYO-key, off by default | **DONE** *(understated — see below)* | `src/lib/ai/`; disabled without `AI_PROVIDER`. Stop-at-write: the model proposes, a human confirms. |
+| 22 | Saved views, Kanban, PWA, ⌘K palette | **DONE** | `saved_views` + routes; kanban E2E drag test; `src/app/manifest.ts`; command palette with 2 E2E tests. |
+| 23 | License **MIT** | **DONE** | `LICENSE`. |
 
-## Architecture / positioning claims
+## "Not done yet" claims — checked for honesty
 
-| Claim | Verdict | Note |
+A status note is only useful if its *negatives* are true too.
+
+| README says not done | Verdict | Evidence |
 |---|---|---|
-| "Drizzle ORM, so a Postgres driver can be swapped in when you outgrow SQLite" | **PARTIAL / misleading** | The schema is Drizzle, but the DB layer hard-codes `better-sqlite3`, uses a **raw SQLite DDL string** (not portable to Postgres), and integer-epoch timestamps. There are **no migrations** (`CREATE TABLE IF NOT EXISTS` only). A real Postgres swap is a project, not a driver flip. |
-| "33 tests" | **WAS TRUE → now 55** | 33 at audit start; +22 added this session. |
-| Comparison table vs Twenty ("Workflow ✅ vs Limited", "Analytics: Twenty Basic", "Custom fields ✅ vs ✅", "Mobile: Twenty ❌") | **PARTIALLY OUTDATED** | Measured against **Twenty 2.0** (Apr 2026): Twenty ships no-code workflows, unlimited custom objects, an apps platform, a native MCP server, and object+field-level RBAC. Several "Twenty ❌/Limited" cells no longer hold. See `PARITY.md`. |
+| **SAML** | **CONFIRMED ABSENT** | No match for `saml` anywhere in `src/` or `packages/`. |
+| **Apps / define-as-code SDK platform** | **CONFIRMED ABSENT** | No app manifest, registry or loader. ADR-016 records this as a deliberate **NO**. |
+| **Calendar over OAuth** | **CONFIRMED ABSENT** | `pullAccount` fetches calendar only from an ICS feed URL; OAuth is used for mail. |
 
-## Gaps found (claimed-or-implied capabilities that are NOT present)
-
-These are **not** false README claims (the README mostly doesn't claim them) but
-are implied by "production CRM" / the mission's gates, and are **absent**:
+## Gaps and caveats found in this audit
 
 | Area | Status | Evidence |
 |---|---|---|
-| **Multi-tenancy / workspace isolation** | **MISSING** | No `workspace`/`tenant`/`organization` table; **no tenant column on any CRM table**. "Workspace" appears only as UI copy. One global dataset shared by all users. |
-| **RBAC enforcement** | **MISSING** | `users.role` exists (`admin`/`member`; setup makes first user `admin`) but **no route checks it**. Any authenticated principal can do everything (delete records, mint/revoke API keys, manage workflows). Also: **no user-management/invite API** exists, so the app is effectively single-user today. |
-| **API-key scopes** | **MISSING** | `api_keys` has no scope column; a valid key grants **full read+write to every endpoint**. (README does not claim scopes — honest, but the mission's Gate C requires them.) |
-| **Rate limiting** | **PARTIAL (added)** | None existed. This session added an in-process limiter (`src/lib/ratelimit.ts`) applied to `/api/auth/login`. Not yet applied fleet-wide to the data API. |
-| **Migrations (up/down, reversible)** | **MISSING** | Idempotent `CREATE TABLE IF NOT EXISTS` only. **Latent upgrade bug:** adding a column to the DDL later will *not* apply to existing databases (no `ALTER`), so upgrades silently miss new columns. |
-| **Observability** (structured logs, metrics, tracing) | **MISSING** | No Prometheus/OTel/structured logging. `console.log` in seed only. |
-| **MCP server** | **MISSING** | No MCP server (Gate D). |
-| **`@fourty/twenty-migrate`** | **MISSING** | No migration tool from Twenty (Gate C). |
-| **Head-to-head benchmark vs Twenty** | **MISSING** | No benchmark harness/repro. **No fabricated numbers exist** — good. Building a real one is future work (see PROGRESS.md). |
-| **SSO / OAuth2+PKCE / 2FA** | **MISSING** | Auth is email+password (scrypt) + opaque session cookie only. No OAuth, OIDC/SAML, or 2FA. |
-| **Audit log (immutable)** | **PARTIAL** | `activities` is an append-style timeline but is not tamper-evident, not settings-scoped, and is deletable. |
-| **i18n / a11y** | **UNVERIFIED** | No i18n framework found; no a11y test. Not claimed by README; required by mission Tier 2. |
+| **OAuth refresh tokens are stored in plaintext** | **CAVEAT — not claimed, worth knowing** | `sync_accounts.config` holds `refreshToken`/`accessToken` as JSON. There is **no encryption anywhere in `src/`**. `SECURITY.md` truthfully says sessions and API keys are hashed at rest — it says nothing about mailbox tokens, and neither did this file until now. Anyone with database read access holds the mailbox. |
+| **GraphQL/MCP write parity with REST** | **PARTIAL** | The 2 skipped tests are here, and they are honest skips in `tests/surface-parity.test.ts`: no GraphQL task mutation, no MCP tool that completes a task. Deals and notes are also read-only over GraphQL. |
+| **README understates the AI** | **DOC LAG** | Phases 0–4 of the agentic upgrade shipped: an evidence ledger that prices observations instead of trusting a confidence (ADR-018), a background work ledger, a keyless research pass that fills contact fields from your own mailbox **with no API key**, and a per-record agent panel. The README still describes only "an optional in-app chat". Nothing false — the page is simply behind the code. |
+| **Field-permission redaction in the AI grounding block** | **KNOWN GAP** | `loadRecordContext` gates on object-level read and does not run `redact()` over the fields it puts in the prompt. Recorded in `plans/260808-2159-agentic-crm-upgrade/phase-04-*.md`. |
+| **`npm run lint`** | **BROKEN** | No ESLint config; `next lint` drops into an interactive prompt and is deprecated in Next 16. Type checking via `npm run build` is what actually gates. |
+| **Node requirement** | **IMPRECISE** | README says "Node.js 20+". Next 16 declares `>=20.9.0`, so 20.0–20.8 no longer work. CI and the Dockerfile both use Node 22. |
+| **Dependency audit** | **CLEAN (high+)** | `npm audit --audit-level=high` exits 0 as of this commit. 4 moderate remain, all dev-only (`drizzle-kit` → `@esbuild-kit/esm-loader`). |
 
-## What this session changed (with tests)
+## Changes since the previous audit (`9de80c7`, 2026-07-07)
 
-| Change | File(s) | Test |
-|---|---|---|
-| Login brute-force rate limiting (429 + Retry-After) | `src/lib/ratelimit.ts`, `src/app/api/auth/login/route.ts`, `src/lib/api.ts` | `tests/security.test.ts` (rate limiter) |
-| Webhook **SSRF guard** (block private/loopback/link-local/metadata; opt-out env) | `src/lib/net.ts`, `src/lib/workflows/engine.ts` | `tests/security.test.ts` (isPrivateIp + checkWebhookUrl) |
-| First **API integration tests** (CRUD, validation, workflow dispatch over HTTP) | — | `tests/api-integration.test.ts` (6) |
-| **Auth-enforcement** tests + static guard (no route may skip `authenticate()`) | — | `tests/api-auth.test.ts` (4) |
+The last audit described a different program. Everything it listed as **MISSING**
+now exists and is tested:
 
-Net: **33 → 55 passing tests**, build green, two real security bugs fixed.
+| Then | Now |
+|---|---|
+| SQLite, raw DDL, no migrations | Postgres 16, 17 reversible migrations, reversibility gate in CI |
+| Multi-tenancy MISSING | RLS on every tenant table, 27 policies, isolation proven against the app role |
+| RBAC MISSING | `can()` + `authorize()` + field permissions across REST, GraphQL and MCP |
+| Audit log PARTIAL | Immutable at the database level (REVOKE + rules) |
+| MCP server MISSING | 26 tools, stdio + HTTP |
+| `@fourty/twenty-migrate` MISSING | Shipped, 7 tests |
+| SSO / 2FA MISSING | OIDC + TOTP, both tested |
+| Observability MISSING | pino structured logs, Prometheus metrics, OTel hooks |
+| i18n / a11y UNVERIFIED | Both shipped and tested |
+| 55 tests | **573** |
+
+Two items from that audit are **still open** and are recorded honestly above:
+GraphQL/MCP write parity, and `npm run lint`.
+
+## Unresolved
+
+- Should mailbox OAuth tokens be encrypted at rest before this is recommended
+  for teams whose DB backups leave the host? The threat model is "database read
+  access = mailbox access"; today that is accepted, undocumented in `SECURITY.md`,
+  and cheap to fix with a KMS-less symmetric key from the environment.
+- The README's AI section needs rewriting to match Phases 0–4, or the agentic
+  work stays invisible to anyone who reads only the front page.
