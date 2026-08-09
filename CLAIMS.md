@@ -14,14 +14,16 @@
 > Postgres 16. Counts below were counted, not quoted.
 >
 > **Verified facts up front:**
-> - Test suite: **605 passing, 2 skipped**, 59 files, on **real Postgres + RLS**
+> - Test suite: **606 passing, 2 skipped**, 59 files, on **real Postgres + RLS**
 >   (`npx vitest run` → green). The 2 skips are declared gaps, listed below.
-> - E2E: **16 Playwright smoke tests** across 7 files (+1 setup project) → green.
+> - E2E: **17 Playwright smoke tests** across 7 files (+1 setup project) → green.
 > - Production build: `npm run build` → **green** (Next.js **16.3.0**, 80 routes).
 > - Architecture: **Next.js App Router + Postgres 16 + Drizzle**, one web process
 >   plus one worker. **~23.5k LOC** across `src/` and `packages/`.
-> - Runtime dependencies: **10** — drizzle-orm, graphql, next, pg, pg-boss, pino,
->   react, react-dom, recharts, zod.
+> - Runtime dependencies: **16** — drizzle-orm, graphql, next, pg, pg-boss, pino,
+>   react, react-dom, recharts, zod, plus the six the shadcn/ui component layer
+>   pulls in: @base-ui/react, class-variance-authority, clsx, cmdk, lucide-react,
+>   tailwind-merge. Ten of those sixteen are the server; six are the UI kit.
 > - Migrations: **17 up + 17 down**, reversibility asserted in CI.
 
 ## Feature claims
@@ -29,7 +31,7 @@
 | # | Claim (README) | Verdict | Evidence / caveat |
 |---|---|---|---|
 | 1 | "Deploys in 30 seconds" — Compose brings up Postgres, migrates, starts app **and worker** | **DONE** | `docker-compose.yml` (postgres → migrate → app + worker), `Dockerfile`. |
-| 2 | One process + one Postgres, **no Redis**, ~10 runtime deps | **DONE** | 10 dependencies, counted. Queue is pg-boss on Postgres (`src/lib/queue.ts`); no Redis anywhere. |
+| 2 | One process + one Postgres, **no Redis**, no broker | **DONE** | Queue is pg-boss on Postgres (`src/lib/queue.ts`); no Redis anywhere. The infrastructure claim is about services to operate, not package count: 16 runtime dependencies, of which 10 are the server and 6 are the shadcn/ui component layer. |
 | 3 | Postgres **multi-tenancy with Row-Level Security** | **DONE** | 9 migrations enable RLS, **27 policies**; app connects as non-owner `fourty_app` under FORCE RLS. `tests/tenant-isolation.test.ts` proves cross-tenant reads return zero rows via a direct connection. |
 | 4 | Versioned **reversible migrations** + real-PG CI | **DONE** | 17 up/down pairs; `tests/migration-reversibility.test.ts` does up → checksum → down → re-apply and compares schema. CI provisions a dedicated reversibility DB. |
 | 5 | Object-level **RBAC** + **field-level permissions** | **DONE** | `src/lib/permissions.ts` (`can()`), `authorize()` on every mutating route with a static guard in `tests/api-auth.test.ts`. Field permissions enforced by `redact()` on REST, **and** inside GraphQL resolvers and MCP tools — not only at one surface. |
