@@ -31,7 +31,7 @@ Twice the CRM, half the complexity. One process, one Postgres, zero infrastructu
 
 Most open-source CRMs make you operate a distributed system before you can add a
 contact. Fourty is a **single Next.js process and one Postgres** — no Redis, no broker,
-~10 runtime dependencies — that still ships forecasting, lead scoring, workflow
+ten server dependencies plus a shadcn/ui component layer — that still ships forecasting, lead scoring, workflow
 automation, a REST **and** GraphQL API, and a native MCP server for AI agents.
 
 ```bash
