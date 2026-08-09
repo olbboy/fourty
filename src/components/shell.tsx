@@ -3,66 +3,44 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import {
-  IconBuilding,
-  IconChart,
-  IconCheckSquare,
-  IconDashboard,
-  IconLogout,
-  IconMoon,
-  IconSearch,
-  IconSettings,
-  IconSun,
-  IconTarget,
-  IconUsers,
-  IconZap,
-} from "./icons";
+import { LogOut, Moon, Search, Sun } from "lucide-react";
+
+import { AppSidebar, isActivePath, NAV } from "./app-sidebar";
 import { CommandPalette } from "./command-palette";
 import { AiChat } from "./ai-chat";
 import { AiEnabledProvider } from "./ai-enabled";
+import { ThemeProvider, useTheme } from "./theme-provider";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
 import { LocaleProvider } from "@/lib/i18n/provider";
-import { translator, type Locale, type MessageKey } from "@/lib/i18n";
+import { translator, type Locale } from "@/lib/i18n";
 
-const NAV: { href: string; key: MessageKey; icon: typeof IconDashboard }[] = [
-  { href: "/dashboard", key: "nav.dashboard", icon: IconDashboard },
-  { href: "/contacts", key: "nav.contacts", icon: IconUsers },
-  { href: "/companies", key: "nav.companies", icon: IconBuilding },
-  { href: "/deals", key: "nav.deals", icon: IconTarget },
-  { href: "/tasks", key: "nav.tasks", icon: IconCheckSquare },
-  { href: "/reports", key: "nav.reports", icon: IconChart },
-  { href: "/workflows", key: "nav.workflows", icon: IconZap },
-  { href: "/settings", key: "nav.settings", icon: IconSettings },
-];
-
-// Primary items for the mobile bottom bar
+// Primary items for the mobile bottom bar. The rest of the nav stays reachable
+// on mobile through the sidebar sheet behind the top-bar trigger.
 const MOBILE_NAV = NAV.filter((n) =>
   ["/dashboard", "/contacts", "/deals", "/tasks"].includes(n.href),
 );
 
 function ThemeToggle() {
-  const [dark, setDark] = useState(false);
-  useEffect(() => {
-    setDark(document.documentElement.classList.contains("dark"));
-  }, []);
-  function toggle() {
-    const next = !dark;
-    setDark(next);
-    document.documentElement.classList.toggle("dark", next);
-    localStorage.setItem("fourty-theme", next ? "dark" : "light");
-  }
+  const { dark, toggle } = useTheme();
   return (
-    <button
+    <Button
+      variant="ghost"
+      size="icon"
       onClick={toggle}
-      className="btn-ghost !px-2.5"
-      title="Toggle theme"
       aria-label="Toggle theme"
     >
-      {dark ? <IconSun /> : <IconMoon />}
-    </button>
+      {dark ? <Sun /> : <Moon />}
+    </Button>
   );
 }
 
-export function AppShell({
+function AppShellInner({
   user,
   locale,
   aiEnabled,
@@ -95,104 +73,73 @@ export function AppShell({
     router.refresh();
   }
 
+  const current = NAV.find((n) => isActivePath(pathname, n.href));
+
   return (
-    <LocaleProvider locale={locale}>
-    <div className="flex min-h-dvh">
+    <>
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-accent-600 focus:px-3 focus:py-2 focus:text-sm focus:text-white"
       >
         Skip to content
       </a>
-      {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-56 flex-col border-r border-line bg-surface md:flex">
-        <div className="flex items-center gap-2.5 px-4 py-4">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-600 text-sm font-extrabold text-white">
-            40
-          </div>
-          <span className="text-lg font-bold tracking-tight">Fourty</span>
-        </div>
-        <button
-          onClick={() => setPaletteOpen(true)}
-          className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm text-ink-muted transition hover:border-accent-400"
-        >
-          <IconSearch width={15} height={15} />
-          <span>Search…</span>
-          <kbd className="ml-auto rounded border border-line bg-surface px-1.5 text-[10px] font-semibold">
-            ⌘K
-          </kbd>
-        </button>
-        <nav aria-label="Main" className="flex-1 space-y-0.5 overflow-y-auto px-3 py-2">
-          {NAV.map(({ href, key, icon: Icon }) => {
-            const active = pathname === href || pathname.startsWith(href + "/");
-            return (
-              <Link
-                key={href}
-                href={href}
-                aria-current={active ? "page" : undefined}
-                className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                  active
-                    ? "bg-accent-600/10 text-accent-600 dark:text-accent-400"
-                    : "text-ink-muted hover:bg-surface-2 hover:text-ink"
-                }`}
-              >
-                <Icon width={17} height={17} />
-                {t(key)}
-              </Link>
-            );
-          })}
-        </nav>
-        <div className="border-t border-line p-3">
-          <div className="flex items-center gap-2.5 px-1">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-600/15 text-xs font-bold text-accent-600 dark:text-accent-400">
-              {user.name
-                .split(/\s+/)
-                .map((s) => s[0])
-                .slice(0, 2)
-                .join("")
-                .toUpperCase()}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{user.name}</p>
-              <p className="truncate text-xs text-ink-muted">{user.email}</p>
-            </div>
-            <div className="flex items-center gap-1">
-              <ThemeToggle />
-              <button
-                onClick={logout}
-                className="btn-ghost !px-2.5"
-                title="Sign out"
-                aria-label="Sign out"
-              >
-                <IconLogout width={16} height={16} />
-              </button>
-            </div>
-          </div>
-        </div>
-      </aside>
 
-      {/* Mobile top bar */}
-      <header className="fixed inset-x-0 top-0 z-30 flex items-center justify-between border-b border-line bg-surface px-4 py-2.5 md:hidden">
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-accent-600 text-xs font-extrabold text-white">
-            40
+      <AppSidebar
+        user={user}
+        locale={locale}
+        onSearch={() => setPaletteOpen(true)}
+        onSignOut={logout}
+      />
+
+      <SidebarInset className="min-w-0">
+        {/* Desktop header — collapse trigger plus where you are. */}
+        <header className="sticky top-0 z-20 hidden h-14 shrink-0 items-center gap-2 border-b border-line bg-surface px-4 md:flex">
+          <SidebarTrigger className="-ml-1" />
+          <Separator
+            orientation="vertical"
+            className="mr-2 data-[orientation=vertical]:h-4"
+          />
+          <span className="text-sm font-medium">
+            {current ? t(current.key) : "Fourty"}
+          </span>
+        </header>
+
+        {/* Mobile top bar */}
+        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-line bg-surface px-4 py-2.5 md:hidden">
+          <div className="flex items-center gap-2">
+            <SidebarTrigger className="-ml-1" />
+            <span className="font-bold">
+              {current ? t(current.key) : "Fourty"}
+            </span>
           </div>
-          <span className="font-bold">Fourty</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => setPaletteOpen(true)}
-            className="btn-ghost !px-2.5"
-            aria-label="Search"
-          >
-            <IconSearch width={16} height={16} />
-          </button>
-          <ThemeToggle />
-          <button onClick={logout} className="btn-ghost !px-2.5" aria-label="Sign out">
-            <IconLogout width={16} height={16} />
-          </button>
-        </div>
-      </header>
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setPaletteOpen(true)}
+              aria-label="Search"
+            >
+              <Search />
+            </Button>
+            <ThemeToggle />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={logout}
+              aria-label="Sign out"
+            >
+              <LogOut />
+            </Button>
+          </div>
+        </header>
+
+        <main
+          id="main"
+          className="min-w-0 flex-1 px-4 pb-24 pt-4 md:px-8 md:pb-10 md:pt-6"
+        >
+          <AiEnabledProvider enabled={aiEnabled}>{children}</AiEnabledProvider>
+        </main>
+      </SidebarInset>
 
       {/* Mobile bottom nav */}
       <nav
@@ -200,14 +147,16 @@ export function AppShell({
         className="fixed inset-x-0 bottom-0 z-30 flex border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] md:hidden"
       >
         {MOBILE_NAV.map(({ href, key, icon: Icon }) => {
-          const active = pathname === href || pathname.startsWith(href + "/");
+          const active = isActivePath(pathname, href);
           return (
             <Link
               key={href}
               href={href}
               aria-current={active ? "page" : undefined}
               className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium ${
-                active ? "text-accent-600 dark:text-accent-400" : "text-ink-muted"
+                active
+                  ? "text-accent-600 dark:text-accent-400"
+                  : "text-ink-muted"
               }`}
             >
               <Icon width={19} height={19} />
@@ -217,13 +166,38 @@ export function AppShell({
         })}
       </nav>
 
-      <main id="main" className="min-w-0 flex-1 px-4 pb-24 pt-16 md:ml-56 md:px-8 md:pb-10 md:pt-8">
-        <AiEnabledProvider enabled={aiEnabled}>{children}</AiEnabledProvider>
-      </main>
-
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+      />
       <AiChat enabled={aiEnabled} />
-    </div>
+    </>
+  );
+}
+
+export function AppShell({
+  user,
+  locale,
+  aiEnabled,
+  defaultSidebarOpen,
+  children,
+}: {
+  user: { name: string; email: string };
+  locale: Locale;
+  aiEnabled: boolean;
+  /** Read from the sidebar_state cookie on the server so the rail doesn't flash. */
+  defaultSidebarOpen: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <LocaleProvider locale={locale}>
+      <ThemeProvider>
+        <SidebarProvider defaultOpen={defaultSidebarOpen}>
+          <AppShellInner user={user} locale={locale} aiEnabled={aiEnabled}>
+            {children}
+          </AppShellInner>
+        </SidebarProvider>
+      </ThemeProvider>
     </LocaleProvider>
   );
 }

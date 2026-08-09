@@ -18,7 +18,8 @@ test("admin can log in and log out", async ({ page }) => {
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/dashboard/);
 
-  // Sign out from the desktop sidebar (first of the sidebar/mobile pair).
-  await page.getByRole("button", { name: "Sign out" }).first().click();
+  // Sign out lives in the sidebar footer account menu.
+  await page.getByRole("button", { name: "Account menu" }).click();
+  await page.getByRole("menuitem", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/login/);
 });

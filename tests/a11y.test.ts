@@ -164,13 +164,22 @@ describe("every form control has an accessible name", () => {
 });
 
 describe("source-level a11y contract (router-bound components)", () => {
-  it("shell has a skip link, nav landmarks, and aria-current", () => {
+  it("shell has a skip link, main landmark, and aria-current", () => {
     const shell = src("src/components/shell.tsx");
     expect(shell).toContain("Skip to content");
     expect(shell).toContain('href="#main"');
     expect(shell).toContain('id="main"');
-    expect(shell).toContain('aria-label="Main"');
+    // The mobile bottom bar is the shell's own nav landmark.
+    expect(shell).toContain('aria-label="Primary"');
     expect(shell).toContain("aria-current");
+  });
+
+  it("sidebar navigation is a labelled landmark with a current page", () => {
+    // shadcn's sidebar parts render as divs, so the landmark is declared by hand;
+    // this locks that in, because losing it is silent for sighted users.
+    const sidebar = src("src/components/app-sidebar.tsx");
+    expect(sidebar).toContain('aria-label="Main"');
+    expect(sidebar).toContain("aria-current");
   });
 
   it("command palette exposes combobox + listbox semantics", () => {
