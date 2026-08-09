@@ -71,7 +71,8 @@ before connecting anything.
 - Session tokens and API keys stored only as SHA-256 hashes at rest.
 - **Mailbox credentials encrypted at rest** (ADR-019). An OAuth refresh token
   cannot be hashed — Fourty has to send it back to the provider — so the
-  credentials in `sync_accounts.config` are encrypted with AES-256-GCM under
+  credentials in `sync_accounts.config` — including a private **ICS feed URL**,
+  which carries its own secret in the path — are encrypted with AES-256-GCM under
   `FOURTY_SECRET_KEY`, which lives in the environment and never in the database.
   **What this buys:** a dump, a backup or a read replica no longer yields usable
   mailbox access. **What it does not:** protection from an attacker who already

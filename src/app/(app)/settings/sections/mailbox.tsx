@@ -15,7 +15,7 @@ type SyncAccount = {
   lastError: string | null;
   createdAt: number;
   /** Only non-secret hints survive redaction — never credentials or tokens. */
-  config: { host?: string; url?: string };
+  config: { host?: string; urlHost?: string };
   /** True once a refresh token is on file, i.e. OAuth has been completed. */
   connected: boolean;
 };
@@ -182,7 +182,9 @@ export function MailboxSection() {
                   <p className="break-all text-xs text-ink-muted">
                     {a.provider}
                     {a.label && ` · ${a.email}`}
-                    {a.config.url && ` · ${a.config.url}`}
+                    {/* The feed URL itself is a credential and never leaves the
+                        server (ADR-019); its hostname identifies the feed. */}
+                    {a.config.urlHost && ` · ${a.config.urlHost}`}
                     {a.config.host && ` · ${a.config.host}`}
                     {a.lastSyncedAt ? ` · synced ${timeAgo(a.lastSyncedAt)}` : " · never synced"}
                     {a.status === "paused" && " · paused"}

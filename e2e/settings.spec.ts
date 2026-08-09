@@ -156,6 +156,12 @@ test.describe("Mailboxes", () => {
     await expect(row).toBeVisible();
     await expect(row).toContainText("never synced");
 
+    // The feed URL is a credential (ADR-019): a private calendar URL carries its
+    // secret in the path. The row identifies the feed by hostname and the URL
+    // itself never comes back over the API.
+    await expect(row).toContainText("calendar.e2e.test");
+    await expect(row).not.toContainText("/feed.ics");
+
     // Pause / resume — the PATCH added alongside these panels.
     await row.getByRole("button", { name: "Pause" }).click();
     await expect(row).toContainText("paused");
