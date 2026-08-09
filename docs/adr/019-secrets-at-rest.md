@@ -87,6 +87,36 @@ padded into something that appears to work.
 | Encrypt the whole `config` blob | Costs the operator the ability to see which feed or host a row is for, and turns a missed decrypt into corrupt JSON instead of a visible `enc:v1:` value. |
 | A KMS / external secret manager | A dependency and a service. Fourty's whole claim is one process and one Postgres; an env var is the version of this that a self-hoster will actually configure. |
 
+## Rotation
+
+The envelope carries **no key id**, and does not need one: GCM authenticates, so
+a key that is not the one fails its tag rather than returning plausible garbage.
+Reads therefore try every configured key — `FOURTY_SECRET_KEY` first, then each
+comma-separated entry in `FOURTY_SECRET_KEY_OLD`. Writes only ever use the first.
+
+That asymmetry is the whole design. It means a rotation has **no window in which
+anything is unreadable**:
+
+1. generate a new key;
+2. move the current one to `FOURTY_SECRET_KEY_OLD`, put the new one in
+   `FOURTY_SECRET_KEY`;
+3. restart the app and the worker — both now read both, and write the new one;
+4. `npm run rekey` (`-- --dry-run` to preview) rewrites what is still on the old
+   key, workspace by workspace, inside `withWorkspace()` so RLS scopes it;
+5. drop `FOURTY_SECRET_KEY_OLD` and restart.
+
+Step 4 is what makes step 5 safe, and the command reports how many rows it
+moved so step 5 is a decision rather than a hope. It is re-runnable: rows
+already sealed with the current key are counted and skipped.
+
+The same command is how an install that has *just* set a key for the first time
+encrypts rows that predate it, instead of waiting for each mailbox's next token
+refresh to do it lazily.
+
+Rejected: putting a key id in the envelope. It would save a failed decryption
+attempt or two per read, cost a format version, and require migrating every
+existing value — to make a rotation slightly cheaper than it already is.
+
 ## Consequences
 
 **Gained**
@@ -96,7 +126,5 @@ padded into something that appears to work.
 **Cost**
 - One more thing to configure, and one more thing to back up. Losing the key
   means reconnecting mailboxes.
-- Rotation is not implemented: changing the key orphans existing ciphertext.
-  Re-keying would need a maintenance command that reads with the old key and
-  writes with the new one — deliberately deferred until someone needs it, and
-  recorded here so it is not mistaken for a solved problem.
+- Rotation costs a maintenance step. It is implemented (below), but it is a
+  procedure an operator has to run, not something that happens by itself.

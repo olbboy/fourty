@@ -79,7 +79,9 @@ before connecting anything.
   connecting a new mailbox is refused rather than stored in the clear; mailboxes
   connected before this existed keep working and are encrypted the next time
   their token refreshes. Back the key up: losing it means reconnecting every
-  mailbox. Key rotation is not implemented.
+  mailbox. **Rotation:** put the new key in `FOURTY_SECRET_KEY`, the old one in
+  `FOURTY_SECRET_KEY_OLD`, restart, run `npm run rekey`, then drop the old key.
+  Reads try both keys, so nothing is unreadable while the rewrite runs.
 - All write endpoints validate input with zod schemas.
 - **Login brute-force rate limiting** (10 attempts / IP / 15 min → HTTP 429).
 - **Webhook SSRF protection**: workflow webhook actions cannot reach private /

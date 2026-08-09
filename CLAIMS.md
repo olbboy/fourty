@@ -14,7 +14,7 @@
 > Postgres 16. Counts below were counted, not quoted.
 >
 > **Verified facts up front:**
-> - Test suite: **591 passing, 2 skipped**, 58 files, on **real Postgres + RLS**
+> - Test suite: **601 passing, 2 skipped**, 59 files, on **real Postgres + RLS**
 >   (`npx vitest run` → green). The 2 skips are declared gaps, listed below.
 > - E2E: **16 Playwright smoke tests** across 7 files (+1 setup project) → green.
 > - Production build: `npm run build` → **green** (Next.js **16.3.0**, 80 routes).
@@ -66,7 +66,7 @@ A status note is only useful if its *negatives* are true too.
 
 | Area | Status | Evidence |
 |---|---|---|
-| ~~OAuth refresh tokens are stored in plaintext~~ | **CLOSED 2026-08-09** | Was: `sync_accounts.config` held `refreshToken`/`accessToken` as JSON, so database read access was mailbox access. Now AES-256-GCM under `FOURTY_SECRET_KEY`, key in the environment and never in the database (ADR-019). Fail-closed on a new credential, plaintext-compatible for accounts that predate it. `tests/secrets.test.ts` (18). **Still open:** key rotation, and the ICS feed URL is not sealed. |
+| ~~OAuth refresh tokens are stored in plaintext~~ | **CLOSED 2026-08-09** | Was: `sync_accounts.config` held `refreshToken`/`accessToken` as JSON, so database read access was mailbox access. Now AES-256-GCM under `FOURTY_SECRET_KEY`, key in the environment and never in the database (ADR-019). Fail-closed on a new credential, plaintext-compatible for accounts that predate it. `tests/secrets.test.ts` (18) + `tests/rekey.test.ts` (10). Rotation is implemented — read with old + new, `npm run rekey`, drop the old. **Still open:** the ICS feed URL is not sealed. |
 | **GraphQL/MCP write parity with REST** | **PARTIAL** | The 2 skipped tests are here, and they are honest skips in `tests/surface-parity.test.ts`: no GraphQL task mutation, no MCP tool that completes a task. Deals and notes are also read-only over GraphQL. |
 | ~~README understates the AI~~ | **CLOSED 2026-08-09** | Was: the README described only "an optional in-app chat" while Phases 0–4 had shipped an evidence ledger, a work ledger, a keyless research pass and a per-record agent panel. The front page now separates what runs **without** an API key (research, suggestions) from what needs one (the assistant). |
 | **Field-permission redaction in the AI grounding block** | **KNOWN GAP** | `loadRecordContext` gates on object-level read and does not run `redact()` over the fields it puts in the prompt. Recorded in `plans/260808-2159-agentic-crm-upgrade/phase-04-*.md`. |
@@ -97,10 +97,9 @@ GraphQL/MCP write parity, and `npm run lint`.
 
 ## Unresolved
 
-- ~~Should mailbox OAuth tokens be encrypted at rest?~~ Done the same day
-  (ADR-019). Two smaller questions it leaves behind: **key rotation** is not
-  implemented (changing the key orphans existing ciphertext), and the **ICS feed
-  URL is not sealed** even though some providers put a token in it — it is shown
-  in the settings UI, so sealing it is a UI change as much as a crypto one.
+- ~~Should mailbox OAuth tokens be encrypted at rest?~~ Done, with rotation
+  (ADR-019). One question left behind: the **ICS feed URL is not sealed** even
+  though some providers put a token in it — it is shown in the settings UI, so
+  sealing it is a UI change as much as a crypto one.
 - ~~The README's AI section needs rewriting to match Phases 0–4.~~ Done the same
   day; see the closed row above.

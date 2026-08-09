@@ -55,6 +55,31 @@ database name contains `test`.
 | Command | What it does |
 |---|---|
 | `npm run backup-drill` | Verify a Postgres dump restores cleanly. |
+| `npm run rekey` | Re-encrypt stored mailbox credentials under the current `FOURTY_SECRET_KEY`. Add `-- --dry-run` to report only. |
+
+### Rotating the encryption key
+
+Mailbox credentials are encrypted at rest ([ADR-019](../adr/019-secrets-at-rest.md)).
+Reads try the current key and then every key listed in `FOURTY_SECRET_KEY_OLD`,
+so a rotation never has a window where a mailbox is unreadable:
+
+```bash
+openssl rand -base64 32                     # 1. the new key
+# 2. in .env: move the current FOURTY_SECRET_KEY to FOURTY_SECRET_KEY_OLD,
+#    put the new one in FOURTY_SECRET_KEY
+# 3. restart the app and the worker — both need both keys
+npm run rekey -- --dry-run                  # 4. preview
+npm run rekey                               #    then rewrite
+# 5. clear FOURTY_SECRET_KEY_OLD and restart again
+```
+
+Step 4 reports how many rows moved, so step 5 is a decision rather than a hope.
+The command is re-runnable — rows already on the current key are skipped — and
+exits non-zero if no key is configured.
+
+It is also how an install that has just set a key for the **first** time
+encrypts rows that predate it, instead of waiting for each mailbox's next token
+refresh to do it lazily.
 
 ## External CLI
 

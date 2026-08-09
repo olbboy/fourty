@@ -45,6 +45,8 @@ services:
       # `openssl rand -base64 32` and put it in .env; without it, connecting a
       # new mailbox is refused rather than stored in the clear.
       FOURTY_SECRET_KEY: ${FOURTY_SECRET_KEY:-}
+      # Set during a key rotation; see ADR-019 and `npm run rekey`.
+      FOURTY_SECRET_KEY_OLD: ${FOURTY_SECRET_KEY_OLD:-}
       NODE_ENV: production
       PORT: 3000
       # Local demo runs over plain HTTP, so session cookies can't be Secure-only.
@@ -81,6 +83,8 @@ services:
       # The worker drains `mailbox.pull`, so it reads and refreshes the same
       # encrypted credentials the app does. It needs the identical key.
       FOURTY_SECRET_KEY: ${FOURTY_SECRET_KEY:-}
+      # Set during a key rotation; see ADR-019 and `npm run rekey`.
+      FOURTY_SECRET_KEY_OLD: ${FOURTY_SECRET_KEY_OLD:-}
       NODE_ENV: production
       # Set to 1 only if your webhooks target private/loopback services.
       FOURTY_ALLOW_PRIVATE_WEBHOOKS: ${FOURTY_ALLOW_PRIVATE_WEBHOOKS:-}
