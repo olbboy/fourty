@@ -29,13 +29,16 @@ describe("rendered a11y attributes", () => {
     expect(html).toContain("<input");
   });
 
-  it("Modal is a labelled modal dialog", () => {
+  it("Modal renders nothing inline — its dialog is portalled, not inlined", () => {
+    // Modal is built on Base UI's Dialog, which portals to document.body on the
+    // client and renders nothing during SSR. This test can therefore no longer
+    // observe the dialog's roles; e2e/ drives a real browser for that. What it
+    // still pins down is that the modal never leaks markup into the page flow,
+    // which is what would break the surrounding layout.
     const html = renderToStaticMarkup(
       createElement(Modal, { title: "New contact", open: true, onClose: () => {}, children: "body" }),
     );
-    expect(html).toContain('role="dialog"');
-    expect(html).toContain('aria-modal="true"');
-    expect(html).toContain("aria-labelledby");
+    expect(html).toBe("");
   });
 
   it("decorative icons are hidden from assistive tech", () => {
@@ -182,13 +185,20 @@ describe("source-level a11y contract (router-bound components)", () => {
     expect(sidebar).toContain("aria-current");
   });
 
-  it("command palette exposes combobox + listbox semantics", () => {
+  it("command palette and modal delegate dialog semantics to shadcn primitives", () => {
+    // The roles themselves (dialog / combobox / option) now come from Base UI and
+    // cmdk at runtime rather than from literal attributes in this file, so assert
+    // the composition instead. The rendered roles are covered by
+    // e2e/command-palette.spec.ts, which drives a real browser.
     const palette = src("src/components/command-palette.tsx");
-    expect(palette).toContain('role="dialog"');
-    expect(palette).toContain('role="combobox"');
-    expect(palette).toContain('role="listbox"');
-    expect(palette).toContain('role="option"');
-    expect(palette).toContain("aria-activedescendant");
-    expect(palette).toContain("aria-selected");
+    expect(palette).toContain("CommandDialog");
+    expect(palette).toContain("CommandInput");
+    expect(palette).toContain("CommandItem");
+    // A dialog with no accessible name is the regression worth catching.
+    expect(palette).toContain('title="Command palette"');
+
+    const ui = src("src/components/ui.tsx");
+    expect(ui).toContain("DialogTitle");
+    expect(ui).toContain("DialogDescription");
   });
 });
