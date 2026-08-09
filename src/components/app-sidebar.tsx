@@ -30,6 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Kbd } from "@/components/ui/kbd";
+import { LogoMark } from "@/components/logo-mark";
 import {
   Sidebar,
   SidebarContent,
@@ -201,8 +202,8 @@ export function AppSidebar({
               tooltip="Fourty"
               render={<Link href="/dashboard" />}
             >
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-accent-600 text-sm font-extrabold text-white">
-                40
+              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-accent-600 text-white">
+                <LogoMark className="w-6" />
               </div>
               <span className="text-lg font-bold tracking-tight">Fourty</span>
             </SidebarMenuButton>

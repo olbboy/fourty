@@ -1,6 +1,9 @@
 <div align="center">
 
-# Fourty
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./public/logo-dark.svg">
+  <img src="./public/logo.svg" alt="Fourty" width="260">
+</picture>
 
 **The open-source CRM that deploys in 30 seconds.**
 
@@ -135,3 +138,7 @@ and **[benchmarks](./BENCHMARK.md)**.
 ## License
 
 MIT — use it, fork it, sell it, self-host it for your team. No open-core gotchas.
+
+The **name and logo** are the one thing the licence does not hand over. Fork freely;
+just ship your build under your own name and mark, so users can tell it from ours.
+→ [Trademark](./docs/design-guidelines.md#trademark)

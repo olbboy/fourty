@@ -76,6 +76,7 @@ These evidence-backed documents sit alongside the guides above:
 - **[Claims ledger](../CLAIMS.md)** — every headline claim cross-checked against code and tests.
 - **[Benchmarks](../BENCHMARK.md)** — reproducible head-to-head performance numbers.
 - **[Security](../SECURITY.md)** — the security model and disclosure policy.
+- **[Brand & design guidelines](./design-guidelines.md)** — the logo, its clear space and minimum sizes, and the colour tokens behind both.
 - **[Command reference](./reference/cli.md)** — the `npm run` catalogue.
 - **[Changelog](../CHANGELOG.md)** · **[Project status](../PROGRESS.md)**
 
