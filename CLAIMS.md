@@ -66,7 +66,7 @@ A status note is only useful if its *negatives* are true too.
 |---|---|---|
 | **OAuth refresh tokens are stored in plaintext** | **CAVEAT — not claimed, worth knowing** | `sync_accounts.config` holds `refreshToken`/`accessToken` as JSON. There is **no encryption anywhere in `src/`**. `SECURITY.md` truthfully says sessions and API keys are hashed at rest — it says nothing about mailbox tokens, and neither did this file until now. Anyone with database read access holds the mailbox. |
 | **GraphQL/MCP write parity with REST** | **PARTIAL** | The 2 skipped tests are here, and they are honest skips in `tests/surface-parity.test.ts`: no GraphQL task mutation, no MCP tool that completes a task. Deals and notes are also read-only over GraphQL. |
-| **README understates the AI** | **DOC LAG** | Phases 0–4 of the agentic upgrade shipped: an evidence ledger that prices observations instead of trusting a confidence (ADR-018), a background work ledger, a keyless research pass that fills contact fields from your own mailbox **with no API key**, and a per-record agent panel. The README still describes only "an optional in-app chat". Nothing false — the page is simply behind the code. |
+| ~~README understates the AI~~ | **CLOSED 2026-08-09** | Was: the README described only "an optional in-app chat" while Phases 0–4 had shipped an evidence ledger, a work ledger, a keyless research pass and a per-record agent panel. The front page now separates what runs **without** an API key (research, suggestions) from what needs one (the assistant). |
 | **Field-permission redaction in the AI grounding block** | **KNOWN GAP** | `loadRecordContext` gates on object-level read and does not run `redact()` over the fields it puts in the prompt. Recorded in `plans/260808-2159-agentic-crm-upgrade/phase-04-*.md`. |
 | **`npm run lint`** | **BROKEN** | No ESLint config; `next lint` drops into an interactive prompt and is deprecated in Next 16. Type checking via `npm run build` is what actually gates. |
 | **Node requirement** | **IMPRECISE** | README says "Node.js 20+". Next 16 declares `>=20.9.0`, so 20.0–20.8 no longer work. CI and the Dockerfile both use Node 22. |
@@ -99,5 +99,5 @@ GraphQL/MCP write parity, and `npm run lint`.
   for teams whose DB backups leave the host? The threat model is "database read
   access = mailbox access"; today that is accepted, undocumented in `SECURITY.md`,
   and cheap to fix with a KMS-less symmetric key from the environment.
-- The README's AI section needs rewriting to match Phases 0–4, or the agentic
-  work stays invisible to anyone who reads only the front page.
+- ~~The README's AI section needs rewriting to match Phases 0–4.~~ Done the same
+  day; see the closed row above.
