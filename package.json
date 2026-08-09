@@ -19,6 +19,7 @@
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed.ts",
     "migrate-from-sqlite": "tsx scripts/migrate-from-sqlite.ts",
+    "rekey": "tsx scripts/rekey.ts",
     "backup-drill": "bash scripts/backup-drill.sh"
   },
   "dependencies": {
