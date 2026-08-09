@@ -14,9 +14,9 @@
 > Postgres 16. Counts below were counted, not quoted.
 >
 > **Verified facts up front:**
-> - Test suite: **605 passing, 2 skipped**, 59 files, on **real Postgres + RLS**
+> - Test suite: **606 passing, 2 skipped**, 59 files, on **real Postgres + RLS**
 >   (`npx vitest run` → green). The 2 skips are declared gaps, listed below.
-> - E2E: **16 Playwright smoke tests** across 7 files (+1 setup project) → green.
+> - E2E: **17 Playwright smoke tests** across 7 files (+1 setup project) → green.
 > - Production build: `npm run build` → **green** (Next.js **16.3.0**, 80 routes).
 > - Architecture: **Next.js App Router + Postgres 16 + Drizzle**, one web process
 >   plus one worker. **~23.5k LOC** across `src/` and `packages/`.
