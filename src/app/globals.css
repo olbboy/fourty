@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -18,6 +20,18 @@
     Arial, sans-serif;
 }
 
+/*
+ * Two token layers, one source of truth.
+ *
+ * Layer 1 (below) is Fourty's own palette — the names the app has always used.
+ * Layer 2 is shadcn's semantic vocabulary (--background, --primary, --sidebar-*),
+ * declared purely as aliases of layer 1. shadcn components hardcode those
+ * semantic names, so aliasing is what lets a stock `shadcn add` land in this
+ * codebase already wearing the Fourty brand instead of shadcn's neutral gray.
+ *
+ * Change a colour in layer 1 and both layers follow. Never assign a raw colour
+ * in layer 2.
+ */
 :root {
   --bg: #f8fafc;
   --surface: #ffffff;
@@ -25,6 +39,45 @@
   --border: #e2e8f0;
   --text: #0f172a;
   --text-muted: #64748b;
+
+  /* shadcn semantics → Fourty palette */
+  --background: var(--bg);
+  --foreground: var(--text);
+  --card: var(--surface);
+  --card-foreground: var(--text);
+  --popover: var(--surface);
+  --popover-foreground: var(--text);
+  --primary: var(--color-accent-600);
+  --primary-foreground: #ffffff;
+  --secondary: var(--surface-2);
+  --secondary-foreground: var(--text);
+  --muted: var(--surface-2);
+  --muted-foreground: var(--text-muted);
+  /* shadcn's --accent is a hover/raised *surface*, unrelated to the indigo
+     --color-accent-* brand scale in @theme. Both names ship; they don't collide
+     because Tailwind emits `bg-accent` vs `bg-accent-600`. */
+  --accent: var(--surface-2);
+  --accent-foreground: var(--text);
+  --destructive: #dc2626;
+  --input: var(--border);
+  --ring: var(--color-accent-500);
+  --radius: 0.625rem;
+
+  /* Chart series — the palette charts.tsx already validated for contrast. */
+  --chart-1: #4f46e5;
+  --chart-2: #059669;
+  --chart-3: #dc2626;
+  --chart-4: #d97706;
+  --chart-5: #0891b2;
+
+  --sidebar: var(--surface);
+  --sidebar-foreground: var(--text);
+  --sidebar-primary: var(--color-accent-600);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--surface-2);
+  --sidebar-accent-foreground: var(--text);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--color-accent-500);
 }
 
 .dark {
@@ -34,6 +87,20 @@
   --border: #263043;
   --text: #e5e9f0;
   --text-muted: #8b98ad;
+
+  /* Only the values that need to diverge in dark; the rest inherit the
+     aliases above, which already point at the overridden palette. */
+  --primary: var(--color-accent-500);
+  --primary-foreground: #ffffff;
+  --destructive: #e05252;
+
+  --chart-1: #7c86f5;
+  --chart-2: #0ea5a0;
+  --chart-3: #e05252;
+  --chart-4: #f0a020;
+  --chart-5: #38bdf8;
+
+  --sidebar-primary: var(--color-accent-500);
 }
 
 @theme inline {
@@ -43,13 +110,48 @@
   --color-line: var(--border);
   --color-ink: var(--text);
   --color-ink-muted: var(--text-muted);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-html,
-body {
-  background: var(--bg);
-  color: var(--text);
-}
+/* Page background/foreground come from the @layer base rule at the bottom,
+   which resolves to the same palette through --background / --foreground. */
 
 * {
   scrollbar-width: thin;
@@ -117,4 +219,16 @@ body {
 
 .animate-fade-up {
   animation: fade-up 0.18s ease-out;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
 }

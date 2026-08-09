@@ -152,7 +152,13 @@ describe("every form control has an accessible name", () => {
   }
 
   it("names every input, textarea and select in the app", () => {
-    const unnamed = tsxFiles(path.resolve(__dirname, "../src")).flatMap(unnamedControls);
+    // src/components/ui is the vendored shadcn layer. A primitive like <Input>
+    // or <Textarea> is a bare control by design — the accessible name is the
+    // caller's to supply, and the callers are what this scan covers.
+    const vendored = path.resolve(__dirname, "../src/components/ui");
+    const unnamed = tsxFiles(path.resolve(__dirname, "../src"))
+      .filter((file) => !file.startsWith(vendored))
+      .flatMap(unnamedControls);
     expect(unnamed, `form controls with no accessible name:\n${unnamed.join("\n")}`).toEqual([]);
   });
 });
