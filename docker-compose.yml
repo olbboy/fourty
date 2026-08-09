@@ -41,6 +41,10 @@ services:
       # only ever touches that schema; all tenant data still flows through the
       # fourty_app pool under RLS (ADR-004).
       QUEUE_DATABASE_URL: postgresql://fourty:${POSTGRES_PASSWORD:-fourty}@postgres:5432/fourty
+      # Encrypts mailbox credentials at rest (ADR-019). Generate one with
+      # `openssl rand -base64 32` and put it in .env; without it, connecting a
+      # new mailbox is refused rather than stored in the clear.
+      FOURTY_SECRET_KEY: ${FOURTY_SECRET_KEY:-}
       NODE_ENV: production
       PORT: 3000
       # Local demo runs over plain HTTP, so session cookies can't be Secure-only.
@@ -74,6 +78,9 @@ services:
       DATABASE_URL: postgresql://fourty_app:${FOURTY_APP_PASSWORD:-fourty_app}@postgres:5432/fourty
       # pg-boss schema (DDL) as the owner, same as the app.
       QUEUE_DATABASE_URL: postgresql://fourty:${POSTGRES_PASSWORD:-fourty}@postgres:5432/fourty
+      # The worker drains `mailbox.pull`, so it reads and refreshes the same
+      # encrypted credentials the app does. It needs the identical key.
+      FOURTY_SECRET_KEY: ${FOURTY_SECRET_KEY:-}
       NODE_ENV: production
       # Set to 1 only if your webhooks target private/loopback services.
       FOURTY_ALLOW_PRIVATE_WEBHOOKS: ${FOURTY_ALLOW_PRIVATE_WEBHOOKS:-}
