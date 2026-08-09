@@ -9,13 +9,26 @@ import { test, expect } from "@playwright/test";
  */
 const MOD = process.platform === "darwin" ? "Meta" : "Control";
 
+/**
+ * The shortcut lives on a window listener the shell attaches during hydration,
+ * so a press that lands on a not-yet-hydrated page is simply dropped. Retry
+ * until it takes rather than racing a fixed wait — pressing twice is harmless
+ * because the second press only re-opens an already-open palette.
+ */
+async function openPalette(page: import("@playwright/test").Page) {
+  const dialog = page.getByRole("dialog", { name: "Command palette" });
+  await expect(async () => {
+    await page.keyboard.press(`${MOD}+KeyK`);
+    await expect(dialog).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
+  return dialog;
+}
+
 test("command palette opens, filters, navigates, and closes", async ({ page }) => {
   await page.goto("/dashboard");
 
   // Open with the keyboard shortcut; focus lands in the search box.
-  await page.keyboard.press(`${MOD}+KeyK`);
-  const dialog = page.getByRole("dialog", { name: "Command palette" });
-  await expect(dialog).toBeVisible();
+  const dialog = await openPalette(page);
   const search = page.getByRole("combobox");
   await expect(search).toBeFocused();
 
@@ -33,11 +46,9 @@ test("command palette opens, filters, navigates, and closes", async ({ page }) =
 
 test("command palette closes on Escape", async ({ page }) => {
   await page.goto("/dashboard");
-  await page.keyboard.press(`${MOD}+KeyK`);
-  const dialog = page.getByRole("dialog", { name: "Command palette" });
-  await expect(dialog).toBeVisible();
-  // Escape is handled on the dialog's onKeyDown, so wait for focus to land in the
-  // palette (the input focuses shortly after open) before pressing it.
+  const dialog = await openPalette(page);
+  // Base UI binds Escape to the focused popup, so wait for focus to land in the
+  // palette input before pressing it.
   await expect(page.getByRole("combobox")).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();

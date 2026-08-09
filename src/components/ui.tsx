@@ -1,7 +1,32 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
-import { IconX } from "./icons";
+/**
+ * App-level primitives.
+ *
+ * These keep the signatures the pages have always called, but the mechanics
+ * underneath (focus trapping, labelling, dismissal) now come from shadcn/Base UI
+ * instead of hand-rolled effects. Call sites did not have to change.
+ */
+
+import { useEffect, useRef } from "react";
+
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { Spinner as ShadcnSpinner } from "@/components/ui/spinner";
+import { Avatar as ShadcnAvatar, AvatarFallback } from "@/components/ui/avatar";
+import { cn } from "@/lib/utils";
 import { initials } from "@/lib/format";
 
 export function PageHeader({
@@ -16,8 +41,12 @@ export function PageHeader({
   return (
     <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h1 className="text-xl font-bold tracking-tight md:text-2xl">{title}</h1>
-        {subtitle && <p className="mt-0.5 text-sm text-ink-muted">{subtitle}</p>}
+        <h1 className="text-xl font-bold tracking-tight md:text-2xl">
+          {title}
+        </h1>
+        {subtitle && (
+          <p className="mt-0.5 text-sm text-ink-muted">{subtitle}</p>
+        )}
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
     </div>
@@ -37,52 +66,36 @@ export function Modal({
   children: React.ReactNode;
   wide?: boolean;
 }) {
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const titleId = useId();
+  const contentRef = useRef<HTMLDivElement>(null);
 
+  // Base UI leaves focus behind the overlay when this dialog opens. That is not
+  // just an announcement problem: Base UI binds Escape-to-dismiss to the focused
+  // popup, so without this the modal also stops closing on Escape. One frame of
+  // delay lets the popup mount before we reach for it.
   useEffect(() => {
     if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    // Move focus into the dialog on open; restore it to the trigger on close.
-    const previouslyFocused = document.activeElement as HTMLElement | null;
-    dialogRef.current?.focus();
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      previouslyFocused?.focus?.();
-    };
-  }, [open, onClose]);
+    const frame = requestAnimationFrame(() => contentRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
 
-  if (!open) return null;
   return (
-    <div
-      className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center sm:p-4"
-      onClick={onClose}
-    >
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        className={`card max-h-[92dvh] w-full animate-fade-up overflow-y-auto rounded-b-none p-5 shadow-2xl outline-none sm:rounded-xl ${
-          wide ? "sm:max-w-2xl" : "sm:max-w-md"
-        }`}
-        onClick={(e) => e.stopPropagation()}
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent
+        ref={contentRef}
+        className={cn(
+          "max-h-[92dvh] overflow-y-auto",
+          wide ? "sm:max-w-2xl" : "sm:max-w-md",
+        )}
       >
-        <div className="mb-4 flex items-center justify-between">
-          <h2 id={titleId} className="text-base font-semibold">
-            {title}
-          </h2>
-          <button onClick={onClose} className="btn-ghost !border-0 !px-2" aria-label="Close">
-            <IconX width={16} height={16} aria-hidden="true" />
-          </button>
-        </div>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          {/* Every dialog needs a description for screen readers; these dialogs
+              carry their own body copy, so it stays visually hidden. */}
+          <DialogDescription className="sr-only">{title}</DialogDescription>
+        </DialogHeader>
         {children}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -97,6 +110,11 @@ export function Field({
 }) {
   // Wrapping the control in <label> gives an implicit label association without
   // threading an id through every field (a11y, Gate C5).
+  //
+  // Deliberately NOT built on shadcn's Field/FieldLabel: those compose a label,
+  // description and error message around a control, and their `flex w-fit` label
+  // fights the full-width inputs every form here uses. New forms that want
+  // descriptions and inline errors should use @/components/ui/field directly.
   return (
     <label className={`block ${className ?? ""}`}>
       <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-muted">
@@ -116,7 +134,9 @@ const STATUS_STYLES: Record<string, string> = {
 
 export function StatusChip({ status }: { status: string }) {
   return (
-    <span className={`chip capitalize ${STATUS_STYLES[status] ?? "bg-slate-500/10 text-slate-500"}`}>
+    <span
+      className={`chip capitalize ${STATUS_STYLES[status] ?? "bg-slate-500/10 text-slate-500"}`}
+    >
       {status}
     </span>
   );
@@ -131,7 +151,10 @@ export function ScoreBadge({ score }: { score: number }) {
         ? "bg-amber-500/10 text-amber-600 dark:text-amber-300"
         : "bg-sky-500/10 text-sky-600 dark:text-sky-300";
   return (
-    <span className={`chip ${style}`} title={`Lead score: ${score}/100 (auto-computed)`}>
+    <span
+      className={`chip ${style}`}
+      title={`Lead score: ${score}/100 (auto-computed)`}
+    >
       {label === "hot" ? "🔥" : label === "warm" ? "🌤" : "❄️"} {score}
     </span>
   );
@@ -145,18 +168,22 @@ const PRIORITY_STYLES: Record<string, string> = {
 
 export function PriorityChip({ priority }: { priority: string }) {
   return (
-    <span className={`chip capitalize ${PRIORITY_STYLES[priority] ?? ""}`}>{priority}</span>
+    <span className={`chip capitalize ${PRIORITY_STYLES[priority] ?? ""}`}>
+      {priority}
+    </span>
   );
 }
 
 export function Avatar({ name, size = 8 }: { name: string; size?: number }) {
   return (
-    <div
-      className="flex shrink-0 items-center justify-center rounded-full bg-accent-600/15 text-xs font-bold text-accent-600 dark:text-accent-400"
+    <ShadcnAvatar
+      className="shrink-0"
       style={{ width: size * 4, height: size * 4 }}
     >
-      {initials(name || "?")}
-    </div>
+      <AvatarFallback className="bg-accent-600/15 text-xs font-bold text-accent-600 dark:text-accent-400">
+        {initials(name || "?")}
+      </AvatarFallback>
+    </ShadcnAvatar>
   );
 }
 
@@ -170,18 +197,22 @@ export function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="card flex flex-col items-center justify-center gap-2 px-6 py-14 text-center">
-      <p className="font-medium">{title}</p>
-      {hint && <p className="max-w-sm text-sm text-ink-muted">{hint}</p>}
-      {action && <div className="mt-2">{action}</div>}
-    </div>
+    <Empty className="card px-6 py-14">
+      <EmptyHeader>
+        <EmptyTitle className="font-medium">{title}</EmptyTitle>
+        {hint && (
+          <EmptyDescription className="max-w-sm">{hint}</EmptyDescription>
+        )}
+      </EmptyHeader>
+      {action && <EmptyContent>{action}</EmptyContent>}
+    </Empty>
   );
 }
 
 export function Spinner() {
   return (
     <div className="flex justify-center py-10">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-line border-t-accent-600" />
+      <ShadcnSpinner className="size-6 text-accent-600" />
     </div>
   );
 }
