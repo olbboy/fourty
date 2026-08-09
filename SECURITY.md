@@ -69,6 +69,20 @@ before connecting anything.
   with a non-owner app role — see posture above.
 - Passwords hashed with `scrypt` + per-user salt; constant-time comparison.
 - Session tokens and API keys stored only as SHA-256 hashes at rest.
+- **Mailbox credentials encrypted at rest** (ADR-019). An OAuth refresh token
+  cannot be hashed — Fourty has to send it back to the provider — so the
+  credentials in `sync_accounts.config` — including a private **ICS feed URL**,
+  which carries its own secret in the path — are encrypted with AES-256-GCM under
+  `FOURTY_SECRET_KEY`, which lives in the environment and never in the database.
+  **What this buys:** a dump, a backup or a read replica no longer yields usable
+  mailbox access. **What it does not:** protection from an attacker who already
+  has the running process — they hold the key too. With no key configured,
+  connecting a new mailbox is refused rather than stored in the clear; mailboxes
+  connected before this existed keep working and are encrypted the next time
+  their token refreshes. Back the key up: losing it means reconnecting every
+  mailbox. **Rotation:** put the new key in `FOURTY_SECRET_KEY`, the old one in
+  `FOURTY_SECRET_KEY_OLD`, restart, run `npm run rekey`, then drop the old key.
+  Reads try both keys, so nothing is unreadable while the rewrite runs.
 - All write endpoints validate input with zod schemas.
 - **Login brute-force rate limiting** (10 attempts / IP / 15 min → HTTP 429).
 - **Webhook SSRF protection**: workflow webhook actions cannot reach private /

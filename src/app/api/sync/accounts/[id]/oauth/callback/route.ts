@@ -6,6 +6,7 @@ import { audit } from "@/lib/audit";
 import { log } from "@/lib/logger";
 import { clientFromEnv, exchangeCode, SYNC_OAUTH_COOKIE, type MailProvider } from "@/lib/sync/oauth";
 import { syncFetcher } from "@/lib/sync/http";
+import { readAccountConfig, writeAccountConfig } from "@/lib/sync/account-config";
 import type { OAuthTokenConfig } from "@/lib/sync/transport";
 
 /**
@@ -73,7 +74,7 @@ export async function GET(req: Request, { params }: Params) {
       const tokens = await exchangeCode(provider, client, { code, redirectUri, codeVerifier: verifier }, syncFetcher());
       if (!tokens.refresh_token && !tokens.access_token) throw new Error("token response had no tokens");
 
-      const cfg = JSON.parse(account.config) as OAuthTokenConfig & Record<string, unknown>;
+      const cfg = readAccountConfig(account.config) as OAuthTokenConfig & Record<string, unknown>;
       const next: OAuthTokenConfig & Record<string, unknown> = {
         ...cfg,
         accessToken: tokens.access_token ?? cfg.accessToken,
@@ -82,7 +83,8 @@ export async function GET(req: Request, { params }: Params) {
       };
       await db
         .update(tables.syncAccounts)
-        .set({ config: JSON.stringify(next), status: "active", lastError: null })
+        // Refuses rather than storing the tokens in the clear when no key is set.
+        .set({ config: writeAccountConfig(next, account.config), status: "active", lastError: null })
         .where(eq(tables.syncAccounts.id, id));
       await audit(auth.user?.id, "sync_account.connected", { objectType: "sync_account", objectId: id, meta: { provider } });
 

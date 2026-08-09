@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { resetDb, createWorkspace } from "./pg-setup";
 import { parseEmail, threadIdOf } from "@/lib/sync/parse-email";
+import { readAccountConfig } from "@/lib/sync/account-config";
 import { parseIcs, parseIcsDate } from "@/lib/sync/parse-ics";
 import { buildConsentUrl, exchangeCode, refreshAccessToken } from "@/lib/sync/oauth";
 import { fetchRawMessages } from "@/lib/sync/fetch-mail";
@@ -423,7 +424,11 @@ describe("mail OAuth run + connect (real routes + Postgres)", () => {
 
     await withWorkspace(wsA, async () => {
       const acct = (await db.select().from(tables.syncAccounts).where(eq(tables.syncAccounts.id, accountId)))[0];
-      const cfg = JSON.parse(acct.config);
+      // The tokens are on the row but not in the clear: a database dump does
+      // not hand over the mailbox (ADR-019).
+      expect(acct.config).not.toContain("r1");
+      expect(JSON.parse(acct.config).refreshToken).toMatch(/^enc:v1:/);
+      const cfg = readAccountConfig(acct.config);
       expect(cfg.accessToken).toBe("at"); // refreshed + persisted
       expect(cfg.refreshToken).toBe("r1"); // preserved across refresh
       const msgs = await db.select().from(tables.emailMessages);
@@ -456,7 +461,10 @@ describe("mail OAuth run + connect (real routes + Postgres)", () => {
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toContain("sync=connected");
     await withWorkspace(wsA, async () => {
-      const cfg = JSON.parse((await db.select().from(tables.syncAccounts).where(eq(tables.syncAccounts.id, accountId)))[0].config);
+      const stored = (await db.select().from(tables.syncAccounts).where(eq(tables.syncAccounts.id, accountId)))[0].config;
+      // The first place a real refresh token ever lands must already be sealed.
+      expect(stored).not.toContain("r2");
+      const cfg = readAccountConfig(stored);
       expect(cfg.accessToken).toBe("at2");
       expect(cfg.refreshToken).toBe("r2");
     });
