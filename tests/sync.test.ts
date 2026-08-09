@@ -8,6 +8,18 @@ import { buildConsentUrl, exchangeCode, refreshAccessToken } from "@/lib/sync/oa
 import { fetchRawMessages } from "@/lib/sync/fetch-mail";
 import type { HttpFetcher } from "@/lib/sync/http";
 
+/**
+ * The refresh tokens the leak assertions below search for. Long and distinctive
+ * on purpose: `not.toContain` over a sealed value is scanning random base64, so
+ * a two-character fixture turns up inside its own ciphertext by chance about one
+ * run in a hundred. That failure says nothing about the sealing, and the ninety-
+ * nine passes say nothing either — a substring that short cannot tell a leak from
+ * a coincidence in either direction. `secrets.test.ts` and `rekey.test.ts` already
+ * use a fixture this shape; these are the same convention.
+ */
+const REFRESH_STORED = "refresh-token-fixture-stored-not-a-real-credential";
+const REFRESH_EXCHANGED = "refresh-token-fixture-exchanged-not-a-real-credential";
+
 const EML = [
   "Message-ID: <abc123@mail.example.com>",
   "From: Alice Example <alice@example.com>",
@@ -396,7 +408,7 @@ describe("mail OAuth run + connect (real routes + Postgres)", () => {
         id: aliceId, firstName: "Alice", lastName: "Example", email: "alice@example.com", status: "lead", createdAt: Date.now(), updatedAt: Date.now(),
       });
       await db.insert(tables.syncAccounts).values({
-        id: accountId, provider: "google", email: "me@myco.com", config: JSON.stringify({ refreshToken: "r1" }), createdAt: Date.now(),
+        id: accountId, provider: "google", email: "me@myco.com", config: JSON.stringify({ refreshToken: REFRESH_STORED }), createdAt: Date.now(),
       });
     });
   });
@@ -426,11 +438,11 @@ describe("mail OAuth run + connect (real routes + Postgres)", () => {
       const acct = (await db.select().from(tables.syncAccounts).where(eq(tables.syncAccounts.id, accountId)))[0];
       // The tokens are on the row but not in the clear: a database dump does
       // not hand over the mailbox (ADR-019).
-      expect(acct.config).not.toContain("r1");
+      expect(acct.config).not.toContain(REFRESH_STORED);
       expect(JSON.parse(acct.config).refreshToken).toMatch(/^enc:v1:/);
       const cfg = readAccountConfig(acct.config);
       expect(cfg.accessToken).toBe("at"); // refreshed + persisted
-      expect(cfg.refreshToken).toBe("r1"); // preserved across refresh
+      expect(cfg.refreshToken).toBe(REFRESH_STORED); // preserved across refresh
       const msgs = await db.select().from(tables.emailMessages);
       expect(msgs).toHaveLength(1);
       expect(msgs[0].contactId).toBe(aliceId);
@@ -449,7 +461,7 @@ describe("mail OAuth run + connect (real routes + Postgres)", () => {
     const cookieVal = startRes.headers.get("set-cookie")!.split(";")[0].split("=").slice(1).join("="); // id:state:verifier (percent-encoded)
     const state = decodeURIComponent(cookieVal).split(":")[1];
     setFetcher(async (url) => {
-      if (url.includes("oauth2.googleapis.com/token")) return { status: 200, json: async () => ({ access_token: "at2", refresh_token: "r2", expires_in: 3600 }), text: async () => "" };
+      if (url.includes("oauth2.googleapis.com/token")) return { status: 200, json: async () => ({ access_token: "at2", refresh_token: REFRESH_EXCHANGED, expires_in: 3600 }), text: async () => "" };
       return { status: 404, json: async () => ({}), text: async () => "" };
     });
     const res = await callback.GET(
@@ -463,10 +475,10 @@ describe("mail OAuth run + connect (real routes + Postgres)", () => {
     await withWorkspace(wsA, async () => {
       const stored = (await db.select().from(tables.syncAccounts).where(eq(tables.syncAccounts.id, accountId)))[0].config;
       // The first place a real refresh token ever lands must already be sealed.
-      expect(stored).not.toContain("r2");
+      expect(stored).not.toContain(REFRESH_EXCHANGED);
       const cfg = readAccountConfig(stored);
       expect(cfg.accessToken).toBe("at2");
-      expect(cfg.refreshToken).toBe("r2");
+      expect(cfg.refreshToken).toBe(REFRESH_EXCHANGED);
     });
   });
 
@@ -585,7 +597,7 @@ describe("sync account lifecycle (real routes + Postgres)", () => {
   });
 
   it("never returns config secrets when updating", async () => {
-    const id = await makeAccount({ config: JSON.stringify({ host: "imap.myco.com", password: "secret", refreshToken: "r1" }) });
+    const id = await makeAccount({ config: JSON.stringify({ host: "imap.myco.com", password: "secret", refreshToken: REFRESH_STORED }) });
     const res = await account.PATCH(
       req(`/api/sync/accounts/${id}`, TOKEN_ADMIN, { method: "PATCH", body: JSON.stringify({ label: "x" }) }),
       params(id),
@@ -600,11 +612,11 @@ describe("sync account lifecycle (real routes + Postgres)", () => {
   it("tells the list which accounts still need connecting", async () => {
     // The mailbox panel decides whether to offer a "Connect" button from this one
     // flag, and shows the feed URL as the only hint of how an account is wired up.
-    const linked = await makeAccount({ provider: "google", config: JSON.stringify({ refreshToken: "r1" }) });
+    const linked = await makeAccount({ provider: "google", config: JSON.stringify({ refreshToken: REFRESH_STORED }) });
     const unlinked = await makeAccount({ provider: "google", config: JSON.stringify({}) });
 
     const body = await (await accounts.GET(req("/api/sync/accounts", TOKEN_ADMIN))).text();
-    expect(body).not.toContain("r1");
+    expect(body).not.toContain(REFRESH_STORED);
     const byId: Record<string, { connected: boolean; config: Record<string, string> }> = {};
     for (const a of JSON.parse(body).accounts) byId[a.id] = a;
     expect(byId[linked].connected).toBe(true);
