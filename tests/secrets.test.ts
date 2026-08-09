@@ -75,27 +75,60 @@ describe("sealing a secret", () => {
 
 describe("the account config boundary", () => {
   it("encrypts credentials and leaves operational fields readable", () => {
-    const raw = writeAccountConfig({ refreshToken: TOKEN, url: "https://cal.example/f.ics", host: "imap.example" });
+    const raw = writeAccountConfig({ refreshToken: TOKEN, host: "imap.example" });
     const stored = JSON.parse(raw) as Record<string, string>;
 
     expect(raw).not.toContain(TOKEN);
     expect(isSealed(stored.refreshToken)).toBe(true);
     // An operator reading the row can still see which mailbox this is.
-    expect(stored.url).toBe("https://cal.example/f.ics");
     expect(stored.host).toBe("imap.example");
 
     expect(readAccountConfig(raw).refreshToken).toBe(TOKEN);
   });
 
+  /**
+   * A private calendar feed carries its secret *in the URL* — for Google in the
+   * path, not the query — so the whole URL is a credential and is sealed like
+   * one. Its hostname is derived at write time and kept in the clear, which is
+   * all Settings ever needed it for.
+   */
+  it("seals the feed URL but keeps its hostname readable", () => {
+    const feed = "https://calendar.google.com/calendar/ical/x/private-SECRET123/basic.ics";
+    const raw = writeAccountConfig({ url: feed });
+    const stored = JSON.parse(raw) as Record<string, string>;
+
+    expect(raw).not.toContain("private-SECRET123");
+    expect(raw).not.toContain(feed);
+    expect(isSealed(stored.url)).toBe(true);
+    expect(stored.urlHost).toBe("calendar.google.com");
+
+    expect(readAccountConfig(raw).url).toBe(feed);
+  });
+
+  it("keeps the hostname readable with no key at all", () => {
+    const raw = writeAccountConfig({ url: "https://cal.example/f.ics" });
+    delete process.env[SECRET_KEY_ENV];
+    // Listing mailboxes must survive a missing key — that is exactly when
+    // someone needs the settings page.
+    expect(peekAccountConfig(raw).urlHost).toBe("cal.example");
+  });
+
+  it("does not re-derive the hostname from a sealed URL", () => {
+    const once = writeAccountConfig({ url: "https://cal.example/f.ics" });
+    const twice = writeAccountConfig(peekAccountConfig(once));
+    expect(JSON.parse(twice).urlHost).toBe("cal.example");
+    expect(readAccountConfig(twice).url).toBe("https://cal.example/f.ics");
+  });
+
   it("answers presence questions without the key", () => {
     const raw = writeAccountConfig({ refreshToken: TOKEN, url: "https://cal.example/f.ics" });
     delete process.env[SECRET_KEY_ENV];
-    // `canPull` and the settings list ask only "is a token on file" — they must
-    // keep working on an install whose key is missing, which is exactly when
-    // someone needs the settings page.
+    // `canPull` asks only "is a token / feed on file". A sealed value is still
+    // a string, so presence survives a missing key even though the value does
+    // not.
     const cfg = peekAccountConfig(raw);
     expect(typeof cfg.refreshToken).toBe("string");
-    expect(cfg.url).toBe("https://cal.example/f.ics");
+    expect(typeof cfg.url).toBe("string");
   });
 
   it("refuses to store a new credential with no key configured", () => {
@@ -134,10 +167,15 @@ describe("the account config boundary", () => {
 
   it("still writes a config that holds no credentials at all", () => {
     delete process.env[SECRET_KEY_ENV];
-    // An ICS feed needs no secret, so it connects on an install with no key.
-    expect(JSON.parse(writeAccountConfig({ url: "https://cal.example/f.ics" }))).toEqual({
-      url: "https://cal.example/f.ics",
-    });
+    // An IMAP host is not a secret, so a push-only account needs no key.
+    expect(JSON.parse(writeAccountConfig({ host: "imap.example" }))).toEqual({ host: "imap.example" });
+  });
+
+  it("now refuses a feed URL with no key, because the URL is a credential", () => {
+    delete process.env[SECRET_KEY_ENV];
+    // A deliberate consequence of sealing it: connecting an ICS feed used to
+    // work with no key, and no longer does.
+    expect(() => writeAccountConfig({ url: "https://cal.example/f.ics" })).toThrow(SecretKeyError);
   });
 
   it("reads a legacy plaintext row unchanged, so an upgrade keeps syncing", () => {

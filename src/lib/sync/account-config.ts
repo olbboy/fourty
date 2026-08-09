@@ -5,21 +5,27 @@ import { isSealed, open, seal, secretKey, SecretKeyError, SECRET_KEY_ENV } from 
  * The one place that knows which parts of `sync_accounts.config` are secret.
  *
  * The column is a JSON blob of provider connection details. Some of it is
- * operational (an ICS feed URL, an IMAP host) and is shown in Settings; some of
- * it is credentials. Only the credentials are encrypted, so an operator can
- * still read a row and see *which* mailbox is misbehaving without holding the
- * key.
+ * operational (an IMAP host) and is shown in Settings; some of it is
+ * credentials.
  *
- * **Known non-goal:** the ICS feed URL is not sealed. Some calendar providers
- * put a token in that URL, so this is a real gap — but the URL is deliberately
- * surfaced to the settings UI, and sealing it is a separate change with its own
- * UI consequences rather than something to slip in here.
+ * **The ICS feed URL is a credential.** A private calendar feed carries its
+ * secret *in the URL* — and for Google, in the path rather than the query
+ * (`/calendar/ical/…/private-<KEY>/basic.ics`), so trimming a query string
+ * would not have helped. Anyone holding that URL can read the calendar, which
+ * is the same class of access as a refresh token, so it is sealed like one.
+ *
+ * To keep Settings readable without the key, the URL's **hostname** is derived
+ * at write time and stored beside it in the clear. An operator can still see
+ * that a feed points at `calendar.google.com`; they cannot recover the feed.
  */
 
 export type AccountConfig = Record<string, unknown>;
 
 /** Closed list. A field not named here is stored as-is, in the clear. */
-export const SEALED_FIELDS = ["accessToken", "refreshToken", "password", "clientSecret"] as const;
+export const SEALED_FIELDS = ["accessToken", "refreshToken", "password", "clientSecret", "url"] as const;
+
+/** Derived from `url` at write time, kept unsealed so the UI needs no key. */
+export const URL_HOST_FIELD = "urlHost";
 
 /**
  * Parse a config blob **without** decrypting anything, and without throwing.
@@ -75,6 +81,15 @@ export function readAccountConfig(raw: string): AccountConfig {
  */
 export function writeAccountConfig(cfg: AccountConfig, previousRaw?: string): string {
   const out: AccountConfig = { ...cfg };
+
+  // Derive the hostname before the URL is sealed — afterwards there is nothing
+  // to derive it from. Only from an unsealed value: on a rewrite of an already
+  // sealed row the host is already there and correct.
+  if (typeof out.url === "string" && !isSealed(out.url)) {
+    const host = hostOf(out.url);
+    if (host) out[URL_HOST_FIELD] = host;
+  }
+
   const secrets = SEALED_FIELDS.filter((f) => typeof out[f] === "string" && (out[f] as string) !== "");
 
   if (secrets.length > 0 && secretKey() === null) {
@@ -101,6 +116,15 @@ export function writeAccountConfig(cfg: AccountConfig, previousRaw?: string): st
     out[field] = isSealed(value) ? value : seal(value);
   }
   return JSON.stringify(out);
+}
+
+/** The hostname of a feed URL, for the settings list. Null when unparseable. */
+export function hostOf(url: string): string | null {
+  try {
+    return new URL(url).hostname || null;
+  } catch {
+    return null;
+  }
 }
 
 /** True when this config holds anything the key is needed for. */

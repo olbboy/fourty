@@ -163,7 +163,7 @@ describe("the re-key walk (Postgres)", () => {
   });
 
   it("counts a mailbox with no credentials as nothing to do", async () => {
-    await account(wsA, JSON.stringify({ url: "https://cal.example/f.ics" }));
+    await account(wsA, JSON.stringify({ host: "imap.example" }));
     const result = await rekeyAll();
     expect(result.untouched).toBe(1);
     expect(result.rotated + result.encrypted).toBe(0);

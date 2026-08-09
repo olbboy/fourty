@@ -45,13 +45,27 @@ that is overselling it.
 
 ### 3. Only credentials are sealed; operational fields stay readable
 
-`accessToken`, `refreshToken`, `password`, `clientSecret`. Not the ICS feed URL
-or the IMAP host, so an operator reading a row can still tell *which* mailbox is
-misbehaving without holding the key.
+`accessToken`, `refreshToken`, `password`, `clientSecret` — and `url`.
 
-**Known gap:** some calendar providers put a token inside the ICS URL. That URL
-is deliberately surfaced to the settings UI, so sealing it is a separate change
-with its own UI consequences, and is not smuggled in here.
+**The ICS feed URL is a credential.** A private calendar feed carries its secret
+*in the URL*, and for Google in the path rather than the query
+(`/calendar/ical/…/private-<KEY>/basic.ics`), so trimming a query string would
+not have helped. Anyone holding that URL can read the calendar: the same class
+of access as a refresh token, so it is sealed like one and never returned by the
+API, not even to an admin.
+
+The IMAP host stays in the clear, so an operator reading a row can still tell
+*which* mailbox is misbehaving without holding the key. For the feed URL that
+job is done by a **derived hostname** (`urlHost`), computed at write time and
+stored unsealed: Settings shows `calendar.google.com`, and nobody recovers the
+feed from it. Deriving it at write time rather than on read is what keeps the
+settings page working on an install whose key has gone missing — which is
+exactly when someone needs that page.
+
+**Consequence, accepted:** connecting an ICS feed now requires a key. It used to
+be the one mailbox type that needed none. Calling the URL a secret and then
+writing it in the clear because it is convenient would have been the worse
+trade.
 
 ### 4. Fail closed on new secrets; never make an existing install worse
 
