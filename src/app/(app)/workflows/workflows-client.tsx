@@ -168,8 +168,8 @@ export function WorkflowsClient() {
                   <span
                     className={`chip ${
                       r.status === "success"
-                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300"
-                        : "bg-red-500/10 text-red-500"
+                        ? "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
+                        : "bg-red-500/10 text-red-700 dark:text-red-300"
                     }`}
                   >
                     {r.status}

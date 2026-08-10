@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { Company, Contact, Deal, Pipeline } from "@/lib/types";
 import { timeAgo } from "@/lib/format";
 import { formatMoney, formatCompact } from "@/lib/currency";
-import { readableInk } from "@/lib/contrast-color";
+import { readableInkPair } from "@/lib/contrast-color";
 import { Modal, Avatar, StatusChip, ScoreBadge, Spinner } from "@/components/ui";
 import { NotesPanel, TasksPanel } from "@/components/record-panels";
 import { RecordTabs } from "@/components/agent-panel/record-tabs";
@@ -97,7 +97,7 @@ export function CompanyDetail({ id }: { id: string }) {
           <button
             onClick={remove}
             aria-label={`Delete ${company.name}`}
-            className="btn-ghost !text-red-500"
+            className="btn-ghost !text-destructive"
           >
             <IconTrash width={15} height={15} />
           </button>
@@ -178,7 +178,15 @@ export function CompanyDetail({ id }: { id: string }) {
                     <p className="text-xs text-ink-muted">
                       {formatMoney(d.amount, d.currency)}
                       {stage && (
-                        <span className="ml-2 font-medium" style={{ color: readableInk(stage.color) }}>
+                        <span
+                          className="ml-2 font-medium data-ink"
+                          style={
+                            {
+                              "--data-ink-light": readableInkPair(stage.color).light,
+                              "--data-ink-dark": readableInkPair(stage.color).dark,
+                            } as React.CSSProperties
+                          }
+                        >
                           {stage.name}
                         </span>
                       )}

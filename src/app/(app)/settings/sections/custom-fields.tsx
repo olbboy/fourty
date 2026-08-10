@@ -139,7 +139,7 @@ export function CustomFieldsSection() {
               <input name="options" className="input" placeholder="Bronze, Silver, Gold" />
             </Field>
           )}
-          {error && <p className="text-sm text-red-500">{error}</p>}
+          {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex justify-end">
             <button type="submit" className="btn-primary">
               Create field

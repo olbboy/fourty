@@ -107,7 +107,7 @@ export function DealDetail({ id }: { id: string }) {
           <button
             onClick={remove}
             aria-label={`Delete ${deal.name}`}
-            className="btn-ghost !text-red-500"
+            className="btn-ghost !text-destructive"
           >
             <IconTrash width={15} height={15} />
           </button>

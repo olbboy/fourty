@@ -241,6 +241,18 @@
   @apply border-accent-500 bg-accent-50 text-accent-700;
 }
 
+/* Text painted in a colour that comes from the database (a pipeline stage) needs
+   a different value per theme, and the theme is a class on <html> — something an
+   inline style written on the server cannot read. So the caller supplies both
+   inks as custom properties and CSS picks. */
+.data-ink {
+  color: var(--data-ink-light);
+}
+
+.dark .data-ink {
+  color: var(--data-ink-dark);
+}
+
 .th {
   @apply px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-ink-muted;
 }

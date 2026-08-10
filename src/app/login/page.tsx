@@ -53,7 +53,7 @@ export default async function LoginPage({
           </div>
         </div>
         {ssoError && (
-          <p role="alert" className="mb-4 rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-500">
+          <p role="alert" className="mb-4 rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300">
             {ssoError}
           </p>
         )}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { contrastRatio, readableInk, readableOn } from "@/lib/contrast-color";
+import { contrastRatio, readableInk, readableInkPair, readableOn, washedChip } from "@/lib/contrast-color";
 
 /**
  * Stage colours are workspace data, so the UI derives its foregrounds instead of
@@ -59,5 +59,55 @@ describe("parsing", () => {
   it("accepts shorthand hex and tolerates junk without throwing", () => {
     expect(readableOn("#fff")).toBe("#231f20");
     expect(() => readableInk("not-a-colour")).not.toThrow();
+  });
+});
+
+describe("readableInkPair — the same colour on both themes", () => {
+  /** --surface in each theme, the grounds a chip actually sits on. */
+  const GROUNDS = { light: "#ffffff", dark: "#1d1916" };
+
+  it("clears AA on BOTH grounds for every seeded stage colour", () => {
+    for (const c of STAGE_COLOURS) {
+      const { light, dark } = readableInkPair(c);
+      expect(contrastRatio(light, GROUNDS.light), `${c} on light`).toBeGreaterThanOrEqual(AA);
+      expect(contrastRatio(dark, GROUNDS.dark), `${c} on dark`).toBeGreaterThanOrEqual(AA);
+    }
+  });
+
+  it("moves the colour in opposite directions for the two grounds", () => {
+    // The regression this guards: a single value darkened for white was being
+    // rendered on a near-black surface too, landing around 3.8:1.
+    const { light, dark } = readableInkPair("#ffb900");
+    expect(contrastRatio(light, "#ffffff")).toBeGreaterThanOrEqual(AA);
+    expect(contrastRatio(light, GROUNDS.dark)).toBeLessThan(AA); // why one value cannot serve both
+    expect(contrastRatio(dark, GROUNDS.dark)).toBeGreaterThanOrEqual(AA);
+  });
+});
+
+describe("washedChip — text on a wash of its own colour", () => {
+  /** The wash is 12.5% of the colour over --surface; compose it the same way. */
+  const WASH = 0x20 / 255;
+  const over = (hex: string, ground: string) => {
+    const px = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+    const [f, g] = [px(hex), px(ground)];
+    const mix = f.map((c, i) => Math.round(c * WASH + g[i] * (1 - WASH)));
+    return `#${mix.map((c) => c.toString(16).padStart(2, "0")).join("")}`;
+  };
+
+  it("clears AA against the WASH, not against the surface", () => {
+    for (const c of STAGE_COLOURS) {
+      const { light, dark } = washedChip(c);
+      expect(contrastRatio(light, over(c, "#ffffff")), `${c} light`).toBeGreaterThanOrEqual(AA);
+      expect(contrastRatio(dark, over(c, "#1d1916")), `${c} dark`).toBeGreaterThanOrEqual(AA);
+    }
+  });
+
+  it("is stricter than measuring against the bare surface", () => {
+    // The amber stage is the case that exposed it: 4.54:1 on white, but the
+    // wash lifts the ground and it lands at 4.21 — a fail that looks fine.
+    const surfaceOnly = readableInkPair("#ffb900").light;
+    expect(contrastRatio(surfaceOnly, "#ffffff")).toBeGreaterThanOrEqual(AA);
+    expect(contrastRatio(surfaceOnly, over("#ffb900", "#ffffff"))).toBeLessThan(AA);
+    expect(contrastRatio(washedChip("#ffb900").light, over("#ffb900", "#ffffff"))).toBeGreaterThanOrEqual(AA);
   });
 });

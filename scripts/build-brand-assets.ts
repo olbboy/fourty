@@ -50,17 +50,35 @@ function polygonToPath(points: string): string {
   return `M${pairs.join("L")}Z`;
 }
 
-/** Pull the shapes out of one `<g id="...">` of the master. */
+/** Read one attribute off an element's source text. */
+function attr(el: string, name: string): string | null {
+  return new RegExp(`\\b${name}="([^"]*)"`).exec(el)?.[1] ?? null;
+}
+
+/**
+ * Pull the shapes out of one `<g id="...">` of the master.
+ *
+ * Every element in the group must yield a shape. Parsing that silently skipped
+ * one would not fail the build — it would ship a logo with a missing stroke —
+ * so the count is asserted rather than trusted.
+ */
 function shapesIn(svg: string, groupId: string): Shape[] {
   const group = new RegExp(`<g id="${groupId}">([\\s\\S]*?)</g>`).exec(svg);
   if (!group) throw new Error(`brand master has no <g id="${groupId}">`);
+
+  const elements = [...group[1].matchAll(/<(polygon|path)\b[^>]*>/g)].map((m) => m[0]);
   const shapes: Shape[] = [];
-  for (const el of group[1].matchAll(/<(polygon|path)\s+fill="([^"]+)"\s+(points|d)="([^"]+)"\s*\/>/g)) {
-    const [, , fill, attr, value] = el;
-    shapes.push({
-      d: attr === "points" ? polygonToPath(value) : value,
-      orange: fill.toUpperCase() === ORANGE,
-    });
+  for (const el of elements) {
+    const fill = attr(el, "fill");
+    const geometry = attr(el, "d") ?? (attr(el, "points") && polygonToPath(attr(el, "points")!));
+    if (!fill || !geometry) continue;
+    shapes.push({ d: geometry, orange: fill.toUpperCase() === ORANGE });
+  }
+  if (shapes.length !== elements.length) {
+    throw new Error(
+      `<g id="${groupId}">: parsed ${shapes.length} of ${elements.length} elements — ` +
+        `every shape needs a fill and a d/points attribute`,
+    );
   }
   if (!shapes.length) throw new Error(`<g id="${groupId}"> holds no shapes`);
   return shapes;
@@ -120,19 +138,29 @@ function lockup(variant: keyof typeof VARIANTS, ink: string): string {
 
 /**
  * The compact lockup centred in a square, for the favicon and installed icon.
+ *
  * No tile behind it: the O is the brand orange and a brand-orange ground would
- * swallow it — exactly the mistake the retired placeholder made.
+ * swallow it — exactly the mistake the retired placeholder made. That leaves the
+ * letterforms transparent-backed, which is why the ink flips with
+ * prefers-color-scheme: a near-black 4 is invisible against a dark browser tab
+ * strip, and a favicon has no parent to inherit a ground from.
  */
-function appIcon(ink: string): string {
+function appIcon(): string {
   const v = VARIANTS.compact;
   const box = 64;
   const pad = 6;
   const scale = (box - pad * 2) / v.width;
   const top = (box - v.height * scale) / 2;
   const body = v.shapes
-    .map((s) => `<path d="${s.d}" fill="${s.orange ? ORANGE : ink}"/>`)
+    .map((s) =>
+      s.orange
+        ? `<path d="${s.d}" fill="${ORANGE}"/>`
+        : `<path class="ink" d="${s.d}" fill="${INK}"/>`,
+    )
     .join("");
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${box} ${box}" fill="none"><g transform="translate(${pad} ${top.toFixed(3)}) scale(${scale.toFixed(6)})">${body}</g></svg>\n`;
+  const style =
+    `<style>@media (prefers-color-scheme: dark){.ink{fill:${INK_INVERSE}}}</style>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${box} ${box}" fill="none">${style}<g transform="translate(${pad} ${top.toFixed(3)}) scale(${scale.toFixed(6)})">${body}</g></svg>\n`;
 }
 
 mkdirSync(path.join(ROOT, "public", "brand"), { recursive: true });
@@ -146,6 +174,6 @@ const files: Record<string, string> = {
 for (const [name, body] of Object.entries(files)) {
   writeFileSync(path.join(ROOT, "public", "brand", name), body);
 }
-writeFileSync(path.join(ROOT, "public", "icon.svg"), appIcon(INK));
+writeFileSync(path.join(ROOT, "public", "icon.svg"), appIcon());
 
 console.log(`brand: ${Object.keys(files).length + 2} file(s) from ${path.relative(ROOT, MASTER)}`);

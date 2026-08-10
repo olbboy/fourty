@@ -72,7 +72,7 @@ export function ImportClient() {
         />
       </label>
 
-      {error && <p className="mt-4 text-sm text-red-500">{error}</p>}
+      {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
       {result && (
         <div className="card mt-4 space-y-1 p-4">
           <p className="font-medium text-emerald-600 dark:text-emerald-400">Import complete ✓</p>

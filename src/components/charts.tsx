@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -47,20 +47,33 @@ function readChartColors(): ChartColors {
   ) as ChartColors;
 }
 
-export function useChartColors(): ChartColors {
-  // Server render and first paint have no computed styles to read; empty
-  // strings let Recharts fall back to its own defaults for that one frame.
-  const [colors, setColors] = useState<ChartColors>(() => ({
-    series: "",
-    won: "",
-    lost: "",
-    grid: "",
-    text: "",
-  }));
+/** Nothing to read from during a server render; the styles only exist client-side. */
+const NO_COLORS: ChartColors = { series: "", won: "", lost: "", grid: "", text: "" };
 
-  useEffect(() => {
+/**
+ * Layout effects run before paint, plain effects run after. The distinction
+ * matters here and nowhere else in this file: Recharts writes these values
+ * straight into `fill`/`stroke`, and an empty string is an invalid presentation
+ * attribute — the bars would paint black for one frame. Reading in the initial
+ * state instead would fix the flash but break hydration, because the server has
+ * no computed styles to read.
+ */
+const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+export function useChartColors(): ChartColors {
+  const [colors, setColors] = useState<ChartColors>(NO_COLORS);
+
+  useBeforePaint(() => {
     const el = document.documentElement;
-    const sync = () => setColors(readChartColors());
+    // Re-read on theme change, but keep the object identity when nothing moved:
+    // the observer fires for every class mutation on <html>, not just ours.
+    const sync = () =>
+      setColors((prev) => {
+        const next = readChartColors();
+        return (Object.keys(next) as (keyof ChartColors)[]).every((k) => next[k] === prev[k])
+          ? prev
+          : next;
+      });
     sync();
     const obs = new MutationObserver(sync);
     obs.observe(el, { attributes: true, attributeFilter: ["class"] });

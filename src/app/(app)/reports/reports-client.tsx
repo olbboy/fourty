@@ -135,7 +135,7 @@ export function ReportsClient() {
                     </span>
                   </td>
                   <td className="td">
-                    <span className={d.overdue ? "font-semibold text-red-500" : "text-ink-muted"}>
+                    <span className={d.overdue ? "font-semibold text-destructive" : "text-ink-muted"}>
                       {formatDate(d.expectedCloseDate)}
                       {d.overdue && " · overdue"}
                     </span>

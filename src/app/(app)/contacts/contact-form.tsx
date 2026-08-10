@@ -106,7 +106,7 @@ export function ContactForm({
         <input name="country" defaultValue={contact?.country ?? ""} className="input" />
       </Field>
       <CustomFieldsInputs defs={defs} values={custom} onChange={setCustom} />
-      {error && <p className="col-span-full text-sm text-red-500">{error}</p>}
+      {error && <p className="col-span-full text-sm text-destructive">{error}</p>}
       <div className="col-span-full flex justify-end gap-2">
         <button type="submit" disabled={busy} className="btn-primary">
           {busy ? "Saving…" : contact ? "Save changes" : "Create contact"}

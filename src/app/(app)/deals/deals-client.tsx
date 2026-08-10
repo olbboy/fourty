@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Company, Contact, Deal, Pipeline, Stage } from "@/lib/types";
 import { convert, formatCompact, formatMoney } from "@/lib/currency";
 import { timeAgo, formatDate } from "@/lib/format";
-import { readableInk } from "@/lib/contrast-color";
+import { washedChip } from "@/lib/contrast-color";
 import { PageHeader, Modal, EmptyState, Spinner } from "@/components/ui";
 import { IconPlus, IconKanban, IconList, IconDownload } from "@/components/icons";
 import { DealForm } from "./deal-form";
@@ -209,7 +209,7 @@ export function DealsClient() {
                             <span
                               className={
                                 stage.type === "open" && deal.expectedCloseDate < Date.now()
-                                  ? "font-medium text-red-500"
+                                  ? "font-medium text-destructive"
                                   : ""
                               }
                             >
@@ -241,6 +241,7 @@ export function DealsClient() {
             <tbody>
               {pipelineDeals.map((d) => {
                 const stage = pipeline.stages.find((s) => s.id === d.stageId);
+                const chip = stage && washedChip(stage.color);
                 return (
                   <tr
                     key={d.id}
@@ -250,10 +251,16 @@ export function DealsClient() {
                     <td className="td font-medium">{d.name}</td>
                     <td className="td">{formatMoney(d.amount, d.currency)}</td>
                     <td className="td">
-                      {stage && (
+                      {stage && chip && (
                         <span
-                          className="chip"
-                          style={{ background: `${stage.color}20`, color: readableInk(stage.color) }}
+                          className="chip data-ink"
+                          style={
+                            {
+                              background: chip.background,
+                              "--data-ink-light": chip.light,
+                              "--data-ink-dark": chip.dark,
+                            } as React.CSSProperties
+                          }
                         >
                           {stage.name}
                         </span>

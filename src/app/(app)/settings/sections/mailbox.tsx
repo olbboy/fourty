@@ -158,7 +158,7 @@ export function MailboxSection() {
           <IconPlus width={15} height={15} /> Add mailbox
         </button>
       </div>
-      {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
+      {error && <p className="mb-3 text-sm text-destructive">{error}</p>}
       {result && <p className="mb-3 text-sm text-ink-muted">{result}</p>}
       {!accounts ? (
         <Spinner />
@@ -190,7 +190,7 @@ export function MailboxSection() {
                     {a.status === "paused" && " · paused"}
                   </p>
                   {a.status === "error" && a.lastError && (
-                    <p className="mt-0.5 break-all text-xs text-red-500">Last sync failed: {a.lastError}</p>
+                    <p className="mt-0.5 break-all text-xs text-destructive">Last sync failed: {a.lastError}</p>
                   )}
                   {/* Pulling is scheduled work, not a cron: the booking is a row,
                       so the panel can say when this mailbox is next due. */}
@@ -275,7 +275,7 @@ export function MailboxSection() {
               <input name="host" className="input" placeholder="imap.company.com" />
             </Field>
           )}
-          {error && <p className="text-sm text-red-500">{error}</p>}
+          {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex justify-end">
             <button type="submit" className="btn-primary">
               Add mailbox

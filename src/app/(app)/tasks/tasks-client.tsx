@@ -115,7 +115,7 @@ export function TasksClient() {
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
                   <PriorityChip priority={t.priority} />
                   {t.dueDate && (
-                    <span className={overdue(t) ? "font-semibold text-red-500" : ""}>
+                    <span className={overdue(t) ? "font-semibold text-destructive" : ""}>
                       {overdue(t) ? "Overdue · " : "Due "}
                       {formatDate(t.dueDate)}
                     </span>

@@ -135,7 +135,7 @@ export function DashboardClient() {
           <h2 className="mb-3 text-sm font-semibold">
             Tasks due{" "}
             {kpis.overdueTasks > 0 && (
-              <span className="chip bg-red-500/10 text-red-500">{kpis.overdueTasks} overdue</span>
+              <span className="chip bg-red-500/10 text-red-700 dark:text-red-300">{kpis.overdueTasks} overdue</span>
             )}
           </h2>
           <div className="space-y-2">
@@ -144,7 +144,7 @@ export function DashboardClient() {
                 <p className="min-w-0 truncate text-sm">{t.title}</p>
                 <div className="flex shrink-0 items-center gap-1.5">
                   <PriorityChip priority={t.priority} />
-                  <span className={`text-xs ${t.overdue ? "font-semibold text-red-500" : "text-ink-muted"}`}>
+                  <span className={`text-xs ${t.overdue ? "font-semibold text-destructive" : "text-ink-muted"}`}>
                     {formatDate(t.dueDate)}
                   </span>
                 </div>

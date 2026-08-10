@@ -95,7 +95,7 @@ export function DiagnosticsSection() {
               <span
                 className={`mt-0.5 rounded px-1.5 py-0.5 text-xs font-medium ${
                   c.on
-                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300"
+                    ? "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
                     : "bg-surface-2 text-ink-muted"
                 }`}
               >
