@@ -79,7 +79,7 @@ function AppShellInner({
     <>
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-accent-600 focus:px-3 focus:py-2 focus:text-sm focus:text-white"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:text-primary-foreground"
       >
         Skip to content
       </a>
@@ -155,7 +155,7 @@ function AppShellInner({
               aria-current={active ? "page" : undefined}
               className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium ${
                 active
-                  ? "text-accent-600 dark:text-accent-400"
+                  ? "text-accent-700 dark:text-accent-400"
                   : "text-ink-muted"
               }`}
             >

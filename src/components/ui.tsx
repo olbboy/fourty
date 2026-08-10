@@ -126,16 +126,16 @@ export function Field({
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  lead: "bg-slate-500/10 text-slate-600 dark:text-slate-300",
-  qualified: "bg-blue-500/10 text-blue-600 dark:text-blue-300",
-  customer: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300",
-  churned: "bg-red-500/10 text-red-500 dark:text-red-300",
+  lead: "bg-status-lead-wash text-status-lead",
+  qualified: "bg-status-qualified-wash text-status-qualified",
+  customer: "bg-status-customer-wash text-status-customer",
+  churned: "bg-status-churned-wash text-status-churned",
 };
 
 export function StatusChip({ status }: { status: string }) {
   return (
     <span
-      className={`chip capitalize ${STATUS_STYLES[status] ?? "bg-slate-500/10 text-slate-500"}`}
+      className={`chip capitalize ${STATUS_STYLES[status] ?? "bg-status-lead-wash text-status-lead"}`}
     >
       {status}
     </span>
@@ -144,12 +144,15 @@ export function StatusChip({ status }: { status: string }) {
 
 export function ScoreBadge({ score }: { score: number }) {
   const label = score >= 70 ? "hot" : score >= 40 ? "warm" : "cold";
+  // The band scale runs red → amber → blue, not orange → amber → sky: an orange
+  // "hot" chip sitting beside the brand-orange primary button stops meaning
+  // anything. Each chip is a 10% wash behind saturated text, never a solid fill.
   const style =
     label === "hot"
-      ? "bg-orange-500/10 text-orange-600 dark:text-orange-300"
+      ? "bg-score-hot-wash text-score-hot"
       : label === "warm"
-        ? "bg-amber-500/10 text-amber-600 dark:text-amber-300"
-        : "bg-sky-500/10 text-sky-600 dark:text-sky-300";
+        ? "bg-score-warm-wash text-score-warm"
+        : "bg-score-cold-wash text-score-cold";
   return (
     <span
       className={`chip ${style}`}
@@ -161,9 +164,9 @@ export function ScoreBadge({ score }: { score: number }) {
 }
 
 const PRIORITY_STYLES: Record<string, string> = {
-  high: "bg-red-500/10 text-red-500 dark:text-red-300",
-  medium: "bg-amber-500/10 text-amber-600 dark:text-amber-300",
-  low: "bg-slate-500/10 text-slate-500 dark:text-slate-300",
+  high: "bg-priority-high-wash text-priority-high",
+  medium: "bg-priority-medium-wash text-priority-medium",
+  low: "bg-priority-low-wash text-priority-low",
 };
 
 export function PriorityChip({ priority }: { priority: string }) {
@@ -174,13 +177,56 @@ export function PriorityChip({ priority }: { priority: string }) {
   );
 }
 
+/**
+ * The dashboard metric tile: an eyebrow, one number, and the context that makes
+ * the number mean something.
+ *
+ * `hint` is not decoration. A bare figure is the thing this product refuses to
+ * ship — a win rate carries its window, a forecast its method — so the hint is
+ * where that qualification goes.
+ */
+export function KpiCard({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+}) {
+  return (
+    <div className="card p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">{label}</p>
+      <p className="mt-1 text-xl font-bold tracking-tight md:text-2xl">{value}</p>
+      {hint && <p className="mt-0.5 text-xs text-ink-muted">{hint}</p>}
+    </div>
+  );
+}
+
+/**
+ * The 8px pipeline dot. The colour is workspace data, so it arrives as a prop
+ * rather than a class — a stage can be recoloured per workspace.
+ *
+ * Decorative on its own: the stage name always sits beside it, so the dot is
+ * hidden from assistive tech rather than announced as an unnamed graphic.
+ */
+export function StageDot({ color, className }: { color: string; className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={`inline-block size-2 shrink-0 rounded-full ${className ?? ""}`}
+      style={{ background: color }}
+    />
+  );
+}
+
 export function Avatar({ name, size = 8 }: { name: string; size?: number }) {
   return (
     <ShadcnAvatar
       className="shrink-0"
       style={{ width: size * 4, height: size * 4 }}
     >
-      <AvatarFallback className="bg-accent-600/15 text-xs font-bold text-accent-600 dark:text-accent-400">
+      <AvatarFallback className="bg-accent-600/15 text-xs font-bold text-accent-700 dark:text-accent-400">
         {initials(name || "?")}
       </AvatarFallback>
     </ShadcnAvatar>
@@ -212,7 +258,7 @@ export function EmptyState({
 export function Spinner() {
   return (
     <div className="flex justify-center py-10">
-      <ShadcnSpinner className="size-6 text-accent-600" />
+      <ShadcnSpinner className="size-6 text-accent-700" />
     </div>
   );
 }

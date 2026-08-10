@@ -16,3 +16,12 @@ coverage/
 playwright-report/
 test-results/
 e2e/.auth/
+
+# design-sync: staged converter scripts, generated bundle, machine state.
+# Everything else under .design-sync/ (config.json, NOTES.md, conventions.md,
+# previews/, overrides/) is committed — it is the reproducible sync input.
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules

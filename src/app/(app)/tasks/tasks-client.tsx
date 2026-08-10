@@ -81,7 +81,7 @@ export function TasksClient() {
             onClick={() => setState(s)}
             className={`chip cursor-pointer !px-3 !py-1.5 capitalize transition ${
               state === s
-                ? "bg-accent-600 text-white"
+                ? "bg-primary text-primary-foreground"
                 : "border border-line text-ink-muted hover:border-accent-400"
             }`}
           >
@@ -115,7 +115,7 @@ export function TasksClient() {
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
                   <PriorityChip priority={t.priority} />
                   {t.dueDate && (
-                    <span className={overdue(t) ? "font-semibold text-red-500" : ""}>
+                    <span className={overdue(t) ? "font-semibold text-destructive" : ""}>
                       {overdue(t) ? "Overdue · " : "Due "}
                       {formatDate(t.dueDate)}
                     </span>
@@ -123,7 +123,7 @@ export function TasksClient() {
                   {t.entityType && t.entityId && (
                     <Link
                       href={`${ENTITY_PATH[t.entityType]}${t.entityId}`}
-                      className="text-accent-600 hover:underline dark:text-accent-400"
+                      className="text-accent-700 hover:underline dark:text-accent-400"
                     >
                       View {t.entityType} →
                     </Link>

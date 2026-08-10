@@ -109,7 +109,7 @@ export function MembersSection() {
           <IconPlus width={15} height={15} /> Invite
         </button>
       </div>
-      {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
+      {error && <p className="mb-3 text-sm text-destructive">{error}</p>}
       {invite && (
         <div className="mb-3 rounded-lg border border-amber-400/40 bg-amber-500/10 p-3">
           <p className="mb-1 text-xs font-semibold text-amber-600 dark:text-amber-300">

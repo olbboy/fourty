@@ -82,7 +82,7 @@ export function CustomFieldsSection() {
             onClick={() => setEntity(e)}
             className={`chip cursor-pointer !px-3 !py-1.5 capitalize transition ${
               entity === e
-                ? "bg-accent-600 text-white"
+                ? "bg-primary text-primary-foreground"
                 : "border border-line text-ink-muted hover:border-accent-400"
             }`}
           >
@@ -139,7 +139,7 @@ export function CustomFieldsSection() {
               <input name="options" className="input" placeholder="Bronze, Silver, Gold" />
             </Field>
           )}
-          {error && <p className="text-sm text-red-500">{error}</p>}
+          {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex justify-end">
             <button type="submit" className="btn-primary">
               Create field

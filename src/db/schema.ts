@@ -224,7 +224,10 @@ export const stages = pgTable(
     order: integer("sort_order").notNull().default(0),
     winProbability: integer("win_probability").notNull().default(50),
     type: text("type").notNull().default("open"), // open | won | lost
-    color: text("color").notNull().default("#6366f1"),
+    // A stage created without a colour has no meaning assigned yet, so the
+    // default is the palette's warm neutral — never the brand accent, which is
+    // reserved for the primary action and would make every new stage shout.
+    color: text("color").notNull().default("#a89f99"),
   },
   (t) => [index("stages_ws_pipeline_idx").on(t.workspaceId, t.pipelineId)],
 );

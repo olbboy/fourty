@@ -79,7 +79,7 @@ export function CompanyForm({ company, onSaved }: { company?: Company; onSaved: 
         <input name="country" defaultValue={company?.country ?? ""} className="input" />
       </Field>
       <CustomFieldsInputs defs={defs} values={custom} onChange={setCustom} />
-      {error && <p className="col-span-full text-sm text-red-500">{error}</p>}
+      {error && <p className="col-span-full text-sm text-destructive">{error}</p>}
       <div className="col-span-full flex justify-end">
         <button type="submit" disabled={busy} className="btn-primary">
           {busy ? "Saving…" : company ? "Save changes" : "Create company"}

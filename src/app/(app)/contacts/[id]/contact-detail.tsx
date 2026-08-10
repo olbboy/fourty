@@ -14,6 +14,7 @@ import { IconEdit, IconTrash } from "@/components/icons";
 import { AgentQueue } from "@/components/agent-queue";
 import { ContactForm } from "../contact-form";
 import { formatMoney } from "@/lib/currency";
+import { readableInkPair } from "@/lib/contrast-color";
 
 export function ContactDetail({ id }: { id: string }) {
   const router = useRouter();
@@ -56,7 +57,7 @@ export function ContactDetail({ id }: { id: string }) {
   if (missing)
     return (
       <p className="py-10 text-center text-sm text-ink-muted">
-        Contact not found. <Link href="/contacts" className="text-accent-600 underline">Back to contacts</Link>
+        Contact not found. <Link href="/contacts" className="text-accent-700 underline">Back to contacts</Link>
       </p>
     );
   if (!contact) return <Spinner />;
@@ -86,7 +87,7 @@ export function ContactDetail({ id }: { id: string }) {
               {company && (
                 <>
                   {" · "}
-                  <Link href={`/companies/${company.id}`} className="text-accent-600 hover:underline dark:text-accent-400">
+                  <Link href={`/companies/${company.id}`} className="text-accent-700 hover:underline dark:text-accent-400">
                     {company.name}
                   </Link>
                 </>
@@ -104,7 +105,7 @@ export function ContactDetail({ id }: { id: string }) {
           <button
             onClick={remove}
             aria-label={`Delete ${contact.firstName} ${contact.lastName}`}
-            className="btn-ghost !text-red-500"
+            className="btn-ghost !text-destructive"
           >
             <IconTrash width={15} height={15} />
           </button>
@@ -172,7 +173,15 @@ export function ContactDetail({ id }: { id: string }) {
                     <p className="text-xs text-ink-muted">
                       {formatMoney(d.amount, d.currency)}
                       {stage && (
-                        <span className="ml-2 font-medium" style={{ color: stage.color }}>
+                        <span
+                          className="ml-2 font-medium data-ink"
+                          style={
+                            {
+                              "--data-ink-light": readableInkPair(stage.color).light,
+                              "--data-ink-dark": readableInkPair(stage.color).dark,
+                            } as React.CSSProperties
+                          }
+                        >
                           {stage.name}
                         </span>
                       )}

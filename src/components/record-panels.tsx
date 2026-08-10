@@ -233,7 +233,7 @@ export function TasksPanel({ entityType, entityId, onChanged }: EntityRef & { on
               <PriorityChip priority={t.priority} />
               {t.dueDate && (
                 <span
-                  className={`text-xs ${!t.completedAt && t.dueDate < Date.now() ? "font-medium text-red-500" : "text-ink-muted"}`}
+                  className={`text-xs ${!t.completedAt && t.dueDate < Date.now() ? "font-medium text-destructive" : "text-ink-muted"}`}
                 >
                   {formatDate(t.dueDate)}
                 </span>

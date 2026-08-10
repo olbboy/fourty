@@ -373,7 +373,7 @@ export function WorkflowBuilder({
         </div>
       </div>
 
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
       <div className="flex justify-end">
         <button onClick={save} disabled={busy || !name.trim()} className="btn-primary">
           {busy ? "Saving…" : initial?.id ? "Save workflow" : "Create workflow"}

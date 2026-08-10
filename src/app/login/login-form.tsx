@@ -90,7 +90,7 @@ export function LoginForm({ mode }: { mode: "setup" | "login" }) {
           Load sample data so I can explore
         </label>
       )}
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
       <button type="submit" disabled={busy} className="btn-primary w-full">
         {busy ? "Please wait…" : mode === "setup" ? "Create workspace" : "Sign in"}
       </button>

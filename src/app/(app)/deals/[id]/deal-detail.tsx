@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { Company, Contact, Deal, Pipeline } from "@/lib/types";
 import { formatMoney, convert } from "@/lib/currency";
 import { timeAgo, formatDate } from "@/lib/format";
+import { readableOn } from "@/lib/contrast-color";
 import { Modal, Spinner, Avatar } from "@/components/ui";
 import { NotesPanel, TasksPanel } from "@/components/record-panels";
 import { RecordTabs } from "@/components/agent-panel/record-tabs";
@@ -50,7 +51,7 @@ export function DealDetail({ id }: { id: string }) {
     return (
       <p className="py-10 text-center text-sm text-ink-muted">
         Deal not found.{" "}
-        <Link href="/deals" className="text-accent-600 underline">
+        <Link href="/deals" className="text-accent-700 underline">
           Back to deals
         </Link>
       </p>
@@ -85,7 +86,7 @@ export function DealDetail({ id }: { id: string }) {
         <div>
           <h1 className="text-xl font-bold tracking-tight md:text-2xl">{deal.name}</h1>
           <p className="mt-1 text-sm text-ink-muted">
-            <span className="text-base font-semibold text-accent-600 dark:text-accent-400">
+            <span className="text-base font-semibold text-accent-700 dark:text-accent-400">
               {formatMoney(deal.amount, deal.currency)}
             </span>
             {deal.currency !== "USD" && (
@@ -106,7 +107,7 @@ export function DealDetail({ id }: { id: string }) {
           <button
             onClick={remove}
             aria-label={`Delete ${deal.name}`}
-            className="btn-ghost !text-red-500"
+            className="btn-ghost !text-destructive"
           >
             <IconTrash width={15} height={15} />
           </button>
@@ -123,9 +124,11 @@ export function DealDetail({ id }: { id: string }) {
                 key={s.id}
                 onClick={() => !active && moveTo(s.id)}
                 className={`chip cursor-pointer !px-3 !py-1.5 transition ${
-                  active ? "text-white" : "border border-line text-ink-muted hover:border-accent-400"
+                  active ? "font-semibold" : "border border-line text-ink-muted hover:border-accent-400"
                 }`}
-                style={active ? { background: s.color } : undefined}
+                // The fill is workspace data, so the label colour is derived
+                // rather than assumed — white on an amber stage is unreadable.
+                style={active ? { background: s.color, color: readableOn(s.color) } : undefined}
                 title={`${s.winProbability}% win probability`}
               >
                 {s.name}
@@ -142,7 +145,7 @@ export function DealDetail({ id }: { id: string }) {
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Company</p>
               {company ? (
-                <Link href={`/companies/${company.id}`} className="mt-0.5 block text-sm text-accent-600 hover:underline dark:text-accent-400">
+                <Link href={`/companies/${company.id}`} className="mt-0.5 block text-sm text-accent-700 hover:underline dark:text-accent-400">
                   {company.name}
                 </Link>
               ) : (
@@ -152,7 +155,7 @@ export function DealDetail({ id }: { id: string }) {
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Primary contact</p>
               {contact ? (
-                <Link href={`/contacts/${contact.id}`} className="mt-0.5 flex items-center gap-2 text-sm text-accent-600 hover:underline dark:text-accent-400">
+                <Link href={`/contacts/${contact.id}`} className="mt-0.5 flex items-center gap-2 text-sm text-accent-700 hover:underline dark:text-accent-400">
                   <Avatar name={`${contact.firstName} ${contact.lastName}`} size={6} />
                   {contact.firstName} {contact.lastName}
                 </Link>

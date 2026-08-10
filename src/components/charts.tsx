@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -16,21 +16,71 @@ import {
 import { formatCompact } from "@/lib/currency";
 
 /**
- * Chart color tokens — validated with the dataviz palette checker for both
- * light (#fff) and dark (#111827) surfaces.
+ * Chart colours, resolved from the palette in globals.css.
+ *
+ * Recharts writes `fill`/`stroke` as SVG presentation attributes, where `var()`
+ * does not resolve — so the tokens are read off the document and handed over as
+ * concrete colour strings. Reading them (rather than repeating the hexes here)
+ * is what keeps the palette single-source: change a token and the charts follow.
+ *
+ * Categorical series use the neutral value ladder so a chart never competes
+ * with the one accent on the page; won/lost get the named semantic series,
+ * because that is a distinction the data itself makes.
  */
-export function useChartColors() {
-  const [dark, setDark] = useState(false);
-  useEffect(() => {
+const CHART_TOKENS = {
+  series: "--chart-2",
+  won: "--chart-positive",
+  lost: "--chart-negative",
+  grid: "--border",
+  text: "--text-muted",
+} as const;
+
+type ChartColors = Record<keyof typeof CHART_TOKENS, string>;
+
+function readChartColors(): ChartColors {
+  const styles = getComputedStyle(document.documentElement);
+  return Object.fromEntries(
+    Object.entries(CHART_TOKENS).map(([role, token]) => [
+      role,
+      styles.getPropertyValue(token).trim(),
+    ]),
+  ) as ChartColors;
+}
+
+/** Nothing to read from during a server render; the styles only exist client-side. */
+const NO_COLORS: ChartColors = { series: "", won: "", lost: "", grid: "", text: "" };
+
+/**
+ * Layout effects run before paint, plain effects run after. The distinction
+ * matters here and nowhere else in this file: Recharts writes these values
+ * straight into `fill`/`stroke`, and an empty string is an invalid presentation
+ * attribute — the bars would paint black for one frame. Reading in the initial
+ * state instead would fix the flash but break hydration, because the server has
+ * no computed styles to read.
+ */
+const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+export function useChartColors(): ChartColors {
+  const [colors, setColors] = useState<ChartColors>(NO_COLORS);
+
+  useBeforePaint(() => {
     const el = document.documentElement;
-    setDark(el.classList.contains("dark"));
-    const obs = new MutationObserver(() => setDark(el.classList.contains("dark")));
+    // Re-read on theme change, but keep the object identity when nothing moved:
+    // the observer fires for every class mutation on <html>, not just ours.
+    const sync = () =>
+      setColors((prev) => {
+        const next = readChartColors();
+        return (Object.keys(next) as (keyof ChartColors)[]).every((k) => next[k] === prev[k])
+          ? prev
+          : next;
+      });
+    sync();
+    const obs = new MutationObserver(sync);
     obs.observe(el, { attributes: true, attributeFilter: ["class"] });
     return () => obs.disconnect();
   }, []);
-  return dark
-    ? { series: "#7c86f5", won: "#0ea5a0", lost: "#e05252", grid: "#263043", text: "#8b98ad" }
-    : { series: "#4f46e5", won: "#059669", lost: "#dc2626", grid: "#e2e8f0", text: "#64748b" };
+
+  return colors;
 }
 
 const tooltipStyle = {

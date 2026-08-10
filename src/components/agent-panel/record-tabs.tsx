@@ -42,7 +42,7 @@ export function RecordTabs({
             aria-controls={`record-panel-${key}`}
             onClick={() => setTab(key)}
             className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-              tab === key ? "bg-accent-600/10 text-accent-600 dark:text-accent-400" : "text-ink-muted hover:bg-surface-2"
+              tab === key ? "bg-accent-600/10 text-accent-700 dark:text-accent-400" : "text-ink-muted hover:bg-surface-2"
             }`}
           >
             {key === "timeline" ? "Timeline" : "Agent"}
