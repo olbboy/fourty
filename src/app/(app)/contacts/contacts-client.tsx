@@ -9,10 +9,11 @@ import { PageHeader, Modal, Field, StatusChip, ScoreBadge, EmptyState, Spinner }
 import { IconPlus, IconDownload, IconUpload } from "@/components/icons";
 import { SavedViewsBar, type SavedView } from "@/components/saved-views";
 import { ContactForm } from "./contact-form";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -70,14 +71,22 @@ export function ContactsClient() {
         subtitle={contacts ? `${contacts.length} people` : undefined}
         actions={
           <>
-            <Button variant="outline" title="Export CSV" render={<a href="/api/export/contacts" />}>
+            <a
+              href="/api/export/contacts"
+              title="Export CSV"
+              className={cn(buttonVariants({ variant: "outline" }))}
+            >
               <IconDownload width={15} height={15} />
               <span className="hidden sm:inline">Export</span>
-            </Button>
-            <Button variant="outline" title="Import CSV" render={<Link href="/settings/import" />}>
+            </a>
+            <Link
+              href="/settings/import"
+              title="Import CSV"
+              className={cn(buttonVariants({ variant: "outline" }))}
+            >
               <IconUpload width={15} height={15} />
               <span className="hidden sm:inline">Import</span>
-            </Button>
+            </Link>
             <Button onClick={() => setShowNew(true)}>
               <IconPlus width={15} height={15} />
               <span className="hidden sm:inline">New contact</span>

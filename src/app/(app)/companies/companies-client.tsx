@@ -8,9 +8,10 @@ import { formatCompact } from "@/lib/currency";
 import { PageHeader, Modal, EmptyState, Spinner } from "@/components/ui";
 import { IconPlus, IconDownload } from "@/components/icons";
 import { CompanyForm } from "./company-form";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -46,10 +47,10 @@ export function CompaniesClient() {
         subtitle={companies ? `${companies.length} organizations` : undefined}
         actions={
           <>
-            <Button variant="outline" render={<a href="/api/export/companies" />}>
+            <a href="/api/export/companies" className={cn(buttonVariants({ variant: "outline" }))}>
               <IconDownload width={15} height={15} />
               <span className="hidden sm:inline">Export</span>
-            </Button>
+            </a>
             <Button onClick={() => setShowNew(true)}>
               <IconPlus width={15} height={15} />
               <span className="hidden sm:inline">New company</span>
