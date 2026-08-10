@@ -89,7 +89,7 @@ export function WorkflowsClient() {
             <div key={w.id} className="card flex flex-wrap items-center gap-3 p-4">
               <div
                 className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-                  w.enabled ? "bg-accent-600/15 text-accent-600 dark:text-accent-400" : "bg-surface-2 text-ink-muted"
+                  w.enabled ? "bg-accent-600/15 text-accent-700 dark:text-accent-400" : "bg-surface-2 text-ink-muted"
                 }`}
               >
                 <IconZap width={17} height={17} />
@@ -104,7 +104,7 @@ export function WorkflowsClient() {
               </div>
               <button
                 onClick={() => openRuns(w)}
-                className="text-xs text-ink-muted transition hover:text-accent-600"
+                className="text-xs text-ink-muted transition hover:text-accent-700"
               >
                 {w.runCount} run{w.runCount === 1 ? "" : "s"}
                 {w.lastRunAt ? ` · last ${timeAgo(w.lastRunAt)}` : ""}

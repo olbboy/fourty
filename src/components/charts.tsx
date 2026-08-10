@@ -16,21 +16,58 @@ import {
 import { formatCompact } from "@/lib/currency";
 
 /**
- * Chart color tokens — validated with the dataviz palette checker for both
- * light (#fff) and dark (#111827) surfaces.
+ * Chart colours, resolved from the palette in globals.css.
+ *
+ * Recharts writes `fill`/`stroke` as SVG presentation attributes, where `var()`
+ * does not resolve — so the tokens are read off the document and handed over as
+ * concrete colour strings. Reading them (rather than repeating the hexes here)
+ * is what keeps the palette single-source: change a token and the charts follow.
+ *
+ * Categorical series use the neutral value ladder so a chart never competes
+ * with the one accent on the page; won/lost get the named semantic series,
+ * because that is a distinction the data itself makes.
  */
-export function useChartColors() {
-  const [dark, setDark] = useState(false);
+const CHART_TOKENS = {
+  series: "--chart-2",
+  won: "--chart-positive",
+  lost: "--chart-negative",
+  grid: "--border",
+  text: "--text-muted",
+} as const;
+
+type ChartColors = Record<keyof typeof CHART_TOKENS, string>;
+
+function readChartColors(): ChartColors {
+  const styles = getComputedStyle(document.documentElement);
+  return Object.fromEntries(
+    Object.entries(CHART_TOKENS).map(([role, token]) => [
+      role,
+      styles.getPropertyValue(token).trim(),
+    ]),
+  ) as ChartColors;
+}
+
+export function useChartColors(): ChartColors {
+  // Server render and first paint have no computed styles to read; empty
+  // strings let Recharts fall back to its own defaults for that one frame.
+  const [colors, setColors] = useState<ChartColors>(() => ({
+    series: "",
+    won: "",
+    lost: "",
+    grid: "",
+    text: "",
+  }));
+
   useEffect(() => {
     const el = document.documentElement;
-    setDark(el.classList.contains("dark"));
-    const obs = new MutationObserver(() => setDark(el.classList.contains("dark")));
+    const sync = () => setColors(readChartColors());
+    sync();
+    const obs = new MutationObserver(sync);
     obs.observe(el, { attributes: true, attributeFilter: ["class"] });
     return () => obs.disconnect();
   }, []);
-  return dark
-    ? { series: "#7c86f5", won: "#0ea5a0", lost: "#e05252", grid: "#263043", text: "#8b98ad" }
-    : { series: "#4f46e5", won: "#059669", lost: "#dc2626", grid: "#e2e8f0", text: "#64748b" };
+
+  return colors;
 }
 
 const tooltipStyle = {

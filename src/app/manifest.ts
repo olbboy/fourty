@@ -7,8 +7,11 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "The open-source CRM that deploys in 30 seconds.",
     start_url: "/dashboard",
     display: "standalone",
-    background_color: "#0b0f1a",
-    theme_color: "#4f46e5",
+    // sRGB approximations of the palette: --bg in dark, and the brand mark's
+    // own orange. A manifest cannot read custom properties, so these are the
+    // one place outside globals.css that repeats a palette value.
+    background_color: "#131110",
+    theme_color: "#f86008",
     icons: [
       { src: "/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
     ],

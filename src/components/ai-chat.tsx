@@ -156,7 +156,7 @@ export function AiChat({ enabled }: { enabled: boolean }) {
       <button
         onClick={() => setOpen(true)}
         aria-label={L.open}
-        className="fixed bottom-20 right-4 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-accent-600 text-white shadow-lg transition hover:bg-accent-700 md:bottom-6"
+        className="fixed bottom-20 right-4 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition hover:bg-accent-600 md:bottom-6"
       >
         <IconZap width={18} height={18} />
       </button>
@@ -173,7 +173,7 @@ export function AiChat({ enabled }: { enabled: boolean }) {
           >
             <div className="flex items-center justify-between border-b border-line px-4 py-3">
               <div className="flex items-center gap-2 font-semibold">
-                <IconZap width={16} height={16} className="text-accent-600" />
+                <IconZap width={16} height={16} className="text-accent-700" />
                 {L.title}
               </div>
               <button onClick={() => setOpen(false)} className="btn-ghost !px-2" aria-label={L.close}>
@@ -234,8 +234,11 @@ function ChatItem({
   disabled: boolean;
 }) {
   if (item.kind === "user") {
+    // The tinted accent step, not a solid fill: at bubble size a flat brand
+    // orange reads like a caution banner and swamps the panel. Same hue, a
+    // tenth of the weight. Solid fills stay on small controls.
     return (
-      <div className="ml-auto max-w-[85%] rounded-2xl rounded-tr-sm bg-accent-600 px-3 py-2 text-sm text-white">
+      <div className="ml-auto max-w-[85%] rounded-2xl rounded-tr-sm bg-accent-100 px-3 py-2 text-sm text-accent-900">
         {item.content}
       </div>
     );

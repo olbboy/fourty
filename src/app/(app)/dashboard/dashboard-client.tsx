@@ -152,7 +152,7 @@ export function DashboardClient() {
             ))}
             {stats.dueTasks.length === 0 && <p className="text-sm text-ink-muted">Nothing due. 🎉</p>}
           </div>
-          <Link href="/tasks" className="mt-3 block text-xs font-medium text-accent-600 hover:underline dark:text-accent-400">
+          <Link href="/tasks" className="mt-3 block text-xs font-medium text-accent-700 hover:underline dark:text-accent-400">
             All tasks →
           </Link>
         </div>

@@ -144,12 +144,15 @@ export function StatusChip({ status }: { status: string }) {
 
 export function ScoreBadge({ score }: { score: number }) {
   const label = score >= 70 ? "hot" : score >= 40 ? "warm" : "cold";
+  // The band scale runs red → amber → blue, not orange → amber → sky: an orange
+  // "hot" chip sitting beside the brand-orange primary button stops meaning
+  // anything. Each chip is a 10% wash behind saturated text, never a solid fill.
   const style =
     label === "hot"
-      ? "bg-orange-500/10 text-orange-600 dark:text-orange-300"
+      ? "bg-red-500/10 text-red-600 dark:text-red-300"
       : label === "warm"
         ? "bg-amber-500/10 text-amber-600 dark:text-amber-300"
-        : "bg-sky-500/10 text-sky-600 dark:text-sky-300";
+        : "bg-blue-500/10 text-blue-600 dark:text-blue-300";
   return (
     <span
       className={`chip ${style}`}
@@ -180,7 +183,7 @@ export function Avatar({ name, size = 8 }: { name: string; size?: number }) {
       className="shrink-0"
       style={{ width: size * 4, height: size * 4 }}
     >
-      <AvatarFallback className="bg-accent-600/15 text-xs font-bold text-accent-600 dark:text-accent-400">
+      <AvatarFallback className="bg-accent-600/15 text-xs font-bold text-accent-700 dark:text-accent-400">
         {initials(name || "?")}
       </AvatarFallback>
     </ShadcnAvatar>
@@ -212,7 +215,7 @@ export function EmptyState({
 export function Spinner() {
   return (
     <div className="flex justify-center py-10">
-      <ShadcnSpinner className="size-6 text-accent-600" />
+      <ShadcnSpinner className="size-6 text-accent-700" />
     </div>
   );
 }

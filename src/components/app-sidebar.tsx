@@ -125,7 +125,7 @@ function NavUser({
             render={<SidebarMenuButton size="lg" tooltip={user.name} />}
           >
             <Avatar className="size-8 rounded-lg">
-              <AvatarFallback className="rounded-lg bg-accent-600/15 text-xs font-bold text-accent-600 dark:text-accent-400">
+              <AvatarFallback className="rounded-lg bg-accent-600/15 text-xs font-bold text-accent-700 dark:text-accent-400">
                 {initials(user.name || "?")}
               </AvatarFallback>
             </Avatar>
@@ -149,7 +149,7 @@ function NavUser({
               <DropdownMenuLabel className="p-0 font-normal">
                 <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                   <Avatar className="size-8 rounded-lg">
-                    <AvatarFallback className="rounded-lg bg-accent-600/15 text-xs font-bold text-accent-600 dark:text-accent-400">
+                    <AvatarFallback className="rounded-lg bg-accent-600/15 text-xs font-bold text-accent-700 dark:text-accent-400">
                       {initials(user.name || "?")}
                     </AvatarFallback>
                   </Avatar>
@@ -201,7 +201,7 @@ export function AppSidebar({
               tooltip="Fourty"
               render={<Link href="/dashboard" />}
             >
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-accent-600 text-sm font-extrabold text-white">
+              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-sm font-extrabold text-primary-foreground">
                 40
               </div>
               <span className="text-lg font-bold tracking-tight">Fourty</span>

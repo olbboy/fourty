@@ -429,8 +429,9 @@ function TranscriptRow({
   disabled: boolean;
 }) {
   if (item.kind === "user") {
+    // Tinted, not filled — see the note on the same bubble in ai-chat.tsx.
     return (
-      <div className="ml-auto max-w-[85%] rounded-2xl rounded-tr-sm bg-accent-600 px-3 py-2 text-sm text-white">
+      <div className="ml-auto max-w-[85%] rounded-2xl rounded-tr-sm bg-accent-100 px-3 py-2 text-sm text-accent-900">
         {item.content}
       </div>
     );

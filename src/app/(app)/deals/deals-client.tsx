@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Company, Contact, Deal, Pipeline, Stage } from "@/lib/types";
 import { convert, formatCompact, formatMoney } from "@/lib/currency";
 import { timeAgo, formatDate } from "@/lib/format";
+import { readableInk } from "@/lib/contrast-color";
 import { PageHeader, Modal, EmptyState, Spinner } from "@/components/ui";
 import { IconPlus, IconKanban, IconList, IconDownload } from "@/components/icons";
 import { DealForm } from "./deal-form";
@@ -102,14 +103,14 @@ export function DealsClient() {
             <div className="flex rounded-lg border border-line">
               <button
                 onClick={() => setView("kanban")}
-                className={`px-2.5 py-2 ${view === "kanban" ? "bg-accent-600/10 text-accent-600" : "text-ink-muted"} rounded-l-lg`}
+                className={`px-2.5 py-2 ${view === "kanban" ? "bg-accent-600/10 text-accent-700" : "text-ink-muted"} rounded-l-lg`}
                 aria-label="Kanban view"
               >
                 <IconKanban width={16} height={16} />
               </button>
               <button
                 onClick={() => setView("list")}
-                className={`px-2.5 py-2 ${view === "list" ? "bg-accent-600/10 text-accent-600" : "text-ink-muted"} rounded-r-lg`}
+                className={`px-2.5 py-2 ${view === "list" ? "bg-accent-600/10 text-accent-700" : "text-ink-muted"} rounded-r-lg`}
                 aria-label="List view"
               >
                 <IconList width={16} height={16} />
@@ -199,7 +200,7 @@ export function DealsClient() {
                         }`}
                       >
                         <p className="text-sm font-medium leading-snug">{deal.name}</p>
-                        <p className="mt-1 text-sm font-semibold text-accent-600 dark:text-accent-400">
+                        <p className="mt-1 text-sm font-semibold text-accent-700 dark:text-accent-400">
                           {formatMoney(deal.amount, deal.currency)}
                         </p>
                         <div className="mt-1.5 flex items-center justify-between text-xs text-ink-muted">
@@ -252,7 +253,7 @@ export function DealsClient() {
                       {stage && (
                         <span
                           className="chip"
-                          style={{ background: `${stage.color}20`, color: stage.color }}
+                          style={{ background: `${stage.color}20`, color: readableInk(stage.color) }}
                         >
                           {stage.name}
                         </span>

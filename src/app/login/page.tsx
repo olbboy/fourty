@@ -38,7 +38,7 @@ export default async function LoginPage({
     <main className="flex min-h-dvh items-center justify-center p-4">
       <div className="w-full max-w-sm animate-fade-up">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-600 text-xl font-extrabold text-white shadow-lg shadow-accent-600/30">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-xl font-extrabold text-primary-foreground shadow-lg shadow-accent-600/30">
             40
           </div>
           <div>

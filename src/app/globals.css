@@ -5,19 +5,28 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --color-accent-50: #eef2ff;
-  --color-accent-100: #e0e7ff;
-  --color-accent-200: #c7d2fe;
-  --color-accent-300: #a5b4fc;
-  --color-accent-400: #818cf8;
-  --color-accent-500: #6366f1;
-  --color-accent-600: #4f46e5;
-  --color-accent-700: #4338ca;
-  --color-accent-800: #3730a3;
-  --color-accent-900: #312e81;
+  /* The accent ramp is built on the brand mark's own orange: step 500 is the
+     O in the 4OURTY wordmark (#f86008), converted to oklch. The steps around it
+     are the working range — 600 for hover, 700 for accent-coloured TEXT, 50 for
+     the single wash. Declared in oklch so lightening a step is one number. */
+  --color-accent-50: oklch(0.98 0.016 73.684);
+  --color-accent-100: oklch(0.954 0.038 75.164);
+  --color-accent-200: oklch(0.901 0.076 70.697);
+  --color-accent-300: oklch(0.837 0.128 66.29);
+  --color-accent-400: oklch(0.757 0.174 52);
+  --color-accent-500: oklch(0.678 0.202 42.07);
+  --color-accent-600: oklch(0.616 0.196 40);
+  --color-accent-700: oklch(0.553 0.195 38.402);
+  --color-accent-800: oklch(0.47 0.157 37.304);
+  --color-accent-900: oklch(0.408 0.123 38.172);
 
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
     Arial, sans-serif;
+  /* Display face for brand and editorial surfaces only — never inside the
+     product UI, where weight and tracking carry hierarchy instead. Always pair
+     with font-stretch: 125%; at normal width Archivo is just another grotesque,
+     and it is the expanded width that echoes the wordmark. */
+  --font-display: Archivo, "Inter Tight", ui-sans-serif, system-ui, sans-serif;
 }
 
 /*
@@ -33,12 +42,21 @@
  * in layer 2.
  */
 :root {
-  --bg: #f8fafc;
-  --surface: #ffffff;
-  --surface-2: #f1f5f9;
-  --border: #e2e8f0;
-  --text: #0f172a;
-  --text-muted: #64748b;
+  /* The brand mark itself. */
+  --brand-orange: var(--color-accent-500); /* #f86008 — the O in 4OURTY */
+  --brand-ink: #101010; /* the letterforms */
+
+  /* Neutrals are warm stone, not cool slate: genuinely tinted at chroma
+     .004–.016 on the brand's own warm axis (~58deg). A neutral that shares a
+     hue family with the accent is what makes one saturated colour look chosen
+     rather than dropped in. The page ground sits a hair off white so a white
+     card lifts off it without needing a shadow; --surface stays pure white. */
+  --bg: oklch(0.988 0.004 62);
+  --surface: oklch(1 0 0);
+  --surface-2: oklch(0.968 0.006 60);
+  --border: oklch(0.918 0.008 60);
+  --text: oklch(0.16 0.008 55);
+  --text-muted: oklch(0.52 0.016 58);
 
   /* shadcn semantics → Fourty palette */
   --background: var(--bg);
@@ -47,8 +65,13 @@
   --card-foreground: var(--text);
   --popover: var(--surface);
   --popover-foreground: var(--text);
-  --primary: var(--color-accent-600);
-  --primary-foreground: #ffffff;
+  --primary: var(--color-accent-500);
+  /* Ink, not white. At L .678 the brand orange gives white only 2.9:1 and the
+     mark's own black 6.0:1 — and black-on-orange is the pairing the logo makes.
+     The rule that follows: --primary is for FILLS. Anything drawn in the accent
+     that is not a fill — link text, an accent icon, the spinner ring — uses
+     --color-accent-700, because the flat orange clears only 2.9:1 on white. */
+  --primary-foreground: var(--brand-ink);
   --secondary: var(--surface-2);
   --secondary-foreground: var(--text);
   --muted: var(--surface-2);
@@ -58,49 +81,65 @@
      because Tailwind emits `bg-accent` vs `bg-accent-600`. */
   --accent: var(--surface-2);
   --accent-foreground: var(--text);
-  --destructive: #dc2626;
+  --destructive: oklch(0.577 0.245 27.325);
   --input: var(--border);
-  --ring: var(--color-accent-500);
+  /* Focus is a shape cue, so the ring is a warm neutral — the orange stays
+     reserved for the primary action. */
+  --ring: oklch(0.709 0.014 58);
   --radius: 0.625rem;
 
-  /* Chart series — the palette charts.tsx already validated for contrast. */
-  --chart-1: #4f46e5;
-  --chart-2: #059669;
-  --chart-3: #dc2626;
-  --chart-4: #d97706;
-  --chart-5: #0891b2;
+  /* Chart series are a VALUE ladder, not a hue palette: five warm neutrals told
+     apart by lightness, so a chart never competes with the one orange on the
+     page. Three named series exist for when the data itself carries meaning —
+     charts.tsx genuinely plots won against lost, and painting those the same
+     grey would throw away the point of the chart. */
+  --chart-1: oklch(0.869 0.008 58);
+  --chart-2: oklch(0.552 0.016 58);
+  --chart-3: oklch(0.444 0.014 62);
+  --chart-4: oklch(0.374 0.012 60);
+  --chart-5: oklch(0.268 0.01 45);
+  --chart-accent: var(--color-accent-500);
+  --chart-positive: oklch(0.596 0.145 163.225);
+  --chart-negative: oklch(0.577 0.245 27.325);
 
-  --sidebar: var(--surface);
+  /* The rail sits one step off white so it reads as chrome. */
+  --sidebar: oklch(0.978 0.005 60);
   --sidebar-foreground: var(--text);
-  --sidebar-primary: var(--color-accent-600);
-  --sidebar-primary-foreground: #ffffff;
+  --sidebar-primary: var(--color-accent-500);
+  --sidebar-primary-foreground: var(--brand-ink);
   --sidebar-accent: var(--surface-2);
   --sidebar-accent-foreground: var(--text);
   --sidebar-border: var(--border);
-  --sidebar-ring: var(--color-accent-500);
+  --sidebar-ring: oklch(0.709 0.014 58);
 }
 
 .dark {
-  --bg: #0b0f1a;
-  --surface: #111827;
-  --surface-2: #1a2234;
-  --border: #263043;
-  --text: #e5e9f0;
-  --text-muted: #8b98ad;
+  --bg: oklch(0.16 0.008 55);
+  --surface: oklch(0.216 0.009 56);
+  --surface-2: oklch(0.268 0.011 48);
+  --border: oklch(1 0 0 / 10%);
+  --text: oklch(0.985 0.003 70);
+  --text-muted: oklch(0.709 0.014 58);
 
   /* Only the values that need to diverge in dark; the rest inherit the
      aliases above, which already point at the overridden palette. */
   --primary: var(--color-accent-500);
-  --primary-foreground: #ffffff;
-  --destructive: #e05252;
+  --primary-foreground: var(--brand-ink);
+  --secondary: oklch(0.274 0.01 56);
+  --secondary-foreground: var(--text);
+  --destructive: oklch(0.704 0.191 22.216);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.552 0.016 58);
 
-  --chart-1: #7c86f5;
-  --chart-2: #0ea5a0;
-  --chart-3: #e05252;
-  --chart-4: #f0a020;
-  --chart-5: #38bdf8;
+  --chart-1: oklch(0.869 0.008 58);
+  --chart-positive: oklch(0.765 0.177 163.223);
+  --chart-negative: oklch(0.704 0.191 22.216);
 
-  --sidebar-primary: var(--color-accent-500);
+  --sidebar: oklch(0.216 0.009 56);
+  /* One step lighter than the light-mode fill: on a dark rail the 500 orange
+     is heavier than it needs to be. */
+  --sidebar-primary: var(--color-accent-400);
+  --sidebar-ring: oklch(0.552 0.016 58);
 }
 
 @theme inline {
@@ -159,8 +198,9 @@
 }
 
 /* Base form controls — consistent everywhere without a component lib */
+/* Focus is a shape cue, so the halo is the warm neutral --ring, not the accent. */
 .input {
-  @apply w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink outline-none transition focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 placeholder:text-ink-muted/60;
+  @apply w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/50 placeholder:text-ink-muted/60;
 }
 
 .btn-primary,
@@ -169,8 +209,9 @@
   @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
 }
 
+/* A filled accent control carries ink, not white — see --primary-foreground. */
 .btn-primary {
-  @apply bg-accent-600 text-white hover:bg-accent-700 active:bg-accent-800;
+  @apply bg-primary text-primary-foreground hover:bg-accent-600 active:bg-accent-700;
 }
 
 .btn-ghost {
@@ -206,6 +247,19 @@
   @apply px-3 py-2.5 text-sm;
 }
 
+/* Motion is short, functional, and opacity-plus-4px. Nothing bounces, nothing
+   springs, nothing scales up on hover. */
+:root {
+  --duration-fast: 120ms;
+  --duration-base: 150ms;
+  --duration-enter: 180ms;
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  /* Exponential ease-out: things arrive fast and settle. Use it for anything
+     that enters or expands; --ease-out stays for small state changes. */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 @keyframes fade-up {
   from {
     opacity: 0;
@@ -218,7 +272,32 @@
 }
 
 .animate-fade-up {
-  animation: fade-up 0.18s ease-out;
+  animation: fade-up var(--duration-enter) var(--ease-out-expo);
+}
+
+/* Reduced motion needs an alternative, not just a cancellation: the entrance
+   still resolves, it just arrives without travelling. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 1ms;
+    --duration-base: 1ms;
+    --duration-enter: 1ms;
+  }
+
+  .animate-fade-up {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 @layer base {

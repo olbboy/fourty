@@ -123,7 +123,7 @@ export function ReportsClient() {
               {data.aging.map((d) => (
                 <tr key={d.id} className="border-b border-line/60 last:border-0">
                   <td className="td">
-                    <Link href={`/deals/${d.id}`} className="font-medium text-accent-600 hover:underline dark:text-accent-400">
+                    <Link href={`/deals/${d.id}`} className="font-medium text-accent-700 hover:underline dark:text-accent-400">
                       {d.name}
                     </Link>
                   </td>

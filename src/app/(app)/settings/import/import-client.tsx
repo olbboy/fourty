@@ -80,7 +80,7 @@ export function ImportClient() {
             {result.created} contacts created · {result.companiesCreated} companies auto-created ·{" "}
             {result.skipped} rows skipped (duplicates or missing name) · {result.total} rows total
           </p>
-          <Link href="/contacts" className="inline-block pt-1 text-sm font-medium text-accent-600 hover:underline dark:text-accent-400">
+          <Link href="/contacts" className="inline-block pt-1 text-sm font-medium text-accent-700 hover:underline dark:text-accent-400">
             View contacts →
           </Link>
         </div>
