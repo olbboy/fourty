@@ -97,6 +97,25 @@ Triaged as legitimate; a warn NOT in this list is new and should be looked at.
   lowercase slug shows up verbatim in the trigger. Give items values that read as
   labels.
 
+## Two card families the converter does not manage
+
+`guidelines/` and `screens/` are written AFTER the converter, by
+`npm run build:ds-foundations` and `npm run build:ds-screens`. Run both on every
+sync — the converter rewrites `guidelines/` from `guidelinesGlob` (markdown
+only; it skips HTML by design) and knows nothing about `screens/`.
+
+They fail differently, which is why only one of them has a test that can catch a
+wrong VALUE:
+
+- **guidelines** paint from `var(--token)`, so they cannot show a stale colour.
+  A renamed token leaves a blank swatch instead.
+- **screens** CALL component APIs. When a component changes shape a screen
+  renders wrong or throws, and nothing else in the repo notices.
+
+`tests/ds-cards.test.ts` renders every card in both families headlessly. It
+skips when `ds-bundle/` is absent, so a fresh clone still passes — it is a drift
+guard for whoever builds, not a gate on the app's test run.
+
 ## Re-sync risks
 
 - **`cssEntry` is a build artifact, not a source file.** If the stylesheet is

@@ -37,7 +37,7 @@ const META: Record<string, { name: string; subtitle: string; viewport: string }>
   contacts: { name: "Contacts", subtitle: "Table with avatar, status and score", viewport: "1440x760" },
   "contact-detail": { name: "Contact detail", subtitle: "Record page: details, timeline, related", viewport: "1440x900" },
   settings: { name: "Settings", subtitle: "Form rows, switches and a members table", viewport: "1440x820" },
-  overlays: { name: "Overlays", subtitle: "Dialog, command palette and a menu, open", viewport: "1440x820" },
+  overlays: { name: "Command palette in situ", subtitle: "An overlay over the page it was opened from", viewport: "1440x900" },
 };
 
 const card = (slug: string) => {

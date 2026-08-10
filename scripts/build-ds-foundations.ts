@@ -121,7 +121,9 @@ const CARDS: Record<string, string> = {
       ["low", "low"],
     ]
       .map(([k, l]) => chip(`--priority-${k}`, `--priority-${k}-wash`, l))
-      .join("")}</div>`,
+      .join("")}</div>
+     <p class="note">Priority shares the wash idiom with status and score, so the three
+     read as one family rather than three inventions.</p>`,
   ),
 
   "color-charts.html": SHELL(
