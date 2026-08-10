@@ -6,6 +6,7 @@ import { formatCompact, formatMoney } from "@/lib/currency";
 import { formatDate } from "@/lib/format";
 import { Spinner, PriorityChip, ScoreBadge, KpiCard } from "@/components/ui";
 import { MoneyBarChart, CountBarChart, FunnelChart } from "@/components/charts";
+import { Card } from "@/components/ui/card";
 
 type Stats = {
   kpis: {
@@ -86,21 +87,21 @@ export function DashboardClient() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="card p-4">
+        <Card size="flush" className="p-4">
           <h2 className="mb-1 text-sm font-semibold">Won revenue by month</h2>
           <p className="mb-3 text-xs text-ink-muted">USD equivalent, last 6 months</p>
           <MoneyBarChart data={stats.revenueByMonth} xKey="month" yKey="won" />
-        </div>
-        <div className="card p-4">
+        </Card>
+        <Card size="flush" className="p-4">
           <h2 className="mb-1 text-sm font-semibold">Pipeline funnel</h2>
           <p className="mb-3 text-xs text-ink-muted">Open value by stage</p>
           <FunnelChart data={stats.funnel} />
-        </div>
+        </Card>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="card p-4">
-          <h2 className="mb-3 text-sm font-semibold">🔥 Hottest leads</h2>
+        <Card size="flush" className="p-4">
+          <h2 className="mb-3 text-sm font-semibold">Hottest leads</h2>
           <div className="space-y-2">
             {stats.hotLeads.map((l) => (
               <Link
@@ -119,13 +120,13 @@ export function DashboardClient() {
               <p className="text-sm text-ink-muted">Add contacts to see lead scores.</p>
             )}
           </div>
-        </div>
+        </Card>
 
-        <div className="card p-4">
+        <Card size="flush" className="p-4">
           <h2 className="mb-3 text-sm font-semibold">
             Tasks due{" "}
             {kpis.overdueTasks > 0 && (
-              <span className="chip bg-red-500/10 text-red-700 dark:text-red-300">{kpis.overdueTasks} overdue</span>
+              <span className="chip bg-feedback-error-wash text-feedback-error">{kpis.overdueTasks} overdue</span>
             )}
           </h2>
           <div className="space-y-2">
@@ -134,21 +135,21 @@ export function DashboardClient() {
                 <p className="min-w-0 truncate text-sm">{t.title}</p>
                 <div className="flex shrink-0 items-center gap-1.5">
                   <PriorityChip priority={t.priority} />
-                  <span className={`text-xs ${t.overdue ? "font-semibold text-destructive" : "text-ink-muted"}`}>
+                  <span className={`text-xs ${t.overdue ? "font-semibold text-feedback-error" : "text-ink-muted"}`}>
                     {formatDate(t.dueDate)}
                   </span>
                 </div>
               </div>
             ))}
-            {stats.dueTasks.length === 0 && <p className="text-sm text-ink-muted">Nothing due. 🎉</p>}
+            {stats.dueTasks.length === 0 && <p className="text-sm text-ink-muted">Nothing due.</p>}
           </div>
           <Link href="/tasks" className="mt-3 block text-xs font-medium text-accent-700 hover:underline dark:text-accent-400">
             All tasks →
           </Link>
-        </div>
+        </Card>
 
-        <div className="card p-4">
-          <h2 className="mb-3 text-sm font-semibold">⚠️ Stale deals</h2>
+        <Card size="flush" className="p-4">
+          <h2 className="mb-3 text-sm font-semibold">Stale deals</h2>
           <p className="mb-2 text-xs text-ink-muted">In the same stage for 14+ days</p>
           <div className="space-y-2">
             {stats.staleDeals.map((d) => (
@@ -163,7 +164,7 @@ export function DashboardClient() {
                     {formatMoney(d.amount, d.currency)} · {d.stage}
                   </p>
                 </div>
-                <span className="shrink-0 text-xs font-semibold text-amber-500">
+                <span className="shrink-0 text-xs font-semibold text-feedback-warn">
                   {d.daysInStage}d
                 </span>
               </Link>
@@ -172,14 +173,14 @@ export function DashboardClient() {
               <p className="text-sm text-ink-muted">No stuck deals. Keep it moving!</p>
             )}
           </div>
-        </div>
+        </Card>
       </div>
 
-      <div className="card p-4">
+      <Card size="flush" className="p-4">
         <h2 className="mb-1 text-sm font-semibold">Team activity</h2>
         <p className="mb-3 text-xs text-ink-muted">Touchpoints and record changes per week</p>
         <CountBarChart data={stats.activityByWeek} xKey="week" yKey="count" label="Activities" height={180} />
-      </div>
+      </Card>
     </div>
   );
 }

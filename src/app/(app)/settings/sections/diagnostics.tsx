@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Spinner } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
 
 /**
  * Settings → Diagnostics (Phase 0). Read-only list of what this workspace can
@@ -79,7 +82,7 @@ export function DiagnosticsSection() {
   if (hidden) return null;
 
   return (
-    <div className="card p-4">
+    <Card size="flush" className="p-4">
       <h2 className="mb-1 text-sm font-semibold">Diagnostics</h2>
       <p className="mb-3 text-sm text-ink-muted">
         What this workspace can reach. The assistant is told exactly this list, so it stops planning
@@ -95,7 +98,7 @@ export function DiagnosticsSection() {
               <span
                 className={`mt-0.5 rounded px-1.5 py-0.5 text-xs font-medium ${
                   c.on
-                    ? "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
+                    ? "bg-feedback-ok-wash text-feedback-ok"
                     : "bg-surface-2 text-ink-muted"
                 }`}
               >
@@ -145,23 +148,21 @@ export function DiagnosticsSection() {
           One line, at most {aboutMax} characters. It opens the assistant&apos;s prompt, so it should
           read like an introduction to a new rep: what you sell and to whom.
         </p>
-        <input
+        <Input
           id="workspace-about"
           value={about}
           maxLength={aboutMax}
           onChange={(e) => setAbout(e.target.value)}
-          className="input"
-          placeholder="We sell fleet telematics to mid-size logistics operators in the EU."
-        />
+          placeholder="We sell fleet telematics to mid-size logistics operators in the EU." />
         <div className="mt-2 flex items-center gap-3">
-          <button type="submit" className="btn-primary" disabled={saving || about === saved}>
+          <Button type="submit" disabled={saving || about === saved}>
             {saving ? "Saving…" : "Save"}
-          </button>
+          </Button>
           <span className="text-xs text-ink-muted">
             {about.length}/{aboutMax}
           </span>
         </div>
       </form>
-    </div>
+    </Card>
   );
 }

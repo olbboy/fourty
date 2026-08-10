@@ -43,3 +43,11 @@
 @source inline("{bg,text,border}-{primary,accent-600,accent-700,destructive,muted}/{5,10,15,20,30,50,80}");
 @source inline("font-{sans,display}");
 @source inline("ring-ring/50");
+/* Feedback semantics — the outcome of an action (banner, status pill, inline
+   result). Same wash-behind-saturated-text construction as the record chips. */
+@source inline("{bg,text,border}-feedback-{ok,warn,error}");
+@source inline("bg-feedback-{ok,warn,error}-wash");
+@source inline("border-feedback-{ok,warn,error}/{20,25,30}");
+/* Ink at weight — the timeline dot ladder, and anything else that needs a
+   quieter step of the text colour than --ink-muted. */
+@source inline("bg-{ink,ink-muted}/{50,60,70}");

@@ -2,9 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { timeAgo } from "@/lib/format";
-import { Spinner } from "@/components/ui";
+import { Spinner, useConfirm } from "@/components/ui";
 import { IconPlus, IconTrash } from "@/components/icons";
 import { ROLES } from "@/lib/permissions";
+import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
 
 type Member = {
   userId: string;
@@ -16,6 +20,7 @@ type Member = {
 };
 
 export function MembersSection() {
+  const [askConfirm, confirmDialog] = useConfirm();
   const [members, setMembers] = useState<Member[] | null>(null);
   const [adminOnly, setAdminOnly] = useState(false);
   const [email, setEmail] = useState("");
@@ -63,7 +68,12 @@ export function MembersSection() {
   }
 
   async function remove(m: Member) {
-    if (!confirm(`Remove ${m.name} from this workspace? They lose access immediately.`)) return;
+    const ok = await askConfirm({
+      title: `Remove ${m.name} from this workspace?`,
+      body: "They lose access immediately.",
+      confirmLabel: "Remove",
+    });
+    if (!ok) return;
     const res = await fetch(`/api/members/${m.userId}`, { method: "DELETE" });
     if (!res.ok) alert((await res.json().catch(() => ({}))).error ?? "Failed to remove");
     load();
@@ -73,7 +83,7 @@ export function MembersSection() {
   if (adminOnly) return null;
 
   return (
-    <div className="card p-4">
+    <Card size="flush" className="p-4">
       <div className="mb-3">
         <h2 className="text-sm font-semibold">Team members</h2>
         <p className="text-sm text-ink-muted">
@@ -84,35 +94,31 @@ export function MembersSection() {
       <div className="mb-3 flex flex-wrap gap-2">
         {/* An unlabelled invite row: the placeholder is a fallback name at best
             and the role picker has nothing at all. */}
-        <input
+        <Input
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && sendInvite()}
           aria-label="Email address to invite"
-          className="input max-w-xs"
           placeholder="teammate@company.com"
-          type="email"
-        />
-        <select
+          type="email" className="max-w-xs" />
+        <NativeSelect
           value={role}
           onChange={(e) => setRole(e.target.value)}
-          aria-label="Role for the invitee"
-          className="input max-w-[8rem]"
-        >
+          aria-label="Role for the invitee" className="max-w-[8rem]">
           {ROLES.map((r) => (
             <option key={r} value={r}>
               {r}
             </option>
           ))}
-        </select>
-        <button onClick={sendInvite} disabled={!email.trim()} className="btn-primary">
+        </NativeSelect>
+        <Button onClick={sendInvite} disabled={!email.trim()}>
           <IconPlus width={15} height={15} /> Invite
-        </button>
+        </Button>
       </div>
-      {error && <p className="mb-3 text-sm text-destructive">{error}</p>}
+      {error && <p className="mb-3 text-sm text-feedback-error">{error}</p>}
       {invite && (
-        <div className="mb-3 rounded-lg border border-amber-400/40 bg-amber-500/10 p-3">
-          <p className="mb-1 text-xs font-semibold text-amber-600 dark:text-amber-300">
+        <div className="mb-3 rounded-lg border border-feedback-warn/20 bg-feedback-warn-wash p-3">
+          <p className="mb-1 text-xs font-semibold text-feedback-warn">
             Share this invite token — the invitee redeems it to join (shown once):
           </p>
           <code className="block select-all break-all rounded bg-surface px-2 py-1.5 text-xs">
@@ -139,31 +145,28 @@ export function MembersSection() {
                 <>
                   {/* One control per row, so each needs the member's name in its
                       own label — the visible text sits in a sibling element. */}
-                  <select
+                  <NativeSelect
                     value={m.role}
                     onChange={(e) => changeRole(m, e.target.value)}
-                    aria-label={`Role for ${m.name}`}
-                    className="input !w-auto !py-1 text-xs"
-                  >
+                    aria-label={`Role for ${m.name}`} size="sm">
                     {ROLES.map((r) => (
                       <option key={r} value={r}>
                         {r}
                       </option>
                     ))}
-                  </select>
-                  <button
+                  </NativeSelect>
+                  <Button
                     onClick={() => remove(m)}
-                    aria-label={`Remove ${m.name}`}
-                    className="btn-ghost !px-2 !text-red-400"
-                  >
+                    aria-label={`Remove ${m.name}`} variant="outline" size="icon-sm" className="text-feedback-error">
                     <IconTrash width={14} height={14} />
-                  </button>
+                  </Button>
                 </>
               )}
             </div>
           ))}
         </div>
       )}
-    </div>
+      {confirmDialog}
+    </Card>
   );
 }

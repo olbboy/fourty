@@ -15,6 +15,9 @@ import {
   type TurnPhase,
 } from "./composer-state";
 import { resolveThread, toItems, turnFrom, type Item, type StoredMessage, type Thread } from "./transcript";
+import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Input } from "@/components/ui/input";
 
 /**
  * The per-record agent panel (Phase 4).
@@ -349,19 +352,17 @@ function ThreadBar({
       <label htmlFor="agent-thread" className="text-xs text-ink-muted">
         Conversation
       </label>
-      <select
+      <NativeSelect
         id="agent-thread"
         value={threadId ?? ""}
-        onChange={(e) => onOpen(e.target.value || null)}
-        className="input !w-auto !py-1 text-xs"
-      >
+        onChange={(e) => onOpen(e.target.value || null)} size="sm">
         <option value="">New conversation</option>
         {threads.map((t) => (
           <option key={t.id} value={t.id}>
             {t.title ?? `Conversation · ${timeAgo(t.updatedAt)}`}
           </option>
         ))}
-      </select>
+      </NativeSelect>
     </div>
   );
 }
@@ -451,10 +452,10 @@ function TranscriptRow({
     );
   }
   if (item.kind === "error") {
-    return <div className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600">{item.message}</div>;
+    return <div className="rounded-lg bg-feedback-error-wash px-3 py-2 text-sm text-feedback-error">{item.message}</div>;
   }
   return (
-    <div className="rounded-xl border border-amber-400/50 bg-amber-400/10 p-3 text-sm">
+    <div className="rounded-xl border border-feedback-warn/20 bg-feedback-warn-wash p-3 text-sm">
       <p className="mb-2">
         <span className="font-mono font-semibold">{item.name}</span> wants to run:
       </p>
@@ -465,20 +466,16 @@ function TranscriptRow({
         <p className="text-xs text-ink-muted">{item.resolved === "approved" ? "✓ Confirmed" : "✕ Cancelled"}</p>
       ) : (
         <div className="flex gap-2">
-          <button
+          <Button
             onClick={() => onDecide(item.messageId, true)}
-            disabled={disabled}
-            className="btn-primary !py-1 !text-xs"
-          >
+            disabled={disabled} size="xs">
             Confirm
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={() => onDecide(item.messageId, false)}
-            disabled={disabled}
-            className="btn-ghost !py-1 !text-xs"
-          >
+            disabled={disabled} variant="outline" size="xs">
             Cancel
-          </button>
+          </Button>
         </div>
       )}
     </div>
@@ -518,27 +515,23 @@ function Composer({
           void onSend();
         }}
       >
-        <input
+        <Input
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={PLACEHOLDER[state]}
           aria-label="Ask about this record"
-          disabled={!canSend(state)}
-          className="input"
-        />
-        <button
+          disabled={!canSend(state)} />
+        <Button
           type="submit"
           disabled={!canSend(state) || !value.trim()}
-          aria-label="Send"
-          className="btn-primary !px-3"
-        >
+          aria-label="Send" className="px-3">
           <IconArrowRight width={16} height={16} />
-        </button>
+        </Button>
       </form>
       {offersRestart(state) && (
-        <button onClick={onRestart} className="btn-ghost !py-1 !text-xs">
+        <Button onClick={onRestart} variant="outline" size="xs">
           Start a new conversation
-        </button>
+        </Button>
       )}
       {state === "offline" && (
         <p className="text-xs text-ink-muted">

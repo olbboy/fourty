@@ -49,12 +49,33 @@ resolve to the same colours.
 Keep the accent under ~5% of any screen: on a typical view it is the primary
 button and the active pill, nothing else.
 
-**Semantic colour is for record meaning only** — status, score band, priority.
-Every one of those chips is a **10% wash behind saturated text**, never a solid
-fill. `StatusChip`, `ScoreBadge` and `PriorityChip` already encode this; reach for
-them rather than re-colouring a `Badge` — each was measured against its own
-wash, which is a stricter ground than the surface and the reason a colour that
-looks fine can still fail.
+**Semantic colour comes in two families, and neither is a place to improvise.**
+Record meaning — status, score band, priority — and feedback —
+`feedback-{ok,warn,error}`, for the outcome of something that just happened.
+Every one of those is a **10% wash behind saturated text**, never a solid fill,
+and each was measured against its own wash, which is a stricter ground than the
+surface and the reason a colour that looks fine can still fail. `StatusChip`,
+`ScoreBadge` and `PriorityChip` already encode the record family; reach for them
+rather than re-colouring a `Badge`. For feedback, use
+`bg-feedback-warn-wash text-feedback-warn` and its two siblings.
+
+**Icons are one library.** Lucide, always. `components/icons.tsx` names the app's
+own vocabulary over it (`IconTrash`, `IconPlus`, …) and adds two things Lucide does
+not: `aria-hidden` by default, because an icon here is decorative and the control
+around it carries the name, and numeric `width` / `height`. Chrome built on a shadcn
+block imports Lucide directly. Either way there is one stroke voice — never a second
+icon set.
+
+**Destructive confirmations use `useConfirm()`, never `window.confirm`.** The native
+dialog is the one surface no token reaches. `const [askConfirm, confirmDialog] =
+useConfirm()` returns a promise and the dialog to mount; the confirming button names
+the action ("Delete", "Revoke", "Disconnect"), never "OK".
+
+**Never reach for a raw palette utility** — `text-amber-600`, `bg-red-500/10`,
+`bg-violet-400`. Nothing measures them, and they do not flip with the theme, so a
+call site ends up carrying a `dark:` variant that is itself unmeasured. Every
+token above flips on its own. `destructive` is a fill and border colour; red
+*text* is `text-feedback-error`.
 
 Other conventions worth honouring: radii derive from one 10px root
 (`rounded-md` 8px controls, `rounded-xl` 14px cards, `rounded-4xl` pills);
@@ -72,28 +93,30 @@ is carried by weight and tracking, never by a second face.
 
 ## An idiomatic screen fragment
 
+A panel here is usually a heading and a body, padded once — so `Card` takes
+`size="flush"` and owns no spacing of its own. `size="default"` and `"sm"` bring the
+`CardHeader` / `CardContent` rhythm for anything that wants it. `render` makes the card
+another element where the shape calls for it (`render={<form onSubmit={…} />}`).
+
 ```jsx
-import { Card, CardHeader, CardTitle, CardDescription, CardContent,
-         Button, StatusChip } from "fourty";
+import { Card, Button, StatusChip } from "fourty";
 
 <div className="bg-bg p-4 md:p-8">
   <div className="mb-5 flex items-center justify-between gap-3">
     <div>
-      <h1 className="text-2xl font-bold tracking-tight text-ink">Deals</h1>
+      <h1 className="font-display text-2xl font-bold tracking-tight text-ink">Deals</h1>
       <p className="mt-0.5 text-sm text-ink-muted">38 deals · $1.24M total</p>
     </div>
     <Button>New deal</Button>
   </div>
 
-  <Card>
-    <CardHeader>
-      <CardTitle>Acme Corp</CardTitle>
-      <CardDescription>Renewal · closes 12 Mar</CardDescription>
-    </CardHeader>
-    <CardContent className="flex items-center gap-2">
+  <Card size="flush" className="p-4">
+    <h2 className="text-sm font-semibold text-ink">Northwind Cloud</h2>
+    <p className="mt-0.5 text-sm text-ink-muted">Renewal · closes 12 Mar</p>
+    <div className="mt-3 flex items-center gap-2">
       <StatusChip status="customer" />
       <span className="text-sm text-ink-muted">Owner · Dana Whitfield</span>
-    </CardContent>
+    </div>
   </Card>
 </div>
 ```

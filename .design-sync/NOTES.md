@@ -180,6 +180,23 @@ skill — a second `finalize_plan` is needed to ship it.
   unrelated to the product's, so `--font-display` resolves to Inter rather than
   carrying a second family. The role name is kept so a real display face is a
   one-line change.
+- **The safelist grew a feedback family (2026-08-10).** `--feedback-{ok,warn,error}`
+  and their washes joined the record semantics, plus `bg-{ink,ink-muted}/{50,60,70}`
+  for the timeline dot ladder. `conventions.md` now tells the design agent to use
+  them, so they had to go into `ds-css-entry.css` in the same change — a class the
+  header offers but the safelist omits renders as nothing. Verify after any palette
+  edit by compiling the entry and grepping the output for the utility, not by
+  assuming: `npx @tailwindcss/cli -i .design-sync/ds-css-entry.css -o /tmp/x.css`
+  then `grep -o '\.text-feedback-warn{[^}]*}' /tmp/x.css`.
+- **A `@apply`-only token emits no utility class.** When a token is reached only
+  through `@apply` in a component class, Tailwind inlines the declaration and the
+  `.bg-<token>` utility never appears in the output. Grepping for the class name
+  says "missing" when it is working correctly; grep the consuming rule instead.
+- **`globals.css` no longer defines `.card`, `.input` or `.btn-*` (2026-08-10).**
+  Every one of those 174 call sites moved to `<Card>`, `<Input>`, `<NativeSelect>`,
+  `<Textarea>` and `<Button>`, so the exported bundle and the shipped product now
+  describe the same objects. A design agent reading `conventions.md` and composing
+  from the library is composing what the app actually renders.
 - The four Next-dependent components are deliberately out of scope. If a future
   sync wants them, they need shims for `next/navigation` and `next/link`, not a
   config tweak.

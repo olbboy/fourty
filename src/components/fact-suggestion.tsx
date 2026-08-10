@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 
 /**
  * Suggestions from the evidence ledger (ADR-018), shown under the fields they
@@ -114,22 +115,18 @@ export function FactSuggestion({ fact, onDecided }: { fact: RecordFact; onDecide
         ))}
       </ul>
       <div className="mt-1.5 flex items-center gap-2">
-        <button
+        <Button
           onClick={() => act("accept")}
           disabled={busy}
-          aria-label={`Accept ${fact.value}`}
-          className="btn-primary !px-2 !py-1 !text-xs"
-        >
+          aria-label={`Accept ${fact.value}`} size="xs">
           Accept
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={() => act("dismiss")}
           disabled={busy}
-          aria-label={`Dismiss ${fact.value} permanently`}
-          className="btn-ghost !px-2 !py-1 !text-xs"
-        >
+          aria-label={`Dismiss ${fact.value} permanently`} variant="outline" size="xs">
           Dismiss
-        </button>
+        </Button>
         <span className="text-[11px] text-ink-muted">
           {fact.band === "VERIFIED" ? "Verified" : "Probable"} · {Math.round(fact.score * 100)}%
         </span>

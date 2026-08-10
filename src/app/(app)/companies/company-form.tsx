@@ -4,6 +4,9 @@ import { useState } from "react";
 import type { Company } from "@/lib/types";
 import { Field } from "@/components/ui";
 import { CustomFieldsInputs, useCustomFields } from "@/components/custom-fields";
+import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Input } from "@/components/ui/input";
 
 export function CompanyForm({ company, onSaved }: { company?: Company; onSaved: () => void }) {
   const defs = useCustomFields("company");
@@ -45,45 +48,45 @@ export function CompanyForm({ company, onSaved }: { company?: Company; onSaved: 
   return (
     <form onSubmit={onSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <Field label="Name" className="sm:col-span-2">
-        <input name="name" required defaultValue={company?.name} className="input" />
+        <Input name="name" required defaultValue={company?.name} />
       </Field>
       <Field label="Domain">
-        <input name="domain" defaultValue={company?.domain ?? ""} className="input" placeholder="acme.com" />
+        <Input name="domain" defaultValue={company?.domain ?? ""} placeholder="acme.com" />
       </Field>
       <Field label="Website">
-        <input name="website" defaultValue={company?.website ?? ""} className="input" placeholder="https://…" />
+        <Input name="website" defaultValue={company?.website ?? ""} placeholder="https://…" />
       </Field>
       <Field label="Industry">
-        <input name="industry" defaultValue={company?.industry ?? ""} className="input" />
+        <Input name="industry" defaultValue={company?.industry ?? ""} />
       </Field>
       <Field label="Size">
-        <select name="size" defaultValue={company?.size ?? ""} className="input">
+        <NativeSelect name="size" defaultValue={company?.size ?? ""} className="w-full">
           <option value="">—</option>
           {["1-10", "11-50", "51-200", "201-500", "501-1000", "1000+"].map((s) => (
             <option key={s} value={s}>
               {s}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </Field>
       <Field label="Annual revenue (USD)">
-        <input name="annualRevenue" type="number" min={0} defaultValue={company?.annualRevenue ?? ""} className="input" />
+        <Input name="annualRevenue" type="number" min={0} defaultValue={company?.annualRevenue ?? ""} />
       </Field>
       <Field label="LinkedIn">
-        <input name="linkedin" defaultValue={company?.linkedin ?? ""} className="input" />
+        <Input name="linkedin" defaultValue={company?.linkedin ?? ""} />
       </Field>
       <Field label="City">
-        <input name="city" defaultValue={company?.city ?? ""} className="input" />
+        <Input name="city" defaultValue={company?.city ?? ""} />
       </Field>
       <Field label="Country">
-        <input name="country" defaultValue={company?.country ?? ""} className="input" />
+        <Input name="country" defaultValue={company?.country ?? ""} />
       </Field>
       <CustomFieldsInputs defs={defs} values={custom} onChange={setCustom} />
-      {error && <p className="col-span-full text-sm text-destructive">{error}</p>}
+      {error && <p className="col-span-full text-sm text-feedback-error">{error}</p>}
       <div className="col-span-full flex justify-end">
-        <button type="submit" disabled={busy} className="btn-primary">
+        <Button type="submit" disabled={busy}>
           {busy ? "Saving…" : company ? "Save changes" : "Create company"}
-        </button>
+        </Button>
       </div>
     </form>
   );

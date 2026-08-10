@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { PageHeader } from "@/components/ui";
 import { IconUpload } from "@/components/icons";
+import { Card } from "@/components/ui/card";
 
 type Result = { created: number; skipped: number; companiesCreated: number; total: number };
 
@@ -35,19 +36,24 @@ export function ImportClient() {
         subtitle="CSV with a header row. Column names are matched flexibly — firstName/first_name/First Name all work."
       />
 
-      <label
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragOver(true);
-        }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragOver(false);
-          const file = e.dataTransfer.files[0];
-          if (file) upload(file);
-        }}
-        className={`card flex cursor-pointer flex-col items-center justify-center gap-3 border-2 border-dashed px-6 py-16 text-center transition ${
+      <Card
+        size="flush"
+        render={
+          <label
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              const file = e.dataTransfer.files[0];
+              if (file) upload(file);
+            }}
+          />
+        }
+        className={`flex cursor-pointer flex-col items-center justify-center gap-3 border-2 border-dashed px-6 py-16 text-center transition-colors ${
           dragOver ? "border-accent-500 bg-accent-600/5" : ""
         }`}
       >
@@ -70,12 +76,12 @@ export function ImportClient() {
             e.target.value = "";
           }}
         />
-      </label>
+      </Card>
 
-      {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
+      {error && <p className="mt-4 text-sm text-feedback-error">{error}</p>}
       {result && (
-        <div className="card mt-4 space-y-1 p-4">
-          <p className="font-medium text-emerald-600 dark:text-emerald-400">Import complete ✓</p>
+        <Card size="flush" className="mt-4 space-y-1 p-4">
+          <p className="font-medium text-feedback-ok">Import complete ✓</p>
           <p className="text-sm text-ink-muted">
             {result.created} contacts created · {result.companiesCreated} companies auto-created ·{" "}
             {result.skipped} rows skipped (duplicates or missing name) · {result.total} rows total
@@ -83,17 +89,17 @@ export function ImportClient() {
           <Link href="/contacts" className="inline-block pt-1 text-sm font-medium text-accent-700 hover:underline dark:text-accent-400">
             View contacts →
           </Link>
-        </div>
+        </Card>
       )}
 
-      <div className="card mt-6 p-4">
+      <Card size="flush" className="mt-6 p-4">
         <h2 className="mb-2 text-sm font-semibold">Example CSV</h2>
         <pre className="overflow-x-auto rounded-lg bg-surface-2 p-3 text-xs leading-relaxed">
 {`name,email,title,company,status,source
 Jane Doe,jane@acme.com,VP Sales,Acme Inc,qualified,referral
 John Smith,john@globex.io,CTO,Globex,lead,website`}
         </pre>
-      </div>
+      </Card>
     </div>
   );
 }

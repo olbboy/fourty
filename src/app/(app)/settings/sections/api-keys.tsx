@@ -2,8 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { timeAgo } from "@/lib/format";
-import { Spinner } from "@/components/ui";
+import { Spinner, useConfirm } from "@/components/ui";
 import { IconKey, IconTrash } from "@/components/icons";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
 
 type ApiKey = {
   id: string;
@@ -15,6 +18,7 @@ type ApiKey = {
 };
 
 export function ApiKeysSection() {
+  const [askConfirm, confirmDialog] = useConfirm();
   const [keys, setKeys] = useState<ApiKey[] | null>(null);
   const [newSecret, setNewSecret] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -43,13 +47,18 @@ export function ApiKeysSection() {
   }
 
   async function revoke(k: ApiKey) {
-    if (!confirm(`Revoke key "${k.name}"? Integrations using it will stop working.`)) return;
+    const ok = await askConfirm({
+      title: `Revoke key “${k.name}”?`,
+      body: "Integrations using it will stop working.",
+      confirmLabel: "Revoke",
+    });
+    if (!ok) return;
     await fetch(`/api/api-keys?id=${k.id}`, { method: "DELETE" });
     load();
   }
 
   return (
-    <div className="card p-4">
+    <Card size="flush" className="p-4">
       <div className="mb-3">
         <h2 className="flex items-center gap-1.5 text-sm font-semibold">
           <IconKey width={15} height={15} /> API keys
@@ -60,21 +69,19 @@ export function ApiKeysSection() {
         </p>
       </div>
       <div className="mb-3 flex gap-2">
-        <input
+        <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && create()}
           aria-label="Name for the new API key"
-          className="input max-w-xs"
-          placeholder="Key name, e.g. Zapier"
-        />
-        <button onClick={create} disabled={!name.trim()} className="btn-primary">
+          placeholder="Key name, e.g. Zapier" className="max-w-xs" />
+        <Button onClick={create} disabled={!name.trim()}>
           Generate
-        </button>
+        </Button>
       </div>
       {newSecret && (
-        <div className="mb-3 rounded-lg border border-amber-400/40 bg-amber-500/10 p-3">
-          <p className="mb-1 text-xs font-semibold text-amber-600 dark:text-amber-300">
+        <div className="mb-3 rounded-lg border border-feedback-warn/20 bg-feedback-warn-wash p-3">
+          <p className="mb-1 text-xs font-semibold text-feedback-warn">
             Copy this key now — it won&apos;t be shown again:
           </p>
           <code className="block select-all break-all rounded bg-surface px-2 py-1.5 text-xs">
@@ -101,19 +108,18 @@ export function ApiKeysSection() {
                 </p>
               </div>
               {!k.revokedAt && (
-                <button
+                <Button
                   onClick={() => revoke(k)}
-                  aria-label={`Revoke ${k.name}`}
-                  className="btn-ghost !px-2 !text-red-400"
-                >
+                  aria-label={`Revoke ${k.name}`} variant="outline" size="icon-sm" className="text-feedback-error">
                   <IconTrash width={14} height={14} />
-                </button>
+                </Button>
               )}
             </div>
           ))}
         </div>
       )}
-    </div>
+      {confirmDialog}
+    </Card>
   );
 }
 

@@ -9,6 +9,10 @@ import { PageHeader, Modal, Field, StatusChip, ScoreBadge, EmptyState, Spinner }
 import { IconPlus, IconDownload, IconUpload } from "@/components/icons";
 import { SavedViewsBar, type SavedView } from "@/components/saved-views";
 import { ContactForm } from "./contact-form";
+import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
 
 export function ContactsClient() {
   const searchParams = useSearchParams();
@@ -58,19 +62,19 @@ export function ContactsClient() {
         subtitle={contacts ? `${contacts.length} people` : undefined}
         actions={
           <>
-            <a href="/api/export/contacts" className="btn-ghost" title="Export CSV">
+            <Button variant="outline" title="Export CSV" render={<a href="/api/export/contacts" />}>
               <IconDownload width={15} height={15} />
               <span className="hidden sm:inline">Export</span>
-            </a>
-            <Link href="/settings/import" className="btn-ghost" title="Import CSV">
+            </Button>
+            <Button variant="outline" title="Import CSV" render={<Link href="/settings/import" />}>
               <IconUpload width={15} height={15} />
               <span className="hidden sm:inline">Import</span>
-            </Link>
-            <button onClick={() => setShowNew(true)} className="btn-primary">
+            </Button>
+            <Button onClick={() => setShowNew(true)}>
               <IconPlus width={15} height={15} />
               <span className="hidden sm:inline">New contact</span>
               <span className="sm:hidden">New</span>
-            </button>
+            </Button>
           </>
         }
       />
@@ -85,42 +89,36 @@ export function ContactsClient() {
       <div className="mb-4 flex flex-wrap gap-2">
         {/* A filter bar has no visible labels, so each control carries its own —
             a placeholder is a fallback name at best, and the selects have none. */}
-        <input
+        <Input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           aria-label="Search contacts"
-          placeholder="Search name, email, title…"
-          className="input max-w-xs"
-        />
-        <select
+          placeholder="Search name, email, title…" className="max-w-xs" />
+        <NativeSelect
           value={status}
           onChange={(e) => {
             setStatus(e.target.value);
             setActiveView(null);
           }}
-          aria-label="Filter by status"
-          className="input w-auto"
-        >
+          aria-label="Filter by status">
           <option value="">All statuses</option>
           <option value="lead">Lead</option>
           <option value="qualified">Qualified</option>
           <option value="customer">Customer</option>
           <option value="churned">Churned</option>
-        </select>
-        <select
+        </NativeSelect>
+        <NativeSelect
           value={sort}
           onChange={(e) => {
             setSort(e.target.value);
             setActiveView(null);
           }}
-          aria-label="Sort contacts"
-          className="input w-auto"
-        >
+          aria-label="Sort contacts">
           <option value="updatedAt">Recently updated</option>
           <option value="score">Highest score</option>
           <option value="name">Name</option>
           <option value="createdAt">Newest</option>
-        </select>
+        </NativeSelect>
       </div>
 
       {!contacts ? (
@@ -130,13 +128,13 @@ export function ContactsClient() {
           title="No contacts yet"
           hint="Add your first contact or import a CSV to get going."
           action={
-            <button onClick={() => setShowNew(true)} className="btn-primary">
+            <Button onClick={() => setShowNew(true)}>
               <IconPlus width={15} height={15} /> New contact
-            </button>
+            </Button>
           }
         />
       ) : (
-        <div className="card overflow-x-auto">
+        <Card size="flush" className="overflow-x-auto">
           <table className="w-full min-w-[720px]">
             <thead className="border-b border-line">
               <tr>
@@ -174,7 +172,7 @@ export function ContactsClient() {
               ))}
             </tbody>
           </table>
-        </div>
+        </Card>
       )}
 
       <Modal title="New contact" open={showNew} onClose={() => setShowNew(false)} wide>

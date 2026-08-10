@@ -6,6 +6,7 @@ import { formatCompact } from "@/lib/currency";
 import { formatDate } from "@/lib/format";
 import { PageHeader, Spinner } from "@/components/ui";
 import { WinLossChart, CategoryBars } from "@/components/charts";
+import { Card } from "@/components/ui/card";
 
 type Reports = {
   sourceBreakdown: { source: string; leads: number; customers: number; conversion: number }[];
@@ -42,13 +43,13 @@ export function ReportsClient() {
       />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="card p-4">
+        <Card size="flush" className="p-4">
           <h2 className="mb-1 text-sm font-semibold">Win / loss by month</h2>
           <p className="mb-3 text-xs text-ink-muted">Closed deal counts, last 6 months</p>
           <WinLossChart data={data.winLoss} />
-        </div>
+        </Card>
 
-        <div className="card p-4">
+        <Card size="flush" className="p-4">
           <h2 className="mb-1 text-sm font-semibold">Lead source performance</h2>
           <p className="mb-3 text-xs text-ink-muted">Volume and conversion to customer</p>
           <div className="overflow-x-auto">
@@ -83,15 +84,15 @@ export function ReportsClient() {
               </tbody>
             </table>
           </div>
-        </div>
+        </Card>
 
-        <div className="card p-4">
+        <Card size="flush" className="p-4">
           <h2 className="mb-1 text-sm font-semibold">Lead temperature</h2>
           <p className="mb-3 text-xs text-ink-muted">Auto-scored contact distribution</p>
           <CategoryBars data={data.scoreBands} nameKey="band" valueKey="count" height={150} />
-        </div>
+        </Card>
 
-        <div className="card p-4">
+        <Card size="flush" className="p-4">
           <h2 className="mb-1 text-sm font-semibold">Contact lifecycle</h2>
           <p className="mb-3 text-xs text-ink-muted">Contacts by status</p>
           <CategoryBars
@@ -100,10 +101,10 @@ export function ReportsClient() {
             valueKey="count"
             height={150}
           />
-        </div>
+        </Card>
       </div>
 
-      <div className="card p-4">
+      <Card size="flush" className="p-4">
         <h2 className="mb-1 text-sm font-semibold">Pipeline aging</h2>
         <p className="mb-3 text-xs text-ink-muted">
           Every open deal, sorted by time in current stage — chase the top of this list.
@@ -130,12 +131,12 @@ export function ReportsClient() {
                   <td className="td text-ink-muted">{d.stage}</td>
                   <td className="td">{formatCompact(d.amountUsd, "USD")}</td>
                   <td className="td">
-                    <span className={d.daysInStage > 14 ? "font-semibold text-amber-500" : ""}>
+                    <span className={d.daysInStage > 14 ? "font-semibold text-feedback-warn" : ""}>
                       {d.daysInStage}d
                     </span>
                   </td>
                   <td className="td">
-                    <span className={d.overdue ? "font-semibold text-destructive" : "text-ink-muted"}>
+                    <span className={d.overdue ? "font-semibold text-feedback-error" : "text-ink-muted"}>
                       {formatDate(d.expectedCloseDate)}
                       {d.overdue && " · overdue"}
                     </span>
@@ -152,7 +153,7 @@ export function ReportsClient() {
             </tbody>
           </table>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

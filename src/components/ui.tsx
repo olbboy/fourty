@@ -8,7 +8,7 @@
  * instead of hand-rolled effects. Call sites did not have to change.
  */
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   Dialog,
@@ -24,10 +24,12 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@/components/ui/empty";
+import { Button } from "@/components/ui/button";
 import { Spinner as ShadcnSpinner } from "@/components/ui/spinner";
 import { Avatar as ShadcnAvatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { initials } from "@/lib/format";
+import { Card } from "@/components/ui/card";
 
 export function PageHeader({
   title,
@@ -41,7 +43,12 @@ export function PageHeader({
   return (
     <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h1 className="text-xl font-bold tracking-tight md:text-2xl">
+        {/* `font-display` names the brand and editorial register — the page
+            title and the KPI figure are the two places this product speaks in
+            it. It resolves to the body face today, so this changes nothing on
+            screen; it is what makes a real display face a one-line change
+            rather than a hunt through every heading. */}
+        <h1 className="font-display text-xl font-bold tracking-tight md:text-2xl">
           {title}
         </h1>
         {subtitle && (
@@ -99,6 +106,78 @@ export function Modal({
   );
 }
 
+/**
+ * A confirmation the design system can actually reach.
+ *
+ * `window.confirm` is the one surface in this product no token touches: an OS
+ * dialog, in the OS font, with OS buttons, in whatever language the browser
+ * chose. It also blocks the main thread and cannot say which of two buttons is
+ * the destructive one.
+ *
+ * The shape keeps call sites nearly as short as the built-in — one `await`:
+ *
+ * ```tsx
+ * const [askConfirm, confirmDialog] = useConfirm();
+ * async function remove() {
+ *   if (!(await askConfirm({ title: "Delete this deal?", body: "…" }))) return;
+ * }
+ * return <>{confirmDialog}…</>;
+ * ```
+ *
+ * NOTE: this replaces the *mechanism*, not the interaction. Several of these
+ * confirmations guard reversible actions and would be better as an optimistic
+ * write plus an Undo — which needs restore endpoints the API does not have yet.
+ */
+export function useConfirm(): [
+  (request: ConfirmRequest) => Promise<boolean>,
+  React.ReactNode,
+] {
+  const [request, setRequest] = useState<ConfirmRequest | null>(null);
+  const settle = useRef<((confirmed: boolean) => void) | null>(null);
+
+  const askConfirm = useCallback((next: ConfirmRequest) => {
+    setRequest(next);
+    return new Promise<boolean>((resolve) => {
+      settle.current = resolve;
+    });
+  }, []);
+
+  const answer = useCallback((confirmed: boolean) => {
+    setRequest(null);
+    settle.current?.(confirmed);
+    settle.current = null;
+  }, []);
+
+  const confirmDialog = (
+    <Modal
+      title={request?.title ?? ""}
+      open={request !== null}
+      onClose={() => answer(false)}
+    >
+      {request?.body && <p className="text-sm text-ink-muted">{request.body}</p>}
+      <div className="mt-5 flex justify-end gap-2">
+        <Button variant="outline" onClick={() => answer(false)}>
+          Cancel
+        </Button>
+        <Button variant="destructive" onClick={() => answer(true)}>
+          {request?.confirmLabel ?? "Delete"}
+        </Button>
+      </div>
+    </Modal>
+  );
+
+  return [askConfirm, confirmDialog];
+}
+
+export type ConfirmRequest = {
+  /** The question, as the dialog's heading. */
+  title: string;
+  /** What happens if they go ahead — the part people actually need. */
+  body?: string;
+  /** Names the action, never "OK". Defaults to "Delete". */
+  confirmLabel?: string;
+};
+
 export function Field({
   label,
   children,
@@ -153,12 +232,15 @@ export function ScoreBadge({ score }: { score: number }) {
       : label === "warm"
         ? "bg-score-warm-wash text-score-warm"
         : "bg-score-cold-wash text-score-cold";
+  // The band is named, not drawn as an emoji: an OS-rendered glyph has its own
+  // stroke voice and its own advance width, so the score after it never lines up
+  // down a column. The wash already carries the band; the word removes the guess.
   return (
     <span
-      className={`chip ${style}`}
+      className={`chip capitalize tabular-nums ${style}`}
       title={`Lead score: ${score}/100 (auto-computed)`}
     >
-      {label === "hot" ? "🔥" : label === "warm" ? "🌤" : "❄️"} {score}
+      {label} {score}
     </span>
   );
 }
@@ -195,11 +277,13 @@ export function KpiCard({
   hint?: string;
 }) {
   return (
-    <div className="card p-4">
+    <Card size="flush" className="p-4">
       <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">{label}</p>
-      <p className="mt-1 text-xl font-bold tracking-tight md:text-2xl">{value}</p>
+      <p className="mt-1 font-display text-xl font-bold tracking-tight tabular-nums md:text-2xl">
+        {value}
+      </p>
       {hint && <p className="mt-0.5 text-xs text-ink-muted">{hint}</p>}
-    </div>
+    </Card>
   );
 }
 
@@ -243,15 +327,17 @@ export function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <Empty className="card px-6 py-14">
-      <EmptyHeader>
-        <EmptyTitle className="font-medium">{title}</EmptyTitle>
-        {hint && (
-          <EmptyDescription className="max-w-sm">{hint}</EmptyDescription>
-        )}
-      </EmptyHeader>
-      {action && <EmptyContent>{action}</EmptyContent>}
-    </Empty>
+    <Card size="flush" className="px-6 py-14">
+      <Empty className="p-0">
+        <EmptyHeader>
+          <EmptyTitle className="font-medium">{title}</EmptyTitle>
+          {hint && (
+            <EmptyDescription className="max-w-sm">{hint}</EmptyDescription>
+          )}
+        </EmptyHeader>
+        {action && <EmptyContent>{action}</EmptyContent>}
+      </Empty>
+    </Card>
   );
 }
 
