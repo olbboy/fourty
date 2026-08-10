@@ -178,6 +178,39 @@ was still visibly stacked**, because it asserted immediately after the heading
 painted and every list here arrives from a client-side fetch — so it was checking
 an empty page. The spec now settles before it looks.
 
+## Regression: a link is not a button
+
+Seven controls became `<Button render={<a />}>` in Phase 2 — CSV export and import,
+the OAuth connect, the SSO sign-in buttons. Base UI's `nativeButton` defaults to
+true, so it emitted `type="button"` on an anchor, where `type` means the MIME type
+of the target, and withheld any role. Development warned; the production build was
+silent and shipped the wrong markup anyway.
+
+The first attempt at a fix inferred `nativeButton` from the render element, which
+swapped the bogus `type` for `role="button"` — and turned
+`e2e/settings.spec.ts` red. That spec had been guarding the right invariant all
+along: *"Asserting the control is a link is what stops a future tidy-up turning it
+into a button."* Phase 2 was that tidy-up, and it only slipped past because Base
+UI with `nativeButton` still true emitted no role at all, leaving the anchor its
+implicit link role.
+
+So these are navigations and they are anchors again, wearing
+`cn(buttonVariants(...))`. The inference stays in `Button` as a guard for anything
+that genuinely acts while being another element.
+
+Two things worth keeping:
+
+- **`cn()` is not optional around `buttonVariants()`.** The base sets
+  `border-transparent`, the outline variant sets `border-border`, and both are
+  border-colour — so without tailwind-merge both survive and stylesheet order
+  decides. It shipped for one iteration as a bordered control with no border,
+  caught by looking at it rather than by any assertion. `tests/button-render-as.test.ts`
+  now pins that.
+- **A production-mode e2e cannot see framework dev warnings.** `views.spec.ts`
+  asserts on console output against `next build && next start`, where this class of
+  diagnostic does not exist. What made the defect catchable was that it also
+  produced wrong markup, which SSR can assert on.
+
 ## What is still not consolidated
 
 - `CardHeader` / `CardContent` have no call sites. Compositional helpers, not a second

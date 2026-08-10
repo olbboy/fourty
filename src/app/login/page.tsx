@@ -3,7 +3,8 @@ import { getSessionUser, isFreshInstall } from "@/lib/auth";
 import { listLoginProviders } from "@/lib/sso/provision";
 import { Logo } from "@/components/logo";
 import { LoginForm } from "./login-form";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -68,14 +69,13 @@ export default async function LoginPage({
             </div>
             <div className="space-y-2">
               {providers.map((p) => (
-                <Button
+                <a
                   key={p.id}
-                  variant="outline"
-                  className="w-full"
-                  render={<a href={`/api/auth/sso/${p.id}/start`} />}
+                  href={`/api/auth/sso/${p.id}/start`}
+                  className={cn(buttonVariants({ variant: "outline" }), "w-full")}
                 >
                   Sign in with {p.label}
-                </Button>
+                </a>
               ))}
             </div>
           </div>

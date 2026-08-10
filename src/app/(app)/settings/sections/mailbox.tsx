@@ -4,10 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import { timeAgo } from "@/lib/format";
 import { Modal, Field, Spinner, useConfirm } from "@/components/ui";
 import { IconPlus, IconTrash, IconMail } from "@/components/icons";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 type SyncAccount = {
   id: string;
@@ -213,9 +214,12 @@ export function MailboxSection() {
                   // fetch would follow the redirect inside the page and the cookie
                   // would never reach the browser, so the callback would reject the
                   // sign-in as a forgery.
-                  <Button size="xs" render={<a href={`/api/sync/accounts/${a.id}/connect`} />}>
+                  <a
+                    href={`/api/sync/accounts/${a.id}/connect`}
+                    className={cn(buttonVariants({ size: "xs" }))}
+                  >
                     Connect
-                  </Button>
+                  </a>
                 ) : (
                   CAN_PULL.has(a.provider) && (
                     <Button

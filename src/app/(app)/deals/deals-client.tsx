@@ -10,9 +10,10 @@ import { washedChip } from "@/lib/contrast-color";
 import { PageHeader, Modal, EmptyState, Spinner, StageDot } from "@/components/ui";
 import { IconPlus, IconKanban, IconList, IconDownload } from "@/components/icons";
 import { DealForm } from "./deal-form";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -125,10 +126,10 @@ export function DealsClient() {
                 <IconList width={16} height={16} />
               </button>
             </div>
-            <Button variant="outline" render={<a href="/api/export/deals" />}>
+            <a href="/api/export/deals" className={cn(buttonVariants({ variant: "outline" }))}>
               <IconDownload width={15} height={15} />
               <span className="hidden sm:inline">Export</span>
-            </Button>
+            </a>
             <Button onClick={() => setShowNew(true)}>
               <IconPlus width={15} height={15} />
               <span className="hidden sm:inline">New deal</span>

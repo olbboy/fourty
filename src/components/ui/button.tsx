@@ -1,3 +1,4 @@
+import * as React from "react"
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
 
@@ -53,6 +54,25 @@ const buttonVariants = cva(
   }
 )
 
+/**
+ * Base UI treats "is this really a `<button>`?" as part of its contract.
+ * `nativeButton` defaults to true, and rendering anything else while it stays
+ * true puts `type="button"` on the element — on an anchor that attribute means
+ * the MIME type of the target — and withholds the `role` that says what the
+ * control is. The development warning is stripped from a production build; the
+ * wrong markup is not. This component can see what it is about to render, so it
+ * answers for its callers. An explicit `nativeButton` still wins.
+ *
+ * A navigation does not belong here at all. Something that takes the user
+ * somewhere is a link: give a real `<a>` or `<Link>` the class from
+ * `buttonVariants()` and it looks identical while keeping its link role, which
+ * `e2e/settings.spec.ts` relies on for the OAuth connect. Reach for `render`
+ * only when the control genuinely acts and merely has to be another element.
+ */
+function isNativeButton(render: ButtonPrimitive.Props["render"]): boolean {
+  return !React.isValidElement(render) || render.type === "button"
+}
+
 function Button({
   className,
   variant = "default",
@@ -63,6 +83,7 @@ function Button({
     <ButtonPrimitive
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
+      nativeButton={isNativeButton(props.render)}
       {...props}
     />
   )

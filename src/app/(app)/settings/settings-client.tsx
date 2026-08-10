@@ -10,8 +10,9 @@ import { LanguageSection } from "./sections/language";
 import { CustomFieldsSection } from "./sections/custom-fields";
 import { ApiKeysSection } from "./sections/api-keys";
 import { DiagnosticsSection } from "./sections/diagnostics";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 export function SettingsClient() {
   return (
@@ -33,9 +34,9 @@ export function SettingsClient() {
           Bring your book of business from any CRM — CSV import auto-maps common column names and
           links or creates companies on the fly.
         </p>
-        <Button render={<Link href="/settings/import" />}>
+        <Link href="/settings/import" className={cn(buttonVariants())}>
           <IconUpload width={15} height={15} /> Import contacts from CSV
-        </Button>
+        </Link>
       </Card>
       <Card size="flush" className="p-4">
         <h2 className="mb-1 text-sm font-semibold">REST API</h2>
