@@ -49,7 +49,7 @@ Fourty ingests events onto the timeline.
 > [!NOTE]
 > **Parity note.** Provider *calendar-over-OAuth* (pulling Google/Microsoft calendars
 > through their APIs) is deferred — mail OAuth is done, calendar is ICS-based. This is
-> one of the honest gaps vs Twenty; see **[PARITY.md](../../PARITY.md)**.
+> one of the honest gaps vs Twenty; see the [comparison table](../../README.md#%EF%B8%8F-how-it-compares) in the README.
 
 ## How it's built
 

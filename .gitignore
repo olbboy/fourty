@@ -1,24 +1,47 @@
+# Dependencies
 node_modules/
+
+# Build output
 .next/
 .next-e2e-dev/
 out/
 build/
-*.log
+*.tsbuildinfo
+next-env.d.ts
+
+# Environment
 .env*.local
 .env
+
+# Logs
+*.log
+
+# Database (legacy SQLite)
 data/*.db
 data/*.db-journal
 data/*.db-wal
 data/*.db-shm
-.DS_Store
-*.tsbuildinfo
-next-env.d.ts
+
+# Test artifacts
 coverage/
 playwright-report/
 test-results/
 e2e/.auth/
 
-# design-sync: staged converter scripts, generated bundle, machine state.
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Agent configs (not part of project)
+.claude/
+
+# Design-sync: staged converter scripts, generated bundle, machine state.
 # Everything else under .design-sync/ (config.json, NOTES.md, conventions.md,
 # previews/, overrides/) is committed — it is the reproducible sync input.
 .ds-sync/

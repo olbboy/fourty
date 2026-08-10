@@ -15,7 +15,7 @@
  *     npx tsx bench/seed.ts
  *
  * Emits a JSON summary (counts + wall time + achieved insert throughput) to
- * stdout so run.sh can fold ingest numbers into BENCHMARK.md.
+ * stdout so run.sh can fold ingest numbers into docs/benchmarks.md.
  */
 
 const TARGET = (process.env.TARGET ?? "fourty") as "fourty" | "twenty";

@@ -5,7 +5,7 @@
 ## Context
 The SQLite app had **no migrations** — it ran `CREATE TABLE IF NOT EXISTS` at
 boot, which silently fails to evolve existing databases (a latent upgrade bug
-noted in `CLAIMS.md`). Postgres production needs versioned, reversible schema
+noted in internal audits). Postgres production needs versioned, reversible schema
 changes runnable in CI and in zero-downtime deploys.
 
 ## Options

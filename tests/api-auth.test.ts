@@ -6,11 +6,12 @@ import { resetDb, createWorkspace } from "./pg-setup";
 /**
  * Authorization enforcement on the public REST surface.
  *
- * Fourty has no multi-tenancy (a single global dataset — see PARITY.md), so the
- * strongest isolation guarantee it CAN make is: the API rejects every request
- * that is not backed by a valid, non-revoked credential. These tests lock that
- * in against regressions — both dynamically (invalid/revoked keys are refused)
- * and statically (no route file may forget to call `authenticate()`).
+ * Fourty is multi-tenant with Postgres RLS. The strongest isolation guarantee it
+ * makes is: the API rejects every request that is not backed by a valid,
+ * non-revoked credential, and RLS confines queries to the caller's workspace.
+ * These tests lock that in against regressions — both dynamically
+ * (invalid/revoked keys are refused) and statically (no route file may forget
+ * to call `authenticate()`).
  */
 describe("API-key auth enforcement", () => {
   const GOOD = "frty_valid_key";

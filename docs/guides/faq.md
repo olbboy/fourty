@@ -106,7 +106,7 @@ Yes — a typed `POST /api/graphql` with introspection, alongside the REST API. 
 <summary>What does Fourty <em>not</em> have vs Twenty?</summary>
 
 Honestly: SAML, a define-as-code apps/SDK platform, and calendar-over-OAuth (mail OAuth
-is done; calendar is via ICS). See the cited matrix in [PARITY.md](../../PARITY.md).
+is done; calendar is via ICS). See the [comparison table](../../README.md#%EF%B8%8F-how-it-compares) in the README.
 </details>
 
 ## Related

@@ -11,7 +11,7 @@ revoked. It was stored as plaintext JSON.
 
 `SECURITY.md` truthfully said sessions and API keys are hashed at rest. It said
 nothing about this, because there was nothing to say. The 2026-08-09 audit
-(`CLAIMS.md`) named it: **database read access was mailbox access.** A backup on
+(the security audit) named it: **database read access was mailbox access.** A backup on
 a laptop, a read replica, a snapshot shared with a contractor, or an SQL
 injection that only *reads* were all enough.
 
