@@ -33,7 +33,9 @@ See [Upgrading & migrations](../self-hosting/upgrading.md).
 | `npm run test:e2e` | Playwright E2E smoke suite (builds, boots the app, drives Chromium). |
 | `npm run db:e2e:setup` | Create the `fourty_e2e` database + `fourty_app` role (once). |
 | `npm run db:e2e:reset` | Reset the E2E database between runs. |
-| `npm run lint` | Lint with `next lint`. |
+
+There is no lint step. `npx tsc --noEmit` is the static gate, and it runs in CI
+ahead of the suite.
 
 The suite defaults to `fourty_test` and `fourty_revtest` on `localhost:5432`. Point
 it elsewhere — a different port, say, when 5432 is already taken — with these,
