@@ -151,6 +151,33 @@ Two things this exposed:
   panels are guarded against exactly this; workflows never was, so it never got the
   labels. Fixed and covered by the same spec.
 
+## Every view now has a health check
+
+The workflows break was not a workflows problem — it was that nothing asked
+whether a view was standing up. `e2e/views.spec.ts` walks all nine routes plus the
+three detail pages and, for each, asserts the heading rendered (so the page did
+not fall to an error boundary), the browser reported nothing, and
+`e2e/helpers/view-health.ts` finds none of three states that report themselves
+nowhere else:
+
+- **horizontal overflow** — a layout that escaped its column;
+- **a flex column that is also told to wrap** — wrapping a column only means
+  something inside a bounded height, which no view here has, so the pair is the
+  fingerprint of a row whose `flex-col` was never cancelled;
+- **a visible control with no accessible name** — the icons are `aria-hidden`, so
+  an icon-only button with no label is a control nobody can identify.
+
+The naming check reads the *computed* name — `aria-label`, `title`,
+`aria-labelledby`, an associated `<label for>`, a wrapping `<label>` — because a
+first draft that only read `textContent` flagged a perfectly well-labelled
+settings checkbox.
+
+Each check was proved by reintroducing a real defect and watching the suite go
+red. That mattered: **the first draft of this spec passed while the workflow row
+was still visibly stacked**, because it asserted immediately after the heading
+painted and every list here arrives from a client-side fetch — so it was checking
+an empty page. The spec now settles before it looks.
+
 ## What is still not consolidated
 
 - `CardHeader` / `CardContent` have no call sites. Compositional helpers, not a second
