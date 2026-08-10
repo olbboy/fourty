@@ -1,6 +1,9 @@
 <div align="center">
 
-# Fourty
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./public/brand/logo-full-inverse.svg">
+  <img src="./public/brand/logo-full.svg" alt="Fourty" width="260">
+</picture>
 
 **The open-source CRM that deploys in 30 seconds.**
 
@@ -75,7 +78,7 @@ calendar-over-OAuth. See the honest, cited matrix in [`PARITY.md`](./PARITY.md).
 - **Kanban pipeline** — drag deals between stages; weighted forecast + multi-currency (12 currencies, auto-USD). → [guide](./docs/guides/pipeline.md)
 - **Deterministic intelligence** — automatic 0–100 lead scoring and deal health, pure functions you can tune. → [guide](./docs/guides/lead-scoring.md)
 - **Analytics** — forecast, win rate, sales cycle, funnel, win/loss, source conversion, aging, stale-deal alerts. → [guide](./docs/guides/analytics.md)
-- **Workflow automation** — visual builder on a durable Postgres queue; five action types + run history. → [guide](./docs/guides/workflows.md)
+- **Workflow automation** — visual builder on a durable Postgres queue; six action types + run history. → [guide](./docs/guides/workflows.md)
 - **Custom fields & no-code objects** — extend the data model, served over REST, GraphQL, and MCP. → [guide](./docs/guides/custom-objects.md)
 - **APIs** — [REST](./docs/api/rest.md), typed [GraphQL](./docs/api/graphql.md), a native [MCP server](./docs/api/mcp.md), and signed [webhooks](./docs/api/webhooks.md).
 - **Keyless research** — a background pass mines your own mailbox for job titles and company links and fills in what nobody has typed over, with the source shown. No API key, no vendor, no model; per-workspace off switch. → [guide](./docs/guides/research.md)
@@ -135,3 +138,7 @@ and **[benchmarks](./BENCHMARK.md)**.
 ## License
 
 MIT — use it, fork it, sell it, self-host it for your team. No open-core gotchas.
+
+The **name and logo** are the one thing the licence does not hand over. Fork freely;
+just ship your build under your own name and mark, so users can tell it from ours.
+→ [Trademark](./docs/design-guidelines.md#trademark)
