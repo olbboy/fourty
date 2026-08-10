@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import type { CustomFieldDef } from "@/lib/types";
 import { Field } from "./ui";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Input } from "@/components/ui/input";
 
 export function useCustomFields(entity: "contact" | "company" | "deal") {
   const [defs, setDefs] = useState<CustomFieldDef[]>([]);
@@ -34,18 +36,16 @@ export function CustomFieldsInputs({
       {defs.map((def) => (
         <Field key={def.id} label={def.label}>
           {def.type === "select" ? (
-            <select
-              className="input"
+            <NativeSelect
               value={String(values[def.key] ?? "")}
-              onChange={(e) => set(def.key, e.target.value || null)}
-            >
+              onChange={(e) => set(def.key, e.target.value || null)} className="w-full">
               <option value="">—</option>
               {def.options.map((o) => (
                 <option key={o} value={o}>
                   {o}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           ) : def.type === "checkbox" ? (
             <input
               type="checkbox"
@@ -54,8 +54,7 @@ export function CustomFieldsInputs({
               onChange={(e) => set(def.key, e.target.checked)}
             />
           ) : (
-            <input
-              className="input"
+            <Input
               type={def.type === "number" ? "number" : def.type === "date" ? "date" : "text"}
               value={String(values[def.key] ?? "")}
               onChange={(e) =>
@@ -67,8 +66,7 @@ export function CustomFieldsInputs({
                       : Number(e.target.value)
                     : e.target.value || null,
                 )
-              }
-            />
+              } />
           )}
         </Field>
       ))}

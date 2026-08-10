@@ -6,6 +6,11 @@ import type { Task } from "@/lib/types";
 import { formatDate, fromDateInputValue } from "@/lib/format";
 import { PageHeader, Modal, Field, PriorityChip, EmptyState, Spinner } from "@/components/ui";
 import { IconPlus, IconTrash } from "@/components/icons";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
 
 const ENTITY_PATH: Record<string, string> = {
   contact: "/contacts/",
@@ -68,25 +73,25 @@ export function TasksClient() {
         title="Tasks"
         subtitle={tasks ? `${tasks.filter((t) => !t.completedAt).length} open` : undefined}
         actions={
-          <button onClick={() => setShowNew(true)} className="btn-primary">
+          <Button onClick={() => setShowNew(true)}>
             <IconPlus width={15} height={15} /> New task
-          </button>
+          </Button>
         }
       />
 
       <div className="mb-4 flex gap-1.5">
         {(["open", "done", "all"] as const).map((s) => (
-          <button
+          <Button
             key={s}
             onClick={() => setState(s)}
-            className={`chip cursor-pointer !px-3 !py-1.5 capitalize transition ${
-              state === s
-                ? "bg-primary text-primary-foreground"
-                : "border border-line text-ink-muted hover:border-accent-400"
+            size="sm"
+            variant={state === s ? "default" : "outline"}
+            className={`rounded-4xl text-xs capitalize ${
+              state === s ? "" : "text-ink-muted hover:border-accent-400"
             }`}
           >
             {s}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -95,7 +100,7 @@ export function TasksClient() {
       ) : tasks.length === 0 ? (
         <EmptyState title="Nothing here" hint="Tasks you create — or workflows create for you — show up here." />
       ) : (
-        <div className="card divide-y divide-line/60">
+        <Card size="flush" className="divide-y divide-line/60">
           {tasks.map((t) => (
             <div key={t.id} className="flex items-start gap-3 px-4 py-3">
               {/* The title sits in a sibling element rather than a wrapping
@@ -115,7 +120,7 @@ export function TasksClient() {
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
                   <PriorityChip priority={t.priority} />
                   {t.dueDate && (
-                    <span className={overdue(t) ? "font-semibold text-destructive" : ""}>
+                    <span className={overdue(t) ? "font-semibold text-feedback-error" : ""}>
                       {overdue(t) ? "Overdue · " : "Due "}
                       {formatDate(t.dueDate)}
                     </span>
@@ -130,42 +135,40 @@ export function TasksClient() {
                   )}
                 </div>
               </div>
-              <button
+              <Button
                 onClick={() => remove(t)}
-                className="btn-ghost !border-0 !px-2 !text-red-400"
-                aria-label="Delete task"
-              >
+                aria-label="Delete task" variant="ghost" size="icon-sm" className="text-feedback-error">
                 <IconTrash width={15} height={15} />
-              </button>
+              </Button>
             </div>
           ))}
-        </div>
+        </Card>
       )}
 
       <Modal title="New task" open={showNew} onClose={() => setShowNew(false)}>
         <form onSubmit={create} className="space-y-4">
           <Field label="Title">
-            <input name="title" required className="input" autoFocus />
+            <Input name="title" required autoFocus />
           </Field>
           <Field label="Description">
-            <textarea name="description" rows={2} className="input resize-y" />
+            <Textarea name="description" rows={2} className="resize-y" />
           </Field>
           <div className="grid grid-cols-2 gap-4">
             <Field label="Priority">
-              <select name="priority" defaultValue="medium" className="input">
+              <NativeSelect name="priority" defaultValue="medium" className="w-full">
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
                 <option value="high">High</option>
-              </select>
+              </NativeSelect>
             </Field>
             <Field label="Due date">
-              <input name="dueDate" type="date" className="input" />
+              <Input name="dueDate" type="date" />
             </Field>
           </div>
           <div className="flex justify-end">
-            <button type="submit" disabled={busy} className="btn-primary">
+            <Button type="submit" disabled={busy}>
               {busy ? "Saving…" : "Create task"}
-            </button>
+            </Button>
           </div>
         </form>
       </Modal>

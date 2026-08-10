@@ -108,19 +108,97 @@ A filled accent control carries **ink, not white**: on this orange white reaches
 3.04:1 while the artwork's ink reaches 5.36. Anything drawn in the accent that is not
 a fill — link text, an accent icon — uses `--color-accent-700` (5.22:1 on white).
 
+### Semantic colour
+
+Two families sit beside the accent, and neither is a place to improvise. Both are
+built the same way — a **10% wash of a colour with that colour, adjusted, as the text
+on top** — and both are re-measured per theme by
+[`tests/semantic-tokens.test.ts`](../tests/semantic-tokens.test.ts).
+
+| Family | Tokens | For |
+|---|---|---|
+| Record | `--status-*`, `--score-*`, `--priority-*` | What a record *is* — pipeline status, score band, task priority |
+| Feedback | `--feedback-{ok,warn,error}` | What just *happened* — a banner, a run result, an inline outcome |
+
+**Reach for a token, never a palette utility.** `text-amber-600` on an amber wash is
+2.95:1; `text-feedback-warn` in the same slot is 5.03:1. The pair only works because
+it was generated together, and a pair that misses by a tenth still looks fine — which
+is why nothing catches it by eye. The tokens flip with the theme, so a call site needs
+no `dark:` variant.
+
+`--destructive` is shadcn's, and it means a **fill or a border**. It reaches only
+4.13:1 as text on white, so red *text* uses `--feedback-error`.
+
 ## Typography
 
 | Role | Face |
 |---|---|
 | Product UI | **Inter**, loaded via `next/font` in [`layout.tsx`](../src/app/layout.tsx), bound to `--font-sans` |
-| Display | **Archivo** at `wdth` 125%, bound to `--font-display` — brand and editorial surfaces only, never the product UI |
+| Display | `--font-display`, the brand and editorial role — currently **Inter**, the same family |
 
 The lockup itself is drawn geometry and loads no font.
 
 > [!NOTE]
-> Archivo is a **substitution**. The wordmark's own typeface was never supplied;
-> Archivo expanded is a considered match for surfaces that sit beside the lockup, not
-> the face the lockup is drawn in. Name the real one and it is a one-line change.
+> There is deliberately **one typeface**. The lockup is drawn artwork and its own
+> typeface has nothing to do with the product's, so a second family would be
+> echoing nothing. `--font-display` stays as a role name: point it at a real
+> display face here if the brand ever gets one, and nothing downstream changes.
+
+`font-display` is **applied**, not just declared — the page title (`PageHeader`) and
+the KPI figure (`KpiCard`) are the two surfaces where this product speaks in the brand
+register. It resolves to the body face today, so nothing moves on screen. That is the
+point: the role marks where a display face would land, so adopting one stays a one-line
+change instead of a hunt through every heading.
+
+Figures that are read down a column — table cells, KPI values, the score in a badge —
+carry `tabular-nums`. Inter's proportional digits vary enough in width to stop a
+currency column lining up.
+
+## Tables
+
+Rows and cells come from [`Table`](../src/components/ui/table.tsx), which carries the
+product's table language rather than shadcn's defaults: column labels are small,
+uppercase, tracked and muted; cells wrap (a record name is user data) and carry
+`tabular-nums`; separation is the same hairline as everywhere else. `Table` ships its
+own horizontal scroll container, so a list view adds no wrapper.
+
+The component adds **no row hover**. A hover state is an affordance, and half the tables
+here are reports nobody can click.
+
+## Checking a change
+
+Two Playwright runs, and they see different things.
+
+`npm run test:e2e` builds for production and asserts behaviour — that is what
+users get. `npm run test:e2e:dev` boots `next dev` and fails on **any** console
+output, because a production build strips every framework development warning and
+so an entire class of contract violation is invisible to the first run. A button
+rendered as an anchor, which had quietly lost its native semantics and was putting
+`type="button"` on an `<a>`, went through a full green production run and only
+surfaced when someone opened the app.
+
+A warning in that run is a framework saying a contract was broken. If one is
+genuinely not ours, name it in `ALLOWED` in
+[`e2e/dev-warnings.spec.ts`](../e2e/dev-warnings.spec.ts) with the reason, rather
+than loosening the assertion.
+
+It runs beside your own `npm run dev`: Next keys its dev lock on the build
+directory, and this one uses `.next-e2e-dev`. Run the two suites one at a time
+though — they share a database and a signed-in session.
+
+## Icons
+
+**One library: Lucide.** [`src/components/icons.tsx`](../src/components/icons.tsx) is a
+thin adapter that names the icons for what they mean in this product and adds the two
+things Lucide leaves to the caller:
+
+- **`aria-hidden` by default** — an icon here is decorative and the control around it
+  carries the accessible name. A bare `<svg>` announces as an unnamed graphic.
+- **numeric `width` / `height`**, which is how every call site sizes them.
+
+The set used to be hand-drawn. It was drawn to Lucide's own spec — 24 grid, 2px stroke,
+round caps and joins — because `src/components/ui/*` already shipped Lucide, so the two
+sets were never two voices; they were one voice maintained twice.
 
 ## Don't
 

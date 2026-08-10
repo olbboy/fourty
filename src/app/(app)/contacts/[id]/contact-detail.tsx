@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import type { Contact, Company, Deal, Pipeline } from "@/lib/types";
 import { timeAgo, formatDate } from "@/lib/format";
-import { Modal, StatusChip, ScoreBadge, Avatar, Spinner } from "@/components/ui";
+import { Modal, StatusChip, ScoreBadge, Avatar, Spinner, useConfirm } from "@/components/ui";
 import { NotesPanel, TasksPanel, LogTouchpoint } from "@/components/record-panels";
 import { RecordTabs } from "@/components/agent-panel/record-tabs";
 import { CustomFieldsDisplay, useCustomFields } from "@/components/custom-fields";
@@ -15,8 +15,11 @@ import { AgentQueue } from "@/components/agent-queue";
 import { ContactForm } from "../contact-form";
 import { formatMoney } from "@/lib/currency";
 import { readableInkPair } from "@/lib/contrast-color";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 
 export function ContactDetail({ id }: { id: string }) {
+  const [askConfirm, confirmDialog] = useConfirm();
   const router = useRouter();
   const defs = useCustomFields("contact");
   const [contact, setContact] = useState<Contact | null>(null);
@@ -67,8 +70,11 @@ export function ContactDetail({ id }: { id: string }) {
     pipelines.flatMap((p) => p.stages).find((s) => s.id === deal.stageId);
 
   async function remove() {
-    if (!confirm(`Delete ${contact!.firstName} ${contact!.lastName}? This cannot be undone.`))
-      return;
+    const ok = await askConfirm({
+      title: `Delete ${contact!.firstName} ${contact!.lastName}?`,
+      body: "This cannot be undone.",
+    });
+    if (!ok) return;
     await fetch(`/api/contacts/${id}`, { method: "DELETE" });
     router.push("/contacts");
   }
@@ -98,24 +104,22 @@ export function ContactDetail({ id }: { id: string }) {
         <div className="flex items-center gap-2">
           <StatusChip status={contact.status} />
           <ScoreBadge score={contact.score} />
-          <button onClick={() => setEditing(true)} className="btn-ghost">
+          <Button onClick={() => setEditing(true)} variant="outline">
             <IconEdit width={15} height={15} /> Edit
-          </button>
+          </Button>
           {/* Icon-only, so the record has to be named in the label. */}
-          <button
+          <Button
             onClick={remove}
-            aria-label={`Delete ${contact.firstName} ${contact.lastName}`}
-            className="btn-ghost !text-destructive"
-          >
+            aria-label={`Delete ${contact.firstName} ${contact.lastName}`} variant="outline" size="icon" className="text-feedback-error">
             <IconTrash width={15} height={15} />
-          </button>
+          </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* Left: profile */}
         <div className="space-y-4">
-          <div className="card space-y-3 p-4">
+          <Card size="flush" className="space-y-3 p-4">
             <h2 className="text-sm font-semibold">Details</h2>
             {/* `field` names the fact-ledger field, where there is one: an empty
                 row is exactly where a suggestion belongs (ADR-018). */}
@@ -151,13 +155,13 @@ export function ContactDetail({ id }: { id: string }) {
               </p>
               <p className="mt-0.5 text-sm">{timeAgo(contact.lastActivityAt)}</p>
             </div>
-          </div>
+          </Card>
           <AgentQueue entityType="contact" entityId={id} />
-          <div className="card p-4">
+          <Card size="flush" className="p-4">
             <h2 className="mb-3 text-sm font-semibold">Log a touchpoint</h2>
             <LogTouchpoint entityType="contact" entityId={id} onLogged={bump} />
-          </div>
-          <div className="card p-4">
+          </Card>
+          <Card size="flush" className="p-4">
             <h2 className="mb-3 text-sm font-semibold">Deals</h2>
             {deals.length === 0 && <p className="text-sm text-ink-muted">No deals.</p>}
             <div className="space-y-2">
@@ -190,7 +194,7 @@ export function ContactDetail({ id }: { id: string }) {
                 );
               })}
             </div>
-          </div>
+          </Card>
         </div>
 
         {/* Middle: timeline */}
@@ -203,14 +207,14 @@ export function ContactDetail({ id }: { id: string }) {
 
         {/* Right: notes + tasks */}
         <div className="space-y-4">
-          <div className="card p-4">
+          <Card size="flush" className="p-4">
             <h2 className="mb-3 text-sm font-semibold">Notes</h2>
             <NotesPanel entityType="contact" entityId={id} onChanged={bump} />
-          </div>
-          <div className="card p-4">
+          </Card>
+          <Card size="flush" className="p-4">
             <h2 className="mb-3 text-sm font-semibold">Tasks</h2>
             <TasksPanel entityType="contact" entityId={id} onChanged={bump} />
-          </div>
+          </Card>
         </div>
       </div>
 
@@ -227,6 +231,7 @@ export function ContactDetail({ id }: { id: string }) {
       <p className="mt-6 text-xs text-ink-muted">
         Created {formatDate(contact.createdAt)} · Updated {timeAgo(contact.updatedAt)}
       </p>
+      {confirmDialog}
     </div>
   );
 }

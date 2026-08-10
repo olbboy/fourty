@@ -2,8 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { timeAgo } from "@/lib/format";
-import { Modal, Field, Spinner } from "@/components/ui";
+import { Modal, Field, Spinner, useConfirm } from "@/components/ui";
 import { IconPlus, IconTrash, IconMail } from "@/components/icons";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 type SyncAccount = {
   id: string;
@@ -46,6 +51,7 @@ function whenDue(dueAt: number): string {
 const CAN_PULL = new Set(["google", "microsoft", "ics"]);
 
 export function MailboxSection() {
+  const [askConfirm, confirmDialog] = useConfirm();
   const [accounts, setAccounts] = useState<SyncAccount[] | null>(null);
   const [nextPull, setNextPull] = useState<Record<string, string>>({});
   const [showNew, setShowNew] = useState(false);
@@ -135,15 +141,19 @@ export function MailboxSection() {
   }
 
   async function remove(a: SyncAccount) {
-    if (!confirm(`Disconnect ${a.email}? Mail and events already filed against your contacts stay on their timelines.`))
-      return;
+    const ok = await askConfirm({
+      title: `Disconnect ${a.email}?`,
+      body: "Mail and events already filed against your contacts stay on their timelines.",
+      confirmLabel: "Disconnect",
+    });
+    if (!ok) return;
     const res = await fetch(`/api/sync/accounts/${a.id}`, { method: "DELETE" });
     if (!res.ok) setError((await res.json().catch(() => ({}))).error ?? "Failed to disconnect");
     load();
   }
 
   return (
-    <div className="card p-4">
+    <Card size="flush" className="p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="flex items-center gap-1.5 text-sm font-semibold">
@@ -154,11 +164,11 @@ export function MailboxSection() {
             automatically.
           </p>
         </div>
-        <button onClick={() => setShowNew(true)} className="btn-primary">
+        <Button onClick={() => setShowNew(true)}>
           <IconPlus width={15} height={15} /> Add mailbox
-        </button>
+        </Button>
       </div>
-      {error && <p className="mb-3 text-sm text-destructive">{error}</p>}
+      {error && <p className="mb-3 text-sm text-feedback-error">{error}</p>}
       {result && <p className="mb-3 text-sm text-ink-muted">{result}</p>}
       {!accounts ? (
         <Spinner />
@@ -190,7 +200,7 @@ export function MailboxSection() {
                     {a.status === "paused" && " · paused"}
                   </p>
                   {a.status === "error" && a.lastError && (
-                    <p className="mt-0.5 break-all text-xs text-destructive">Last sync failed: {a.lastError}</p>
+                    <p className="mt-0.5 break-all text-xs text-feedback-error">Last sync failed: {a.lastError}</p>
                   )}
                   {/* Pulling is scheduled work, not a cron: the booking is a row,
                       so the panel can say when this mailbox is next due. */}
@@ -204,34 +214,31 @@ export function MailboxSection() {
                   // fetch would follow the redirect inside the page and the cookie
                   // would never reach the browser, so the callback would reject the
                   // sign-in as a forgery.
-                  <a href={`/api/sync/accounts/${a.id}/connect`} className="btn-primary !py-1 text-xs">
+                  <a
+                    href={`/api/sync/accounts/${a.id}/connect`}
+                    className={cn(buttonVariants({ size: "xs" }))}
+                  >
                     Connect
                   </a>
                 ) : (
                   CAN_PULL.has(a.provider) && (
-                    <button
+                    <Button
                       onClick={() => syncNow(a)}
-                      disabled={busy === a.id}
-                      className="btn-ghost !px-2 text-xs"
-                    >
+                      disabled={busy === a.id} variant="outline" size="sm" className="text-xs">
                       {busy === a.id ? "Syncing…" : "Sync now"}
-                    </button>
+                    </Button>
                   )
                 )}
-                <button
-                  onClick={() => setStatus(a, a.status === "paused" ? "active" : "paused")}
-                  className="btn-ghost !px-2 text-xs"
-                >
+                <Button
+                  onClick={() => setStatus(a, a.status === "paused" ? "active" : "paused")} variant="outline" size="sm" className="text-xs">
                   {a.status === "paused" ? "Resume" : "Pause"}
-                </button>
+                </Button>
                 {/* Icon-only, so the mailbox has to be named in the label. */}
-                <button
+                <Button
                   onClick={() => remove(a)}
-                  aria-label={`Disconnect ${a.email}`}
-                  className="btn-ghost !px-2 !text-red-400"
-                >
+                  aria-label={`Disconnect ${a.email}`} variant="outline" size="icon-sm" className="text-feedback-error">
                   <IconTrash width={14} height={14} />
-                </button>
+                </Button>
               </div>
             );
           })}
@@ -248,42 +255,43 @@ export function MailboxSection() {
       >
         <form onSubmit={create} className="space-y-4">
           <Field label="Provider">
-            <select value={provider} onChange={(e) => setProvider(e.target.value)} className="input">
+            <NativeSelect value={provider} onChange={(e) => setProvider(e.target.value)} className="w-full">
               {MAILBOX_PROVIDERS.map((p) => (
                 <option key={p.value} value={p.value}>
                   {p.label}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </Field>
           <p className="text-xs text-ink-muted">
             {MAILBOX_PROVIDERS.find((p) => p.value === provider)?.note}
           </p>
           <Field label="Email address">
-            <input name="email" required type="email" className="input" placeholder="you@company.com" />
+            <Input name="email" required type="email" placeholder="you@company.com" />
           </Field>
           <Field label="Label (optional)">
-            <input name="label" maxLength={120} className="input" placeholder="Sales inbox" />
+            <Input name="label" maxLength={120} placeholder="Sales inbox" />
           </Field>
           {provider === "ics" && (
             <Field label="Calendar feed URL">
-              <input name="url" required type="url" className="input" placeholder="https://calendar.example.com/feed.ics" />
+              <Input name="url" required type="url" placeholder="https://calendar.example.com/feed.ics" />
             </Field>
           )}
           {provider === "imap" && (
             <Field label="IMAP host (optional — recorded for reference)">
-              <input name="host" className="input" placeholder="imap.company.com" />
+              <Input name="host" placeholder="imap.company.com" />
             </Field>
           )}
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <p className="text-sm text-feedback-error">{error}</p>}
           <div className="flex justify-end">
-            <button type="submit" className="btn-primary">
+            <Button type="submit">
               Add mailbox
-            </button>
+            </Button>
           </div>
         </form>
       </Modal>
-    </div>
+      {confirmDialog}
+    </Card>
   );
 }
 

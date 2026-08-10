@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Timeline } from "@/components/record-panels";
 import { useAiEnabled } from "@/components/ai-enabled";
 import { AgentPanel } from "./index";
+import { Card } from "@/components/ui/card";
 
 /**
  * The record's middle column: **Timeline | Agent** (Phase 4).
@@ -31,7 +32,7 @@ export function RecordTabs({
   const aiEnabled = useAiEnabled();
 
   return (
-    <div className="card p-4">
+    <Card size="flush" className="p-4">
       <div role="tablist" aria-label="Record detail" className="mb-3 flex gap-1">
         {(["timeline", "agent"] as const).map((key) => (
           <button
@@ -63,6 +64,6 @@ export function RecordTabs({
           refreshKey={refreshKey}
         />
       </div>
-    </div>
+    </Card>
   );
 }

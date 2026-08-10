@@ -23,11 +23,12 @@
 
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
     Arial, sans-serif;
-  /* Display face for brand and editorial surfaces only — never inside the
-     product UI, where weight and tracking carry hierarchy instead. Always pair
-     with font-stretch: 125%; at normal width Archivo is just another grotesque,
-     and it is the expanded width that echoes the wordmark. */
-  --font-display: Archivo, "Inter Tight", ui-sans-serif, system-ui, sans-serif;
+  /* The display role, for brand and editorial surfaces. It resolves to Inter:
+     the lockup is drawn artwork whose own typeface has nothing to do with the
+     product's, so there is no face for a second family to echo. The role name
+     stays because it says WHERE something belongs — point it at a real display
+     face here if the brand ever gets one, and nothing downstream changes. */
+  --font-display: var(--font-sans);
 }
 
 /*
@@ -133,6 +134,25 @@
   --priority-low: #746a64;
   --priority-low-wash: color-mix(in srgb, #7a7069 10%, transparent);
 
+  /* Feedback semantics — the outcome of something the user or the system just
+     did: a banner, a status pill, an inline result. Same construction as the
+     record semantics above (10% wash, saturated text, measured per theme) and
+     the same test covers them.
+
+     These deliberately carry their own names even where a value matches a
+     record token today. A task's priority and an SSO warning are different
+     meanings, and one has to be free to move without dragging the other.
+
+     --destructive stays what shadcn means by it: a FILL and border colour. It
+     clears 4.13:1 as text on white, which is under AA, so red *text* uses
+     --feedback-error instead. */
+  --feedback-ok: #007c53;
+  --feedback-ok-wash: color-mix(in srgb, #009966 10%, transparent);
+  --feedback-warn: #a65300;
+  --feedback-warn-wash: color-mix(in srgb, #e17100 10%, transparent);
+  --feedback-error: #d1000a;
+  --feedback-error-wash: color-mix(in srgb, #e7000b 10%, transparent);
+
   /* The rail sits one step off white so it reads as chrome. */
   --sidebar: oklch(0.978 0.005 60);
   --sidebar-foreground: var(--text);
@@ -177,6 +197,10 @@
   --priority-high: #fb4c55;
   --priority-medium: #e17100;
   --priority-low: #97908a;
+
+  --feedback-ok: #14a172;
+  --feedback-warn: #e17100;
+  --feedback-error: #ef575e;
 
   --sidebar: oklch(0.216 0.009 56);
   /* One step lighter than the light-mode fill: on a dark rail the 500 orange
@@ -246,6 +270,12 @@
   --color-priority-medium-wash: var(--priority-medium-wash);
   --color-priority-low: var(--priority-low);
   --color-priority-low-wash: var(--priority-low-wash);
+  --color-feedback-ok: var(--feedback-ok);
+  --color-feedback-ok-wash: var(--feedback-ok-wash);
+  --color-feedback-warn: var(--feedback-warn);
+  --color-feedback-warn-wash: var(--feedback-warn-wash);
+  --color-feedback-error: var(--feedback-error);
+  --color-feedback-error-wash: var(--feedback-error-wash);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -263,46 +293,11 @@
   scrollbar-color: var(--border) transparent;
 }
 
-/* Base form controls — consistent everywhere without a component lib */
-/* Focus is a shape cue, so the halo is the warm neutral --ring, not the accent. */
-.input {
-  @apply w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/50 placeholder:text-ink-muted/60;
-}
-
-.btn-primary,
-.btn-ghost,
-.btn-danger {
-  @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
-}
-
-/* A filled accent control carries ink, not white — see --primary-foreground. */
-.btn-primary {
-  @apply bg-primary text-primary-foreground hover:bg-accent-600 active:bg-accent-700;
-}
-
-.btn-ghost {
-  @apply border border-line bg-surface text-ink hover:bg-surface-2;
-}
-
-.btn-danger {
-  @apply bg-red-600 text-white hover:bg-red-700;
-}
-
-.card {
-  @apply rounded-xl border border-line bg-surface;
-}
-
+/* The wash pill behind StatusChip, ScoreBadge and PriorityChip. Those three are
+   the product's badge API and are what call sites reach for; this rule is their
+   shared shape, not a second `<Badge>`. Anything interactive is a Button. */
 .chip {
   @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium;
-}
-
-/* Interactive pill (saved-views bar, quick filters). */
-.chip-btn {
-  @apply inline-flex items-center gap-1 rounded-full border border-line bg-surface px-2.5 py-1 text-xs font-medium text-ink transition hover:bg-surface-2;
-}
-
-.chip-active {
-  @apply border-accent-500 bg-accent-50 text-accent-700;
 }
 
 /* Text painted in a colour that comes from the database (a pipeline stage) needs
@@ -315,14 +310,6 @@
 
 .dark .data-ink {
   color: var(--data-ink-dark);
-}
-
-.th {
-  @apply px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-ink-muted;
-}
-
-.td {
-  @apply px-3 py-2.5 text-sm;
 }
 
 /* Motion is short, functional, and opacity-plus-4px. Nothing bounces, nothing

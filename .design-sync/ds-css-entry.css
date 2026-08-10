@@ -7,17 +7,16 @@
  *
  * It adds exactly two things the app supplies at runtime and a static export
  * cannot:
- *   1. The webfonts. In the app, next/font/google loads Inter and Archivo and
- *      binds them to --font-sans / --font-display on <html>. There is no
- *      next/font outside the app, so the families are fetched here and the two
- *      theme values are re-pointed at them.
+ *   1. The webfont. In the app, next/font/google loads Inter and binds it to
+ *      --font-sans on <html>. There is no next/font outside the app, so the
+ *      family is fetched here and the theme value re-pointed at it.
  *   2. An explicit @source, because automatic content detection is relative to
  *      this file's directory and would miss src/.
  *
  * Everything else — the whole palette — comes from globals.css unchanged. This
  * file must never hold a design decision of its own.
  */
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Archivo:wdth,wght@125,500..700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
 @import "../src/app/globals.css";
 
 @source "../src";
@@ -25,7 +24,9 @@
 @theme {
   --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
-  --font-display: Archivo, "Inter Tight", ui-sans-serif, system-ui, sans-serif;
+  /* The display role resolves to Inter: the lockup is artwork, not type, so
+     there is no second face for it to echo. */
+  --font-display: Inter, ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Tailwind emits only the utilities it finds in the scanned source, so a class
@@ -42,3 +43,11 @@
 @source inline("{bg,text,border}-{primary,accent-600,accent-700,destructive,muted}/{5,10,15,20,30,50,80}");
 @source inline("font-{sans,display}");
 @source inline("ring-ring/50");
+/* Feedback semantics — the outcome of an action (banner, status pill, inline
+   result). Same wash-behind-saturated-text construction as the record chips. */
+@source inline("{bg,text,border}-feedback-{ok,warn,error}");
+@source inline("bg-feedback-{ok,warn,error}-wash");
+@source inline("border-feedback-{ok,warn,error}/{20,25,30}");
+/* Ink at weight — the timeline dot ladder, and anything else that needs a
+   quieter step of the text colour than --ink-muted. */
+@source inline("bg-{ink,ink-muted}/{50,60,70}");

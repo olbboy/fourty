@@ -10,6 +10,18 @@ import { washedChip } from "@/lib/contrast-color";
 import { PageHeader, Modal, EmptyState, Spinner, StageDot } from "@/components/ui";
 import { IconPlus, IconKanban, IconList, IconDownload } from "@/components/icons";
 import { DealForm } from "./deal-form";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export function DealsClient() {
   const searchParams = useSearchParams();
@@ -87,18 +99,16 @@ export function DealsClient() {
         actions={
           <>
             {pipelines.length > 1 && (
-              <select
+              <NativeSelect
                 value={pipelineId}
                 onChange={(e) => setPipelineId(e.target.value)}
-                aria-label="Pipeline"
-                className="input w-auto"
-              >
+                aria-label="Pipeline">
                 {pipelines.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             )}
             <div className="flex rounded-lg border border-line">
               <button
@@ -116,15 +126,15 @@ export function DealsClient() {
                 <IconList width={16} height={16} />
               </button>
             </div>
-            <a href="/api/export/deals" className="btn-ghost">
+            <a href="/api/export/deals" className={cn(buttonVariants({ variant: "outline" }))}>
               <IconDownload width={15} height={15} />
               <span className="hidden sm:inline">Export</span>
             </a>
-            <button onClick={() => setShowNew(true)} className="btn-primary">
+            <Button onClick={() => setShowNew(true)}>
               <IconPlus width={15} height={15} />
               <span className="hidden sm:inline">New deal</span>
               <span className="sm:hidden">New</span>
-            </button>
+            </Button>
           </>
         }
       />
@@ -136,9 +146,9 @@ export function DealsClient() {
           title="No deals in this pipeline"
           hint="Create your first deal and drag it through the stages as it progresses."
           action={
-            <button onClick={() => setShowNew(true)} className="btn-primary">
+            <Button onClick={() => setShowNew(true)}>
               <IconPlus width={15} height={15} /> New deal
-            </button>
+            </Button>
           }
         />
       ) : view === "kanban" ? (
@@ -184,7 +194,8 @@ export function DealsClient() {
                   </div>
                   <div className="space-y-2">
                     {inStage.map((deal) => (
-                      <div
+                      <Card
+                        size="flush"
                         key={deal.id}
                         data-testid="deal-card"
                         data-deal-id={deal.id}
@@ -192,7 +203,7 @@ export function DealsClient() {
                         onDragStart={() => setDragId(deal.id)}
                         onDragEnd={() => setDragId(null)}
                         onClick={() => router.push(`/deals/${deal.id}`)}
-                        className={`card cursor-grab p-3 shadow-sm transition hover:border-accent-400 active:cursor-grabbing ${
+                        className={`cursor-grab p-3 transition-colors hover:border-accent-400 active:cursor-grabbing ${
                           dragId === deal.id ? "opacity-40" : ""
                         }`}
                       >
@@ -206,7 +217,7 @@ export function DealsClient() {
                             <span
                               className={
                                 stage.type === "open" && deal.expectedCloseDate < Date.now()
-                                  ? "font-medium text-destructive"
+                                  ? "font-medium text-feedback-error"
                                   : ""
                               }
                             >
@@ -214,7 +225,7 @@ export function DealsClient() {
                             </span>
                           )}
                         </div>
-                      </div>
+                      </Card>
                     ))}
                   </div>
                 </div>
@@ -223,31 +234,31 @@ export function DealsClient() {
           </div>
         </div>
       ) : (
-        <div className="card overflow-x-auto">
-          <table className="w-full min-w-[720px]">
-            <thead className="border-b border-line">
-              <tr>
-                <th className="th">Deal</th>
-                <th className="th">Amount</th>
-                <th className="th">Stage</th>
-                <th className="th">Company</th>
-                <th className="th">Close date</th>
-                <th className="th">Updated</th>
-              </tr>
-            </thead>
-            <tbody>
+        <Card size="flush">
+          <Table className="min-w-[720px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Deal</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Stage</TableHead>
+                <TableHead>Company</TableHead>
+                <TableHead>Close date</TableHead>
+                <TableHead>Updated</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {pipelineDeals.map((d) => {
                 const stage = pipeline.stages.find((s) => s.id === d.stageId);
                 const chip = stage && washedChip(stage.color);
                 return (
-                  <tr
+                  <TableRow
                     key={d.id}
                     onClick={() => router.push(`/deals/${d.id}`)}
-                    className="cursor-pointer border-b border-line/60 transition last:border-0 hover:bg-surface-2"
+                    className="cursor-pointer transition hover:bg-surface-2"
                   >
-                    <td className="td font-medium">{d.name}</td>
-                    <td className="td">{formatMoney(d.amount, d.currency)}</td>
-                    <td className="td">
+                    <TableCell className="font-medium">{d.name}</TableCell>
+                    <TableCell>{formatMoney(d.amount, d.currency)}</TableCell>
+                    <TableCell>
                       {stage && chip && (
                         <span
                           className="chip data-ink"
@@ -262,16 +273,16 @@ export function DealsClient() {
                           {stage.name}
                         </span>
                       )}
-                    </td>
-                    <td className="td text-ink-muted">{companyName(d.companyId) ?? "—"}</td>
-                    <td className="td text-ink-muted">{formatDate(d.expectedCloseDate)}</td>
-                    <td className="td text-ink-muted">{timeAgo(d.updatedAt)}</td>
-                  </tr>
+                    </TableCell>
+                    <TableCell className="text-ink-muted">{companyName(d.companyId) ?? "—"}</TableCell>
+                    <TableCell className="text-ink-muted">{formatDate(d.expectedCloseDate)}</TableCell>
+                    <TableCell className="text-ink-muted">{timeAgo(d.updatedAt)}</TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </Card>
       )}
 
       <Modal title="New deal" open={showNew} onClose={() => setShowNew(false)} wide>
