@@ -14,6 +14,28 @@ Repo-specific gotchas for future syncs. Read this before re-running anything.
   `shell.tsx`, `app-sidebar.tsx`, `command-palette.tsx`, `agent-panel/index.tsx`.
   `src/components/ui/*` is clean of Next imports and is the reliable core.
 
+## The two flags without which the build cannot start
+
+Both are easy to omit, and omitting either fails in a way that does not name the
+real cause. Run them in this order, every time:
+
+1. **Emit the declaration tree first.** `npx tsc -p .design-sync/tsconfig.dts.json`
+   writes `.design-sync/.cache/types/`, which `package.json`'s `types` field
+   points at. It is gitignored, so a fresh clone has none and the component
+   surface comes up empty.
+2. **Always pass `--entry .design-sync/ds-entry.ts`.** Without it the converter
+   looks for `node_modules/fourty/package.json` — which never exists, because
+   npm will not self-install a package into its own repo — and dies on a bare
+   `ENOENT` from `lib/dts.mjs` that says nothing about the flag. With it, the
+   converter walks up from the entry to the first `package.json` carrying a
+   `name`, lands on the repo root, and reads `types` from there. That walk is
+   the whole mechanism; no `node_modules/fourty` symlink is needed, and adding
+   one would only create a recursive self-link.
+
+`ds-entry.ts` itself is committed and hand-maintained — it names the export
+surface, since an application has no barrel of its own. Add a component to
+`src/components/ui/` and it does not sync until it is exported there.
+
 ## Stylesheet: must be pre-compiled
 
 `src/app/globals.css` is a Tailwind v4 **source** file (`@import "tailwindcss"`),
@@ -115,11 +137,32 @@ wrong VALUE:
 skips when `ds-bundle/` is absent, so a fresh clone still passes — it is a drift
 guard for whoever builds, not a gate on the app's test run.
 
+**Nothing in the pipeline reminds you to run these two.** The driver's verdict,
+its `upload.deletePaths`, and the `_ds_sync.json` anchor all describe components
+only — a sync that skips the two builds gets a clean verdict, a clean
+reconciliation, and leaves last sync's cards sitting on the project. The
+2026-08-10 run did exactly that and only caught it by diffing `list_files`
+against the local tree by hand. Do that diff before calling a sync done: the
+only paths that may exist remotely and not locally are `_ds_manifest.json` and
+`_adherence.oxlintrc.json`, which the app's self-check writes.
+
+`screens/**` is also absent from the upload plan's `writes` globs in the
+skill — a second `finalize_plan` is needed to ship it.
+
 ## Re-sync risks
 
 - **`cssEntry` is a build artifact, not a source file.** If the stylesheet is
   stale, every preview renders with an old palette and nothing in the pipeline
   flags it. Recompile first, always.
+- **`sourceKeys` track a component's own file, not what it imports.** The
+  2026-08-10 artwork change edited `src/lib/brand-artwork.ts`; `logo.tsx` never
+  moved, so the driver reported `Logo` as unchanged and carried its grade
+  forward without recapturing — even though its render was the entire point of
+  the sync. The bundle still ships correctly (it is rebuilt whole), so this is a
+  verification blind spot, not a content one. When a change lands in a module a
+  component reads rather than in the component, confirm that component by eye:
+  `ds-bundle/_screenshots/<group>__<Name>.png`, or force it with
+  `package-capture.mjs --components <Name>`.
 - **The webfont loads remotely** (`fonts.googleapis.com`) rather than shipping
   as a file, so validate reports `[FONT_REMOTE]`, not `[FONT_MISSING]`. If the
   brand ever needs a self-hosted font, that becomes a `cfg.extraFonts` job.
