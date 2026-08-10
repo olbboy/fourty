@@ -200,7 +200,9 @@
     "TooltipProvider": ".design-sync/doc-stubs/TooltipProvider.md",
     "TooltipTrigger": ".design-sync/doc-stubs/TooltipTrigger.md",
     "WinLossChart": ".design-sync/doc-stubs/WinLossChart.md",
-    "Logo": ".design-sync/doc-stubs/Logo.md"
+    "Logo": ".design-sync/doc-stubs/Logo.md",
+    "KpiCard": ".design-sync/doc-stubs/KpiCard.md",
+    "StageDot": ".design-sync/doc-stubs/StageDot.md"
   },
   "overrides": {
     "Dialog": {

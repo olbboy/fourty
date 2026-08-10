@@ -177,6 +177,49 @@ export function PriorityChip({ priority }: { priority: string }) {
   );
 }
 
+/**
+ * The dashboard metric tile: an eyebrow, one number, and the context that makes
+ * the number mean something.
+ *
+ * `hint` is not decoration. A bare figure is the thing this product refuses to
+ * ship — a win rate carries its window, a forecast its method — so the hint is
+ * where that qualification goes.
+ */
+export function KpiCard({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+}) {
+  return (
+    <div className="card p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">{label}</p>
+      <p className="mt-1 text-xl font-bold tracking-tight md:text-2xl">{value}</p>
+      {hint && <p className="mt-0.5 text-xs text-ink-muted">{hint}</p>}
+    </div>
+  );
+}
+
+/**
+ * The 8px pipeline dot. The colour is workspace data, so it arrives as a prop
+ * rather than a class — a stage can be recoloured per workspace.
+ *
+ * Decorative on its own: the stage name always sits beside it, so the dot is
+ * hidden from assistive tech rather than announced as an unnamed graphic.
+ */
+export function StageDot({ color, className }: { color: string; className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={`inline-block size-2 shrink-0 rounded-full ${className ?? ""}`}
+      style={{ background: color }}
+    />
+  );
+}
+
 export function Avatar({ name, size = 8 }: { name: string; size?: number }) {
   return (
     <ShadcnAvatar

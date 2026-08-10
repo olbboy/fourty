@@ -50,7 +50,7 @@ export * from "../src/components/ui/textarea";
 export * from "../src/components/ui/tooltip";
 
 // App-level patterns the primitive layer does not cover.
-export { PageHeader, Modal, StatusChip, ScoreBadge, PriorityChip, EmptyState } from "../src/components/ui";
+export { PageHeader, Modal, StatusChip, ScoreBadge, PriorityChip, EmptyState, KpiCard, StageDot } from "../src/components/ui";
 export { MoneyBarChart, CountBarChart, FunnelChart, WinLossChart, CategoryBars } from "../src/components/charts";
 export { FactSuggestion, AppliedFact, FactsForField } from "../src/components/fact-suggestion";
 export { ThemeProvider } from "../src/components/theme-provider";

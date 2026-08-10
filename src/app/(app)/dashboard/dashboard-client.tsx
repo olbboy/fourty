@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { formatCompact, formatMoney } from "@/lib/currency";
 import { formatDate } from "@/lib/format";
-import { Spinner, PriorityChip, ScoreBadge } from "@/components/ui";
+import { Spinner, PriorityChip, ScoreBadge, KpiCard } from "@/components/ui";
 import { MoneyBarChart, CountBarChart, FunnelChart } from "@/components/charts";
 
 type Stats = {
@@ -43,16 +43,6 @@ type Stats = {
   }[];
 };
 
-function Kpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div className="card p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">{label}</p>
-      <p className="mt-1 text-xl font-bold tracking-tight md:text-2xl">{value}</p>
-      {hint && <p className="mt-0.5 text-xs text-ink-muted">{hint}</p>}
-    </div>
-  );
-}
-
 export function DashboardClient() {
   const [stats, setStats] = useState<Stats | null>(null);
 
@@ -75,18 +65,18 @@ export function DashboardClient() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi
+        <KpiCard
           label="Open pipeline"
           value={formatCompact(kpis.pipelineValue, "USD")}
           hint={`${kpis.openDeals} open deals`}
         />
-        <Kpi
+        <KpiCard
           label="Weighted forecast"
           value={formatCompact(kpis.weightedForecast, "USD")}
           hint="Stage-probability adjusted"
         />
-        <Kpi label="Won this month" value={formatCompact(kpis.wonThisMonth, "USD")} />
-        <Kpi
+        <KpiCard label="Won this month" value={formatCompact(kpis.wonThisMonth, "USD")} />
+        <KpiCard
           label="Win rate (90d)"
           value={kpis.winRate === null ? "—" : `${kpis.winRate}%`}
           hint={

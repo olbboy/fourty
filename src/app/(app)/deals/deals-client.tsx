@@ -7,7 +7,7 @@ import type { Company, Contact, Deal, Pipeline, Stage } from "@/lib/types";
 import { convert, formatCompact, formatMoney } from "@/lib/currency";
 import { timeAgo, formatDate } from "@/lib/format";
 import { washedChip } from "@/lib/contrast-color";
-import { PageHeader, Modal, EmptyState, Spinner } from "@/components/ui";
+import { PageHeader, Modal, EmptyState, Spinner, StageDot } from "@/components/ui";
 import { IconPlus, IconKanban, IconList, IconDownload } from "@/components/icons";
 import { DealForm } from "./deal-form";
 
@@ -171,10 +171,7 @@ export function DealsClient() {
                 >
                   <div className="mb-2 flex items-center justify-between px-1.5 pt-1">
                     <div className="flex items-center gap-1.5">
-                      <span
-                        className="h-2 w-2 rounded-full"
-                        style={{ background: stage.color }}
-                      />
+                      <StageDot color={stage.color} />
                       <span className="text-sm font-semibold">{stage.name}</span>
                       <span className="text-xs text-ink-muted">{count}</span>
                     </div>
