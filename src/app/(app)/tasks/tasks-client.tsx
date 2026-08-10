@@ -81,17 +81,17 @@ export function TasksClient() {
 
       <div className="mb-4 flex gap-1.5">
         {(["open", "done", "all"] as const).map((s) => (
-          <button
+          <Button
             key={s}
             onClick={() => setState(s)}
-            className={`chip cursor-pointer !px-3 !py-1.5 capitalize transition ${
-              state === s
-                ? "bg-primary text-primary-foreground"
-                : "border border-line text-ink-muted hover:border-accent-400"
+            size="sm"
+            variant={state === s ? "default" : "outline"}
+            className={`rounded-4xl text-xs capitalize ${
+              state === s ? "" : "text-ink-muted hover:border-accent-400"
             }`}
           >
             {s}
-          </button>
+          </Button>
         ))}
       </div>
 

@@ -13,6 +13,14 @@ import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export function ContactsClient() {
   const searchParams = useSearchParams();
@@ -134,44 +142,44 @@ export function ContactsClient() {
           }
         />
       ) : (
-        <Card size="flush" className="overflow-x-auto">
-          <table className="w-full min-w-[720px]">
-            <thead className="border-b border-line">
-              <tr>
-                <th className="th">Name</th>
-                <th className="th">Company</th>
-                <th className="th">Status</th>
-                <th className="th">Score</th>
-                <th className="th hidden lg:table-cell">Email</th>
-                <th className="th">Last activity</th>
-              </tr>
-            </thead>
-            <tbody>
+        <Card size="flush">
+          <Table className="min-w-[720px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Company</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Score</TableHead>
+                <TableHead className="hidden lg:table-cell">Email</TableHead>
+                <TableHead>Last activity</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {contacts.map((c) => (
-                <tr
+                <TableRow
                   key={c.id}
                   onClick={() => router.push(`/contacts/${c.id}`)}
-                  className="cursor-pointer border-b border-line/60 transition last:border-0 hover:bg-surface-2"
+                  className="cursor-pointer transition hover:bg-surface-2"
                 >
-                  <td className="td font-medium">
+                  <TableCell className="font-medium">
                     {c.firstName} {c.lastName}
                     {c.jobTitle && (
                       <span className="block text-xs font-normal text-ink-muted">{c.jobTitle}</span>
                     )}
-                  </td>
-                  <td className="td text-ink-muted">{companyName(c.companyId)}</td>
-                  <td className="td">
+                  </TableCell>
+                  <TableCell className="text-ink-muted">{companyName(c.companyId)}</TableCell>
+                  <TableCell>
                     <StatusChip status={c.status} />
-                  </td>
-                  <td className="td">
+                  </TableCell>
+                  <TableCell>
                     <ScoreBadge score={c.score} />
-                  </td>
-                  <td className="td hidden text-ink-muted lg:table-cell">{c.email ?? "—"}</td>
-                  <td className="td text-ink-muted">{timeAgo(c.lastActivityAt)}</td>
-                </tr>
+                  </TableCell>
+                  <TableCell className="hidden text-ink-muted lg:table-cell">{c.email ?? "—"}</TableCell>
+                  <TableCell className="text-ink-muted">{timeAgo(c.lastActivityAt)}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </Card>
       )}
 

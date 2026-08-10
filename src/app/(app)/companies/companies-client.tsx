@@ -11,6 +11,14 @@ import { CompanyForm } from "./company-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export function CompaniesClient() {
   const searchParams = useSearchParams();
@@ -74,44 +82,44 @@ export function CompaniesClient() {
           }
         />
       ) : (
-        <Card size="flush" className="overflow-x-auto">
-          <table className="w-full min-w-[680px]">
-            <thead className="border-b border-line">
-              <tr>
-                <th className="th">Name</th>
-                <th className="th">Industry</th>
-                <th className="th">Size</th>
-                <th className="th hidden lg:table-cell">Location</th>
-                <th className="th">Revenue</th>
-                <th className="th">Updated</th>
-              </tr>
-            </thead>
-            <tbody>
+        <Card size="flush">
+          <Table className="min-w-[680px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Industry</TableHead>
+                <TableHead>Size</TableHead>
+                <TableHead className="hidden lg:table-cell">Location</TableHead>
+                <TableHead>Revenue</TableHead>
+                <TableHead>Updated</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {companies.map((c) => (
-                <tr
+                <TableRow
                   key={c.id}
                   onClick={() => router.push(`/companies/${c.id}`)}
-                  className="cursor-pointer border-b border-line/60 transition last:border-0 hover:bg-surface-2"
+                  className="cursor-pointer transition hover:bg-surface-2"
                 >
-                  <td className="td font-medium">
+                  <TableCell className="font-medium">
                     {c.name}
                     {c.domain && (
                       <span className="block text-xs font-normal text-ink-muted">{c.domain}</span>
                     )}
-                  </td>
-                  <td className="td text-ink-muted">{c.industry ?? "—"}</td>
-                  <td className="td text-ink-muted">{c.size ?? "—"}</td>
-                  <td className="td hidden text-ink-muted lg:table-cell">
+                  </TableCell>
+                  <TableCell className="text-ink-muted">{c.industry ?? "—"}</TableCell>
+                  <TableCell className="text-ink-muted">{c.size ?? "—"}</TableCell>
+                  <TableCell className="hidden text-ink-muted lg:table-cell">
                     {[c.city, c.country].filter(Boolean).join(", ") || "—"}
-                  </td>
-                  <td className="td text-ink-muted">
+                  </TableCell>
+                  <TableCell className="text-ink-muted">
                     {c.annualRevenue ? formatCompact(c.annualRevenue, "USD") : "—"}
-                  </td>
-                  <td className="td text-ink-muted">{timeAgo(c.updatedAt)}</td>
-                </tr>
+                  </TableCell>
+                  <TableCell className="text-ink-muted">{timeAgo(c.updatedAt)}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </Card>
       )}
 

@@ -13,6 +13,14 @@ import { DealForm } from "./deal-form";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Card } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export function DealsClient() {
   const searchParams = useSearchParams();
@@ -225,31 +233,31 @@ export function DealsClient() {
           </div>
         </div>
       ) : (
-        <Card size="flush" className="overflow-x-auto">
-          <table className="w-full min-w-[720px]">
-            <thead className="border-b border-line">
-              <tr>
-                <th className="th">Deal</th>
-                <th className="th">Amount</th>
-                <th className="th">Stage</th>
-                <th className="th">Company</th>
-                <th className="th">Close date</th>
-                <th className="th">Updated</th>
-              </tr>
-            </thead>
-            <tbody>
+        <Card size="flush">
+          <Table className="min-w-[720px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Deal</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Stage</TableHead>
+                <TableHead>Company</TableHead>
+                <TableHead>Close date</TableHead>
+                <TableHead>Updated</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {pipelineDeals.map((d) => {
                 const stage = pipeline.stages.find((s) => s.id === d.stageId);
                 const chip = stage && washedChip(stage.color);
                 return (
-                  <tr
+                  <TableRow
                     key={d.id}
                     onClick={() => router.push(`/deals/${d.id}`)}
-                    className="cursor-pointer border-b border-line/60 transition last:border-0 hover:bg-surface-2"
+                    className="cursor-pointer transition hover:bg-surface-2"
                   >
-                    <td className="td font-medium">{d.name}</td>
-                    <td className="td">{formatMoney(d.amount, d.currency)}</td>
-                    <td className="td">
+                    <TableCell className="font-medium">{d.name}</TableCell>
+                    <TableCell>{formatMoney(d.amount, d.currency)}</TableCell>
+                    <TableCell>
                       {stage && chip && (
                         <span
                           className="chip data-ink"
@@ -264,15 +272,15 @@ export function DealsClient() {
                           {stage.name}
                         </span>
                       )}
-                    </td>
-                    <td className="td text-ink-muted">{companyName(d.companyId) ?? "—"}</td>
-                    <td className="td text-ink-muted">{formatDate(d.expectedCloseDate)}</td>
-                    <td className="td text-ink-muted">{timeAgo(d.updatedAt)}</td>
-                  </tr>
+                    </TableCell>
+                    <TableCell className="text-ink-muted">{companyName(d.companyId) ?? "—"}</TableCell>
+                    <TableCell className="text-ink-muted">{formatDate(d.expectedCloseDate)}</TableCell>
+                    <TableCell className="text-ink-muted">{timeAgo(d.updatedAt)}</TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </Card>
       )}
 
