@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { formatCompact, formatMoney } from "@/lib/currency";
 import { formatDate } from "@/lib/format";
-import { Spinner, PriorityChip, ScoreBadge } from "@/components/ui";
+import { Spinner, PriorityChip, ScoreBadge, KpiCard } from "@/components/ui";
 import { MoneyBarChart, CountBarChart, FunnelChart } from "@/components/charts";
 
 type Stats = {
@@ -43,16 +43,6 @@ type Stats = {
   }[];
 };
 
-function Kpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div className="card p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">{label}</p>
-      <p className="mt-1 text-xl font-bold tracking-tight md:text-2xl">{value}</p>
-      {hint && <p className="mt-0.5 text-xs text-ink-muted">{hint}</p>}
-    </div>
-  );
-}
-
 export function DashboardClient() {
   const [stats, setStats] = useState<Stats | null>(null);
 
@@ -75,18 +65,18 @@ export function DashboardClient() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi
+        <KpiCard
           label="Open pipeline"
           value={formatCompact(kpis.pipelineValue, "USD")}
           hint={`${kpis.openDeals} open deals`}
         />
-        <Kpi
+        <KpiCard
           label="Weighted forecast"
           value={formatCompact(kpis.weightedForecast, "USD")}
           hint="Stage-probability adjusted"
         />
-        <Kpi label="Won this month" value={formatCompact(kpis.wonThisMonth, "USD")} />
-        <Kpi
+        <KpiCard label="Won this month" value={formatCompact(kpis.wonThisMonth, "USD")} />
+        <KpiCard
           label="Win rate (90d)"
           value={kpis.winRate === null ? "—" : `${kpis.winRate}%`}
           hint={
@@ -135,7 +125,7 @@ export function DashboardClient() {
           <h2 className="mb-3 text-sm font-semibold">
             Tasks due{" "}
             {kpis.overdueTasks > 0 && (
-              <span className="chip bg-red-500/10 text-red-500">{kpis.overdueTasks} overdue</span>
+              <span className="chip bg-red-500/10 text-red-700 dark:text-red-300">{kpis.overdueTasks} overdue</span>
             )}
           </h2>
           <div className="space-y-2">
@@ -144,7 +134,7 @@ export function DashboardClient() {
                 <p className="min-w-0 truncate text-sm">{t.title}</p>
                 <div className="flex shrink-0 items-center gap-1.5">
                   <PriorityChip priority={t.priority} />
-                  <span className={`text-xs ${t.overdue ? "font-semibold text-red-500" : "text-ink-muted"}`}>
+                  <span className={`text-xs ${t.overdue ? "font-semibold text-destructive" : "text-ink-muted"}`}>
                     {formatDate(t.dueDate)}
                   </span>
                 </div>
@@ -152,7 +142,7 @@ export function DashboardClient() {
             ))}
             {stats.dueTasks.length === 0 && <p className="text-sm text-ink-muted">Nothing due. 🎉</p>}
           </div>
-          <Link href="/tasks" className="mt-3 block text-xs font-medium text-accent-600 hover:underline dark:text-accent-400">
+          <Link href="/tasks" className="mt-3 block text-xs font-medium text-accent-700 hover:underline dark:text-accent-400">
             All tasks →
           </Link>
         </div>

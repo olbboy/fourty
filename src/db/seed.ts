@@ -9,14 +9,25 @@ import { newId } from "@/lib/id";
 import { logActivity } from "@/lib/activity";
 import { recomputeContactScore } from "@/lib/services/contact-score";
 
+/**
+ * Stage dot colours, in the design system's warm-repitched palette.
+ *
+ * These are data, not CSS: a stage row carries its own colour so a workspace can
+ * rename and recolour its pipeline. The seed therefore hardcodes the sRGB values
+ * the design system's `--stage-*` tokens resolve to, rather than referencing
+ * them. Lead is a warm neutral (the cool slate it used to be was the one value
+ * that visibly did not belong once the palette went warm), and the ladder keeps
+ * seven distinguishable hues so the kanban never collapses two stages into one
+ * colour.
+ */
 export const DEFAULT_STAGES = [
-  { name: "Lead", winProbability: 10, type: "open", color: "#94a3b8" },
-  { name: "Qualified", winProbability: 25, type: "open", color: "#60a5fa" },
-  { name: "Demo", winProbability: 45, type: "open", color: "#a78bfa" },
-  { name: "Proposal", winProbability: 65, type: "open", color: "#fbbf24" },
-  { name: "Negotiation", winProbability: 85, type: "open", color: "#fb923c" },
-  { name: "Won", winProbability: 100, type: "won", color: "#34d399" },
-  { name: "Lost", winProbability: 0, type: "lost", color: "#f87171" },
+  { name: "Lead", winProbability: 10, type: "open", color: "#a89f99" },
+  { name: "Qualified", winProbability: 25, type: "open", color: "#51a2ff" },
+  { name: "Demo", winProbability: 45, type: "open", color: "#a684ff" },
+  { name: "Proposal", winProbability: 65, type: "open", color: "#ffb900" },
+  { name: "Negotiation", winProbability: 85, type: "open", color: "#ff8b33" },
+  { name: "Won", winProbability: 100, type: "won", color: "#00d492" },
+  { name: "Lost", winProbability: 0, type: "lost", color: "#ff6467" },
 ] as const;
 
 /** Create the default sales pipeline if none exists. Returns pipeline id. */

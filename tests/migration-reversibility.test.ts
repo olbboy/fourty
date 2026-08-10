@@ -48,8 +48,14 @@ const UP = [
   "drizzle/0012_deal_score.sql",
   "drizzle/0013_record_facts.sql",
   "drizzle/0014_agent_tasks.sql",
+  "drizzle/0015_email_signature.sql",
+  "drizzle/0016_conversation_record.sql",
+  "drizzle/0017_stage_colour_default.sql",
 ];
 const DOWN = [
+  "drizzle/down/0017_stage_colour_default.down.sql",
+  "drizzle/down/0016_conversation_record.down.sql",
+  "drizzle/down/0015_email_signature.down.sql",
   "drizzle/down/0014_agent_tasks.down.sql",
   "drizzle/down/0013_record_facts.down.sql",
   "drizzle/down/0012_deal_score.down.sql",

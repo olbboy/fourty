@@ -1,8 +1,8 @@
 <div align="center">
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./public/logo-dark.svg">
-  <img src="./public/logo.svg" alt="Fourty" width="260">
+  <source media="(prefers-color-scheme: dark)" srcset="./public/brand/logo-full-inverse.svg">
+  <img src="./public/brand/logo-full.svg" alt="Fourty" width="260">
 </picture>
 
 **The open-source CRM that deploys in 30 seconds.**

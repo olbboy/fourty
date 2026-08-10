@@ -72,7 +72,7 @@ export function ImportClient() {
         />
       </label>
 
-      {error && <p className="mt-4 text-sm text-red-500">{error}</p>}
+      {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
       {result && (
         <div className="card mt-4 space-y-1 p-4">
           <p className="font-medium text-emerald-600 dark:text-emerald-400">Import complete ✓</p>
@@ -80,7 +80,7 @@ export function ImportClient() {
             {result.created} contacts created · {result.companiesCreated} companies auto-created ·{" "}
             {result.skipped} rows skipped (duplicates or missing name) · {result.total} rows total
           </p>
-          <Link href="/contacts" className="inline-block pt-1 text-sm font-medium text-accent-600 hover:underline dark:text-accent-400">
+          <Link href="/contacts" className="inline-block pt-1 text-sm font-medium text-accent-700 hover:underline dark:text-accent-400">
             View contacts →
           </Link>
         </div>

@@ -120,7 +120,7 @@ export function SsoSection() {
         </button>
       </div>
       {/* Failures from the row buttons land here; the form has its own copy. */}
-      {error && editing === null && <p className="mb-3 text-sm text-red-500">{error}</p>}
+      {error && editing === null && <p className="mb-3 text-sm text-destructive">{error}</p>}
       {!connections ? (
         <Spinner />
       ) : connections.length === 0 ? (
@@ -235,7 +235,7 @@ export function SsoSection() {
               provider before saving.
             </p>
           )}
-          {error && <p className="text-sm text-red-500">{error}</p>}
+          {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex justify-end">
             <button type="submit" className="btn-primary">
               {current ? "Save provider" : "Add provider"}
