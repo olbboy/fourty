@@ -14,6 +14,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { withViewTransition } from "@/lib/view-transition";
 import {
   Table,
   TableBody,
@@ -66,16 +67,25 @@ export function DealsClient() {
   const companyName = (id: string | null) => companies.find((c) => c.id === id)?.name;
 
   async function moveDeal(dealId: string, stageId: string) {
-    // optimistic update
-    setDeals((prev) =>
-      prev ? prev.map((d) => (d.id === dealId ? { ...d, stageId } : d)) : prev,
-    );
+    // Optimistic, and inside a View Transition so the card is seen travelling
+    // to its new column instead of appearing there. The drag state clears in
+    // the same flush on purpose: the transition photographs the DOM the moment
+    // this callback settles, and a card still wearing its dragging opacity
+    // would animate down to 40% and then snap back.
+    withViewTransition(() => {
+      setDeals((prev) =>
+        prev ? prev.map((d) => (d.id === dealId ? { ...d, stageId } : d)) : prev,
+      );
+      setDragId(null);
+    });
     const res = await fetch(`/api/deals/${dealId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ stageId }),
     });
-    if (!res.ok) load(); // rollback on failure
+    // Rollback on failure, and deliberately not inside a transition of its own:
+    // a rejected move should correct itself at once, not play the journey back.
+    if (!res.ok) load();
   }
 
   function stageTotals(stage: Stage) {
@@ -203,6 +213,14 @@ export function DealsClient() {
                         onDragStart={() => setDragId(deal.id)}
                         onDragEnd={() => setDragId(null)}
                         onClick={() => router.push(`/deals/${deal.id}`)}
+                        // What makes the card a single object across the move
+                        // rather than one leaving and another arriving. The
+                        // prefix matters: an id may open with a digit, which a
+                        // bare CSS custom-ident may not. Only the board names
+                        // its cards — the list view below renders the same
+                        // deals, and two elements sharing a name abort the
+                        // transition.
+                        style={{ viewTransitionName: `deal-${deal.id}` }}
                         className={`cursor-grab p-3 transition-colors hover:border-accent-400 active:cursor-grabbing ${
                           dragId === deal.id ? "opacity-40" : ""
                         }`}

@@ -340,6 +340,18 @@
   animation: fade-up var(--duration-enter) var(--ease-out-expo);
 }
 
+/* A deal card crossing the Kanban board is a reposition — something already on
+   screen moving from A to B — so it accelerates and decelerates rather than
+   arriving. Only elements that claim a `view-transition-name` are lifted out
+   and morphed; the rest of the page cross-fades as one, which is what carries
+   the stage totals to their new numbers. No media query is needed here:
+   `withViewTransition` declines to start a transition at all under reduced
+   motion, so these rules never get the chance to run. */
+::view-transition-group(*) {
+  animation-duration: var(--duration-enter);
+  animation-timing-function: var(--ease-in-out);
+}
+
 /* Reduced motion needs an alternative, not just a cancellation: the entrance
    still resolves, it just arrives without travelling. */
 @media (prefers-reduced-motion: reduce) {
