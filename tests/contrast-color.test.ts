@@ -16,7 +16,7 @@ const STAGE_COLOURS = [
   "#ff8b33", // Negotiation
   "#00d492", // Won
   "#ff6467", // Lost
-  "#f86008", // the brand orange
+  "#fb631a", // the brand orange, from brand/logo-master.svg
 ];
 
 const AA = 4.5;
@@ -29,8 +29,8 @@ describe("readableOn — text sitting on a filled data colour", () => {
   });
 
   it("picks ink on light fills and white on dark ones", () => {
-    expect(readableOn("#ffb900")).toBe("#101010");
-    expect(readableOn("#f86008")).toBe("#101010"); // the DS's own ink-on-orange rule
+    expect(readableOn("#ffb900")).toBe("#231f20");
+    expect(readableOn("#fb631a")).toBe("#231f20"); // the logo's own ink-on-orange pairing
     expect(readableOn("#101010")).toBe("#ffffff");
   });
 });
@@ -57,7 +57,7 @@ describe("readableInk — the data colour used as text", () => {
 
 describe("parsing", () => {
   it("accepts shorthand hex and tolerates junk without throwing", () => {
-    expect(readableOn("#fff")).toBe("#101010");
+    expect(readableOn("#fff")).toBe("#231f20");
     expect(() => readableInk("not-a-colour")).not.toThrow();
   });
 });

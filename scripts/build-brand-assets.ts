@@ -1,71 +1,151 @@
 /**
- * Write the static brand files from the artwork in src/lib/brand-artwork.ts.
- *
- * A browser asks for the favicon and the PWA icon as files, so those cannot come
- * from the React component — but they must not be a second, hand-kept copy of
- * the geometry either, or the tab icon quietly drifts from the sidebar. This
- * script is the join: one source, both consumers.
+ * Generate everything derived from brand/logo-master.svg.
  *
  *   npm run build:brand
  *
- * Re-run it whenever the artwork changes; the output is committed.
+ * The master is the only hand-maintained artwork. This script splits it into the
+ * two lockups and writes the three kinds of consumer:
+ *
+ *   src/lib/brand-artwork.ts   geometry for <Logo>, so React renders it inline
+ *   public/brand/*.svg         the lockups as files, for docs and press
+ *   public/icon.svg            the favicon / PWA icon — the compact lockup
+ *                              centred in a square
+ *
+ * Output is committed. The point of generating it is that the tab icon can
+ * never drift away from the sidebar: there is one drawing, not four copies.
  */
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { ART, BRAND_ORANGE, INK, INK_INVERSE, type LogoVariant } from "../src/lib/brand-artwork";
 
-const OUT = path.join(process.cwd(), "public", "brand");
+const ROOT = process.cwd();
+const MASTER = path.join(ROOT, "brand", "logo-master.svg");
 
-/** The lockup at its natural proportions — for READMEs, docs, press. */
-function lockup(variant: LogoVariant, ink: string): string {
-  const art = ART[variant];
-  return [
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${art.width} ${art.height}" fill="none">`,
-    `<path d="${art.ink}" fill="${ink}" fill-rule="evenodd"/>`,
-    `<path d="${art.o}" fill="${BRAND_ORANGE}" fill-rule="evenodd"/>`,
-    `</svg>`,
-    ``,
-  ].join("");
+/** The artwork's own colours, read off the master rather than restated here. */
+const INK = "#231F20";
+const ORANGE = "#FB631A";
+/**
+ * Ink for dark grounds. The artwork ships no inverse, so this is the palette's
+ * own dark-mode text colour (`--text` in .dark) rather than a flat white: on a
+ * warm near-black rail a cool white reads as a different brand leaking in.
+ */
+const INK_INVERSE = "#fbfaf8";
+
+/** Full lockup extents, from the master's viewBox. */
+const FULL_WIDTH = 1457.6;
+const HEIGHT = 304;
+/**
+ * Right edge of the compact lockup — the orange O's, measured from the master
+ * with getBBox. Re-measure if the artwork changes: load the master in a browser
+ * and read `document.querySelector("#compact").getBBox()`.
+ */
+const COMPACT_WIDTH = 509.2;
+
+type Shape = { d: string; orange: boolean };
+
+/** `<polygon points>` → a closed path, so downstream only ever handles `d`. */
+function polygonToPath(points: string): string {
+  const nums = points.trim().split(/[\s,]+/).map(Number);
+  const pairs: string[] = [];
+  for (let i = 0; i + 1 < nums.length; i += 2) pairs.push(`${nums[i]},${nums[i + 1]}`);
+  return `M${pairs.join("L")}Z`;
+}
+
+/** Pull the shapes out of one `<g id="...">` of the master. */
+function shapesIn(svg: string, groupId: string): Shape[] {
+  const group = new RegExp(`<g id="${groupId}">([\\s\\S]*?)</g>`).exec(svg);
+  if (!group) throw new Error(`brand master has no <g id="${groupId}">`);
+  const shapes: Shape[] = [];
+  for (const el of group[1].matchAll(/<(polygon|path)\s+fill="([^"]+)"\s+(points|d)="([^"]+)"\s*\/>/g)) {
+    const [, , fill, attr, value] = el;
+    shapes.push({
+      d: attr === "points" ? polygonToPath(value) : value,
+      orange: fill.toUpperCase() === ORANGE,
+    });
+  }
+  if (!shapes.length) throw new Error(`<g id="${groupId}"> holds no shapes`);
+  return shapes;
+}
+
+const master = readFileSync(MASTER, "utf8");
+const compact = shapesIn(master, "compact");
+const lettering = shapesIn(master, "lettering");
+
+const VARIANTS = {
+  full: { width: FULL_WIDTH, height: HEIGHT, minHeight: 20, shapes: [...compact, ...lettering] },
+  compact: { width: COMPACT_WIDTH, height: HEIGHT, minHeight: 16, shapes: compact },
+} as const;
+
+// ── src/lib/brand-artwork.ts ───────────────────────────────────────────────
+const module = `/**
+ * The Fourty brand artwork.
+ *
+ * GENERATED from brand/logo-master.svg by scripts/build-brand-assets.ts.
+ * Do not edit — change the master and run \`npm run build:brand\`.
+ *
+ *   full     the whole lockup
+ *   compact  the 40 monogram, for square and narrow surfaces
+ */
+
+export const INK = ${JSON.stringify(INK)};
+export const INK_INVERSE = ${JSON.stringify(INK_INVERSE)};
+export const BRAND_ORANGE = ${JSON.stringify(ORANGE)};
+
+export const ART = {
+${Object.entries(VARIANTS)
+  .map(
+    ([name, v]) => `  ${name}: {
+    width: ${v.width},
+    height: ${v.height},
+    /** Minimum legible height, per the brand rules. */
+    minHeight: ${v.minHeight},
+    shapes: [
+${v.shapes.map((s) => `      { d: ${JSON.stringify(s.d)}, orange: ${s.orange} },`).join("\n")}
+    ],
+  },`,
+  )
+  .join("\n")}
+} as const;
+
+export type LogoVariant = keyof typeof ART;
+`;
+
+// ── public/brand/*.svg and public/icon.svg ─────────────────────────────────
+function lockup(variant: keyof typeof VARIANTS, ink: string): string {
+  const v = VARIANTS[variant];
+  const body = v.shapes
+    .map((s) => `<path d="${s.d}" fill="${s.orange ? ORANGE : ink}"/>`)
+    .join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${v.width} ${v.height}" fill="none">${body}</svg>\n`;
 }
 
 /**
- * The mark centred in a square, for the favicon and the installed app icon.
- *
- * No container and no fill behind it: the O is the brand orange, so a brand
- * orange tile would swallow it — the exact mistake the retired placeholder made.
- * Clear space is the height of the O on every side, as the brand rules ask.
+ * The compact lockup centred in a square, for the favicon and installed icon.
+ * No tile behind it: the O is the brand orange and a brand-orange ground would
+ * swallow it — exactly the mistake the retired placeholder made.
  */
 function appIcon(ink: string): string {
-  const art = ART.mark;
+  const v = VARIANTS.compact;
   const box = 64;
   const pad = 6;
-  const scale = (box - pad * 2) / art.width;
-  const drawnHeight = art.height * scale;
-  const top = (box - drawnHeight) / 2;
-  return [
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${box} ${box}" fill="none">`,
-    `<g transform="translate(${pad} ${top.toFixed(3)}) scale(${scale.toFixed(6)})">`,
-    `<path d="${art.ink}" fill="${ink}" fill-rule="evenodd"/>`,
-    `<path d="${art.o}" fill="${BRAND_ORANGE}" fill-rule="evenodd"/>`,
-    `</g></svg>`,
-    ``,
-  ].join("");
+  const scale = (box - pad * 2) / v.width;
+  const top = (box - v.height * scale) / 2;
+  const body = v.shapes
+    .map((s) => `<path d="${s.d}" fill="${s.orange ? ORANGE : ink}"/>`)
+    .join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${box} ${box}" fill="none"><g transform="translate(${pad} ${top.toFixed(3)}) scale(${scale.toFixed(6)})">${body}</g></svg>\n`;
 }
 
-mkdirSync(OUT, { recursive: true });
-
+mkdirSync(path.join(ROOT, "public", "brand"), { recursive: true });
+writeFileSync(path.join(ROOT, "src", "lib", "brand-artwork.ts"), module);
 const files: Record<string, string> = {
-  "logo-wordmark.svg": lockup("wordmark", INK),
-  "logo-wordmark-inverse.svg": lockup("wordmark", INK_INVERSE),
-  "logo-mark.svg": lockup("mark", INK),
-  "logo-mark-inverse.svg": lockup("mark", INK_INVERSE),
+  "logo-full.svg": lockup("full", INK),
+  "logo-full-inverse.svg": lockup("full", INK_INVERSE),
+  "logo-compact.svg": lockup("compact", INK),
+  "logo-compact-inverse.svg": lockup("compact", INK_INVERSE),
 };
-
 for (const [name, body] of Object.entries(files)) {
-  writeFileSync(path.join(OUT, name), body);
+  writeFileSync(path.join(ROOT, "public", "brand", name), body);
 }
-// The app icon lives at the root because that is where the manifest and the
-// metadata `icons` entry point.
-writeFileSync(path.join(process.cwd(), "public", "icon.svg"), appIcon(INK));
+writeFileSync(path.join(ROOT, "public", "icon.svg"), appIcon(INK));
 
-console.log(`wrote ${Object.keys(files).length + 1} brand file(s)`);
+console.log(`brand: ${Object.keys(files).length + 2} file(s) from ${path.relative(ROOT, MASTER)}`);

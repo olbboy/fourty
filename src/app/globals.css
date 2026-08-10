@@ -6,15 +6,16 @@
 
 @theme {
   /* The accent ramp is built on the brand mark's own orange: step 500 is the
-     O in the 4OURTY wordmark (#f86008), converted to oklch. The steps around it
-     are the working range — 600 for hover, 700 for accent-coloured TEXT, 50 for
-     the single wash. Declared in oklch so lightening a step is one number. */
+     O in the logo (#fb631a), read off brand/logo-master.svg and converted to
+     oklch. The steps around it are the working range — 600 for hover, 700 for
+     accent-coloured TEXT, 50 for the single wash. Declared in oklch so
+     lightening a step is one number. */
   --color-accent-50: oklch(0.98 0.016 73.684);
   --color-accent-100: oklch(0.954 0.038 75.164);
   --color-accent-200: oklch(0.901 0.076 70.697);
   --color-accent-300: oklch(0.837 0.128 66.29);
   --color-accent-400: oklch(0.757 0.174 52);
-  --color-accent-500: oklch(0.678 0.202 42.07);
+  --color-accent-500: oklch(0.687 0.2 41.27);
   --color-accent-600: oklch(0.616 0.196 40);
   --color-accent-700: oklch(0.553 0.195 38.402);
   --color-accent-800: oklch(0.47 0.157 37.304);
@@ -43,8 +44,8 @@
  */
 :root {
   /* The brand mark itself. */
-  --brand-orange: var(--color-accent-500); /* #f86008 — the O in 4OURTY */
-  --brand-ink: #101010; /* the letterforms */
+  --brand-orange: var(--color-accent-500); /* #fb631a — the O in the mark */
+  --brand-ink: #231f20; /* the artwork's own letterform colour */
 
   /* Neutrals are warm stone, not cool slate: genuinely tinted at chroma
      .004–.016 on the brand's own warm axis (~58deg). A neutral that shares a
@@ -66,18 +67,19 @@
   --popover: var(--surface);
   --popover-foreground: var(--text);
   --primary: var(--color-accent-500);
-  /* Ink, not white. At L .678 the brand orange gives white only 2.9:1 and the
-     mark's own black 6.0:1 — and black-on-orange is the pairing the logo makes.
-     The rule that follows: --primary is for FILLS. Anything drawn in the accent
-     that is not a fill — link text, an accent icon, the spinner ring — uses
-     --color-accent-700, because the flat orange clears only 2.9:1 on white. */
+  /* Ink, not white. On the mark's orange, white reaches only 3.04:1 while the
+     artwork's own ink reaches 5.36 — and ink-on-orange is the pairing the logo
+     already makes. The rule that follows: --primary is for FILLS. Anything
+     drawn in the accent that is not a fill — link text, an accent icon, the
+     spinner ring — uses --color-accent-700 (5.22:1 on white), because the flat
+     orange itself clears only 3.04:1 there. */
   --primary-foreground: var(--brand-ink);
   --secondary: var(--surface-2);
   --secondary-foreground: var(--text);
   --muted: var(--surface-2);
   --muted-foreground: var(--text-muted);
-  /* shadcn's --accent is a hover/raised *surface*, unrelated to the indigo
-     --color-accent-* brand scale in @theme. Both names ship; they don't collide
+  /* shadcn's --accent is a hover/raised *surface*, unrelated to the orange
+     --color-accent-* brand ramp in @theme. Both names ship; they don't collide
      because Tailwind emits `bg-accent` vs `bg-accent-600`. */
   --accent: var(--surface-2);
   --accent-foreground: var(--text);

@@ -12,7 +12,7 @@
  */
 
 /** The palette's ink — the same near-black `--brand-ink` the DS fills with. */
-const INK = "#101010";
+const INK = "#231f20";
 const WHITE = "#ffffff";
 
 /** AA for normal-size text. */

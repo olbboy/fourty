@@ -11,7 +11,7 @@ export default function manifest(): MetadataRoute.Manifest {
     // own orange. A manifest cannot read custom properties, so these are the
     // one place outside globals.css that repeats a palette value.
     background_color: "#131110",
-    theme_color: "#f86008",
+    theme_color: "#fb631a",
     icons: [
       { src: "/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
     ],

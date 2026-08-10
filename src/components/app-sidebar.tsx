@@ -202,21 +202,21 @@ export function AppSidebar({
               tooltip="Fourty"
               render={<Link href="/dashboard" />}
             >
-              {/* Two lockups, one at a time: the monogram is all that fits the
-                  3rem rail, and the full wordmark takes over the moment the
+              {/* Two lockups, one at a time: the 40 monogram is all that fits
+                  the 3rem rail, and the full lockup takes over the moment the
                   sidebar has the width for it. Neither sits on a coloured tile —
-                  the O is the brand orange and would vanish into one. */}
-              {/* Both carry the name: the hidden one is display:none and so is
+                  the O is the brand orange and would vanish into one.
+                  Both carry the name: the hidden one is display:none and so is
                   out of the accessibility tree, which leaves the link with
                   exactly one accessible name in either state. */}
               <Logo
-                variant="mark"
+                variant="compact"
                 height={17}
                 title="Fourty"
                 className="hidden shrink-0 group-data-[collapsible=icon]:block"
               />
               <Logo
-                variant="wordmark"
+                variant="full"
                 height={20}
                 title="Fourty"
                 className="shrink-0 group-data-[collapsible=icon]:hidden"

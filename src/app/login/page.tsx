@@ -39,10 +39,10 @@ export default async function LoginPage({
     <main className="flex min-h-dvh items-center justify-center p-4">
       <div className="w-full max-w-sm animate-fade-up">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
-          {/* The wordmark carries the name, so the heading is the artwork
-              rather than "Fourty" set in a font beside it. */}
+          {/* The lockup carries the name, so the heading is the artwork rather
+              than "Fourty" set in a font beside it. */}
           <h1>
-            <Logo variant="wordmark" height={34} title="Fourty" />
+            <Logo variant="full" height={34} title="Fourty" />
           </h1>
           <div>
             <p className="text-sm text-ink-muted">
