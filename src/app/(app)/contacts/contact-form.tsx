@@ -4,6 +4,9 @@ import { useState } from "react";
 import type { Contact, Company } from "@/lib/types";
 import { Field } from "@/components/ui";
 import { CustomFieldsInputs, useCustomFields } from "@/components/custom-fields";
+import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Input } from "@/components/ui/input";
 
 export function ContactForm({
   contact,
@@ -54,63 +57,63 @@ export function ContactForm({
   return (
     <form onSubmit={onSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <Field label="First name">
-        <input name="firstName" required defaultValue={contact?.firstName} className="input" />
+        <Input name="firstName" required defaultValue={contact?.firstName} />
       </Field>
       <Field label="Last name">
-        <input name="lastName" defaultValue={contact?.lastName} className="input" />
+        <Input name="lastName" defaultValue={contact?.lastName} />
       </Field>
       <Field label="Email">
-        <input name="email" type="email" defaultValue={contact?.email ?? ""} className="input" />
+        <Input name="email" type="email" defaultValue={contact?.email ?? ""} />
       </Field>
       <Field label="Phone">
-        <input name="phone" defaultValue={contact?.phone ?? ""} className="input" />
+        <Input name="phone" defaultValue={contact?.phone ?? ""} />
       </Field>
       <Field label="Job title">
-        <input name="jobTitle" defaultValue={contact?.jobTitle ?? ""} className="input" />
+        <Input name="jobTitle" defaultValue={contact?.jobTitle ?? ""} />
       </Field>
       <Field label="Company">
-        <select name="companyId" defaultValue={contact?.companyId ?? ""} className="input">
+        <NativeSelect name="companyId" defaultValue={contact?.companyId ?? ""} className="w-full">
           <option value="">—</option>
           {companies.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </Field>
       <Field label="Status">
-        <select name="status" defaultValue={contact?.status ?? "lead"} className="input">
+        <NativeSelect name="status" defaultValue={contact?.status ?? "lead"} className="w-full">
           <option value="lead">Lead</option>
           <option value="qualified">Qualified</option>
           <option value="customer">Customer</option>
           <option value="churned">Churned</option>
-        </select>
+        </NativeSelect>
       </Field>
       <Field label="Source">
-        <select name="source" defaultValue={contact?.source ?? ""} className="input">
+        <NativeSelect name="source" defaultValue={contact?.source ?? ""} className="w-full">
           <option value="">—</option>
           <option value="website">Website</option>
           <option value="referral">Referral</option>
           <option value="outbound">Outbound</option>
           <option value="event">Event</option>
           <option value="other">Other</option>
-        </select>
+        </NativeSelect>
       </Field>
       <Field label="LinkedIn">
-        <input name="linkedin" defaultValue={contact?.linkedin ?? ""} className="input" />
+        <Input name="linkedin" defaultValue={contact?.linkedin ?? ""} />
       </Field>
       <Field label="City">
-        <input name="city" defaultValue={contact?.city ?? ""} className="input" />
+        <Input name="city" defaultValue={contact?.city ?? ""} />
       </Field>
       <Field label="Country">
-        <input name="country" defaultValue={contact?.country ?? ""} className="input" />
+        <Input name="country" defaultValue={contact?.country ?? ""} />
       </Field>
       <CustomFieldsInputs defs={defs} values={custom} onChange={setCustom} />
-      {error && <p className="col-span-full text-sm text-destructive">{error}</p>}
+      {error && <p className="col-span-full text-sm text-feedback-error">{error}</p>}
       <div className="col-span-full flex justify-end gap-2">
-        <button type="submit" disabled={busy} className="btn-primary">
+        <Button type="submit" disabled={busy}>
           {busy ? "Saving…" : contact ? "Save changes" : "Create contact"}
-        </button>
+        </Button>
       </div>
     </form>
   );

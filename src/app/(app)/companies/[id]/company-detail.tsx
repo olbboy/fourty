@@ -7,7 +7,7 @@ import type { Company, Contact, Deal, Pipeline } from "@/lib/types";
 import { timeAgo } from "@/lib/format";
 import { formatMoney, formatCompact } from "@/lib/currency";
 import { readableInkPair } from "@/lib/contrast-color";
-import { Modal, Avatar, StatusChip, ScoreBadge, Spinner } from "@/components/ui";
+import { Modal, Avatar, StatusChip, ScoreBadge, Spinner, useConfirm } from "@/components/ui";
 import { NotesPanel, TasksPanel } from "@/components/record-panels";
 import { RecordTabs } from "@/components/agent-panel/record-tabs";
 import { CustomFieldsDisplay, useCustomFields } from "@/components/custom-fields";
@@ -15,8 +15,11 @@ import { FactsForField, useFacts } from "@/components/fact-suggestion";
 import { IconEdit, IconTrash } from "@/components/icons";
 import { AgentQueue } from "@/components/agent-queue";
 import { CompanyForm } from "../company-form";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 
 export function CompanyDetail({ id }: { id: string }) {
+  const [askConfirm, confirmDialog] = useConfirm();
   const router = useRouter();
   const defs = useCustomFields("company");
   const [company, setCompany] = useState<Company | null>(null);
@@ -70,7 +73,11 @@ export function CompanyDetail({ id }: { id: string }) {
     pipelines.flatMap((p) => p.stages).find((s) => s.id === deal.stageId);
 
   async function remove() {
-    if (!confirm(`Delete ${company!.name}? Contacts and deals will be kept but detached.`)) return;
+    const ok = await askConfirm({
+      title: `Delete ${company!.name}?`,
+      body: "Contacts and deals are kept, but detached from this company.",
+    });
+    if (!ok) return;
     await fetch(`/api/companies/${id}`, { method: "DELETE" });
     router.push("/companies");
   }
@@ -90,23 +97,21 @@ export function CompanyDetail({ id }: { id: string }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setEditing(true)} className="btn-ghost">
+          <Button onClick={() => setEditing(true)} variant="outline">
             <IconEdit width={15} height={15} /> Edit
-          </button>
+          </Button>
           {/* Icon-only, so the record has to be named in the label. */}
-          <button
+          <Button
             onClick={remove}
-            aria-label={`Delete ${company.name}`}
-            className="btn-ghost !text-destructive"
-          >
+            aria-label={`Delete ${company.name}`} variant="outline" size="icon" className="text-feedback-error">
             <IconTrash width={15} height={15} />
-          </button>
+          </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="space-y-4">
-          <div className="card space-y-3 p-4">
+          <Card size="flush" className="space-y-3 p-4">
             <h2 className="text-sm font-semibold">Details</h2>
             {/* `field` names the fact-ledger field, where there is one. */}
             {[
@@ -134,10 +139,10 @@ export function CompanyDetail({ id }: { id: string }) {
               </div>
             ))}
             <CustomFieldsDisplay defs={defs} values={company.custom} />
-          </div>
+          </Card>
 
           <AgentQueue entityType="company" entityId={id} />
-          <div className="card p-4">
+          <Card size="flush" className="p-4">
             <h2 className="mb-3 text-sm font-semibold">People ({contacts.length})</h2>
             <div className="space-y-2">
               {contacts.map((c) => (
@@ -161,9 +166,9 @@ export function CompanyDetail({ id }: { id: string }) {
               ))}
               {contacts.length === 0 && <p className="text-sm text-ink-muted">No contacts.</p>}
             </div>
-          </div>
+          </Card>
 
-          <div className="card p-4">
+          <Card size="flush" className="p-4">
             <h2 className="mb-3 text-sm font-semibold">Deals ({deals.length})</h2>
             <div className="space-y-2">
               {deals.map((d) => {
@@ -196,7 +201,7 @@ export function CompanyDetail({ id }: { id: string }) {
               })}
               {deals.length === 0 && <p className="text-sm text-ink-muted">No deals.</p>}
             </div>
-          </div>
+          </Card>
         </div>
 
         <RecordTabs
@@ -207,14 +212,14 @@ export function CompanyDetail({ id }: { id: string }) {
         />
 
         <div className="space-y-4">
-          <div className="card p-4">
+          <Card size="flush" className="p-4">
             <h2 className="mb-3 text-sm font-semibold">Notes</h2>
             <NotesPanel entityType="company" entityId={id} onChanged={bump} />
-          </div>
-          <div className="card p-4">
+          </Card>
+          <Card size="flush" className="p-4">
             <h2 className="mb-3 text-sm font-semibold">Tasks</h2>
             <TasksPanel entityType="company" entityId={id} onChanged={bump} />
-          </div>
+          </Card>
         </div>
       </div>
 
@@ -228,6 +233,7 @@ export function CompanyDetail({ id }: { id: string }) {
         />
       </Modal>
       <p className="mt-6 text-xs text-ink-muted">Updated {timeAgo(company.updatedAt)}</p>
+      {confirmDialog}
     </div>
   );
 }

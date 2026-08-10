@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
 import { ADMIN } from "./helpers/auth";
 
 /**
@@ -18,9 +18,20 @@ import { ADMIN } from "./helpers/auth";
  * once, and so neither spec depends on the other's leftovers.
  */
 
-/** Row deletions go through window.confirm; accept whatever this click raises. */
-async function acceptNextConfirm(page: Page): Promise<void> {
-  page.once("dialog", (d) => d.accept());
+/**
+ * Row deletions go through the in-app confirmation, not `window.confirm`, so
+ * this drives a real dialog: click the row control, then confirm inside it.
+ *
+ * `page.on("dialog")` would not see this one — that is the point of the change,
+ * and this helper is what proves the replacement is wired up rather than merely
+ * present.
+ */
+async function confirmDeletion(page: Page, control: Locator, action = "Delete"): Promise<void> {
+  await control.click();
+  const confirmation = page.getByRole("dialog");
+  await expect(confirmation).toBeVisible();
+  await confirmation.getByRole("button", { name: action, exact: true }).click();
+  await expect(confirmation).toBeHidden();
 }
 
 test.describe("SSO providers", () => {
@@ -29,7 +40,7 @@ test.describe("SSO providers", () => {
   test("adds, edits, disables and deletes an OIDC provider", async ({ page }) => {
     await page.goto("/settings");
 
-    const panel = page.locator(".card", { has: page.getByRole("heading", { name: "Single sign-on" }) });
+    const panel = page.locator("[data-slot=card]", { has: page.getByRole("heading", { name: "Single sign-on" }) });
     await expect(panel).toBeVisible();
 
     // ── Add ──────────────────────────────────────────────────────────────────
@@ -72,8 +83,7 @@ test.describe("SSO providers", () => {
     await expect(row.getByRole("button", { name: "Disable" })).toBeVisible();
 
     // ── Delete ───────────────────────────────────────────────────────────────
-    await acceptNextConfirm(page);
-    await row.getByRole("button", { name: `Delete ${LABEL}` }).click();
+    await confirmDeletion(page, row.getByRole("button", { name: `Delete ${LABEL}` }));
     await expect(row).toHaveCount(0);
   });
 });
@@ -95,7 +105,7 @@ test.describe("Row controls are named", () => {
     await page.goto("/settings");
 
     // ── Members: the admin created by the setup wizard is already a row. ──────
-    const members = page.locator(".card", { has: page.getByRole("heading", { name: "Team members" }) });
+    const members = page.locator("[data-slot=card]", { has: page.getByRole("heading", { name: "Team members" }) });
     await expect(members).toBeVisible();
     // Asserted, never clicked — removing this member would end the session the
     // rest of the suite runs on.
@@ -103,18 +113,17 @@ test.describe("Row controls are named", () => {
     await expect(members.getByRole("combobox", { name: `Role for ${ADMIN.name}` })).toBeVisible();
 
     // ── API keys ─────────────────────────────────────────────────────────────
-    const keys = page.locator(".card", { has: page.getByRole("heading", { name: "API keys" }) });
+    const keys = page.locator("[data-slot=card]", { has: page.getByRole("heading", { name: "API keys" }) });
     const keyName = "E2E a11y key";
     await keys.getByPlaceholder("Key name, e.g. Zapier").fill(keyName);
     await keys.getByRole("button", { name: "Generate" }).click();
     const revoke = keys.getByRole("button", { name: `Revoke ${keyName}` });
     await expect(revoke).toBeVisible();
-    acceptNextConfirm(page);
-    await revoke.click();
+    await confirmDeletion(page, revoke, "Revoke");
     await expect(revoke).toHaveCount(0);
 
     // ── Custom fields ────────────────────────────────────────────────────────
-    const custom = page.locator(".card", { has: page.getByRole("heading", { name: "Custom fields" }) });
+    const custom = page.locator("[data-slot=card]", { has: page.getByRole("heading", { name: "Custom fields" }) });
     const fieldLabel = "E2E a11y field";
     await custom.getByRole("button", { name: "New field" }).click();
     const dialog = page.getByRole("dialog", { name: "New contact field" });
@@ -123,8 +132,7 @@ test.describe("Row controls are named", () => {
     await dialog.getByRole("button", { name: "Create field" }).click();
     const del = custom.getByRole("button", { name: `Delete ${fieldLabel}` });
     await expect(del).toBeVisible();
-    acceptNextConfirm(page);
-    await del.click();
+    await confirmDeletion(page, del);
     await expect(del).toHaveCount(0);
   });
 });
@@ -136,7 +144,7 @@ test.describe("Mailboxes", () => {
   test("adds a calendar feed, pauses it, resumes it and disconnects it", async ({ page }) => {
     await page.goto("/settings");
 
-    const panel = page.locator(".card", {
+    const panel = page.locator("[data-slot=card]", {
       has: page.getByRole("heading", { name: "Mailboxes & calendars" }),
     });
     await expect(panel).toBeVisible();
@@ -168,8 +176,7 @@ test.describe("Mailboxes", () => {
     await row.getByRole("button", { name: "Resume" }).click();
     await expect(row).not.toContainText("paused");
 
-    await acceptNextConfirm(page);
-    await row.getByRole("button", { name: `Disconnect ${ICS_EMAIL}` }).click();
+    await confirmDeletion(page, row.getByRole("button", { name: `Disconnect ${ICS_EMAIL}` }), "Disconnect");
     await expect(row).toHaveCount(0);
   });
 
@@ -180,7 +187,7 @@ test.describe("Mailboxes", () => {
     // so the callback would later reject the sign-in as forged. Asserting the
     // control is a link is what stops a future tidy-up turning it into a button.
     await page.goto("/settings");
-    const panel = page.locator(".card", {
+    const panel = page.locator("[data-slot=card]", {
       has: page.getByRole("heading", { name: "Mailboxes & calendars" }),
     });
 
@@ -203,8 +210,7 @@ test.describe("Mailboxes", () => {
     // instead of a sync that would only fail.
     await expect(row.getByRole("button", { name: "Sync now" })).toHaveCount(0);
 
-    await acceptNextConfirm(page);
-    await row.getByRole("button", { name: `Disconnect ${OAUTH_EMAIL}` }).click();
+    await confirmDeletion(page, row.getByRole("button", { name: `Disconnect ${OAUTH_EMAIL}` }), "Disconnect");
     await expect(row).toHaveCount(0);
   });
 });
@@ -219,7 +225,7 @@ test.describe("Diagnostics", () => {
   test("lists capabilities and round-trips the identity line", async ({ page }) => {
     await page.goto("/settings");
 
-    const panel = page.locator(".card", { has: page.getByRole("heading", { name: "Diagnostics" }) });
+    const panel = page.locator("[data-slot=card]", { has: page.getByRole("heading", { name: "Diagnostics" }) });
     await expect(panel).toBeVisible();
     await expect(panel).toContainText("Mailbox sync");
     await expect(panel).toContainText("Custom objects");

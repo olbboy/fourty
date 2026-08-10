@@ -4,6 +4,10 @@ import { useState } from "react";
 import { Field } from "@/components/ui";
 import { IconPlus, IconTrash } from "@/components/icons";
 import { EVENT_LABELS, type WorkflowEvent } from "@/lib/workflows/types";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Input } from "@/components/ui/input";
 
 type Condition = { field: string; op: string; value?: string };
 type Action = Record<string, unknown> & { type: string };
@@ -125,12 +129,10 @@ export function WorkflowBuilder({
   return (
     <div className="space-y-5">
       <Field label="Workflow name">
-        <input
+        <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="input"
-          placeholder="e.g. Follow up on hot leads"
-        />
+          placeholder="e.g. Follow up on hot leads" />
       </Field>
 
       <div>
@@ -138,21 +140,19 @@ export function WorkflowBuilder({
           When…
         </p>
         {/* The "When…" heading above is a paragraph, not a label. */}
-        <select
+        <NativeSelect
           value={event}
           onChange={(e) => {
             setEvent(e.target.value as WorkflowEvent);
             setConditions([]);
           }}
-          aria-label="Trigger event"
-          className="input"
-        >
+          aria-label="Trigger event" className="w-full">
           {Object.entries(EVENT_LABELS).map(([value, label]) => (
             <option key={value} value={value}>
               {label}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </div>
 
       <div>
@@ -160,12 +160,10 @@ export function WorkflowBuilder({
           <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
             Only if… (all must match)
           </p>
-          <button
-            onClick={() => setConditions((cs) => [...cs, { field: fields[0] ?? "", op: "eq", value: "" }])}
-            className="btn-ghost !px-2 !py-1 text-xs"
-          >
+          <Button
+            onClick={() => setConditions((cs) => [...cs, { field: fields[0] ?? "", op: "eq", value: "" }])} variant="outline" size="xs">
             <IconPlus width={13} height={13} /> Condition
-          </button>
+          </Button>
         </div>
         <div className="space-y-2">
           {conditions.length === 0 && (
@@ -175,46 +173,38 @@ export function WorkflowBuilder({
             <div key={i} className="flex flex-wrap items-center gap-2">
               {/* Conditions repeat, so each control names its own row — otherwise
                   a screen reader reads the same three unnamed fields over again. */}
-              <select
+              <NativeSelect
                 value={c.field}
                 onChange={(e) => setCondition(i, { field: e.target.value })}
-                aria-label={`Condition ${i + 1} field`}
-                className="input !w-auto"
-              >
+                aria-label={`Condition ${i + 1} field`}>
                 {fields.map((f) => (
                   <option key={f} value={f}>
                     {f}
                   </option>
                 ))}
-              </select>
-              <select
+              </NativeSelect>
+              <NativeSelect
                 value={c.op}
                 onChange={(e) => setCondition(i, { op: e.target.value })}
-                aria-label={`Condition ${i + 1} operator`}
-                className="input !w-auto"
-              >
+                aria-label={`Condition ${i + 1} operator`}>
                 {OPS.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
               {!["is_empty", "not_empty"].includes(c.op) && (
-                <input
+                <Input
                   value={c.value ?? ""}
                   onChange={(e) => setCondition(i, { value: e.target.value })}
                   aria-label={`Condition ${i + 1} value`}
-                  className="input !w-36"
-                  placeholder="value"
-                />
+                  placeholder="value" className="w-36" />
               )}
-              <button
+              <Button
                 onClick={() => setConditions((cs) => cs.filter((_, idx) => idx !== i))}
-                className="btn-ghost !border-0 !px-1.5 !text-red-400"
-                aria-label="Remove condition"
-              >
+                aria-label="Remove condition" variant="ghost" size="icon-xs" className="text-feedback-error">
                 <IconTrash width={14} height={14} />
-              </button>
+              </Button>
             </div>
           ))}
         </div>
@@ -223,18 +213,16 @@ export function WorkflowBuilder({
       <div>
         <div className="mb-2 flex items-center justify-between">
           <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Then…</p>
-          <button
-            onClick={() => setActions((as) => [...as, { type: "add_note", body: "" }])}
-            className="btn-ghost !px-2 !py-1 text-xs"
-          >
+          <Button
+            onClick={() => setActions((as) => [...as, { type: "add_note", body: "" }])} variant="outline" size="xs">
             <IconPlus width={13} height={13} /> Action
-          </button>
+          </Button>
         </div>
         <div className="space-y-3">
           {actions.map((a, i) => (
             <div key={i} className="rounded-lg border border-line p-3">
               <div className="mb-2 flex items-center justify-between">
-                <select
+                <NativeSelect
                   value={a.type}
                   onChange={(e) => {
                     const type = e.target.value;
@@ -248,72 +236,58 @@ export function WorkflowBuilder({
                     };
                     setActions((as) => as.map((x, idx) => (idx === i ? blank[type] : x)));
                   }}
-                  aria-label={`Action ${i + 1} type`}
-                  className="input !w-auto"
-                >
+                  aria-label={`Action ${i + 1} type`}>
                   {ACTION_TYPES.map((t) => (
                     <option key={t.value} value={t.value}>
                       {t.label}
                     </option>
                   ))}
-                </select>
-                <button
+                </NativeSelect>
+                <Button
                   onClick={() => setActions((as) => as.filter((_, idx) => idx !== i))}
                   disabled={actions.length === 1}
-                  className="btn-ghost !border-0 !px-1.5 !text-red-400 disabled:opacity-30"
-                  aria-label="Remove action"
-                >
+                  aria-label="Remove action" variant="ghost" size="icon-xs" className="text-feedback-error disabled:opacity-30">
                   <IconTrash width={14} height={14} />
-                </button>
+                </Button>
               </div>
               {a.type === "create_task" && (
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  <input
+                  <Input
                     value={(a.title as string) ?? ""}
                     onChange={(e) => setAction(i, { title: e.target.value })}
                     aria-label={`Action ${i + 1} task title`}
-                    className="input sm:col-span-3"
-                    placeholder='Task title — use {{firstName}}, {{name}}, etc.'
-                  />
-                  <select
+                    placeholder='Task title — use {{firstName}}, {{name}}, etc.' className="sm:col-span-3" />
+                  <NativeSelect
                     value={(a.priority as string) ?? "medium"}
                     onChange={(e) => setAction(i, { priority: e.target.value })}
-                    aria-label={`Action ${i + 1} task priority`}
-                    className="input"
-                  >
+                    aria-label={`Action ${i + 1} task priority`} className="w-full">
                     <option value="low">Low</option>
                     <option value="medium">Medium</option>
                     <option value="high">High</option>
-                  </select>
-                  <input
+                  </NativeSelect>
+                  <Input
                     type="number"
                     min={0}
                     value={(a.dueInDays as number) ?? ""}
                     onChange={(e) => setAction(i, { dueInDays: e.target.value })}
                     aria-label={`Action ${i + 1} days until due`}
-                    className="input"
-                    placeholder="Due in days"
-                  />
+                    placeholder="Due in days" />
                 </div>
               )}
               {a.type === "add_note" && (
-                <textarea
+                <Textarea
                   value={(a.body as string) ?? ""}
                   onChange={(e) => setAction(i, { body: e.target.value })}
                   aria-label={`Action ${i + 1} note body`}
-                  className="input resize-y"
                   rows={2}
-                  placeholder='Note body — templates like {{name}} are filled in.'
-                />
+                  placeholder='Note body — templates like {{name}} are filled in.' className="resize-y" />
               )}
               {a.type === "update_field" && (
                 <div className="flex flex-wrap gap-2">
-                  <select
+                  <NativeSelect
                     value={(a.field as string) ?? ""}
                     onChange={(e) => setAction(i, { field: e.target.value })}
-                    aria-label={`Action ${i + 1} field to update`}
-                    className="input !w-auto"
-                  >
+                    aria-label={`Action ${i + 1} field to update`}>
                     {(entity === "contact"
                       ? ["status", "source", "jobTitle", "city", "country"]
                       : entity === "company"
@@ -324,35 +298,29 @@ export function WorkflowBuilder({
                         {f}
                       </option>
                     ))}
-                  </select>
-                  <input
+                  </NativeSelect>
+                  <Input
                     value={(a.value as string) ?? ""}
                     onChange={(e) => setAction(i, { value: e.target.value })}
                     aria-label={`Action ${i + 1} new value`}
-                    className="input !w-44"
-                    placeholder="new value"
-                  />
+                    placeholder="new value" className="w-44" />
                 </div>
               )}
               {a.type === "webhook" && (
-                <input
+                <Input
                   value={(a.url as string) ?? ""}
                   onChange={(e) => setAction(i, { url: e.target.value })}
                   aria-label={`Action ${i + 1} webhook URL`}
-                  className="input"
-                  placeholder="https://hooks.example.com/… (POST, JSON payload)"
-                />
+                  placeholder="https://hooks.example.com/… (POST, JSON payload)" />
               )}
               {a.type === "ai_draft" && (
                 <div className="space-y-1">
-                  <textarea
+                  <Textarea
                     value={(a.prompt as string) ?? ""}
                     onChange={(e) => setAction(i, { prompt: e.target.value })}
                     aria-label={`Action ${i + 1} AI prompt`}
-                    className="input resize-y"
                     rows={2}
-                    placeholder='AI prompt — e.g. "Draft a follow-up email for {{firstName}} at {{name}}."'
-                  />
+                    placeholder='AI prompt — e.g. "Draft a follow-up email for {{firstName}} at {{name}}."' className="resize-y" />
                   <p className="text-xs text-ink-muted">
                     Writes the result as a draft note (human-in-the-loop). Requires a configured
                     provider (FOURTY_ENABLE_AI); off by default.
@@ -360,24 +328,22 @@ export function WorkflowBuilder({
                 </div>
               )}
               {a.type === "log" && (
-                <input
+                <Input
                   value={(a.message as string) ?? ""}
                   onChange={(e) => setAction(i, { message: e.target.value })}
                   aria-label={`Action ${i + 1} log message`}
-                  className="input"
-                  placeholder="Message for the run log"
-                />
+                  placeholder="Message for the run log" />
               )}
             </div>
           ))}
         </div>
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p className="text-sm text-feedback-error">{error}</p>}
       <div className="flex justify-end">
-        <button onClick={save} disabled={busy || !name.trim()} className="btn-primary">
+        <Button onClick={save} disabled={busy || !name.trim()}>
           {busy ? "Saving…" : initial?.id ? "Save workflow" : "Create workflow"}
-        </button>
+        </Button>
       </div>
     </div>
   );

@@ -7,15 +7,18 @@ import type { Company, Contact, Deal, Pipeline } from "@/lib/types";
 import { formatMoney, convert } from "@/lib/currency";
 import { timeAgo, formatDate } from "@/lib/format";
 import { readableOn } from "@/lib/contrast-color";
-import { Modal, Spinner, Avatar } from "@/components/ui";
+import { Modal, Spinner, Avatar, useConfirm } from "@/components/ui";
 import { NotesPanel, TasksPanel } from "@/components/record-panels";
 import { RecordTabs } from "@/components/agent-panel/record-tabs";
 import { CustomFieldsDisplay, useCustomFields } from "@/components/custom-fields";
 import { IconEdit, IconTrash } from "@/components/icons";
 import { AgentQueue } from "@/components/agent-queue";
 import { DealForm } from "../deal-form";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 
 export function DealDetail({ id }: { id: string }) {
+  const [askConfirm, confirmDialog] = useConfirm();
   const router = useRouter();
   const defs = useCustomFields("deal");
   const [deal, setDeal] = useState<Deal | null>(null);
@@ -75,7 +78,11 @@ export function DealDetail({ id }: { id: string }) {
   }
 
   async function remove() {
-    if (!confirm(`Delete deal "${deal!.name}"?`)) return;
+    const ok = await askConfirm({
+      title: `Delete deal “${deal!.name}”?`,
+      body: "This cannot be undone.",
+    });
+    if (!ok) return;
     await fetch(`/api/deals/${id}`, { method: "DELETE" });
     router.push("/deals");
   }
@@ -100,17 +107,15 @@ export function DealDetail({ id }: { id: string }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setEditing(true)} className="btn-ghost">
+          <Button onClick={() => setEditing(true)} variant="outline">
             <IconEdit width={15} height={15} /> Edit
-          </button>
+          </Button>
           {/* Icon-only, so the record has to be named in the label. */}
-          <button
+          <Button
             onClick={remove}
-            aria-label={`Delete ${deal.name}`}
-            className="btn-ghost !text-destructive"
-          >
+            aria-label={`Delete ${deal.name}`} variant="outline" size="icon" className="text-feedback-error">
             <IconTrash width={15} height={15} />
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -120,11 +125,13 @@ export function DealDetail({ id }: { id: string }) {
           {pipeline.stages.map((s) => {
             const active = s.id === deal.stageId;
             return (
-              <button
+              <Button
                 key={s.id}
                 onClick={() => !active && moveTo(s.id)}
-                className={`chip cursor-pointer !px-3 !py-1.5 transition ${
-                  active ? "font-semibold" : "border border-line text-ink-muted hover:border-accent-400"
+                size="sm"
+                variant="outline"
+                className={`rounded-4xl text-xs ${
+                  active ? "border-transparent font-semibold" : "text-ink-muted hover:border-accent-400"
                 }`}
                 // The fill is workspace data, so the label colour is derived
                 // rather than assumed — white on an amber stage is unreadable.
@@ -132,7 +139,7 @@ export function DealDetail({ id }: { id: string }) {
                 title={`${s.winProbability}% win probability`}
               >
                 {s.name}
-              </button>
+              </Button>
             );
           })}
         </div>
@@ -140,7 +147,7 @@ export function DealDetail({ id }: { id: string }) {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="space-y-4">
-          <div className="card space-y-3 p-4">
+          <Card size="flush" className="space-y-3 p-4">
             <h2 className="text-sm font-semibold">Details</h2>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Company</p>
@@ -174,7 +181,7 @@ export function DealDetail({ id }: { id: string }) {
               </div>
             ))}
             <CustomFieldsDisplay defs={defs} values={deal.custom} />
-          </div>
+          </Card>
         </div>
 
         <RecordTabs
@@ -186,14 +193,14 @@ export function DealDetail({ id }: { id: string }) {
 
         <div className="space-y-4">
           <AgentQueue entityType="deal" entityId={id} />
-          <div className="card p-4">
+          <Card size="flush" className="p-4">
             <h2 className="mb-3 text-sm font-semibold">Notes</h2>
             <NotesPanel entityType="deal" entityId={id} onChanged={bump} />
-          </div>
-          <div className="card p-4">
+          </Card>
+          <Card size="flush" className="p-4">
             <h2 className="mb-3 text-sm font-semibold">Tasks</h2>
             <TasksPanel entityType="deal" entityId={id} onChanged={bump} />
-          </div>
+          </Card>
         </div>
       </div>
 
@@ -212,6 +219,7 @@ export function DealDetail({ id }: { id: string }) {
       <p className="mt-6 text-xs text-ink-muted">
         Created {formatDate(deal.createdAt)} · Updated {timeAgo(deal.updatedAt)}
       </p>
+      {confirmDialog}
     </div>
   );
 }

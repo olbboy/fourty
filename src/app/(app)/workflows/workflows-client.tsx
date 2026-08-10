@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { timeAgo } from "@/lib/format";
-import { PageHeader, Modal, EmptyState, Spinner } from "@/components/ui";
+import { PageHeader, Modal, EmptyState, Spinner, useConfirm } from "@/components/ui";
 import { IconPlus, IconTrash, IconZap, IconEdit } from "@/components/icons";
 import { EVENT_LABELS, type WorkflowEvent } from "@/lib/workflows/types";
 import { WorkflowBuilder, type WorkflowDraft } from "./workflow-builder";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 
 type Workflow = WorkflowDraft & {
   id: string;
@@ -23,6 +25,7 @@ type Run = {
 };
 
 export function WorkflowsClient() {
+  const [askConfirm, confirmDialog] = useConfirm();
   const [workflows, setWorkflows] = useState<Workflow[] | null>(null);
   const [editing, setEditing] = useState<Workflow | null>(null);
   const [showNew, setShowNew] = useState(false);
@@ -47,7 +50,11 @@ export function WorkflowsClient() {
   }
 
   async function remove(w: Workflow) {
-    if (!confirm(`Delete workflow "${w.name}"?`)) return;
+    const ok = await askConfirm({
+      title: `Delete workflow “${w.name}”?`,
+      body: "Its run history goes with it. Runs already in flight finish.",
+    });
+    if (!ok) return;
     await fetch(`/api/workflows/${w.id}`, { method: "DELETE" });
     load();
   }
@@ -65,9 +72,9 @@ export function WorkflowsClient() {
         title="Workflows"
         subtitle="Automate the busywork — no external tools, no queue servers, runs instantly in-process."
         actions={
-          <button onClick={() => setShowNew(true)} className="btn-primary">
+          <Button onClick={() => setShowNew(true)}>
             <IconPlus width={15} height={15} /> New workflow
-          </button>
+          </Button>
         }
       />
 
@@ -78,15 +85,15 @@ export function WorkflowsClient() {
           title="No workflows yet"
           hint='Try: "When a deal is won → create an onboarding task and add a celebration note."'
           action={
-            <button onClick={() => setShowNew(true)} className="btn-primary">
+            <Button onClick={() => setShowNew(true)}>
               <IconPlus width={15} height={15} /> New workflow
-            </button>
+            </Button>
           }
         />
       ) : (
         <div className="space-y-3">
           {workflows.map((w) => (
-            <div key={w.id} className="card flex flex-wrap items-center gap-3 p-4">
+            <Card size="flush" key={w.id} className="flex flex-wrap items-center gap-3 p-4">
               <div
                 className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
                   w.enabled ? "bg-accent-600/15 text-accent-700 dark:text-accent-400" : "bg-surface-2 text-ink-muted"
@@ -114,17 +121,29 @@ export function WorkflowsClient() {
                   type="checkbox"
                   checked={w.enabled}
                   onChange={() => toggle(w)}
+                  aria-label={`${w.enabled ? "Disable" : "Enable"} ${w.name}`}
                   className="peer sr-only"
                 />
                 <div className="peer h-5 w-9 rounded-full bg-surface-2 border border-line after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow after:transition peer-checked:bg-accent-600 peer-checked:after:translate-x-4" />
               </label>
-              <button onClick={() => setEditing(w)} className="btn-ghost !px-2">
+              <Button
+                onClick={() => setEditing(w)}
+                variant="outline"
+                size="icon-sm"
+                aria-label={`Edit ${w.name}`}
+              >
                 <IconEdit width={15} height={15} />
-              </button>
-              <button onClick={() => remove(w)} className="btn-ghost !px-2 !text-red-400">
+              </Button>
+              <Button
+                onClick={() => remove(w)}
+                variant="outline"
+                size="icon-sm"
+                className="text-feedback-error"
+                aria-label={`Delete ${w.name}`}
+              >
                 <IconTrash width={15} height={15} />
-              </button>
-            </div>
+              </Button>
+            </Card>
           ))}
         </div>
       )}
@@ -168,8 +187,8 @@ export function WorkflowsClient() {
                   <span
                     className={`chip ${
                       r.status === "success"
-                        ? "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
-                        : "bg-red-500/10 text-red-700 dark:text-red-300"
+                        ? "bg-feedback-ok-wash text-feedback-ok"
+                        : "bg-feedback-error-wash text-feedback-error"
                     }`}
                   >
                     {r.status}
@@ -186,6 +205,7 @@ export function WorkflowsClient() {
           </div>
         )}
       </Modal>
+      {confirmDialog}
     </div>
   );
 }

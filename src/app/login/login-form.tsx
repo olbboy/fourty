@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
 
 export function LoginForm({ mode }: { mode: "setup" | "login" }) {
   const router = useRouter();
@@ -38,7 +41,7 @@ export function LoginForm({ mode }: { mode: "setup" | "login" }) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="card space-y-4 p-6">
+    <Card size="flush" render={<form onSubmit={onSubmit} />} className="space-y-4 p-6">
       {/* Each label sits beside its input rather than wrapping it, so the pairing
           only exists if htmlFor says so — without it the text is decoration and
           the field announces as unlabelled. */}
@@ -47,37 +50,33 @@ export function LoginForm({ mode }: { mode: "setup" | "login" }) {
           <label htmlFor="login-name" className="mb-1.5 block text-sm font-medium">
             Your name
           </label>
-          <input id="login-name" name="name" required className="input" placeholder="Ada Lovelace" />
+          <Input id="login-name" name="name" required placeholder="Ada Lovelace" />
         </div>
       )}
       <div>
         <label htmlFor="login-email" className="mb-1.5 block text-sm font-medium">
           Email
         </label>
-        <input
+        <Input
           id="login-email"
           name="email"
           type="email"
           required
           autoComplete="email"
-          className="input"
-          placeholder="you@company.com"
-        />
+          placeholder="you@company.com" />
       </div>
       <div>
         <label htmlFor="login-password" className="mb-1.5 block text-sm font-medium">
           Password
         </label>
-        <input
+        <Input
           id="login-password"
           name="password"
           type="password"
           required
           minLength={8}
           autoComplete={mode === "setup" ? "new-password" : "current-password"}
-          className="input"
-          placeholder="••••••••"
-        />
+          placeholder="••••••••" />
       </div>
       {mode === "setup" && (
         <label className="flex items-center gap-2 text-sm text-ink-muted">
@@ -90,10 +89,10 @@ export function LoginForm({ mode }: { mode: "setup" | "login" }) {
           Load sample data so I can explore
         </label>
       )}
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      <button type="submit" disabled={busy} className="btn-primary w-full">
+      {error && <p className="text-sm text-feedback-error">{error}</p>}
+      <Button type="submit" disabled={busy} className="w-full">
         {busy ? "Please wait…" : mode === "setup" ? "Create workspace" : "Sign in"}
-      </button>
-    </form>
+      </Button>
+    </Card>
   );
 }

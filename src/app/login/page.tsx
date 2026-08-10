@@ -3,6 +3,8 @@ import { getSessionUser, isFreshInstall } from "@/lib/auth";
 import { listLoginProviders } from "@/lib/sso/provision";
 import { Logo } from "@/components/logo";
 import { LoginForm } from "./login-form";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +55,7 @@ export default async function LoginPage({
           </div>
         </div>
         {ssoError && (
-          <p role="alert" className="mb-4 rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+          <p role="alert" className="mb-4 rounded-lg bg-feedback-error-wash px-4 py-3 text-sm text-feedback-error">
             {ssoError}
           </p>
         )}
@@ -70,7 +72,7 @@ export default async function LoginPage({
                 <a
                   key={p.id}
                   href={`/api/auth/sso/${p.id}/start`}
-                  className="btn-ghost w-full justify-center"
+                  className={cn(buttonVariants({ variant: "outline" }), "w-full")}
                 >
                   Sign in with {p.label}
                 </a>

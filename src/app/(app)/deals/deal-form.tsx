@@ -6,6 +6,9 @@ import { Field } from "@/components/ui";
 import { CustomFieldsInputs, useCustomFields } from "@/components/custom-fields";
 import { SUPPORTED_CURRENCIES } from "@/lib/currency";
 import { toDateInputValue, fromDateInputValue } from "@/lib/format";
+import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Input } from "@/components/ui/input";
 
 export function DealForm({
   deal,
@@ -64,40 +67,38 @@ export function DealForm({
   return (
     <form onSubmit={onSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <Field label="Deal name" className="sm:col-span-2">
-        <input name="name" required defaultValue={deal?.name} className="input" />
+        <Input name="name" required defaultValue={deal?.name} />
       </Field>
       <Field label="Amount">
-        <input
+        <Input
           name="amount"
           type="number"
           min={0}
           step="0.01"
-          defaultValue={deal?.amount ?? ""}
-          className="input"
-        />
+          defaultValue={deal?.amount ?? ""} />
       </Field>
       <Field label="Currency">
-        <select name="currency" defaultValue={deal?.currency ?? "USD"} className="input">
+        <NativeSelect name="currency" defaultValue={deal?.currency ?? "USD"} className="w-full">
           {SUPPORTED_CURRENCIES.map((c) => (
             <option key={c} value={c}>
               {c}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </Field>
       {!deal && pipelines.length > 1 && (
         <Field label="Pipeline">
-          <select value={pipelineId} onChange={(e) => setPipelineId(e.target.value)} className="input">
+          <NativeSelect value={pipelineId} onChange={(e) => setPipelineId(e.target.value)} className="w-full">
             {pipelines.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </Field>
       )}
       <Field label="Stage">
-        <select name="stageId" defaultValue={deal?.stageId ?? pipeline?.stages[0]?.id} className="input">
+        <NativeSelect name="stageId" defaultValue={deal?.stageId ?? pipeline?.stages[0]?.id} className="w-full">
           {(deal
             ? pipelines.find((p) => p.id === deal.pipelineId)?.stages ?? []
             : pipeline?.stages ?? []
@@ -106,42 +107,40 @@ export function DealForm({
               {s.name}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </Field>
       <Field label="Company">
-        <select name="companyId" defaultValue={deal?.companyId ?? ""} className="input">
+        <NativeSelect name="companyId" defaultValue={deal?.companyId ?? ""} className="w-full">
           <option value="">—</option>
           {companies.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </Field>
       <Field label="Primary contact">
-        <select name="contactId" defaultValue={deal?.contactId ?? ""} className="input">
+        <NativeSelect name="contactId" defaultValue={deal?.contactId ?? ""} className="w-full">
           <option value="">—</option>
           {contacts.map((c) => (
             <option key={c.id} value={c.id}>
               {c.firstName} {c.lastName}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </Field>
       <Field label="Expected close date">
-        <input
+        <Input
           name="expectedCloseDate"
           type="date"
-          defaultValue={toDateInputValue(deal?.expectedCloseDate)}
-          className="input"
-        />
+          defaultValue={toDateInputValue(deal?.expectedCloseDate)} />
       </Field>
       <CustomFieldsInputs defs={defs} values={custom} onChange={setCustom} />
-      {error && <p className="col-span-full text-sm text-destructive">{error}</p>}
+      {error && <p className="col-span-full text-sm text-feedback-error">{error}</p>}
       <div className="col-span-full flex justify-end">
-        <button type="submit" disabled={busy} className="btn-primary">
+        <Button type="submit" disabled={busy}>
           {busy ? "Saving…" : deal ? "Save changes" : "Create deal"}
-        </button>
+        </Button>
       </div>
     </form>
   );

@@ -30,6 +30,9 @@ const TOKENS = [
   "priority-high",
   "priority-medium",
   "priority-low",
+  "feedback-ok",
+  "feedback-warn",
+  "feedback-error",
 ];
 
 /** Values live twice: once in `:root`, once in `.dark`. Take them in order. */
