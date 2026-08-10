@@ -122,7 +122,7 @@ a test to accommodate the refactor is treated as a failed migration.
   queue, or an app-to-app endpoint each cost one adapter, not N handlers.
 - A verifiable positioning claim: *every Fourty capability is callable from UI,
   REST, GraphQL, MCP, the agent and workflows, from a single definition* — testable
-  by asserting registry coverage, and consistent with `CLAIMS.md` discipline.
+  by asserting registry coverage, and consistent with the project's audit discipline.
 
 **Costs / risks**
 - Cross-cutting refactor of 58 route files. Mitigated by strangler phasing and the

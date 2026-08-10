@@ -42,7 +42,7 @@ Three principles shape every decision (and every [ADR](../adr/)):
 > team — not full enterprise-platform parity. Twenty 2.0 still leads on **SAML**, an
 > **apps/SDK platform**, and **calendar-over-OAuth** (Fourty ships mail OAuth;
 > calendar is via ICS feeds). For the honest, cited matrix — strengths and gaps
-> both — see **[PARITY.md](../../PARITY.md)**.
+> both — see the [comparison table](../../README.md#%EF%B8%8F-how-it-compares) in the README.
 
 ## Where Fourty deliberately stops
 

@@ -68,4 +68,4 @@ Every major choice is recorded as an [ADR](./adr/). The ones that shape the syst
 
 - **[Decision records (ADRs) →](./adr/)** — the full, cited rationale for each choice.
 - **[Self-hosting →](./self-hosting/)** — run the system described here.
-- **[Benchmarks →](../BENCHMARK.md)** — how it performs against Twenty.
+- **[Benchmarks →](./benchmarks.md)** — how it performs against Twenty.
