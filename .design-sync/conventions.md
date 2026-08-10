@@ -12,8 +12,8 @@ loaded. `ThemeProvider` exists only so several controls can share a dark-mode
 toggle — dark mode itself is the `dark` class on `<html>`, and adding that class
 re-declares the palette with no React involvement.
 
-Both webfonts (Inter for UI, Archivo for display) are fetched by `styles.css`.
-Nothing else needs loading.
+Inter is fetched by `styles.css`. There is one typeface — the lockup is drawn
+artwork, not type, so nothing needs a second family.
 
 ## The styling idiom: utility classes over two token layers
 
@@ -59,9 +59,9 @@ looks fine can still fail.
 Other conventions worth honouring: radii derive from one 10px root
 (`rounded-md` 8px controls, `rounded-xl` 14px cards, `rounded-4xl` pills);
 separation is a 1px line, not a shadow; motion is 120–180ms and nothing bounces
-(`animate-fade-up` is the entrance). `font-display` is Archivo and belongs to
-brand and editorial surfaces — **never inside the product UI**, where weight and
-tracking carry hierarchy instead.
+(`animate-fade-up` is the entrance). `font-display` names the brand and
+editorial role; it currently resolves to Inter, so hierarchy inside the product
+is carried by weight and tracking, never by a second face.
 
 ## Where the truth lives
 

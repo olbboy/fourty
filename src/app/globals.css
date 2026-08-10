@@ -23,11 +23,12 @@
 
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
     Arial, sans-serif;
-  /* Display face for brand and editorial surfaces only — never inside the
-     product UI, where weight and tracking carry hierarchy instead. Always pair
-     with font-stretch: 125%; at normal width Archivo is just another grotesque,
-     and it is the expanded width that echoes the wordmark. */
-  --font-display: Archivo, "Inter Tight", ui-sans-serif, system-ui, sans-serif;
+  /* The display role, for brand and editorial surfaces. It resolves to Inter:
+     the lockup is drawn artwork whose own typeface has nothing to do with the
+     product's, so there is no face for a second family to echo. The role name
+     stays because it says WHERE something belongs — point it at a real display
+     face here if the brand ever gets one, and nothing downstream changes. */
+  --font-display: var(--font-sans);
 }
 
 /*
