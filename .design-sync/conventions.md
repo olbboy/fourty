@@ -35,10 +35,12 @@ resolve to the same colours.
 **The accent is a ramp, and which step you use is a rule, not a preference:**
 
 - **Fills** — `bg-primary` (= `bg-accent-500`, the brand orange) with
-  `text-primary-foreground` on top. That foreground is near-black ink, **not
-  white**: on this orange, white reaches only 2.9:1 and ink reaches 6.0:1.
-- **Accent-coloured text** — `text-accent-700` (and `dark:text-accent-400`).
-  Never `text-primary` for text: the flat orange fails contrast at body size.
+  `text-primary-foreground` on top. That foreground is the artwork's own ink,
+  **not white**: on this orange, white reaches only 3.04:1 and the ink reaches
+  5.36:1 — and ink-on-orange is the pairing the logo already makes.
+- **Accent-coloured text** — `text-accent-700` (5.22:1 on white, and
+  `dark:text-accent-400` on dark). Never `text-primary` for text: the flat
+  orange clears only 3.04:1 there.
 - **Hover on a fill** — `bg-accent-600`. **Washes** — `bg-accent-50`, or an
   opacity step like `bg-accent-600/10`.
 - **Focus is a warm neutral (`ring-ring`), never the accent** — focus is a shape
@@ -50,7 +52,9 @@ button and the active pill, nothing else.
 **Semantic colour is for record meaning only** — status, score band, priority.
 Every one of those chips is a **10% wash behind saturated text**, never a solid
 fill. `StatusChip`, `ScoreBadge` and `PriorityChip` already encode this; reach for
-them rather than re-colouring a `Badge`.
+them rather than re-colouring a `Badge` — each was measured against its own
+wash, which is a stricter ground than the surface and the reason a colour that
+looks fine can still fail.
 
 Other conventions worth honouring: radii derive from one 10px root
 (`rounded-md` 8px controls, `rounded-xl` 14px cards, `rounded-4xl` pills);

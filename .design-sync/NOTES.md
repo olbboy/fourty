@@ -106,12 +106,15 @@ Triaged as legitimate; a warn NOT in this list is new and should be looked at.
   as files, so validate reports `[FONT_REMOTE]`, not `[FONT_MISSING]`. If the
   brand ever needs self-hosted fonts, that becomes a `cfg.extraFonts` job.
 - **The accent is read off the artwork, not chosen.** `--color-accent-500` is
-  the orange in `brand/logo-master.svg` (`#fb631a`). The master arrived after
-  the first sync, which had been built on a traced approximation (`#f86008`) —
-  so anything uploaded before 2026-08-10 carries the old orange in its compiled
-  CSS. Re-run the stylesheet compile and re-upload after any change to the
-  master; a palette that disagrees with the logo beside it is the one mismatch
-  nobody spots and everybody feels.
+  the orange in `brand/logo-master.svg` (`#fb631a`). The first sync had been
+  built on a traced approximation (`#f86008`); the 2026-08-10 re-sync shipped
+  the real value (`styleSha` fbd1022e → 06486933). Re-run the stylesheet compile
+  and re-upload after any change to the master — a palette that disagrees with
+  the logo beside it is the one mismatch nobody spots and everybody feels.
+- **A palette-only change is cheap.** That re-sync moved the stylesheet and the
+  bundle but touched no preview, so the anchor carried all 193 existing
+  components forward and only the newly added `Logo` needed grading. Scope the
+  upload by the driver's `upload` partition, not by re-uploading everything.
 - **Archivo is a substitution.** The lockup's real typeface was never supplied;
   Archivo at `wdth` 125% is a considered match, not the original. Naming the
   real face changes one line in the `@theme` block. (The artwork itself is no

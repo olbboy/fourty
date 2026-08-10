@@ -54,3 +54,6 @@ export { PageHeader, Modal, StatusChip, ScoreBadge, PriorityChip, EmptyState } f
 export { MoneyBarChart, CountBarChart, FunnelChart, WinLossChart, CategoryBars } from "../src/components/charts";
 export { FactSuggestion, AppliedFact, FactsForField } from "../src/components/fact-suggestion";
 export { ThemeProvider } from "../src/components/theme-provider";
+// The brand lockups. A design agent building a screen needs the logo, and
+// there is no lettered substitute for it.
+export { Logo } from "../src/components/logo";
