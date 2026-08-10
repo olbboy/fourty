@@ -18,6 +18,26 @@ function shapesInGroup(id: string): string[] {
   return [...group[1].matchAll(/<(polygon|path)\b[^>]*>/g)].map((m) => m[0]);
 }
 
+/**
+ * A shape's coordinates in order, ignoring how they are written.
+ *
+ * The master draws straight runs as `<polygon points>` and curves as `<path d>`;
+ * the build turns every polygon into a path, so the two spellings never match as
+ * text even when they describe the same outline. Comparing the numbers compares
+ * the drawing.
+ */
+function coords(shape: string): number[] {
+  const geometry = /\b(?:d|points)="([^"]*)"/.exec(shape)?.[1] ?? "";
+  return (geometry.match(/-?\d*\.?\d+/g) ?? []).map(Number);
+}
+
+/** The master's own frame — the single source of truth for both lockups. */
+const frame = (() => {
+  const viewBox = /<svg\b[^>]*\bviewBox="([^"]*)"/.exec(master)?.[1];
+  const [minX, minY, width, height] = (viewBox ?? "").trim().split(/[\s,]+/).map(Number);
+  return { minX, minY, width, height };
+})();
+
 describe("brand artwork stays in step with the master", () => {
   const compact = shapesInGroup("compact");
   const lettering = shapesInGroup("lettering");
@@ -25,6 +45,33 @@ describe("brand artwork stays in step with the master", () => {
   it("carries every shape the master draws", () => {
     expect(ART.compact.shapes).toHaveLength(compact.length);
     expect(ART.full.shapes).toHaveLength(compact.length + lettering.length);
+  });
+
+  /**
+   * Counting shapes only proves none went missing. The logo that shipped before
+   * the designer's real export was the right NUMBER of paths carrying the wrong
+   * coordinates — every count matched while the wordmark sat 2.7 units high.
+   */
+  it("draws the master's coordinates, not just the right number of shapes", () => {
+    const fromMaster = [...compact, ...lettering].map(coords);
+    expect(ART.full.shapes.map((s) => coords(`d="${s.d}"`))).toEqual(fromMaster);
+  });
+
+  /**
+   * An Illustrator artboard is not a bounding box: the supplied compact export
+   * framed 302 of artwork in 304, and the full export framed 302.3 in 302 —
+   * clipping the descent of the R's leg. The master now carries the measured
+   * extent and the build reads the frame from there, so this asserts the one
+   * link that a stale `npm run build:brand` would break.
+   */
+  it("frames both lockups on the master's viewBox", () => {
+    expect(frame.minX).toBe(0);
+    expect(frame.minY).toBe(0);
+    expect(ART.full.width).toBe(frame.width);
+    expect(ART.full.height).toBe(frame.height);
+    // One shared height is what keeps the baseline still when a responsive
+    // surface swaps the full lockup for the monogram at a fixed height.
+    expect(ART.compact.height).toBe(ART.full.height);
   });
 
   it("uses the master's own colours", () => {

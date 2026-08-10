@@ -30,20 +30,47 @@ const ORANGE = "#FB631A";
  */
 const INK_INVERSE = "#fbfaf8";
 
-/** Full lockup extents, from the master's viewBox. */
-const FULL_WIDTH = 1457.6;
-const HEIGHT = 302;
 /**
- * Right edge of the compact lockup — the orange O's, and also what the designer
- * ships as the compact file's own viewBox width. Re-measure if the artwork
- * changes: load the master in a browser and read
- * `document.querySelector("#compact").getBBox()`.
- *
- * The supplied compact file is 2 units taller than the full lockup (304 vs 302)
- * — pure bottom padding, since the shapes are byte-identical. Both lockups use
- * the master's 302 so they share a baseline when one swaps for the other.
+ * Right edge of the compact lockup — the orange O's. The one dimension that
+ * cannot be read off the master, since the file carries no frame for the
+ * monogram alone. Re-measure if the artwork changes: load the master in a
+ * browser and read `document.querySelector("#compact").getBBox()`.
  */
 const COMPACT_WIDTH = 509.2;
+
+/**
+ * The full lockup's frame, read from the master rather than restated here.
+ *
+ * These used to be literals copied from the viewBox, which is how the frame came
+ * to clip its own artwork: an Illustrator artboard is not a bounding box, and
+ * the supplied exports were out by 2 units one way and 0.3 the other. The master
+ * now carries the measured extent (see its header) and this is the only place
+ * that reads it, so the two can no longer disagree.
+ */
+function frameOf(svg: string): { width: number; height: number } {
+  // Match the tag, not the first ">" — the master opens with a comment block.
+  const tag = /<svg\b[^>]*>/.exec(svg)?.[0];
+  if (!tag) throw new Error("brand master has no <svg> element");
+  const viewBox = attr(tag, "viewBox");
+  const parts = viewBox?.trim().split(/[\s,]+/).map(Number);
+  if (!parts || parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) {
+    throw new Error(`brand master needs a 4-number viewBox, got ${JSON.stringify(viewBox)}`);
+  }
+  const [minX, minY, width, height] = parts;
+  // Every downstream frame is written as `0 0 w h`, and the shapes are emitted
+  // untranslated — a shifted origin would silently offset all of them.
+  if (minX !== 0 || minY !== 0) {
+    throw new Error(`brand master viewBox must start at "0 0", got "${viewBox}"`);
+  }
+  return { width, height };
+}
+
+/**
+ * Both lockups share the full lockup's height so that swapping one for the
+ * other at a fixed rendered height keeps the baseline exactly where it was. The
+ * compact monogram ends 0.3 above that frame — the descent of the R's leg, which
+ * only the full lockup draws.
+ */
 
 type Shape = { d: string; orange: boolean };
 
@@ -92,6 +119,13 @@ function shapesIn(svg: string, groupId: string): Shape[] {
 const master = readFileSync(MASTER, "utf8");
 const compact = shapesIn(master, "compact");
 const lettering = shapesIn(master, "lettering");
+const { width: FULL_WIDTH, height: HEIGHT } = frameOf(master);
+
+if (!(COMPACT_WIDTH > 0 && COMPACT_WIDTH < FULL_WIDTH)) {
+  throw new Error(
+    `COMPACT_WIDTH (${COMPACT_WIDTH}) must sit inside the master's ${FULL_WIDTH} — re-measure #compact`,
+  );
+}
 
 const VARIANTS = {
   full: { width: FULL_WIDTH, height: HEIGHT, minHeight: 20, shapes: [...compact, ...lettering] },
