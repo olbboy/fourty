@@ -104,6 +104,35 @@
   --chart-positive: oklch(0.596 0.145 163.225);
   --chart-negative: oklch(0.577 0.245 27.325);
 
+
+  /* Record semantics — status, score band, priority.
+     A chip is a 10% wash of its own colour with that colour as the text on top.
+     The wash lifts the ground toward the text, so the foreground is NOT the
+     base colour: each value below was generated against its own composited
+     wash, in each theme, with a margin over 4.5:1. tests/semantic-tokens.test.ts
+     re-measures them, because a colour that misses by a tenth still looks fine.
+     Never hand-edit one of these in isolation — regenerate the pair. */
+  --status-lead: #746a64;
+  --status-lead-wash: color-mix(in srgb, #7a7069 10%, transparent);
+  --status-qualified: #235edf;
+  --status-qualified-wash: color-mix(in srgb, #2563eb 10%, transparent);
+  --status-customer: #007c53;
+  --status-customer-wash: color-mix(in srgb, #009966 10%, transparent);
+  --status-churned: #cc242c;
+  --status-churned-wash: color-mix(in srgb, #fb2c36 10%, transparent);
+  --score-hot: #d1000a;
+  --score-hot-wash: color-mix(in srgb, #e7000b 10%, transparent);
+  --score-warm: #a65300;
+  --score-warm-wash: color-mix(in srgb, #e17100 10%, transparent);
+  --score-cold: #006caa;
+  --score-cold-wash: color-mix(in srgb, #0084d1 10%, transparent);
+  --priority-high: #cc242c;
+  --priority-high-wash: color-mix(in srgb, #fb2c36 10%, transparent);
+  --priority-medium: #a65300;
+  --priority-medium-wash: color-mix(in srgb, #e17100 10%, transparent);
+  --priority-low: #746a64;
+  --priority-low-wash: color-mix(in srgb, #7a7069 10%, transparent);
+
   /* The rail sits one step off white so it reads as chrome. */
   --sidebar: oklch(0.978 0.005 60);
   --sidebar-foreground: var(--text);
@@ -136,6 +165,18 @@
   --chart-1: oklch(0.869 0.008 58);
   --chart-positive: oklch(0.765 0.177 163.223);
   --chart-negative: oklch(0.704 0.191 22.216);
+
+  /* Same semantics, re-measured against the dark surface. */
+  --status-lead: #97908a;
+  --status-qualified: #5586ef;
+  --status-customer: #14a172;
+  --status-churned: #fb4c55;
+  --score-hot: #ef575e;
+  --score-warm: #e17100;
+  --score-cold: #2797d8;
+  --priority-high: #fb4c55;
+  --priority-medium: #e17100;
+  --priority-low: #97908a;
 
   --sidebar: oklch(0.216 0.009 56);
   /* One step lighter than the light-mode fill: on a dark rail the 500 orange
@@ -182,6 +223,29 @@
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
+
+  /* Record semantics as utilities: `text-status-lead` + `bg-status-lead-wash`.
+     One name per meaning — the token flips in dark, so no `dark:` variant. */
+  --color-status-lead: var(--status-lead);
+  --color-status-lead-wash: var(--status-lead-wash);
+  --color-status-qualified: var(--status-qualified);
+  --color-status-qualified-wash: var(--status-qualified-wash);
+  --color-status-customer: var(--status-customer);
+  --color-status-customer-wash: var(--status-customer-wash);
+  --color-status-churned: var(--status-churned);
+  --color-status-churned-wash: var(--status-churned-wash);
+  --color-score-hot: var(--score-hot);
+  --color-score-hot-wash: var(--score-hot-wash);
+  --color-score-warm: var(--score-warm);
+  --color-score-warm-wash: var(--score-warm-wash);
+  --color-score-cold: var(--score-cold);
+  --color-score-cold-wash: var(--score-cold-wash);
+  --color-priority-high: var(--priority-high);
+  --color-priority-high-wash: var(--priority-high-wash);
+  --color-priority-medium: var(--priority-medium);
+  --color-priority-medium-wash: var(--priority-medium-wash);
+  --color-priority-low: var(--priority-low);
+  --color-priority-low-wash: var(--priority-low-wash);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
