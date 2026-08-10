@@ -32,11 +32,16 @@ const INK_INVERSE = "#fbfaf8";
 
 /** Full lockup extents, from the master's viewBox. */
 const FULL_WIDTH = 1457.6;
-const HEIGHT = 304;
+const HEIGHT = 302;
 /**
- * Right edge of the compact lockup — the orange O's, measured from the master
- * with getBBox. Re-measure if the artwork changes: load the master in a browser
- * and read `document.querySelector("#compact").getBBox()`.
+ * Right edge of the compact lockup — the orange O's, and also what the designer
+ * ships as the compact file's own viewBox width. Re-measure if the artwork
+ * changes: load the master in a browser and read
+ * `document.querySelector("#compact").getBBox()`.
+ *
+ * The supplied compact file is 2 units taller than the full lockup (304 vs 302)
+ * — pure bottom padding, since the shapes are byte-identical. Both lockups use
+ * the master's 302 so they share a baseline when one swaps for the other.
  */
 const COMPACT_WIDTH = 509.2;
 
