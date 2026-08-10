@@ -165,6 +165,27 @@ own horizontal scroll container, so a list view adds no wrapper.
 The component adds **no row hover**. A hover state is an affordance, and half the tables
 here are reports nobody can click.
 
+## Checking a change
+
+Two Playwright runs, and they see different things.
+
+`npm run test:e2e` builds for production and asserts behaviour — that is what
+users get. `npm run test:e2e:dev` boots `next dev` and fails on **any** console
+output, because a production build strips every framework development warning and
+so an entire class of contract violation is invisible to the first run. A button
+rendered as an anchor, which had quietly lost its native semantics and was putting
+`type="button"` on an `<a>`, went through a full green production run and only
+surfaced when someone opened the app.
+
+A warning in that run is a framework saying a contract was broken. If one is
+genuinely not ours, name it in `ALLOWED` in
+[`e2e/dev-warnings.spec.ts`](../e2e/dev-warnings.spec.ts) with the reason, rather
+than loosening the assertion.
+
+It runs beside your own `npm run dev`: Next keys its dev lock on the build
+directory, and this one uses `.next-e2e-dev`. Run the two suites one at a time
+though — they share a database and a signed-in session.
+
 ## Icons
 
 **One library: Lucide.** [`src/components/icons.tsx`](../src/components/icons.tsx) is a

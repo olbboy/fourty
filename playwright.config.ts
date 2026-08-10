@@ -36,7 +36,10 @@ export default defineConfig({
     },
     {
       name: "smoke",
+      // Every spec except the development-mode one, which needs `next dev` and
+      // lives in playwright.dev.config.ts.
       testMatch: /.*\.spec\.ts/,
+      testIgnore: /dev-warnings\.spec\.ts/,
       dependencies: ["setup"],
       use: { ...devices["Desktop Chrome"], storageState: "e2e/.auth/user.json" },
     },
