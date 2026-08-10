@@ -211,6 +211,18 @@ Two things worth keeping:
   diagnostic does not exist. What made the defect catchable was that it also
   produced wrong markup, which SSR can assert on.
 
+## The blind spot itself is covered now
+
+The production suite could not have caught the anchor-rendered button, and saying
+so was not enough — `npm run test:e2e:dev` boots `next dev` and fails on any
+console output at all. Proved by putting the reported defect back and watching it
+name the exact warning, on the exact route, in its own words.
+
+Getting there needed one config change: Next keys its dev lock on the build
+directory, so `next.config.ts` reads `distDir` from `NEXT_DIST_DIR`. Unset, it is
+Next's default and nothing moves; the dev suite sets it and runs beside a
+developer's own `npm run dev`.
+
 ## What is still not consolidated
 
 - `CardHeader` / `CardContent` have no call sites. Compositional helpers, not a second
