@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Input } from "@/components/ui/input";
 
 export type ViewConfig = {
   filters?: Record<string, unknown>;
@@ -105,7 +106,7 @@ export function SavedViewsBar({
       ))}
       {saving ? (
         <span className="inline-flex items-center gap-1">
-          <input
+          <Input
             autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -114,9 +115,7 @@ export function SavedViewsBar({
               if (e.key === "Escape") setSaving(false);
             }}
             placeholder="View name…"
-            aria-label="New view name"
-            className="input h-7 w-32 py-0 text-xs"
-          />
+            aria-label="New view name" className="h-7 w-32 py-0 text-xs" />
           <button type="button" onClick={save} className="chip-btn">
             Save
           </button>

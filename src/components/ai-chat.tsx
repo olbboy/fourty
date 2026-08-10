@@ -5,6 +5,7 @@ import { IconX, IconZap, IconArrowRight } from "./icons";
 import { useLocale } from "@/lib/i18n/provider";
 import { parseSseStream } from "@/lib/ai/sse-client";
 import { toItems, type Item, type StoredMessage } from "./agent-panel/transcript";
+import { Button } from "@/components/ui/button";
 
 /**
  * Global AI chat drawer (Phase 4). Consumes the POST-SSE contract: streams
@@ -176,9 +177,9 @@ export function AiChat({ enabled }: { enabled: boolean }) {
                 <IconZap width={16} height={16} className="text-accent-700" />
                 {L.title}
               </div>
-              <button onClick={() => setOpen(false)} className="btn-ghost !px-2" aria-label={L.close}>
+              <Button onClick={() => setOpen(false)} aria-label={L.close} variant="outline" size="icon-sm">
                 <IconX width={16} height={16} />
-              </button>
+              </Button>
             </div>
 
             <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-4">
@@ -206,14 +207,12 @@ export function AiChat({ enabled }: { enabled: boolean }) {
                 disabled={status === "streaming"}
                 className="min-w-0 flex-1 rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent-400"
               />
-              <button
+              <Button
                 type="submit"
                 disabled={!input.trim() || status === "streaming"}
-                className="btn-primary !px-3"
-                aria-label={L.send}
-              >
+                aria-label={L.send} className="px-3">
                 <IconArrowRight width={16} height={16} />
-              </button>
+              </Button>
             </form>
           </div>
         </div>
@@ -258,11 +257,11 @@ function ChatItem({
     );
   }
   if (item.kind === "error") {
-    return <div className="max-w-[85%] rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600">{item.message}</div>;
+    return <div className="max-w-[85%] rounded-lg bg-feedback-error-wash px-3 py-2 text-sm text-feedback-error">{item.message}</div>;
   }
   // proposal
   return (
-    <div className="rounded-xl border border-amber-400/50 bg-amber-400/10 p-3 text-sm">
+    <div className="rounded-xl border border-feedback-warn/20 bg-feedback-warn-wash p-3 text-sm">
       <p className="mb-2">
         <span className="font-mono font-semibold">{item.name}</span> {labels.proposes}:
       </p>
@@ -271,12 +270,12 @@ function ChatItem({
         <p className="text-xs text-ink-muted">{item.resolved === "approved" ? `✓ ${labels.confirm}` : `✕ ${labels.cancel}`}</p>
       ) : (
         <div className="flex gap-2">
-          <button onClick={() => onDecide(item.messageId, true)} disabled={disabled} className="btn-primary !py-1 !text-xs">
+          <Button onClick={() => onDecide(item.messageId, true)} disabled={disabled} size="xs">
             {labels.confirm}
-          </button>
-          <button onClick={() => onDecide(item.messageId, false)} disabled={disabled} className="btn-ghost !py-1 !text-xs">
+          </Button>
+          <Button onClick={() => onDecide(item.messageId, false)} disabled={disabled} variant="outline" size="xs">
             {labels.cancel}
-          </button>
+          </Button>
         </div>
       )}
     </div>

@@ -2,22 +2,49 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+/**
+ * `size="flush"` is a card that owns no spacing — a hairline box, and the caller
+ * decides what happens inside it. It is what this product reaches for: a panel
+ * here is usually a heading and a list, padded once, not a header/content
+ * composition. `default` and `sm` keep the stock rhythm for anything that wants
+ * `CardHeader` / `CardContent`.
+ */
 function Card({
   className,
   size = "default",
+  render,
   ...props
-}: React.ComponentProps<"div"> & { size?: "default" | "sm" }) {
-  return (
+}: React.ComponentProps<"div"> & {
+  size?: "default" | "sm" | "flush"
+  /**
+   * Render the card as another element — a `<form>`, a `<label>` around a file
+   * input, a list item. Same prop name and behaviour as `Button`'s, which comes
+   * from Base UI. Without it a card can only ever be a `<div>`, which is why
+   * every panel in this product used to be hand-built instead.
+   */
+  render?: React.ReactElement<{ className?: string }>
+}) {
+  const element = (
     <div
       data-slot="card"
       data-size={size}
       className={cn(
-        "group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-xl bg-card py-(--card-spacing) text-sm text-card-foreground shadow-xs ring-1 ring-foreground/10 [--card-spacing:--spacing(6)] has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(4)] *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl",
+        // Separation in this product is a 1px line, never a shadow — the same
+        // hairline `.card` has always drawn. Stock shadcn ships `shadow-xs` and
+        // a `ring-1`; both are dropped so the component and the CSS class are
+        // the same object seen twice, rather than two different cards.
+        "group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-xl border border-line bg-card py-(--card-spacing) text-sm text-card-foreground [--card-spacing:--spacing(6)] has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(4)] data-[size=flush]:[--card-spacing:0px] *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl",
         className
       )}
       {...props}
     />
   )
+
+  if (!render) return element
+  return React.cloneElement(render, {
+    ...element.props,
+    className: cn(element.props.className, render.props.className),
+  })
 }
 
 function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
@@ -33,8 +60,18 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
-  return (
+/**
+ * `render` matters more here than on `Card`. A card title is a heading, and a
+ * bare `<div>` puts nothing in the accessibility tree — a panel built from the
+ * stock component announces as an unnamed group. Pass the level the page needs:
+ * `<CardTitle render={<h2 />}>`.
+ */
+function CardTitle({
+  className,
+  render,
+  ...props
+}: React.ComponentProps<"div"> & { render?: React.ReactElement<{ className?: string }> }) {
+  const element = (
     <div
       data-slot="card-title"
       className={cn(
@@ -44,6 +81,12 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
       {...props}
     />
   )
+
+  if (!render) return element
+  return React.cloneElement(render, {
+    ...element.props,
+    className: cn(element.props.className, render.props.className),
+  })
 }
 
 function CardDescription({ className, ...props }: React.ComponentProps<"div">) {

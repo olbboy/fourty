@@ -10,6 +10,8 @@ import { LanguageSection } from "./sections/language";
 import { CustomFieldsSection } from "./sections/custom-fields";
 import { ApiKeysSection } from "./sections/api-keys";
 import { DiagnosticsSection } from "./sections/diagnostics";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 
 export function SettingsClient() {
   return (
@@ -25,17 +27,17 @@ export function SettingsClient() {
       <CustomFieldsSection />
       <ApiKeysSection />
       <DiagnosticsSection />
-      <div className="card p-4">
+      <Card size="flush" className="p-4">
         <h2 className="mb-1 text-sm font-semibold">Data import</h2>
         <p className="mb-3 text-sm text-ink-muted">
           Bring your book of business from any CRM — CSV import auto-maps common column names and
           links or creates companies on the fly.
         </p>
-        <Link href="/settings/import" className="btn-primary inline-flex">
+        <Button render={<Link href="/settings/import" />}>
           <IconUpload width={15} height={15} /> Import contacts from CSV
-        </Link>
-      </div>
-      <div className="card p-4">
+        </Button>
+      </Card>
+      <Card size="flush" className="p-4">
         <h2 className="mb-1 text-sm font-semibold">REST API</h2>
         <p className="text-sm text-ink-muted">
           Every resource in Fourty is available over a clean REST API — authenticate with{" "}
@@ -53,7 +55,7 @@ export function SettingsClient() {
           <code className="rounded bg-surface-2 px-1.5 py-0.5 text-xs">/api/objects/&lt;name&gt;</code>.
           Full examples in the README.
         </p>
-      </div>
+      </Card>
     </div>
   );
 }

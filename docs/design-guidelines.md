@@ -108,6 +108,27 @@ A filled accent control carries **ink, not white**: on this orange white reaches
 3.04:1 while the artwork's ink reaches 5.36. Anything drawn in the accent that is not
 a fill — link text, an accent icon — uses `--color-accent-700` (5.22:1 on white).
 
+### Semantic colour
+
+Two families sit beside the accent, and neither is a place to improvise. Both are
+built the same way — a **10% wash of a colour with that colour, adjusted, as the text
+on top** — and both are re-measured per theme by
+[`tests/semantic-tokens.test.ts`](../tests/semantic-tokens.test.ts).
+
+| Family | Tokens | For |
+|---|---|---|
+| Record | `--status-*`, `--score-*`, `--priority-*` | What a record *is* — pipeline status, score band, task priority |
+| Feedback | `--feedback-{ok,warn,error}` | What just *happened* — a banner, a run result, an inline outcome |
+
+**Reach for a token, never a palette utility.** `text-amber-600` on an amber wash is
+2.95:1; `text-feedback-warn` in the same slot is 5.03:1. The pair only works because
+it was generated together, and a pair that misses by a tenth still looks fine — which
+is why nothing catches it by eye. The tokens flip with the theme, so a call site needs
+no `dark:` variant.
+
+`--destructive` is shadcn's, and it means a **fill or a border**. It reaches only
+4.13:1 as text on white, so red *text* uses `--feedback-error`.
+
 ## Typography
 
 | Role | Face |
@@ -122,6 +143,30 @@ The lockup itself is drawn geometry and loads no font.
 > typeface has nothing to do with the product's, so a second family would be
 > echoing nothing. `--font-display` stays as a role name: point it at a real
 > display face here if the brand ever gets one, and nothing downstream changes.
+
+`font-display` is **applied**, not just declared — the page title (`PageHeader`) and
+the KPI figure (`KpiCard`) are the two surfaces where this product speaks in the brand
+register. It resolves to the body face today, so nothing moves on screen. That is the
+point: the role marks where a display face would land, so adopting one stays a one-line
+change instead of a hunt through every heading.
+
+Figures that are read down a column — table cells, KPI values, the score in a badge —
+carry `tabular-nums`. Inter's proportional digits vary enough in width to stop a
+currency column lining up.
+
+## Icons
+
+**One library: Lucide.** [`src/components/icons.tsx`](../src/components/icons.tsx) is a
+thin adapter that names the icons for what they mean in this product and adds the two
+things Lucide leaves to the caller:
+
+- **`aria-hidden` by default** — an icon here is decorative and the control around it
+  carries the accessible name. A bare `<svg>` announces as an unnamed graphic.
+- **numeric `width` / `height`**, which is how every call site sizes them.
+
+The set used to be hand-drawn. It was drawn to Lucide's own spec — 24 grid, 2px stroke,
+round caps and joins — because `src/components/ui/*` already shipped Lucide, so the two
+sets were never two voices; they were one voice maintained twice.
 
 ## Don't
 

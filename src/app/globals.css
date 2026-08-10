@@ -134,6 +134,25 @@
   --priority-low: #746a64;
   --priority-low-wash: color-mix(in srgb, #7a7069 10%, transparent);
 
+  /* Feedback semantics — the outcome of something the user or the system just
+     did: a banner, a status pill, an inline result. Same construction as the
+     record semantics above (10% wash, saturated text, measured per theme) and
+     the same test covers them.
+
+     These deliberately carry their own names even where a value matches a
+     record token today. A task's priority and an SSO warning are different
+     meanings, and one has to be free to move without dragging the other.
+
+     --destructive stays what shadcn means by it: a FILL and border colour. It
+     clears 4.13:1 as text on white, which is under AA, so red *text* uses
+     --feedback-error instead. */
+  --feedback-ok: #007c53;
+  --feedback-ok-wash: color-mix(in srgb, #009966 10%, transparent);
+  --feedback-warn: #a65300;
+  --feedback-warn-wash: color-mix(in srgb, #e17100 10%, transparent);
+  --feedback-error: #d1000a;
+  --feedback-error-wash: color-mix(in srgb, #e7000b 10%, transparent);
+
   /* The rail sits one step off white so it reads as chrome. */
   --sidebar: oklch(0.978 0.005 60);
   --sidebar-foreground: var(--text);
@@ -178,6 +197,10 @@
   --priority-high: #fb4c55;
   --priority-medium: #e17100;
   --priority-low: #97908a;
+
+  --feedback-ok: #14a172;
+  --feedback-warn: #e17100;
+  --feedback-error: #ef575e;
 
   --sidebar: oklch(0.216 0.009 56);
   /* One step lighter than the light-mode fill: on a dark rail the 500 orange
@@ -247,6 +270,12 @@
   --color-priority-medium-wash: var(--priority-medium-wash);
   --color-priority-low: var(--priority-low);
   --color-priority-low-wash: var(--priority-low-wash);
+  --color-feedback-ok: var(--feedback-ok);
+  --color-feedback-ok-wash: var(--feedback-ok-wash);
+  --color-feedback-warn: var(--feedback-warn);
+  --color-feedback-warn-wash: var(--feedback-warn-wash);
+  --color-feedback-error: var(--feedback-error);
+  --color-feedback-error-wash: var(--feedback-error-wash);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -264,42 +293,13 @@
   scrollbar-color: var(--border) transparent;
 }
 
-/* Base form controls — consistent everywhere without a component lib */
-/* Focus is a shape cue, so the halo is the warm neutral --ring, not the accent. */
-.input {
-  @apply w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/50 placeholder:text-ink-muted/60;
-}
-
-.btn-primary,
-.btn-ghost,
-.btn-danger {
-  @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
-}
-
-/* A filled accent control carries ink, not white — see --primary-foreground. */
-.btn-primary {
-  @apply bg-primary text-primary-foreground hover:bg-accent-600 active:bg-accent-700;
-}
-
-.btn-ghost {
-  @apply border border-line bg-surface text-ink hover:bg-surface-2;
-}
-
-.btn-danger {
-  @apply bg-red-600 text-white hover:bg-red-700;
-}
-
-.card {
-  @apply rounded-xl border border-line bg-surface;
-}
-
 .chip {
   @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium;
 }
 
 /* Interactive pill (saved-views bar, quick filters). */
 .chip-btn {
-  @apply inline-flex items-center gap-1 rounded-full border border-line bg-surface px-2.5 py-1 text-xs font-medium text-ink transition hover:bg-surface-2;
+  @apply inline-flex items-center gap-1 rounded-full border border-line bg-surface px-2.5 py-1 text-xs font-medium text-ink transition-colors hover:bg-surface-2;
 }
 
 .chip-active {
@@ -322,8 +322,11 @@
   @apply px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-ink-muted;
 }
 
+/* Figures in a table are read down the column, not across the row, so they get
+   tabular figures. Inter's proportional digits are 0.5–1ch apart in width, which
+   is enough to stop a currency column lining up. */
 .td {
-  @apply px-3 py-2.5 text-sm;
+  @apply px-3 py-2.5 text-sm tabular-nums;
 }
 
 /* Motion is short, functional, and opacity-plus-4px. Nothing bounces, nothing

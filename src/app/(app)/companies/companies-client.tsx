@@ -8,6 +8,9 @@ import { formatCompact } from "@/lib/currency";
 import { PageHeader, Modal, EmptyState, Spinner } from "@/components/ui";
 import { IconPlus, IconDownload } from "@/components/icons";
 import { CompanyForm } from "./company-form";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
 
 export function CompaniesClient() {
   const searchParams = useSearchParams();
@@ -35,15 +38,15 @@ export function CompaniesClient() {
         subtitle={companies ? `${companies.length} organizations` : undefined}
         actions={
           <>
-            <a href="/api/export/companies" className="btn-ghost">
+            <Button variant="outline" render={<a href="/api/export/companies" />}>
               <IconDownload width={15} height={15} />
               <span className="hidden sm:inline">Export</span>
-            </a>
-            <button onClick={() => setShowNew(true)} className="btn-primary">
+            </Button>
+            <Button onClick={() => setShowNew(true)}>
               <IconPlus width={15} height={15} />
               <span className="hidden sm:inline">New company</span>
               <span className="sm:hidden">New</span>
-            </button>
+            </Button>
           </>
         }
       />
@@ -51,13 +54,11 @@ export function CompaniesClient() {
       <div className="mb-4">
         {/* No visible label above the box, and a placeholder is a fallback name
             at best — say what it searches. */}
-        <input
+        <Input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           aria-label="Search companies"
-          placeholder="Search name, domain, industry…"
-          className="input max-w-xs"
-        />
+          placeholder="Search name, domain, industry…" className="max-w-xs" />
       </div>
 
       {!companies ? (
@@ -67,13 +68,13 @@ export function CompaniesClient() {
           title="No companies yet"
           hint="Companies group your contacts and deals by organization."
           action={
-            <button onClick={() => setShowNew(true)} className="btn-primary">
+            <Button onClick={() => setShowNew(true)}>
               <IconPlus width={15} height={15} /> New company
-            </button>
+            </Button>
           }
         />
       ) : (
-        <div className="card overflow-x-auto">
+        <Card size="flush" className="overflow-x-auto">
           <table className="w-full min-w-[680px]">
             <thead className="border-b border-line">
               <tr>
@@ -111,7 +112,7 @@ export function CompaniesClient() {
               ))}
             </tbody>
           </table>
-        </div>
+        </Card>
       )}
 
       <Modal title="New company" open={showNew} onClose={() => setShowNew(false)} wide>

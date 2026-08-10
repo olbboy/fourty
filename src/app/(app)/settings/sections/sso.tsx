@@ -2,9 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { timeAgo } from "@/lib/format";
-import { Modal, Field, Spinner } from "@/components/ui";
+import { Modal, Field, Spinner, useConfirm } from "@/components/ui";
 import { IconPlus, IconTrash, IconEdit } from "@/components/icons";
 import { ROLES } from "@/lib/permissions";
+import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
 
 type SsoConnection = {
   id: string;
@@ -23,6 +27,7 @@ type SsoConnection = {
 // OIDC providers (Gate D4). Instance-level and admin-only, so a non-admin gets a
 // 403 from the list and sees nothing at all rather than a panel of dead controls.
 export function SsoSection() {
+  const [askConfirm, confirmDialog] = useConfirm();
   const [connections, setConnections] = useState<SsoConnection[] | null>(null);
   const [adminOnly, setAdminOnly] = useState(false);
   const [editing, setEditing] = useState<SsoConnection | "new" | null>(null);
@@ -93,8 +98,11 @@ export function SsoSection() {
   }
 
   async function remove(c: SsoConnection) {
-    if (!confirm(`Delete "${c.label}"? Anyone who signs in through this provider loses access immediately.`))
-      return;
+    const ok = await askConfirm({
+      title: `Delete “${c.label}”?`,
+      body: "Anyone who signs in through this provider loses access immediately.",
+    });
+    if (!ok) return;
     setError(null);
     const res = await fetch(`/api/sso/connections/${c.id}`, { method: "DELETE" });
     await report(res, "Failed to delete provider");
@@ -106,7 +114,7 @@ export function SsoSection() {
   const current = editing === "new" ? null : editing;
 
   return (
-    <div className="card p-4">
+    <Card size="flush" className="p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold">Single sign-on</h2>
@@ -115,12 +123,12 @@ export function SsoSection() {
             New users join the workspace below with the role you pick.
           </p>
         </div>
-        <button onClick={() => setEditing("new")} className="btn-primary">
+        <Button onClick={() => setEditing("new")}>
           <IconPlus width={15} height={15} /> Add provider
-        </button>
+        </Button>
       </div>
       {/* Failures from the row buttons land here; the form has its own copy. */}
-      {error && editing === null && <p className="mb-3 text-sm text-destructive">{error}</p>}
+      {error && editing === null && <p className="mb-3 text-sm text-feedback-error">{error}</p>}
       {!connections ? (
         <Spinner />
       ) : connections.length === 0 ? (
@@ -145,24 +153,20 @@ export function SsoSection() {
                   {!c.hasClientSecret && " · no client secret set"}
                 </p>
               </div>
-              <button onClick={() => toggle(c)} className="btn-ghost !px-2 text-xs">
+              <Button onClick={() => toggle(c)} variant="outline" size="sm" className="text-xs">
                 {c.enabled ? "Disable" : "Enable"}
-              </button>
+              </Button>
               {/* Icon-only, so the provider name has to come from the label. */}
-              <button
+              <Button
                 onClick={() => setEditing(c)}
-                aria-label={`Edit ${c.label}`}
-                className="btn-ghost !px-2"
-              >
+                aria-label={`Edit ${c.label}`} variant="outline" size="icon-sm">
                 <IconEdit width={14} height={14} />
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => remove(c)}
-                aria-label={`Delete ${c.label}`}
-                className="btn-ghost !px-2 !text-red-400"
-              >
+                aria-label={`Delete ${c.label}`} variant="outline" size="icon-sm" className="text-feedback-error">
                 <IconTrash width={14} height={14} />
-              </button>
+              </Button>
             </div>
           ))}
         </div>
@@ -178,56 +182,48 @@ export function SsoSection() {
       >
         <form onSubmit={save} className="space-y-4">
           <Field label="Name (shown on the sign-in button)">
-            <input name="label" required maxLength={80} defaultValue={current?.label} className="input" placeholder="Okta" />
+            <Input name="label" required maxLength={80} defaultValue={current?.label} placeholder="Okta" />
           </Field>
           <Field label="Issuer URL">
-            <input
+            <Input
               name="issuer"
               required
               type="url"
               maxLength={400}
               defaultValue={current?.issuer}
-              className="input"
-              placeholder="https://example.okta.com"
-            />
+              placeholder="https://example.okta.com" />
           </Field>
           <Field label="Client ID">
-            <input name="clientId" required maxLength={400} defaultValue={current?.clientId} className="input" />
+            <Input name="clientId" required maxLength={400} defaultValue={current?.clientId} />
           </Field>
           <Field label={current ? "Client secret (leave blank to keep the current one)" : "Client secret"}>
-            <input
+            <Input
               name="clientSecret"
               type="password"
               maxLength={1000}
-              className="input"
-              placeholder={current?.hasClientSecret ? "•••••••• (unchanged)" : ""}
-            />
+              placeholder={current?.hasClientSecret ? "•••••••• (unchanged)" : ""} />
           </Field>
           <Field label="Scopes">
-            <input
+            <Input
               name="scopes"
               maxLength={400}
               defaultValue={current?.scopes}
-              className="input"
-              placeholder="openid email profile"
-            />
+              placeholder="openid email profile" />
           </Field>
           <Field label="Role for new users">
-            <select name="defaultRole" defaultValue={current?.defaultRole ?? "member"} className="input">
+            <NativeSelect name="defaultRole" defaultValue={current?.defaultRole ?? "member"} className="w-full">
               {ROLES.map((r) => (
                 <option key={r} value={r}>
                   {r}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </Field>
           <Field label="Workspace new users join (optional — blank means none)">
-            <input
+            <Input
               name="defaultWorkspaceId"
               maxLength={40}
-              defaultValue={current?.defaultWorkspaceId ?? ""}
-              className="input"
-            />
+              defaultValue={current?.defaultWorkspaceId ?? ""} />
           </Field>
           {current && (
             <p className="text-xs text-ink-muted">
@@ -235,15 +231,16 @@ export function SsoSection() {
               provider before saving.
             </p>
           )}
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <p className="text-sm text-feedback-error">{error}</p>}
           <div className="flex justify-end">
-            <button type="submit" className="btn-primary">
+            <Button type="submit">
               {current ? "Save provider" : "Add provider"}
-            </button>
+            </Button>
           </div>
         </form>
       </Modal>
-    </div>
+      {confirmDialog}
+    </Card>
   );
 }
 

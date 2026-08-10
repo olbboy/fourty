@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { timeAgo } from "@/lib/format";
+import { Card } from "@/components/ui/card";
 
 /**
  * What the background agent has queued about this record, and what it last did
@@ -58,7 +59,7 @@ export function AgentQueue({ entityType, entityId }: { entityType: string; entit
   if (tasks.length === 0 && !last) return null;
 
   return (
-    <div className="card p-4">
+    <Card size="flush" className="p-4">
       <h2 className="mb-1 text-sm font-semibold">Background work</h2>
       {tasks.length === 0 ? (
         <p className="text-sm text-ink-muted">Nothing queued.</p>
@@ -80,6 +81,6 @@ export function AgentQueue({ entityType, entityId }: { entityType: string; entit
           Last run {timeAgo(last.finishedAt)}: {last.outcome ?? "no outcome recorded"}
         </p>
       )}
-    </div>
+    </Card>
   );
 }

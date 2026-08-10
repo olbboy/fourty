@@ -5,6 +5,9 @@ import type { Activity, Note, Task } from "@/lib/types";
 import { timeAgo, formatDate } from "@/lib/format";
 import { PriorityChip } from "./ui";
 import { IconMail, IconPhone, IconCalendar, IconPlus } from "./icons";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 
 type EntityRef = { entityType: "contact" | "company" | "deal"; entityId: string };
 
@@ -20,16 +23,26 @@ const ACTIVITY_LABEL: Record<string, string> = {
   workflow: "workflow ran",
 };
 
+/**
+ * Every row already names what happened, so the dot is not what tells one
+ * activity from another — it carries how much the record moved. Four weights of
+ * the page's own ink, darkening toward the events that changed something, plus
+ * the accent on the one kind of entry a person did not make themselves.
+ *
+ * The ink tokens are used rather than `--chart-1…5`: the chart ladder is fixed
+ * across themes, so its dark steps disappear against the dark surface. These
+ * flip with the theme.
+ */
 const ACTIVITY_DOT: Record<string, string> = {
-  created: "bg-emerald-400",
-  updated: "bg-slate-400",
-  stage_changed: "bg-violet-400",
-  note_added: "bg-amber-400",
-  task_completed: "bg-emerald-400",
-  email: "bg-blue-400",
-  call: "bg-teal-400",
-  meeting: "bg-fuchsia-400",
-  workflow: "bg-accent-500",
+  updated: "bg-ink-muted/50", // ambient field edits
+  email: "bg-ink-muted",
+  call: "bg-ink-muted",
+  meeting: "bg-ink-muted",
+  note_added: "bg-ink/60", // someone wrote something
+  task_completed: "bg-ink/60",
+  stage_changed: "bg-ink", // the record moved
+  created: "bg-ink",
+  workflow: "bg-accent-500", // written by the system, not by a person
 };
 
 function describe(a: Activity): string {
@@ -64,7 +77,7 @@ export function Timeline({ entityType, entityId, refreshKey }: EntityRef & { ref
       {activities.map((a) => (
         <li key={a.id} className="relative">
           <span
-            className={`absolute -left-[26px] top-1.5 h-2.5 w-2.5 rounded-full ${ACTIVITY_DOT[a.type] ?? "bg-slate-400"}`}
+            className={`absolute -left-[26px] top-1.5 h-2.5 w-2.5 rounded-full ${ACTIVITY_DOT[a.type] ?? "bg-ink-muted/50"}`}
           />
           <p className="text-sm">{describe(a)}</p>
           <p className="text-xs text-ink-muted">{timeAgo(a.createdAt)}</p>
@@ -98,15 +111,13 @@ export function LogTouchpoint({
   return (
     <div className="flex gap-2">
       {buttons.map(({ type, icon: Icon, label }) => (
-        <button
+        <Button
           key={type}
           onClick={() => log(type)}
           disabled={busy !== null}
-          className="btn-ghost flex-1 !py-1.5 text-xs"
-          title={`Log ${label.toLowerCase()}`}
-        >
+          title={`Log ${label.toLowerCase()}`} variant="outline" size="sm" className="flex-1 text-xs">
           <Icon width={14} height={14} /> {label}
-        </button>
+        </Button>
       ))}
     </div>
   );
@@ -141,7 +152,7 @@ export function NotesPanel({ entityType, entityId, onChanged }: EntityRef & { on
   return (
     <div className="space-y-3">
       <div className="flex gap-2">
-        <textarea
+        <Textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
@@ -149,12 +160,10 @@ export function NotesPanel({ entityType, entityId, onChanged }: EntityRef & { on
           }}
           aria-label="New note"
           rows={2}
-          placeholder="Write a note… (⌘⏎ to save)"
-          className="input resize-y"
-        />
-        <button onClick={add} disabled={busy || !draft.trim()} className="btn-primary self-start">
+          placeholder="Write a note… (⌘⏎ to save)" className="resize-y" />
+        <Button onClick={add} disabled={busy || !draft.trim()} className="self-start">
           Add
-        </button>
+        </Button>
       </div>
       {notes.map((n) => (
         <div key={n.id} className="rounded-lg bg-surface-2 px-3 py-2.5">
@@ -204,18 +213,16 @@ export function TasksPanel({ entityType, entityId, onChanged }: EntityRef & { on
   return (
     <div className="space-y-3">
       <div className="flex gap-2">
-        <input
+        <Input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && add()}
           aria-label="New task"
-          placeholder="Add a task…"
-          className="input"
-        />
+          placeholder="Add a task…" />
         {/* Icon-only; the adjacent input's placeholder does not name this. */}
-        <button onClick={add} disabled={!draft.trim()} aria-label="Add task" className="btn-ghost">
+        <Button onClick={add} disabled={!draft.trim()} aria-label="Add task" variant="outline" size="icon">
           <IconPlus width={15} height={15} />
-        </button>
+        </Button>
       </div>
       {[...open, ...done].map((t) => (
         <label key={t.id} className="flex cursor-pointer items-start gap-2.5">
@@ -233,7 +240,7 @@ export function TasksPanel({ entityType, entityId, onChanged }: EntityRef & { on
               <PriorityChip priority={t.priority} />
               {t.dueDate && (
                 <span
-                  className={`text-xs ${!t.completedAt && t.dueDate < Date.now() ? "font-medium text-destructive" : "text-ink-muted"}`}
+                  className={`text-xs ${!t.completedAt && t.dueDate < Date.now() ? "font-medium text-feedback-error" : "text-ink-muted"}`}
                 >
                   {formatDate(t.dueDate)}
                 </span>
