@@ -3,6 +3,8 @@
   "version": "2.0.0",
   "private": true,
   "description": "Fourty — The open-source CRM that deploys in 30 seconds. Twice the CRM, half the complexity.",
+  "//types": "Read only by the design-system export (see .design-sync/NOTES.md), which needs a declaration entry to discover the component surface. The app never imports this; the file is generated, not committed.",
+  "types": ".design-sync/.cache/types/.design-sync/ds-entry.d.ts",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
