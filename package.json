@@ -22,7 +22,8 @@
     "db:seed": "tsx src/db/seed.ts",
     "migrate-from-sqlite": "tsx scripts/migrate-from-sqlite.ts",
     "rekey": "tsx scripts/rekey.ts",
-    "backup-drill": "bash scripts/backup-drill.sh"
+    "backup-drill": "bash scripts/backup-drill.sh",
+    "build:brand": "tsx scripts/build-brand-assets.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

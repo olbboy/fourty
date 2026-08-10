@@ -43,6 +43,7 @@ import {
   SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { Logo } from "@/components/logo";
 import { useTheme } from "@/components/theme-provider";
 import { initials } from "@/lib/format";
 import { translator, type Locale, type MessageKey } from "@/lib/i18n";
@@ -201,10 +202,25 @@ export function AppSidebar({
               tooltip="Fourty"
               render={<Link href="/dashboard" />}
             >
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-sm font-extrabold text-primary-foreground">
-                40
-              </div>
-              <span className="text-lg font-bold tracking-tight">Fourty</span>
+              {/* Two lockups, one at a time: the monogram is all that fits the
+                  3rem rail, and the full wordmark takes over the moment the
+                  sidebar has the width for it. Neither sits on a coloured tile —
+                  the O is the brand orange and would vanish into one. */}
+              {/* Both carry the name: the hidden one is display:none and so is
+                  out of the accessibility tree, which leaves the link with
+                  exactly one accessible name in either state. */}
+              <Logo
+                variant="mark"
+                height={17}
+                title="Fourty"
+                className="hidden shrink-0 group-data-[collapsible=icon]:block"
+              />
+              <Logo
+                variant="wordmark"
+                height={20}
+                title="Fourty"
+                className="shrink-0 group-data-[collapsible=icon]:hidden"
+              />
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
