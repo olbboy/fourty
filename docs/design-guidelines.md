@@ -113,14 +113,15 @@ a fill — link text, an accent icon — uses `--color-accent-700` (5.22:1 on wh
 | Role | Face |
 |---|---|
 | Product UI | **Inter**, loaded via `next/font` in [`layout.tsx`](../src/app/layout.tsx), bound to `--font-sans` |
-| Display | **Archivo** at `wdth` 125%, bound to `--font-display` — brand and editorial surfaces only, never the product UI |
+| Display | `--font-display`, the brand and editorial role — currently **Inter**, the same family |
 
 The lockup itself is drawn geometry and loads no font.
 
 > [!NOTE]
-> Archivo is a **substitution**. The wordmark's own typeface was never supplied;
-> Archivo expanded is a considered match for surfaces that sit beside the lockup, not
-> the face the lockup is drawn in. Name the real one and it is a one-line change.
+> There is deliberately **one typeface**. The lockup is drawn artwork and its own
+> typeface has nothing to do with the product's, so a second family would be
+> echoing nothing. `--font-display` stays as a role name: point it at a real
+> display face here if the brand ever gets one, and nothing downstream changes.
 
 ## Don't
 

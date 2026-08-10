@@ -30,11 +30,10 @@ until it is regenerated, and a palette change in `globals.css` is invisible to
 the bundle until it is recompiled.
 
 `.design-sync/ds-css-entry.css` (committed) exists because a static export has to
-supply two things the app supplies at runtime: the webfonts (the app binds Inter
-and Archivo via `next/font/google` on `<html>`; there is no next/font outside the
-app) and an explicit `@source "../src"`, since Tailwind's automatic content
-detection is relative to the entry file's directory and would otherwise miss
-`src/`. It holds no design decisions — the palette comes from `globals.css`.
+supply two things the app supplies at runtime: the webfont (the app binds Inter
+via `next/font/google` on `<html>`; there is no next/font outside the app) and
+an explicit `@source "../src"`, since Tailwind's automatic content detection is
+relative to the entry file's directory and would otherwise miss `src/`. It holds no design decisions — the palette comes from `globals.css`.
 
 ## Environment
 
@@ -121,9 +120,9 @@ guard for whoever builds, not a gate on the app's test run.
 - **`cssEntry` is a build artifact, not a source file.** If the stylesheet is
   stale, every preview renders with an old palette and nothing in the pipeline
   flags it. Recompile first, always.
-- **The webfonts load remotely** (`fonts.googleapis.com`) rather than shipping
-  as files, so validate reports `[FONT_REMOTE]`, not `[FONT_MISSING]`. If the
-  brand ever needs self-hosted fonts, that becomes a `cfg.extraFonts` job.
+- **The webfont loads remotely** (`fonts.googleapis.com`) rather than shipping
+  as a file, so validate reports `[FONT_REMOTE]`, not `[FONT_MISSING]`. If the
+  brand ever needs a self-hosted font, that becomes a `cfg.extraFonts` job.
 - **The accent is read off the artwork, not chosen.** `--color-accent-500` is
   the orange in `brand/logo-master.svg` (`#fb631a`). The first sync had been
   built on a traced approximation (`#f86008`); the 2026-08-10 re-sync shipped
@@ -134,10 +133,10 @@ guard for whoever builds, not a gate on the app's test run.
   bundle but touched no preview, so the anchor carried all 193 existing
   components forward and only the newly added `Logo` needed grading. Scope the
   upload by the driver's `upload` partition, not by re-uploading everything.
-- **Archivo is a substitution.** The lockup's real typeface was never supplied;
-  Archivo at `wdth` 125% is a considered match, not the original. Naming the
-  real face changes one line in the `@theme` block. (The artwork itself is no
-  longer a substitution — the vector master is committed.)
+- **One typeface, on the brand owner's confirmation.** The lockup's typeface is
+  unrelated to the product's, so `--font-display` resolves to Inter rather than
+  carrying a second family. The role name is kept so a real display face is a
+  one-line change.
 - The four Next-dependent components are deliberately out of scope. If a future
   sync wants them, they need shims for `next/navigation` and `next/link`, not a
   config tweak.
