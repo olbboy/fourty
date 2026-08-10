@@ -66,10 +66,9 @@ function frameOf(svg: string): { width: number; height: number } {
 }
 
 /**
- * Both lockups share the full lockup's height so that swapping one for the
- * other at a fixed rendered height keeps the baseline exactly where it was. The
- * compact monogram ends 0.3 above that frame — the descent of the R's leg, which
- * only the full lockup draws.
+ * Both lockups share the master's height, so swapping one for the other at a
+ * fixed rendered height keeps the baseline exactly where it was. Every shape in
+ * both lockups now ends on that baseline, so neither carries dead space.
  */
 
 type Shape = { d: string; orange: boolean };

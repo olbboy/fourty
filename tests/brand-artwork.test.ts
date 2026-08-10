@@ -60,9 +60,10 @@ describe("brand artwork stays in step with the master", () => {
   /**
    * An Illustrator artboard is not a bounding box: the supplied compact export
    * framed 302 of artwork in 304, and the full export framed 302.3 in 302 —
-   * clipping the descent of the R's leg. The master now carries the measured
-   * extent and the build reads the frame from there, so this asserts the one
-   * link that a stale `npm run build:brand` would break.
+   * clipping the leg of the R, which was the one shape hanging below the
+   * baseline. The master now carries the measured extent and the build reads the
+   * frame from there, so this asserts the one link a stale
+   * `npm run build:brand` would break.
    */
   it("frames both lockups on the master's viewBox", () => {
     expect(frame.minX).toBe(0);
