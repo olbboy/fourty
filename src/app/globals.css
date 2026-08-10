@@ -363,6 +363,17 @@
     transition-duration: 1ms !important;
     scroll-behavior: auto !important;
   }
+
+  /* The loading spinner is the one thing the blanket rule above must not
+     freeze. It is not decoration: it is the only signal that a pending request
+     is still pending, and a stopped spinner reads as a stuck app — the same
+     mistake as showing no indicator at all. It keeps turning, slower, and at
+     16px it is far too small to be a vestibular trigger. The attribute selector
+     outweighs `*`, so this wins wherever it lands in the file. */
+  [data-slot="spinner"] {
+    animation-duration: 1.6s !important;
+    animation-iteration-count: infinite !important;
+  }
 }
 
 @layer base {
