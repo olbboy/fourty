@@ -121,6 +121,36 @@ implementation of an unused component; forcing it into `<Badge>` would mean over
 that component's colour on every call site. `Badge`'s own destructive variant did get the
 same contrast fix `Button`'s took.
 
+## Regression: `flush` owned layout it should not have
+
+The workflows list shipped broken and nothing caught it. Each row is a horizontal
+strip — mark, name, run count, toggle, edit, delete — written as
+`<Card size="flush" className="flex flex-wrap items-center gap-3 p-4">`. It rendered
+as a centred vertical stack.
+
+`Card`'s base carried `flex flex-col`. `flex-row` is the only class in
+tailwind-merge's `flex-direction` group, so a caller passing `flex flex-wrap
+items-center` cannot take the direction back: `flex-col` survives the merge. Proven
+from computed style — `flex-direction: column`, `flex-wrap: wrap`,
+`align-items: center` — not from reading the class string.
+
+`flush` now owns **no layout at all**, which is what it always claimed and what
+`.card` actually did. Of 47 call sites, 46 are block-ish and one wanted a row; the
+change restores every one of them to what the CSS class rendered before the
+migration.
+
+Two things this exposed:
+
+- **`/workflows` had zero e2e coverage**, and it was the only view not re-screenshotted
+  after Phase 4 — so a full unit + e2e + build pass went green over a visibly broken
+  page. `e2e/workflows.spec.ts` now measures the row: if the name and the delete
+  control stop sharing a line, it fails. Verified by reintroducing the bug and
+  watching it go red.
+- **The row's three controls had no accessible names.** The icons are `aria-hidden`,
+  so edit, delete and the enable toggle all announced as bare controls. The settings
+  panels are guarded against exactly this; workflows never was, so it never got the
+  labels. Fixed and covered by the same spec.
+
 ## What is still not consolidated
 
 - `CardHeader` / `CardContent` have no call sites. Compositional helpers, not a second
