@@ -72,7 +72,7 @@ A status note is only useful if its *negatives* are true too.
 | **GraphQL/MCP write parity with REST** | **PARTIAL** | The 2 skipped tests are here, and they are honest skips in `tests/surface-parity.test.ts`: no GraphQL task mutation, no MCP tool that completes a task. Deals and notes are also read-only over GraphQL. |
 | ~~README understates the AI~~ | **CLOSED 2026-08-09** | Was: the README described only "an optional in-app chat" while Phases 0–4 had shipped an evidence ledger, a work ledger, a keyless research pass and a per-record agent panel. The front page now separates what runs **without** an API key (research, suggestions) from what needs one (the assistant). |
 | **Field-permission redaction in the AI grounding block** | **KNOWN GAP** | `loadRecordContext` gates on object-level read and does not run `redact()` over the fields it puts in the prompt. Recorded in `plans/260808-2159-agentic-crm-upgrade/phase-04-*.md`. |
-| **`npm run lint`** | **BROKEN** | No ESLint config; `next lint` drops into an interactive prompt and is deprecated in Next 16. Type checking via `npm run build` is what actually gates. |
+| ~~`npm run lint` is broken~~ | **CLOSED 2026-08-10** | Was: the script called `next lint`, which Next 16 removed, against a repo that has no ESLint config and never had the dependency — it was `create-next-app` scaffolding nobody ever wired up. The script is gone rather than repaired: nothing in CI called it, and the static gate that does work is `npx tsc --noEmit`, run in CI ahead of the suite. Adding a linter is still open as a choice; it is no longer a broken command pretending otherwise. |
 | **Node requirement** | **IMPRECISE** | README says "Node.js 20+". Next 16 declares `>=20.9.0`, so 20.0–20.8 no longer work. CI and the Dockerfile both use Node 22. |
 | **Dependency audit** | **CLEAN (high+)** | `npm audit --audit-level=high` exits 0 as of this commit. 4 moderate remain, all dev-only (`drizzle-kit` → `@esbuild-kit/esm-loader`). |
 
@@ -94,8 +94,9 @@ now exists and is tested:
 | i18n / a11y UNVERIFIED | Both shipped and tested |
 | 55 tests | **573** |
 
-Two items from that audit are **still open** and are recorded honestly above:
-GraphQL/MCP write parity, and `npm run lint`.
+One item from that audit is **still open** and is recorded honestly above:
+GraphQL/MCP write parity. The other, `npm run lint`, is closed — by deleting the
+script, since it had never been a working command.
 
 ## Unresolved
 
