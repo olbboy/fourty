@@ -121,14 +121,26 @@ export function WorkflowsClient() {
                   type="checkbox"
                   checked={w.enabled}
                   onChange={() => toggle(w)}
+                  aria-label={`${w.enabled ? "Disable" : "Enable"} ${w.name}`}
                   className="peer sr-only"
                 />
                 <div className="peer h-5 w-9 rounded-full bg-surface-2 border border-line after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow after:transition peer-checked:bg-accent-600 peer-checked:after:translate-x-4" />
               </label>
-              <Button onClick={() => setEditing(w)} variant="outline" size="icon-sm">
+              <Button
+                onClick={() => setEditing(w)}
+                variant="outline"
+                size="icon-sm"
+                aria-label={`Edit ${w.name}`}
+              >
                 <IconEdit width={15} height={15} />
               </Button>
-              <Button onClick={() => remove(w)} variant="outline" size="icon-sm" className="text-feedback-error">
+              <Button
+                onClick={() => remove(w)}
+                variant="outline"
+                size="icon-sm"
+                className="text-feedback-error"
+                aria-label={`Delete ${w.name}`}
+              >
                 <IconTrash width={15} height={15} />
               </Button>
             </Card>
