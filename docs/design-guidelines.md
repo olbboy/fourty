@@ -154,6 +154,17 @@ Figures that are read down a column — table cells, KPI values, the score in a 
 carry `tabular-nums`. Inter's proportional digits vary enough in width to stop a
 currency column lining up.
 
+## Tables
+
+Rows and cells come from [`Table`](../src/components/ui/table.tsx), which carries the
+product's table language rather than shadcn's defaults: column labels are small,
+uppercase, tracked and muted; cells wrap (a record name is user data) and carry
+`tabular-nums`; separation is the same hairline as everywhere else. `Table` ships its
+own horizontal scroll container, so a list view adds no wrapper.
+
+The component adds **no row hover**. A hover state is an affordance, and half the tables
+here are reports nobody can click.
+
 ## Icons
 
 **One library: Lucide.** [`src/components/icons.tsx`](../src/components/icons.tsx) is a

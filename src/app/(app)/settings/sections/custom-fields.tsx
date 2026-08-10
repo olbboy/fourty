@@ -86,17 +86,17 @@ export function CustomFieldsSection() {
       </div>
       <div className="mb-3 flex gap-1.5">
         {(["contact", "company", "deal"] as const).map((e) => (
-          <button
+          <Button
             key={e}
             onClick={() => setEntity(e)}
-            className={`chip cursor-pointer !px-3 !py-1.5 capitalize transition ${
-              entity === e
-                ? "bg-primary text-primary-foreground"
-                : "border border-line text-ink-muted hover:border-accent-400"
+            size="sm"
+            variant={entity === e ? "default" : "outline"}
+            className={`rounded-4xl text-xs capitalize ${
+              entity === e ? "" : "text-ink-muted hover:border-accent-400"
             }`}
           >
             {e}s
-          </button>
+          </Button>
         ))}
       </div>
       {!fields ? (

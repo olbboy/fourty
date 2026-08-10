@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 export type ViewConfig = {
   filters?: Record<string, unknown>;
@@ -74,31 +75,35 @@ export function SavedViewsBar({
 
   return (
     <div className="mb-3 flex flex-wrap items-center gap-1.5" role="toolbar" aria-label="Saved views">
-      <button
+      <Button
         type="button"
         onClick={() => onApply(null)}
         aria-pressed={activeId === null}
-        className={`chip-btn ${activeId === null ? "chip-active" : ""}`}
+        size="sm"
+        variant="outline"
+        className={`rounded-4xl px-2.5 text-xs ${activeId === null ? "border-accent-500 bg-accent-50 text-accent-700 dark:text-accent-400" : ""}`}
       >
         All
-      </button>
+      </Button>
       {views.map((v) => (
         <span key={v.id} className="group inline-flex items-center">
-          <button
+          <Button
             type="button"
             onClick={() => onApply(v)}
             aria-pressed={activeId === v.id}
-            className={`chip-btn ${activeId === v.id ? "chip-active" : ""}`}
+            size="sm"
+            variant="outline"
+            className={`rounded-4xl px-2.5 text-xs ${activeId === v.id ? "border-accent-500 bg-accent-50 text-accent-700 dark:text-accent-400" : ""}`}
             title={v.shared ? "Shared view" : "Personal view"}
           >
             {v.name}
             {v.shared && <span className="ml-1 text-[10px] text-ink-muted">shared</span>}
-          </button>
+          </Button>
           <button
             type="button"
             onClick={() => remove(v.id)}
             aria-label={`Delete view ${v.name}`}
-            className="ml-0.5 hidden rounded px-1 text-ink-muted hover:text-danger group-hover:inline"
+            className="ml-0.5 hidden rounded px-1 text-ink-muted hover:text-feedback-error group-hover:inline"
           >
             ×
           </button>
@@ -116,14 +121,20 @@ export function SavedViewsBar({
             }}
             placeholder="View name…"
             aria-label="New view name" className="h-7 w-32 py-0 text-xs" />
-          <button type="button" onClick={save} className="chip-btn">
+          <Button type="button" onClick={save} size="sm" variant="outline" className="rounded-4xl px-2.5 text-xs">
             Save
-          </button>
+          </Button>
         </span>
       ) : (
-        <button type="button" onClick={() => setSaving(true)} className="chip-btn text-ink-muted">
+        <Button
+          type="button"
+          onClick={() => setSaving(true)}
+          size="sm"
+          variant="outline"
+          className="rounded-4xl px-2.5 text-xs text-ink-muted"
+        >
           + Save view
-        </button>
+        </Button>
       )}
     </div>
   );

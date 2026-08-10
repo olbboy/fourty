@@ -125,11 +125,13 @@ export function DealDetail({ id }: { id: string }) {
           {pipeline.stages.map((s) => {
             const active = s.id === deal.stageId;
             return (
-              <button
+              <Button
                 key={s.id}
                 onClick={() => !active && moveTo(s.id)}
-                className={`chip cursor-pointer !px-3 !py-1.5 transition ${
-                  active ? "font-semibold" : "border border-line text-ink-muted hover:border-accent-400"
+                size="sm"
+                variant="outline"
+                className={`rounded-4xl text-xs ${
+                  active ? "border-transparent font-semibold" : "text-ink-muted hover:border-accent-400"
                 }`}
                 // The fill is workspace data, so the label colour is derived
                 // rather than assumed — white on an amber stage is unreadable.
@@ -137,7 +139,7 @@ export function DealDetail({ id }: { id: string }) {
                 title={`${s.winProbability}% win probability`}
               >
                 {s.name}
-              </button>
+              </Button>
             );
           })}
         </div>

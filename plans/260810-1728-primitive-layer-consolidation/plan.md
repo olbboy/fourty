@@ -100,15 +100,41 @@ instead of the Unicode pictograph ranges.
   measured `--feedback-error` pair at a fixed 10% wash and moves its **border** on hover,
   so it is covered by the same test as every other chip.
 
+## Phase 5 — the last CSS layer ✅
+
+`ui/table.tsx` was 116 lines with **zero imports** while four list views rendered raw
+`<table>` plus `.th` / `.td` — the same drift as `.card`, one layer down. 162 tags moved
+to `Table` / `TableHeader` / `TableBody` / `TableRow` / `TableHead` / `TableCell`, and
+the component took the product's table language: small uppercase tracked column labels,
+wrapping cells with `tabular-nums`, the hairline row rule, and **no row hover** — half
+these tables are reports nobody can click. `Table` brings its own scroll container, so
+five hand-rolled `overflow-x-auto` wrappers went with it.
+
+`.chip-btn` and the three `.chip`-based filter pills became `<Button>`. They read as
+chips but behave as buttons, and as buttons they inherit focus-visible, disabled and a
+32px target. `.chip-active` was the accent wash written out longhand.
+
+**`.chip` stays**, and that is a deliberate line rather than an oversight. It is the wash
+pill that `StatusChip`, `ScoreBadge` and `PriorityChip` are built from — three components
+the app uses and `ds-entry.ts` exports. Unlike `<table>`, it is not a parallel
+implementation of an unused component; forcing it into `<Badge>` would mean overriding
+that component's colour on every call site. `Badge`'s own destructive variant did get the
+same contrast fix `Button`'s took.
+
 ## What is still not consolidated
 
 - `CardHeader` / `CardContent` have no call sites. Compositional helpers, not a second
   implementation.
-- `.chip`, `.chip-btn`, `.th`, `.td` remain CSS classes with no component counterpart.
-  Out of scope for this decision.
+- `Badge` has no call sites either, for the reason above: the product's badge API is the
+  three semantic chips, and they are used.
+- `.chip`, `.data-ink` and `.animate-fade-up` are the whole of `globals.css`'s class
+  layer now. Each is a mechanism rather than a component — a shared pill shape, a
+  theme-aware colour that arrives from the database, and a keyframe.
 - **Undo, not confirmation.** Several of these guards protect reversible actions and
   would be better as an optimistic write plus an Undo. That needs restore endpoints the
   API does not have; the dialog replaces the mechanism, not the interaction.
+- **One typeface.** Declined by the brand owner, with reasons on record. `font-display`
+  is applied, so reversing it is a one-line change.
 
 ## Rollback
 

@@ -59,6 +59,20 @@ surface and the reason a colour that looks fine can still fail. `StatusChip`,
 rather than re-colouring a `Badge`. For feedback, use
 `bg-feedback-warn-wash text-feedback-warn` and its two siblings.
 
+**Tables come from `Table`**, not from `<table>` plus classes. `TableHead` already
+carries the small uppercase tracked label, `TableCell` the tabular figures, `TableRow`
+the hairline — and `Table` supplies its own horizontal scroll container, so a list view
+needs no wrapper of its own. A row is only interactive where the page makes it so; the
+component adds no hover, because a hover on a report table promises a click that is not
+there.
+
+**Anything you can press is a `Button`.** A filter pill, a saved-view toggle, a stage
+switcher — they read as chips, but they behave as buttons, and as buttons they inherit
+focus-visible, disabled and a real target size. Shape them with
+`size="sm" className="rounded-4xl text-xs"`. `.chip` is the wash pill behind
+`StatusChip` / `ScoreBadge` / `PriorityChip` and is not for anything that responds to a
+click.
+
 **Icons are one library.** Lucide, always. `components/icons.tsx` names the app's
 own vocabulary over it (`IconTrash`, `IconPlus`, …) and adds two things Lucide does
 not: `aria-hidden` by default, because an icon here is decorative and the control

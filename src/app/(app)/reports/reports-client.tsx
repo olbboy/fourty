@@ -7,6 +7,14 @@ import { formatDate } from "@/lib/format";
 import { PageHeader, Spinner } from "@/components/ui";
 import { WinLossChart, CategoryBars } from "@/components/charts";
 import { Card } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 type Reports = {
   sourceBreakdown: { source: string; leads: number; customers: number; conversion: number }[];
@@ -52,23 +60,22 @@ export function ReportsClient() {
         <Card size="flush" className="p-4">
           <h2 className="mb-1 text-sm font-semibold">Lead source performance</h2>
           <p className="mb-3 text-xs text-ink-muted">Volume and conversion to customer</p>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[380px]">
-              <thead className="border-b border-line">
-                <tr>
-                  <th className="th">Source</th>
-                  <th className="th">Leads</th>
-                  <th className="th">Customers</th>
-                  <th className="th">Conversion</th>
-                </tr>
-              </thead>
-              <tbody>
+          <Table className="min-w-[380px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Leads</TableHead>
+                  <TableHead>Customers</TableHead>
+                  <TableHead>Conversion</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {data.sourceBreakdown.map((s) => (
-                  <tr key={s.source} className="border-b border-line/60 last:border-0">
-                    <td className="td font-medium capitalize">{s.source}</td>
-                    <td className="td">{s.leads}</td>
-                    <td className="td">{s.customers}</td>
-                    <td className="td">
+                  <TableRow key={s.source}>
+                    <TableCell className="font-medium capitalize">{s.source}</TableCell>
+                    <TableCell>{s.leads}</TableCell>
+                    <TableCell>{s.customers}</TableCell>
+                    <TableCell>
                       <div className="flex items-center gap-2">
                         <div className="h-1.5 w-24 overflow-hidden rounded-full bg-surface-2">
                           <div
@@ -78,12 +85,11 @@ export function ReportsClient() {
                         </div>
                         <span className="text-xs text-ink-muted">{s.conversion}%</span>
                       </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
         </Card>
 
         <Card size="flush" className="p-4">
@@ -109,50 +115,48 @@ export function ReportsClient() {
         <p className="mb-3 text-xs text-ink-muted">
           Every open deal, sorted by time in current stage — chase the top of this list.
         </p>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px]">
-            <thead className="border-b border-line">
-              <tr>
-                <th className="th">Deal</th>
-                <th className="th">Stage</th>
-                <th className="th">Value (USD)</th>
-                <th className="th">Days in stage</th>
-                <th className="th">Expected close</th>
-              </tr>
-            </thead>
-            <tbody>
+        <Table className="min-w-[640px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Deal</TableHead>
+                <TableHead>Stage</TableHead>
+                <TableHead>Value (USD)</TableHead>
+                <TableHead>Days in stage</TableHead>
+                <TableHead>Expected close</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {data.aging.map((d) => (
-                <tr key={d.id} className="border-b border-line/60 last:border-0">
-                  <td className="td">
+                <TableRow key={d.id}>
+                  <TableCell>
                     <Link href={`/deals/${d.id}`} className="font-medium text-accent-700 hover:underline dark:text-accent-400">
                       {d.name}
                     </Link>
-                  </td>
-                  <td className="td text-ink-muted">{d.stage}</td>
-                  <td className="td">{formatCompact(d.amountUsd, "USD")}</td>
-                  <td className="td">
+                  </TableCell>
+                  <TableCell className="text-ink-muted">{d.stage}</TableCell>
+                  <TableCell>{formatCompact(d.amountUsd, "USD")}</TableCell>
+                  <TableCell>
                     <span className={d.daysInStage > 14 ? "font-semibold text-feedback-warn" : ""}>
                       {d.daysInStage}d
                     </span>
-                  </td>
-                  <td className="td">
+                  </TableCell>
+                  <TableCell>
                     <span className={d.overdue ? "font-semibold text-feedback-error" : "text-ink-muted"}>
                       {formatDate(d.expectedCloseDate)}
                       {d.overdue && " · overdue"}
                     </span>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
               {data.aging.length === 0 && (
-                <tr>
-                  <td className="td text-ink-muted" colSpan={5}>
+                <TableRow>
+                  <TableCell className="text-ink-muted" colSpan={5}>
                     No open deals.
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               )}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
       </Card>
     </div>
   );

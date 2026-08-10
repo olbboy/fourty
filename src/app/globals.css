@@ -293,17 +293,11 @@
   scrollbar-color: var(--border) transparent;
 }
 
+/* The wash pill behind StatusChip, ScoreBadge and PriorityChip. Those three are
+   the product's badge API and are what call sites reach for; this rule is their
+   shared shape, not a second `<Badge>`. Anything interactive is a Button. */
 .chip {
   @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium;
-}
-
-/* Interactive pill (saved-views bar, quick filters). */
-.chip-btn {
-  @apply inline-flex items-center gap-1 rounded-full border border-line bg-surface px-2.5 py-1 text-xs font-medium text-ink transition-colors hover:bg-surface-2;
-}
-
-.chip-active {
-  @apply border-accent-500 bg-accent-50 text-accent-700;
 }
 
 /* Text painted in a colour that comes from the database (a pipeline stage) needs
@@ -316,17 +310,6 @@
 
 .dark .data-ink {
   color: var(--data-ink-dark);
-}
-
-.th {
-  @apply px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-ink-muted;
-}
-
-/* Figures in a table are read down the column, not across the row, so they get
-   tabular figures. Inter's proportional digits are 0.5–1ch apart in width, which
-   is enough to stop a currency column lining up. */
-.td {
-  @apply px-3 py-2.5 text-sm tabular-nums;
 }
 
 /* Motion is short, functional, and opacity-plus-4px. Nothing bounces, nothing
