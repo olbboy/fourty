@@ -9,8 +9,26 @@
 
      Transcribed verbatim from the supplied Illustrator export, so the shapes
      are the designer's own. Colours are inline rather than CSS classes so the
-     file stands alone: #231F20 ink and #FB631A orange. Do not recolour. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1457.6 302" fill="none">
+     file stands alone: #231F20 ink and #FB631A orange. Do not recolour.
+
+     THE VIEWBOX IS THE ARTWORK'S EXTENT, NOT THE EXPORT'S ARTBOARD. The two
+     supplied files disagree with their own contents in opposite directions: the
+     compact export is 304 tall around art that ends at 302, and the full export
+     is 302 tall around art that reaches 302.3 — so it clips itself. Both numbers
+     are artboard rounding, which is why neither is copied here. 302.3 is the
+     measured extent: the R's leg (x 816.7-1008.1) descends 0.3 below the
+     baseline every other shape sits on. Nothing else reaches past 302.
+
+     That 0.3 looks like a slip in the original vector rather than an optical
+     overshoot — the O, which is the one shape that would earn an overshoot,
+     stops dead at 302. Left as drawn; snapping the R is the brand owner's call,
+     not this file's.
+
+     Re-measure after any artwork change and update this viewBox to match:
+     load the file in a browser and read `document.querySelector("svg").getBBox()`
+     for the frame, `...querySelector("#compact").getBBox()` for the compact
+     width. scripts/build-brand-assets.ts reads the frame from here. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1457.6 302.3" fill="none">
   <g id="compact">
     <polygon fill="#231F20" points="181.4,66.8 181.4,92 222.5,50.9 222.5,0 190,0 190,0 190,0 0.7,189.3 0,190 0,228.5 155.5,228.5 155.5,189.3 58.8,189.3"/>
     <polygon fill="#231F20" points="248,189.3 222.5,189.3 222.5,78 181.4,119.1 181.4,302 222.5,302 222.5,221.7"/>

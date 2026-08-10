@@ -15,7 +15,7 @@ export const BRAND_ORANGE = "#FB631A";
 export const ART = {
   full: {
     width: 1457.6,
-    height: 302,
+    height: 302.3,
     /** Minimum legible height, per the brand rules. */
     minHeight: 20,
     shapes: [
@@ -30,7 +30,7 @@ export const ART = {
   },
   compact: {
     width: 509.2,
-    height: 302,
+    height: 302.3,
     /** Minimum legible height, per the brand rules. */
     minHeight: 16,
     shapes: [
