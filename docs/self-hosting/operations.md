@@ -41,9 +41,13 @@ response headers and `429` on exceed. Limits are tunable
 
 ## Locked out
 
-There is no forgot-password flow: on a fresh install there is nowhere to send a reset
-link, and the first account exists before any mail is configured. Reset a password from
-the server instead:
+With [outbound email](configuration.md#outbound-email) configured, the login page
+offers **Forgot your password?** — a one-hour, single-use reset link by email, no
+server access needed. Requesting a new link retires the old one, and a completed reset
+signs out every session.
+
+Without a mail transport there is nowhere to send the link (the first account on a
+fresh install exists before mail does), so reset from the server instead:
 
 ```bash
 npm run reset-password -- admin@example.com

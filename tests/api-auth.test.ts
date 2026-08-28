@@ -80,6 +80,12 @@ describe("static guard: every API route authenticates", () => {
     // redirected to the IdP and back; auth comes from the verified ID token.
     "auth/sso/[id]/start",
     "auth/sso/[id]/callback",
+    // Forgot-password runs before sign-in by definition. Neither leaks account
+    // existence (identical 200 either way; one generic error for every bad
+    // token), both are IP-rate-limited, and the reset itself is authorized by
+    // the one-time emailed token, invites-style.
+    "auth/forgot",
+    "auth/reset",
     "health", // liveness probe — pings DB only, exposes no data
     "metrics", // Prometheus scrape — aggregate counters only, no PII (Gate B4)
   ]);
@@ -136,6 +142,10 @@ describe("static guard: every API route authenticates", () => {
       "auth/login",
       "auth/logout",
       "auth/setup",
+      // Like members/accept: authorized by a one-time emailed token, not a
+      // workspace role — the caller has no session to hold a role in yet.
+      "auth/forgot",
+      "auth/reset",
       "members/accept",
       "graphql",
       // MCP HTTP transport: RBAC enforced per-tool via can()/requireRole inside
