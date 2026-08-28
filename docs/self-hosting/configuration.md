@@ -95,8 +95,9 @@ mailbox, and disconnects one.
 
 ## Outbound email
 
-Fourty sends one kind of message: the member invite. **Disabled unless `SMTP_HOST`,
-`SMTP_USER` and `SMTP_PASSWORD` are all set** — with it off, **Settings → Team
+Fourty sends one kind of message: the member invite. **Disabled until a transport is
+configured** — SMTP below, or Resend over HTTPS if your host blocks SMTP. With it off,
+**Settings → Team
 members** shows the accept link for an admin to pass along by hand, which is the only
 behaviour that existed before. Set them and inviting a teammate emails them the link
 instead; the panel still shows it, in case the mail doesn't arrive.
@@ -124,6 +125,28 @@ means updating SPF before anything you send is trusted.
 | Lark Mail | `smtp.larksuite.com:465` | A *dedicated password* from the Lark **desktop** app: avatar → Settings → Email → Third-party email client login → Set Up Now. An admin has to allow third-party email clients first, and mailing-list addresses can't sign in this way. |
 | Google Workspace | `smtp.gmail.com:465` | An App Password (account needs 2FA). |
 | Microsoft 365 | `smtp-mail.outlook.com:587` | Account or app password. |
+
+### If your host blocks outbound SMTP
+
+DigitalOcean blocks ports 25, 465 and 587 by default, and several other providers do
+the same. SMTP then times out however it is configured, and no local firewall rule
+undoes it — the filter sits upstream of the machine. Confirm it by trying an SMTP port
+against any provider from the host; if every one times out while `443` elsewhere
+works, that is the block.
+
+Two ways out: ask the provider to lift it, or send over HTTPS.
+
+| Variable | Purpose |
+|---|---|
+| `RESEND_API_KEY` | Sends through [Resend](https://resend.com) over port 443. |
+| `MAIL_FROM` | **Required** with Resend — unlike SMTP there is no account address to fall back on, and a key without a From leaves mail disabled. |
+
+SMTP wins when both are configured. Resend needs a verified sending domain: add it in
+the Resend dashboard, then create the MX, SPF and DKIM records it shows. Verifying the
+`send.` subdomain Resend suggests leaves your **root** domain's SPF untouched, so mail
+you already send is unaffected — but `MAIL_FROM` then has to be `@send.yourdomain.com`
+to match. Verifying the apex instead means merging Resend into the existing root SPF
+record, since a domain may only publish one.
 
 ## AI assistant
 

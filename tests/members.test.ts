@@ -91,7 +91,7 @@ describe("workspace members + invites", () => {
   it("emails an accept link carrying the invite token", async () => {
     const sent: MailMessage[] = [];
     __setMailer({
-      host: "smtp.test",
+      transport: "smtp:test",
       from: "crm@t.dev",
       send: async (m) => {
         sent.push(m);
@@ -115,7 +115,7 @@ describe("workspace members + invites", () => {
 
   it("still issues the invite when the mail transport fails", async () => {
     __setMailer({
-      host: "smtp.test",
+      transport: "smtp:test",
       from: "crm@t.dev",
       send: async () => {
         throw new Error("smtp unreachable");
