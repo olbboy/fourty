@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requestOrigin } from "@/lib/api";
 import { eq } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { log } from "@/lib/logger";
@@ -27,7 +28,7 @@ function toLogin(origin: string, error: string): NextResponse {
 export async function GET(req: Request, { params }: Params) {
   const { id } = await params;
   const url = new URL(req.url);
-  const origin = url.origin;
+  const origin = requestOrigin(req);
 
   const idpError = url.searchParams.get("error");
   if (idpError) return toLogin(origin, `provider_error:${idpError}`);
