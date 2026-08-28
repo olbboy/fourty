@@ -39,6 +39,36 @@ response headers and `429` on exceed. Limits are tunable
 > instance counts separately — front them with a shared limiter at your gateway for a
 > global budget.
 
+## Locked out
+
+There is no forgot-password flow: on a fresh install there is nowhere to send a reset
+link, and the first account exists before any mail is configured. Reset a password from
+the server instead:
+
+```bash
+npm run reset-password -- admin@example.com
+```
+
+The password is typed at a prompt and never echoed, so it stays out of your shell
+history and the process list. Piping it works too, for automation — the confirmation
+prompt is skipped when stdin is not a terminal:
+
+```bash
+printf '%s' "$NEW_PASSWORD" | npm run reset-password -- admin@example.com
+```
+
+Every existing session for that user is signed out, since a reset is usually a response
+to a password someone else may know.
+
+Under Compose, run it in the app container:
+
+```bash
+docker compose exec app npm run reset-password -- admin@example.com
+```
+
+Anyone who can reach the database can do this, which is the same trust boundary as the
+server itself — it is not an escalation, but it is a reason to keep server access tight.
+
 ## Security posture
 
 - **Multi-tenancy** — Postgres **Row-Level Security** scopes every row to one
