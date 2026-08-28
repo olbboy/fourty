@@ -60,6 +60,8 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_SECURE: ${SMTP_SECURE:-}
       MAIL_FROM: ${MAIL_FROM:-}
+      # HTTPS alternative for hosts that block outbound SMTP.
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
     ports:
       - "3000:3000"
     depends_on:
@@ -103,6 +105,8 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_SECURE: ${SMTP_SECURE:-}
       MAIL_FROM: ${MAIL_FROM:-}
+      # HTTPS alternative for hosts that block outbound SMTP.
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
