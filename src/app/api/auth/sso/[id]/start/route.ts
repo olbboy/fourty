@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requestOrigin } from "@/lib/api";
 import { eq } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { log } from "@/lib/logger";
@@ -30,7 +31,7 @@ function toLogin(origin: string, error: string): NextResponse {
 
 export async function GET(req: Request, { params }: Params) {
   const { id } = await params;
-  const origin = new URL(req.url).origin;
+  const origin = requestOrigin(req);
 
   const conn = (
     await db.select().from(tables.ssoConnections).where(eq(tables.ssoConnections.id, id)).limit(1)

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { withAuth, authorize, json, parseBody } from "@/lib/api";
+import { withAuth, authorize, json, parseBody, requestOrigin } from "@/lib/api";
 import { newId, newToken } from "@/lib/id";
 import { sha256 } from "@/lib/auth";
 import { audit } from "@/lib/audit";
@@ -111,7 +111,7 @@ async function queueInviteEmail(args: InviteEmailArgs): Promise<boolean> {
 
   // Same origin the admin is using, so the link works on whatever hostname
   // this instance is actually reached at — no APP_URL to keep in sync.
-  const origin = new URL(args.req.url).origin;
+  const origin = requestOrigin(args.req);
   const acceptUrl = `${origin}/accept?token=${encodeURIComponent(args.token)}`;
 
   const message = inviteEmail({
