@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import pg from "pg";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 
@@ -51,8 +51,10 @@ const UP = [
   "drizzle/0015_email_signature.sql",
   "drizzle/0016_conversation_record.sql",
   "drizzle/0017_stage_colour_default.sql",
+  "drizzle/0018_password_resets.sql",
 ];
 const DOWN = [
+  "drizzle/down/0018_password_resets.down.sql",
   "drizzle/down/0017_stage_colour_default.down.sql",
   "drizzle/down/0016_conversation_record.down.sql",
   "drizzle/down/0015_email_signature.down.sql",
@@ -108,6 +110,21 @@ async function dropAll(client: pg.Client) {
 }
 
 describe("migration reversibility (full chain, real Postgres)", () => {
+  it("covers every migration on disk, each with a down file", () => {
+    // The lists above are hand-maintained, and nothing else notices when a new
+    // migration lands without joining them — 0018 shipped exactly that way and
+    // this suite stayed green while silently no longer walking the full chain.
+    const onDisk = readdirSync(path.join(process.cwd(), "drizzle"))
+      .filter((f) => f.endsWith(".sql"))
+      .sort()
+      .map((f) => `drizzle/${f}`);
+    expect(UP).toEqual(onDisk);
+    expect(DOWN.map((f) => f.replace("drizzle/down/", "").replace(".down.sql", ""))).toEqual(
+      UP.map((f) => f.replace("drizzle/", "").replace(".sql", "")).reverse(),
+    );
+  });
+
+
   it("up → checksum → down → re-apply yields an identical schema", async () => {
     const client = new pg.Client({ connectionString: DSN });
     await client.connect();
@@ -119,7 +136,7 @@ describe("migration reversibility (full chain, real Postgres)", () => {
       await runFiles(client, UP);
       const before = await schemaFingerprint(client);
       const up1 = await counts(client);
-      expect(up1.tables).toBe(34); // 30 (D4) + ai_conversations + ai_messages + record_facts + agent_tasks
+      expect(up1.tables).toBe(35); // 34 + password_resets (0018, identity plane — no policy)
       expect(up1.policies).toBe(27); // 23 + ai_conversations_tenant + ai_messages_tenant + record_facts_tenant + agent_tasks_tenant
 
       // Roll the whole chain back → empty schema
@@ -132,7 +149,7 @@ describe("migration reversibility (full chain, real Postgres)", () => {
       await runFiles(client, UP);
       const after = await schemaFingerprint(client);
       const up2 = await counts(client);
-      expect(up2.tables).toBe(34);
+      expect(up2.tables).toBe(35);
       expect(up2.policies).toBe(27);
       expect(after).toBe(before);
     } finally {
