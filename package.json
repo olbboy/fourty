@@ -3,7 +3,7 @@
   "version": "2.0.0",
   "private": true,
   "license": "BUSL-1.1",
-  "description": "Fourty — The open-source CRM that deploys in 30 seconds. Twice the CRM, half the complexity.",
+  "description": "Fourty \u2014 The open-source CRM that deploys in 30 seconds. Twice the CRM, half the complexity.",
   "//types": "Read only by the design-system export (see .design-sync/NOTES.md), which needs a declaration entry to discover the component surface. The app never imports this; the file is generated, not committed.",
   "types": ".design-sync/.cache/types/.design-sync/ds-entry.d.ts",
   "scripts": {
@@ -23,6 +23,7 @@
     "db:seed": "tsx src/db/seed.ts",
     "migrate-from-sqlite": "tsx scripts/migrate-from-sqlite.ts",
     "rekey": "tsx scripts/rekey.ts",
+    "reset-password": "tsx scripts/reset-password.ts",
     "backup-drill": "bash scripts/backup-drill.sh",
     "build:brand": "tsx scripts/build-brand-assets.ts",
     "build:ds-foundations": "tsx scripts/build-ds-foundations.ts",
