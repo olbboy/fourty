@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 
-export function LoginForm({ mode }: { mode: "setup" | "login" }) {
+// `next` arrives pre-validated by the page (safeInternalPath) — this form
+// never reads the query string itself, so the guard has exactly one call site.
+export function LoginForm({ mode, next }: { mode: "setup" | "login"; next?: string | null }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -31,7 +33,7 @@ export function LoginForm({ mode }: { mode: "setup" | "login" }) {
       body: JSON.stringify(body),
     });
     if (res.ok) {
-      router.push("/dashboard");
+      router.push(next ?? "/dashboard");
       router.refresh();
     } else {
       const data = await res.json().catch(() => ({}));

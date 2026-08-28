@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { ADMIN } from "./helpers/auth";
 
 /**
  * Invite → accept, end to end and across two sessions.
@@ -25,7 +26,7 @@ test("an invited teammate redeems the link and lands in the workspace", async ({
 
   await members.getByRole("textbox", { name: "Email address to invite" }).fill(invitee);
   await members.getByRole("combobox", { name: "Role for the invitee" }).selectOption("member");
-  await members.getByRole("button", { name: "Invite" }).click();
+  await members.getByRole("button", { name: "Invite", exact: true }).click();
 
   // No SMTP here, so the panel says so and shows the link instead of claiming
   // it emailed one.
@@ -65,6 +66,48 @@ test("an invited teammate redeems the link and lands in the workspace", async ({
   // The new member shows up for the admin.
   await page.reload();
   await expect(members.getByText(invitee)).toBeVisible();
+});
+
+test("an invitee with an account signs in and lands back on the invite", async ({ page, browser }) => {
+  // The admin's own address: it certainly has an account, and accepting at
+  // role "admin" keeps the shared E2E admin at the role every other spec
+  // expects. What's under test is the hand-off, not the membership change.
+  await page.goto("/settings");
+  const members = page.locator("[data-slot=card]", {
+    has: page.getByRole("heading", { name: "Team members" }),
+  });
+  await members.getByRole("textbox", { name: "Email address to invite" }).fill(ADMIN.email);
+  await members.getByRole("combobox", { name: "Role for the invitee" }).selectOption("admin");
+  await members.getByRole("button", { name: "Invite", exact: true }).click();
+  const acceptUrl = (await members.locator("code").innerText()).trim();
+
+  const guest = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  try {
+    const guestPage = await guest.newPage();
+    await guestPage.goto(acceptUrl);
+    // A guest sees the signup form; submitting it for an address that already
+    // has an account is what triggers the sign-in hand-off.
+    await guestPage.getByLabel("Your name").fill("Should Not Matter");
+    await guestPage.getByLabel("Choose a password").fill("irrelevant-pass-123");
+    await guestPage.getByRole("button", { name: "Create account and join" }).click();
+
+    await expect(guestPage.getByText("already has a Fourty account")).toBeVisible();
+    await guestPage.getByRole("button", { name: "Go to sign in" }).click();
+    await expect(guestPage).toHaveURL(/\/login\?next=/);
+
+    await guestPage.getByLabel("Email").fill(ADMIN.email);
+    await guestPage.getByLabel("Password").fill(ADMIN.password);
+    await guestPage.getByRole("button", { name: "Sign in" }).click();
+
+    // The whole point of ?next=: straight back to the invite, signed in, with
+    // the one-click join in front of them — no digging the link out again.
+    await expect(guestPage).toHaveURL(/\/accept\?token=/);
+    await expect(guestPage.getByText("You're signed in as")).toBeVisible();
+    await guestPage.getByRole("button", { name: "Join workspace" }).click();
+    await expect(guestPage).toHaveURL(/\/dashboard/);
+  } finally {
+    await guest.close();
+  }
 });
 
 test("the accept page refuses a link with no token", async ({ browser }) => {

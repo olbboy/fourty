@@ -56,10 +56,12 @@ export function AcceptForm({ token, signedInAs }: { token: string; signedInAs: s
     return (
       <Card className="space-y-4 p-6">
         <p className="text-sm">
-          That email already has a Fourty account. Sign in first, then open the invite link from
-          your email again to join.
+          That email already has a Fourty account. Sign in and you&apos;ll come straight back to
+          this invite.
         </p>
-        <a href="/login" className="block">
+        {/* Carry the accept link through login, so signing in lands the invitee
+            back here instead of on the dashboard with a spent visit. */}
+        <a href={`/login?next=${encodeURIComponent(`/accept?token=${encodeURIComponent(token)}`)}`} className="block">
           <Button className="w-full">Go to sign in</Button>
         </a>
       </Card>
