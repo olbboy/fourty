@@ -95,7 +95,7 @@ mailbox, and disconnects one.
 
 ## Outbound email
 
-Fourty sends one kind of message: the member invite. **Disabled until a transport is
+Fourty sends two kinds of message: the member invite and the forgot-password link. **Disabled until a transport is
 configured** — SMTP below, or Resend over HTTPS if your host blocks SMTP. With it off,
 **Settings → Team
 members** shows the accept link for an admin to pass along by hand, which is the only

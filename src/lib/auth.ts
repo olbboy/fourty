@@ -124,25 +124,31 @@ export const PASSWORD_MAX = 200;
  * treating a typo as a successful reset.
  */
 export async function resetPassword(email: string, password: string): Promise<boolean> {
-  if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX) {
-    throw new Error(`password must be ${PASSWORD_MIN}-${PASSWORD_MAX} characters`);
-  }
   const normalized = email.toLowerCase().trim();
   const user = (
     await db.select({ id: tables.users.id }).from(tables.users).where(eq(tables.users.email, normalized)).limit(1)
   )[0];
   if (!user) return false;
+  await setPassword(user.id, password);
+  return true;
+}
 
-  // One transaction so a password can never be changed without its sessions
-  // going with it.
+/**
+ * The shared core of every reset path (the CLI above, the emailed-token flow in
+ * password-reset.ts): change the hash and drop the user's sessions in one
+ * transaction, so a password can never change without its sessions going too.
+ */
+export async function setPassword(userId: string, password: string): Promise<void> {
+  if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX) {
+    throw new Error(`password must be ${PASSWORD_MIN}-${PASSWORD_MAX} characters`);
+  }
   await db.transaction(async (tx) => {
     await tx
       .update(tables.users)
       .set({ passwordHash: hashPassword(password) })
-      .where(eq(tables.users.id, user.id));
-    await tx.delete(tables.sessions).where(eq(tables.sessions.userId, user.id));
+      .where(eq(tables.users.id, userId));
+    await tx.delete(tables.sessions).where(eq(tables.sessions.userId, userId));
   });
-  return true;
 }
 
 // ── Workspaces & membership (identity plane — not RLS-scoped) ────────────────
