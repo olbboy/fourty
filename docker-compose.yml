@@ -52,6 +52,14 @@ services:
       # Local demo runs over plain HTTP, so session cookies can't be Secure-only.
       # Behind TLS in production, REMOVE this line so cookies are Secure.
       FOURTY_INSECURE_COOKIE: ${FOURTY_INSECURE_COOKIE:-1}
+      # Outbound email. The app only reads these to decide whether an invite can
+      # be emailed; the worker below does the actual sending, so both need them.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      MAIL_FROM: ${MAIL_FROM:-}
     ports:
       - "3000:3000"
     depends_on:
@@ -88,6 +96,13 @@ services:
       NODE_ENV: production
       # Set to 1 only if your webhooks target private/loopback services.
       FOURTY_ALLOW_PRIVATE_WEBHOOKS: ${FOURTY_ALLOW_PRIVATE_WEBHOOKS:-}
+      # The worker drains `mail.send`, so it is what actually talks to SMTP.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      MAIL_FROM: ${MAIL_FROM:-}
     depends_on:
       postgres:
         condition: service_healthy
