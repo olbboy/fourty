@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { withAuth, authorize } from "@/lib/api";
+import { withAuth, authorize, requestOrigin } from "@/lib/api";
 import { audit } from "@/lib/audit";
 import { log } from "@/lib/logger";
 import { clientFromEnv, exchangeCode, SYNC_OAUTH_COOKIE, type MailProvider } from "@/lib/sync/oauth";
@@ -48,7 +48,7 @@ export async function GET(req: Request, { params }: Params) {
     if (denied) return denied;
     const { id } = await params;
     const url = new URL(req.url);
-    const origin = url.origin;
+    const origin = requestOrigin(req);
 
     if (url.searchParams.get("error")) return toSettings(origin, "error");
     const code = url.searchParams.get("code");

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { withAuth, authorize, apiError } from "@/lib/api";
+import { withAuth, authorize, apiError, requestOrigin } from "@/lib/api";
 import {
   clientFromEnv,
   buildConsentUrl,
@@ -39,7 +39,7 @@ export async function GET(req: Request, { params }: Params) {
     const client = clientFromEnv(provider);
     if (!client) return apiError(`OAuth client for '${provider}' is not configured on this instance`, 400);
 
-    const origin = new URL(req.url).origin;
+    const origin = requestOrigin(req);
     const redirectUri = `${origin}/api/sync/accounts/${id}/oauth/callback`;
     const { verifier, challenge } = generatePkce();
     const state = randomState();
