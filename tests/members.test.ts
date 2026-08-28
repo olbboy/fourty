@@ -1,5 +1,6 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { resetDb, createWorkspace } from "./pg-setup";
+import { __setMailer, type MailMessage } from "@/lib/mail";
 
 /**
  * Workspace member management (Gate B3): list, invite, change role, and the
@@ -18,6 +19,8 @@ describe("workspace members + invites", () => {
   let ws: string;
   let adminUser: string;
   let memberUser: string;
+
+  afterEach(() => __setMailer(undefined));
 
   const req = (url: string, init?: RequestInit) =>
     new Request(`http://localhost${url}`, {
@@ -70,6 +73,62 @@ describe("workspace members + invites", () => {
     );
     expect(res.status).toBe(201);
     const { token } = await res.json();
+    expect(token.startsWith(`${ws}.`)).toBe(true);
+  });
+
+  it("reports emailed:false and sends nothing when SMTP is unconfigured", async () => {
+    __setMailer(null); // force "mail disabled" regardless of ambient env
+    const res = await inviteRoute.POST(
+      req("/api/members/invite", { method: "POST", body: JSON.stringify({ email: "nomail@t.dev" }) }),
+    );
+    expect(res.status).toBe(201);
+    // The token still comes back, so an operator without mail can hand it over.
+    const { emailed, token } = await res.json();
+    expect(emailed).toBe(false);
+    expect(token).toBeTruthy();
+  });
+
+  it("emails an accept link carrying the invite token", async () => {
+    const sent: MailMessage[] = [];
+    __setMailer({
+      host: "smtp.test",
+      from: "crm@t.dev",
+      send: async (m) => {
+        sent.push(m);
+      },
+    });
+
+    const res = await inviteRoute.POST(
+      req("/api/members/invite", { method: "POST", body: JSON.stringify({ email: "invited@t.dev", role: "viewer" }) }),
+    );
+    expect(res.status).toBe(201);
+    const { emailed, token } = await res.json();
+    expect(emailed).toBe(true);
+
+    // QUEUE_DRIVER is inline under test, so the mail job has already run.
+    expect(sent.length).toBe(1);
+    expect(sent[0].to).toBe("invited@t.dev");
+    // The link must be usable as-is: full origin, /accept, and the live token.
+    expect(sent[0].text).toContain(`http://localhost/accept?token=${encodeURIComponent(token)}`);
+    expect(sent[0].html).toContain("/accept?token=");
+  });
+
+  it("still issues the invite when the mail transport fails", async () => {
+    __setMailer({
+      host: "smtp.test",
+      from: "crm@t.dev",
+      send: async () => {
+        throw new Error("smtp unreachable");
+      },
+    });
+    const res = await inviteRoute.POST(
+      req("/api/members/invite", { method: "POST", body: JSON.stringify({ email: "broken@t.dev" }) }),
+    );
+    // The invite row is committed before the send, so a dead mail server must
+    // not turn into a failed request — it degrades to emailed:false.
+    expect(res.status).toBe(201);
+    const { emailed, token } = await res.json();
+    expect(emailed).toBe(false);
     expect(token.startsWith(`${ws}.`)).toBe(true);
   });
 
