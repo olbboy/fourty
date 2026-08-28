@@ -138,7 +138,7 @@ export function MembersSection() {
             }`}
           >
             {invite.emailed
-              ? `Invite emailed to ${invite.to}. The link is shown once, in case it doesn't arrive:`
+              ? `Invite emailed to ${invite.to}. The link is shown once, in case it doesn't arrive (or lands in spam):`
               : `Email isn't configured — send ${invite.to} this link yourself (shown once):`}
           </p>
           <code className="block select-all break-all rounded bg-surface px-2 py-1.5 text-xs">
