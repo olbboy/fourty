@@ -2,6 +2,7 @@ import { claimJob, type JobEnvelope, type JobName } from "@/lib/queue";
 import { checkWebhookUrl } from "@/lib/net";
 import { runWorkflowsForEvent } from "@/lib/workflows/engine";
 import { aiClientFromEnv } from "@/lib/ai";
+import { mailerFromEnv } from "@/lib/mail";
 import { db, tables } from "@/db";
 import { newId } from "@/lib/id";
 import { logActivity } from "@/lib/activity";
@@ -77,6 +78,18 @@ const handlers: { [N in RunnableJob]: Handler<N> } = {
     // Tag AI-initiated writes so they're auditable and distinguishable from human edits.
     await audit(null, "note.created", { objectType: "note", objectId: id, meta: { via: "ai", provider: client.provider } });
     log().info({ entityType, entityId, provider: client.provider }, "ai.generate wrote a draft note");
+  },
+
+  // Hand an already-rendered message to SMTP. No-ops when mail is unconfigured,
+  // so a workspace that enqueued before SMTP was set up doesn't accumulate a
+  // dead-letter pile. A send that fails throws → retry with backoff.
+  "mail.send": async (env) => {
+    const mailer = mailerFromEnv();
+    if (!mailer) {
+      log().info({ to: env.data.to }, "mail.send skipped — SMTP not configured");
+      return;
+    }
+    await mailer.send(env.data);
   },
 };
 
