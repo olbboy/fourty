@@ -1,19 +1,20 @@
 import { log } from "@/lib/logger";
 
 /**
- * Outbound transactional email over SMTP.
+ * Outbound transactional email. Two transports, picked from the environment:
+ *
+ *  - SMTP (`SMTP_HOST` + `SMTP_USER` + `SMTP_PASSWORD`). Preferred when it is
+ *    available: the operator already has a mailbox, so an account and a password
+ *    is the whole setup — no new vendor, and no change to the domain's SPF/DKIM,
+ *    since mail leaves through the server that already sends for the domain.
+ *  - Resend over HTTPS (`RESEND_API_KEY` + `MAIL_FROM`). For hosts that block
+ *    outbound SMTP — DigitalOcean blocks ports 25/465/587 by default, and no
+ *    amount of local firewall config gets around it — port 443 still works.
  *
  * OFF BY DEFAULT — the same dormant-until-env idiom as the generative layer
- * (src/lib/ai/index.ts) and OAuth mail sync (src/lib/sync/oauth.ts): with no
- * SMTP_* configured, `mailerFromEnv()` returns null and every caller falls back
- * to whatever it did before mail existed. Self-hosters who don't want Fourty
- * touching an SMTP server simply leave it unset.
- *
- * Plain SMTP rather than a provider SDK: the operator already has a mailbox
- * (Lark, Google Workspace, Fastmail, a local Postfix), so an account and a
- * password is the whole setup — no new vendor, no API key, and no change to the
- * domain's SPF/DKIM, since mail leaves through the same server that already
- * sends for the domain.
+ * (src/lib/ai/index.ts) and OAuth mail sync (src/lib/sync/oauth.ts): configure
+ * neither and `mailerFromEnv()` returns null, so every caller falls back to what
+ * it did before mail existed.
  */
 
 export type MailMessage = {
@@ -25,8 +26,8 @@ export type MailMessage = {
 };
 
 export type Mailer = {
-  /** Host mail leaves through, for logs and the diagnostics panel. */
-  host: string;
+  /** How mail leaves — `smtp:<host>` or `resend` — for logs and diagnostics. */
+  transport: string;
   from: string;
   send(msg: MailMessage): Promise<void>;
 };
@@ -50,7 +51,11 @@ export function mailEnabled(): boolean {
  */
 export function mailerFromEnv(): Mailer | null {
   if (override !== undefined) return override;
+  return smtpMailer() ?? resendMailer();
+}
 
+/** SMTP, when host + user + password are all present. */
+function smtpMailer(): Mailer | null {
   const host = process.env.SMTP_HOST;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASSWORD;
@@ -65,10 +70,27 @@ export function mailerFromEnv(): Mailer | null {
   const from = process.env.MAIL_FROM ?? user;
 
   return {
-    host,
+    transport: `smtp:${host}`,
     from,
     send: (msg) => smtpSend({ host, port, secure, user, pass, from }, msg),
   };
+}
+
+/** Resend over HTTPS, for hosts whose provider blocks outbound SMTP. */
+function resendMailer(): Mailer | null {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) return null;
+
+  // Unlike SMTP there is no account address to fall back on, so a From must be
+  // configured. Warn rather than fail silently — this combination is always a
+  // misconfiguration, never a deliberate "mail off".
+  const from = process.env.MAIL_FROM;
+  if (!from) {
+    log().warn("RESEND_API_KEY is set but MAIL_FROM is not — mail stays disabled");
+    return null;
+  }
+
+  return { transport: "resend", from, send: (msg) => resendSend(key, from, msg) };
 }
 
 type SmtpConfig = {
@@ -114,5 +136,31 @@ async function smtpSend(cfg: SmtpConfig, msg: MailMessage): Promise<void> {
     html: msg.html,
   });
   // Recipient is logged; the body is not — invite mail carries a live token.
-  log().info({ to: msg.to, host: cfg.host }, "mail sent");
+  log().info({ to: msg.to, transport: `smtp:${cfg.host}` }, "mail sent");
+}
+
+async function resendSend(apiKey: string, from: string, msg: MailMessage): Promise<void> {
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      from,
+      to: msg.to,
+      subject: msg.subject,
+      text: msg.text,
+      html: msg.html,
+    }),
+  });
+
+  if (!res.ok) {
+    // Body first, status second: Resend explains refusals ("domain is not
+    // verified") in the body, and that is the sentence an operator needs. Throw
+    // so pg-boss retries — a 4xx will exhaust its retries and dead-letter, which
+    // is the visible outcome we want for a misconfiguration.
+    const detail = await res.text().catch(() => "");
+    throw new Error(`resend responded ${res.status}${detail ? `: ${detail.slice(0, 300)}` : ""}`);
+  }
+
+  const { id } = (await res.json().catch(() => ({}))) as { id?: string };
+  log().info({ to: msg.to, transport: "resend", id }, "mail sent");
 }
