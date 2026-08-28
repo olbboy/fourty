@@ -5,7 +5,7 @@ import { listLoginProviders } from "@/lib/sso/provision";
 import { Logo } from "@/components/logo";
 import { LoginForm } from "./login-form";
 import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, safeInternalPath } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -28,15 +28,20 @@ function ssoErrorMessage(code: string | undefined): string | null {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sso_error?: string }>;
+  searchParams: Promise<{ sso_error?: string; next?: string }>;
 }) {
+  const params = await searchParams;
+  // Where to land after signing in — an invite's "sign in first" hand-off sets
+  // it. Validated to an internal path so the login page can't be pointed at an
+  // attacker's site by a crafted link.
+  const next = safeInternalPath(params.next);
   const user = await getSessionUser();
-  if (user) redirect("/dashboard");
+  if (user) redirect(next ?? "/dashboard");
   const fresh = await isFreshInstall();
   // SSO is offered only for returning installs (a fresh install has no workspace
   // to JIT-provision users into yet).
   const providers = fresh ? [] : await listLoginProviders();
-  const ssoError = ssoErrorMessage((await searchParams).sso_error);
+  const ssoError = ssoErrorMessage(params.sso_error);
 
   return (
     <main className="flex min-h-dvh items-center justify-center p-4">
@@ -60,7 +65,7 @@ export default async function LoginPage({
             {ssoError}
           </p>
         )}
-        <LoginForm mode={fresh ? "setup" : "login"} />
+        <LoginForm mode={fresh ? "setup" : "login"} next={next} />
         {!fresh && mailEnabled() && (
           <p className="mt-4 text-center text-sm text-ink-muted">
             <a href="/forgot" className="underline underline-offset-2">
