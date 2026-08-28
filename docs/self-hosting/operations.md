@@ -82,7 +82,8 @@ server itself — it is not an escalation, but it is a reason to keep server acc
   optional **field-level permissions** ([ADR-011](../adr/011-field-level-permissions.md)),
   and an **immutable audit log** on every write.
 - **API keys** — SHA-256-hashed at rest, revocable, scoped to one workspace and role.
-- **2FA** — TOTP + backup codes ([ADR-012](../adr/012-two-factor-auth.md)).
+- **2FA** — TOTP + backup codes, enrolled per-account from **Settings →
+  Two-factor authentication** ([ADR-012](../adr/012-two-factor-auth.md)).
 - **Signed webhooks** — per-workspace HMAC-SHA256 ([ADR-013](../adr/013-webhook-signatures.md)).
 - **SSO** — OIDC Authorization Code + PKCE, real JWKS/RS256 verification, JIT
   provisioning ([ADR-014](../adr/014-sso-oidc.md)). Providers are managed from

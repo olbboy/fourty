@@ -9,6 +9,7 @@ export const en = {
   "nav.reports": "Reports",
   "nav.workflows": "Workflows",
   "nav.settings": "Settings",
+  "nav.objects": "Objects",
 
   "action.new": "New",
   "action.save": "Save",

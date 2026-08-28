@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
+  Box,
   Building2,
   ChartColumn,
   CheckSquare,
@@ -92,6 +94,61 @@ function NavMain({ locale }: { locale: Locale }) {
                   >
                     <Icon />
                     <span>{label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              );
+            })}
+          </SidebarMenu>
+        </nav>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
+}
+
+/**
+ * Custom objects, straight from their definitions — the group only exists when
+ * at least one is defined. The settings panel fires `fourty:objects-changed`
+ * after creating or deleting one, so the list stays fresh without a reload.
+ */
+function NavObjects({ locale }: { locale: Locale }) {
+  const pathname = usePathname();
+  const t = translator(locale);
+  const [objects, setObjects] = useState<{ id: string; apiName: string; namePlural: string }[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      const res = await fetch("/api/custom-objects").catch(() => null);
+      if (res?.ok && alive) setObjects((await res.json()).objects ?? []);
+    };
+    load();
+    window.addEventListener("fourty:objects-changed", load);
+    return () => {
+      alive = false;
+      window.removeEventListener("fourty:objects-changed", load);
+    };
+  }, []);
+
+  if (objects.length === 0) return null;
+  return (
+    <SidebarGroup>
+      <SidebarGroupContent>
+        <nav aria-label={t("nav.objects")}>
+          <SidebarMenu>
+            {objects.map((o) => {
+              const href = `/objects/${o.apiName}`;
+              const active = isActivePath(pathname, href);
+              return (
+                <SidebarMenuItem key={o.id}>
+                  <SidebarMenuButton
+                    isActive={active}
+                    tooltip={o.namePlural}
+                    render={
+                      <Link href={href} aria-current={active ? "page" : undefined} />
+                    }
+                  >
+                    <Box />
+                    <span>{o.namePlural}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               );
@@ -238,6 +295,7 @@ export function AppSidebar({
       </SidebarHeader>
       <SidebarContent>
         <NavMain locale={locale} />
+        <NavObjects locale={locale} />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={user} onSignOut={onSignOut} />
