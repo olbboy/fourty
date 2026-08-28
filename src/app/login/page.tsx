@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSessionUser, isFreshInstall } from "@/lib/auth";
+import { mailEnabled } from "@/lib/mail";
 import { listLoginProviders } from "@/lib/sso/provision";
 import { Logo } from "@/components/logo";
 import { LoginForm } from "./login-form";
@@ -60,6 +61,13 @@ export default async function LoginPage({
           </p>
         )}
         <LoginForm mode={fresh ? "setup" : "login"} />
+        {!fresh && mailEnabled() && (
+          <p className="mt-4 text-center text-sm text-ink-muted">
+            <a href="/forgot" className="underline underline-offset-2">
+              Forgot your password?
+            </a>
+          </p>
+        )}
         {providers.length > 0 && (
           <div className="mt-6">
             <div className="mb-4 flex items-center gap-3 text-xs text-ink-muted">

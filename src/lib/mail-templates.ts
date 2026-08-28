@@ -19,6 +19,41 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+export type PasswordResetEmailInput = {
+  name: string;
+  resetUrl: string;
+  expiresAt: number;
+};
+
+export function passwordResetEmail(input: PasswordResetEmailInput): Omit<MailMessage, "to"> {
+  const { name, resetUrl, expiresAt } = input;
+  const minutes = Math.max(1, Math.round((expiresAt - Date.now()) / 60_000));
+  const subject = "Reset your Fourty password";
+
+  const text = [
+    `Hi ${name},`,
+    "",
+    "Someone asked to reset the password for your Fourty account. If it was you,",
+    "open this link to choose a new one:",
+    resetUrl,
+    "",
+    `The link works once and expires in ${minutes} minute${minutes === 1 ? "" : "s"}.`,
+    "If you didn't ask for this, ignore this email — your password is unchanged.",
+  ].join("\n");
+
+  const html = [
+    `<div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;font-size:15px;line-height:1.55">`,
+    `<p>Hi ${escapeHtml(name)},</p>`,
+    `<p>Someone asked to reset the password for your Fourty account. If it was you, `,
+    `<a href="${escapeHtml(resetUrl)}">choose a new password</a>.</p>`,
+    `<p style="color:#666;font-size:13px">The link works once and expires in ${minutes} minute${minutes === 1 ? "" : "s"}. `,
+    `If you didn't ask for this, ignore this email — your password is unchanged.</p>`,
+    `</div>`,
+  ].join("");
+
+  return { subject, text, html };
+}
+
 export type InviteEmailInput = {
   workspaceName: string;
   /** Display name of the admin who sent it; omitted for API-key invites. */

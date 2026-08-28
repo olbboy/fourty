@@ -117,6 +117,21 @@ export const sessions = pgTable("sessions", {
   createdAt: millis("created_at").notNull(),
 });
 
+// Forgot-password tokens. Identity plane like users/sessions — a reset happens
+// before sign-in, so there is no workspace to scope it to and no RLS. Only the
+// sha256 of the token is stored (same treatment as invites and sessions); the
+// raw value exists in the email link and nowhere else. Single-use via usedAt,
+// and issuing a new token deletes the user's unused ones, so exactly one link
+// works at a time.
+export const passwordResets = pgTable("password_resets", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  tokenHash: text("token_hash").notNull().unique(),
+  expiresAt: millis("expires_at").notNull(),
+  usedAt: millis("used_at"),
+  createdAt: millis("created_at").notNull(),
+});
+
 // SSO / OIDC (Gate D4, ADR-014). An sso_connections row is an instance-level
 // OIDC provider an admin registers (issuer + client credentials). OIDC login
 // runs before a workspace is selected, so — like users/sessions — these tables
