@@ -104,6 +104,47 @@ export async function createUser(email: string, name: string, password: string, 
   return id;
 }
 
+/** Bounds shared with the signup routes, so a password set here can also be set there. */
+export const PASSWORD_MIN = 8;
+export const PASSWORD_MAX = 200;
+
+/**
+ * Set a user's password out of band, for `npm run reset-password`.
+ *
+ * Fourty has no forgot-password flow — there is nowhere to send a reset link on
+ * a fresh self-hosted install, and the first account is created before any mail
+ * is configured. Without this, one lost admin password locks an instance out
+ * for good.
+ *
+ * Existing sessions are dropped with the old password: a reset is usually a
+ * response to a password that may be known to someone else, and leaving live
+ * cookies behind would defeat it.
+ *
+ * Returns false when no user has that address — callers report it rather than
+ * treating a typo as a successful reset.
+ */
+export async function resetPassword(email: string, password: string): Promise<boolean> {
+  if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX) {
+    throw new Error(`password must be ${PASSWORD_MIN}-${PASSWORD_MAX} characters`);
+  }
+  const normalized = email.toLowerCase().trim();
+  const user = (
+    await db.select({ id: tables.users.id }).from(tables.users).where(eq(tables.users.email, normalized)).limit(1)
+  )[0];
+  if (!user) return false;
+
+  // One transaction so a password can never be changed without its sessions
+  // going with it.
+  await db.transaction(async (tx) => {
+    await tx
+      .update(tables.users)
+      .set({ passwordHash: hashPassword(password) })
+      .where(eq(tables.users.id, user.id));
+    await tx.delete(tables.sessions).where(eq(tables.sessions.userId, user.id));
+  });
+  return true;
+}
+
 // ── Workspaces & membership (identity plane — not RLS-scoped) ────────────────
 
 function slugify(name: string): string {
