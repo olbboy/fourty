@@ -6,6 +6,31 @@ import { db, tables, withWorkspace, withContext } from "@/db";
 import { getSessionUser, roleInWorkspace, sha256, type SessionUser } from "./auth";
 import { can, type Action } from "./permissions";
 import { apiRateLimit, type RateLimitResult } from "./ratelimit";
+
+/**
+ * The public origin of a request, for building absolute URLs (emailed links,
+ * OAuth redirect URIs).
+ *
+ * `new URL(req.url).origin` is NOT that behind a proxy: Next reconstructs
+ * req.url from its own bind address, so a Fourty behind cloudflared or nginx
+ * mints links pointing at `https://localhost:3000` — an invite mail with a
+ * dead link was how this surfaced. The proxy carries the truth in headers:
+ * x-forwarded-host/-proto when set, else Host (which every proxy forwards and
+ * every direct client sends).
+ *
+ * Trusting these headers is sound for Fourty's deployment shapes: behind a
+ * proxy they are proxy-controlled, and exposed directly the Host header is
+ * what TLS/routing already validated. A spoofed Host only ever changes the
+ * link in mail the spoofer requested for an address they typed.
+ */
+export function requestOrigin(req: Request): string {
+  const url = new URL(req.url);
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? url.host;
+  const proto =
+    req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() ??
+    url.protocol.replace(":", "");
+  return `${proto}://${host}`;
+}
 import { recordHttp, normalizeRoute } from "./metrics";
 import { log } from "./logger";
 

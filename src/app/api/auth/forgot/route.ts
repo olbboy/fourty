@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { json, parseBody, tooManyRequests } from "@/lib/api";
+import { json, parseBody, requestOrigin, tooManyRequests } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/ratelimit";
 import { requestPasswordReset } from "@/lib/password-reset";
 
@@ -29,6 +29,6 @@ export async function POST(req: Request) {
   const body = await parseBody(req, schema);
   if (!body.ok) return body.response;
 
-  await requestPasswordReset(body.data.email, new URL(req.url).origin);
+  await requestPasswordReset(body.data.email, requestOrigin(req));
   return json({ ok: true });
 }
