@@ -25,7 +25,9 @@ export function MembersSection() {
   const [adminOnly, setAdminOnly] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<string>("member");
-  const [invite, setInvite] = useState<string | null>(null);
+  // `emailed` is false when SMTP is unconfigured or the send couldn't be queued —
+  // the link is then the only way the invitee gets in, so the panel shows it.
+  const [invite, setInvite] = useState<{ url: string; to: string; emailed: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -41,15 +43,21 @@ export function MembersSection() {
   }, [load]);
 
   async function sendInvite() {
-    if (!email.trim()) return;
+    const to = email.trim();
+    if (!to) return;
     setError(null);
     const res = await fetch("/api/members/invite", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: email.trim(), role }),
+      body: JSON.stringify({ email: to, role }),
     });
     if (res.ok) {
-      setInvite((await res.json()).token);
+      const data = await res.json();
+      setInvite({
+        url: `${window.location.origin}/accept?token=${encodeURIComponent(data.token)}`,
+        to,
+        emailed: Boolean(data.emailed),
+      });
       setEmail("");
       load();
     } else {
@@ -117,12 +125,24 @@ export function MembersSection() {
       </div>
       {error && <p className="mb-3 text-sm text-feedback-error">{error}</p>}
       {invite && (
-        <div className="mb-3 rounded-lg border border-feedback-warn/20 bg-feedback-warn-wash p-3">
-          <p className="mb-1 text-xs font-semibold text-feedback-warn">
-            Share this invite token — the invitee redeems it to join (shown once):
+        <div
+          className={`mb-3 rounded-lg border p-3 ${
+            invite.emailed
+              ? "border-feedback-ok/20 bg-feedback-ok-wash"
+              : "border-feedback-warn/20 bg-feedback-warn-wash"
+          }`}
+        >
+          <p
+            className={`mb-1 text-xs font-semibold ${
+              invite.emailed ? "text-feedback-ok" : "text-feedback-warn"
+            }`}
+          >
+            {invite.emailed
+              ? `Invite emailed to ${invite.to}. The link is shown once, in case it doesn't arrive:`
+              : `Email isn't configured — send ${invite.to} this link yourself (shown once):`}
           </p>
           <code className="block select-all break-all rounded bg-surface px-2 py-1.5 text-xs">
-            {invite}
+            {invite.url}
           </code>
         </div>
       )}

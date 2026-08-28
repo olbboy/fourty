@@ -93,6 +93,38 @@ Once the instance credentials are set, individual mailboxes are added and connec
 from **Settings → Mailboxes & calendars**, which also runs a pull on demand, pauses a
 mailbox, and disconnects one.
 
+## Outbound email
+
+Fourty sends one kind of message: the member invite. **Disabled unless `SMTP_HOST`,
+`SMTP_USER` and `SMTP_PASSWORD` are all set** — with it off, **Settings → Team
+members** shows the accept link for an admin to pass along by hand, which is the only
+behaviour that existed before. Set them and inviting a teammate emails them the link
+instead; the panel still shows it, in case the mail doesn't arrive.
+
+| Variable | Purpose |
+|---|---|
+| `SMTP_HOST` | Mail server hostname. All three of host/user/password are required. |
+| `SMTP_PORT` | Default `465`. |
+| `SMTP_USER` | Usually the full address of the sending mailbox. |
+| `SMTP_PASSWORD` | Password or app-specific password for that mailbox. |
+| `SMTP_SECURE` | `1` for implicit TLS, `0` for STARTTLS. Inferred from the port; set it only when a server disagrees with its own port number. |
+| `MAIL_FROM` | `From:` header. Defaults to `SMTP_USER`; many servers reject an address they don't own. |
+
+Both the app and the worker need these: the worker drains the `mail.send` queue and
+does the sending, while the app reads them only to decide whether an invite can be
+emailed. Sends are queued, so a mail server that is down gets retried with backoff
+rather than failing the invite — the invite itself is committed either way.
+
+Prefer the mailbox that already sends for your domain. Its SPF and DKIM records
+already cover it, so nothing about the domain's DNS changes; a separate mail provider
+means updating SPF before anything you send is trusted.
+
+| Provider | Host and port | Password to use |
+|---|---|---|
+| Lark Mail | `smtp.larksuite.com:465` | A *dedicated password* from the Lark **desktop** app: avatar → Settings → Email → Third-party email client login → Set Up Now. An admin has to allow third-party email clients first, and mailing-list addresses can't sign in this way. |
+| Google Workspace | `smtp.gmail.com:465` | An App Password (account needs 2FA). |
+| Microsoft 365 | `smtp-mail.outlook.com:587` | Account or app password. |
+
 ## AI assistant
 
 The optional in-app chat ([ADR-015](../adr/015-ai-agent-chat.md)). **Disabled entirely

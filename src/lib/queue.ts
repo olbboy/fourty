@@ -40,6 +40,10 @@ export type JobPayloads = {
   // The agent dispatcher tick (Phase 2). Carries nothing: the work is rows in
   // `agent_tasks`, and the job only says "look now".
   "agent.dispatch": Record<string, never>;
+  // Transactional email. The caller renders the message (it holds the request
+  // origin and any one-time token); the handler only hands it to SMTP. No-ops
+  // when SMTP is unconfigured.
+  "mail.send": { to: string; subject: string; text: string; html?: string };
 };
 
 export type JobName = keyof JobPayloads;
@@ -51,7 +55,13 @@ export type JobEnvelope<N extends JobName = JobName> = {
   data: JobPayloads[N];
 };
 
-export const JOB_NAMES: JobName[] = ["webhook.deliver", "workflow.dispatch", "ai.generate", "agent.dispatch"];
+export const JOB_NAMES: JobName[] = [
+  "webhook.deliver",
+  "workflow.dispatch",
+  "ai.generate",
+  "agent.dispatch",
+  "mail.send",
+];
 
 /**
  * Jobs the worker drives itself instead of through `runJob`.
@@ -76,6 +86,10 @@ const QUEUE_CONFIG: Record<JobName, { retryLimit: number; expireInSeconds: numbe
   // A tick that fails is not worth retrying hard: the next one is a minute away
   // and the work is still sitting in `agent_tasks`.
   "agent.dispatch": { retryLimit: 1, expireInSeconds: EXPIRE_SECONDS },
+  // A refused SMTP connection is usually transient (greylisting, a rate limit,
+  // a restart), and an invite that never arrives is invisible to the sender —
+  // so retry generously before dead-lettering.
+  "mail.send": { retryLimit: 5, expireInSeconds: EXPIRE_SECONDS },
 };
 
 export const deadLetterName = (name: JobName | string) => `${name}.dead`;
