@@ -7,7 +7,9 @@ import { MembersSection } from "./sections/members";
 import { SsoSection } from "./sections/sso";
 import { MailboxSection } from "./sections/mailbox";
 import { LanguageSection } from "./sections/language";
+import { SecuritySection } from "./sections/security";
 import { CustomFieldsSection } from "./sections/custom-fields";
+import { CustomObjectsSection } from "./sections/custom-objects";
 import { ApiKeysSection } from "./sections/api-keys";
 import { DiagnosticsSection } from "./sections/diagnostics";
 import { buttonVariants } from "@/components/ui/button";
@@ -19,13 +21,15 @@ export function SettingsClient() {
     <div className="animate-fade-up space-y-6">
       <PageHeader
         title="Settings"
-        subtitle="Team, single sign-on, mailboxes, custom fields, API access, diagnostics, and data tools."
+        subtitle="Team, single sign-on, mailboxes, security, custom fields and objects, API access, diagnostics, and data tools."
       />
       <MembersSection />
       <SsoSection />
       <MailboxSection />
       <LanguageSection />
+      <SecuritySection />
       <CustomFieldsSection />
+      <CustomObjectsSection />
       <ApiKeysSection />
       <DiagnosticsSection />
       <Card size="flush" className="p-4">

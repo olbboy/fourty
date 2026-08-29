@@ -10,6 +10,7 @@ export const vi: Record<MessageKey, string> = {
   "nav.reports": "Báo cáo",
   "nav.workflows": "Tự động hóa",
   "nav.settings": "Cài đặt",
+  "nav.objects": "Đối tượng",
 
   "action.new": "Thêm mới",
   "action.save": "Lưu",

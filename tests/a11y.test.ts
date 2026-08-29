@@ -8,6 +8,9 @@ import { IconDashboard } from "@/components/icons";
 import { SavedViewsBar } from "@/components/saved-views";
 import { SsoSection } from "@/app/(app)/settings/sections/sso";
 import { MailboxSection } from "@/app/(app)/settings/sections/mailbox";
+import { SecuritySection } from "@/app/(app)/settings/sections/security";
+import { CustomObjectsSection } from "@/app/(app)/settings/sections/custom-objects";
+import { RecordsClient } from "@/app/(app)/objects/[object]/records-client";
 
 /**
  * Accessibility guarantees (Gate C5). Two layers: render the reusable primitives
@@ -78,6 +81,22 @@ describe("settings panels render", () => {
     const html = renderToStaticMarkup(createElement(MailboxSection));
     expect(html).toContain("Mailboxes");
     expect(html).toContain("Add mailbox");
+  });
+
+  it("the two-factor panel renders while its status is still loading", () => {
+    const html = renderToStaticMarkup(createElement(SecuritySection));
+    expect(html).toContain("Two-factor authentication");
+  });
+
+  it("the custom-objects panel renders while its objects are still loading", () => {
+    const html = renderToStaticMarkup(createElement(CustomObjectsSection));
+    expect(html).toContain("Custom objects");
+    expect(html).toContain("New object");
+  });
+
+  it("the custom-object records page renders while its object is still loading", () => {
+    const html = renderToStaticMarkup(createElement(RecordsClient, { apiName: "projects" }));
+    expect(html).toContain("animate-spin"); // the loading spinner frame
   });
 });
 

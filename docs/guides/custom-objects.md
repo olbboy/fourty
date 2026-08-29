@@ -16,13 +16,15 @@ fields. Manage them over the API at `/api/custom-fields`.
 
 ## No-code custom objects
 
-Need a whole new object — Projects, Tickets, Subscriptions? Define it from Settings
-with its own fields. Fourty stores custom objects **metadata-driven**, with no
-per-object DDL: adding an object does not run a schema migration
-([ADR-007](../adr/007-custom-objects.md)).
+Need a whole new object — Projects, Tickets, Subscriptions? Define it from
+**Settings → Custom objects** with its own fields. Fourty stores custom objects
+**metadata-driven**, with no per-object DDL: adding an object does not run a
+schema migration ([ADR-007](../adr/007-custom-objects.md)).
 
 Each custom object gets, for free:
 
+- **A page of its own** — the object joins the sidebar, and
+  `/objects/{apiName}` lists its records with create, edit, and delete.
 - **Records** validated on write against its field definitions.
 - **REST endpoints** — `/api/objects/{apiName}` and `/api/objects/{apiName}/{id}`.
 - **GraphQL** — `records(object)`, `record(object, id)`, and
