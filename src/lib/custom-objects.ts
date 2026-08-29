@@ -71,6 +71,32 @@ export async function fieldById(objectId: string, fieldId: string) {
   )[0];
 }
 
+/**
+ * The first validation error among an object's existing records under a
+ * prospective field set, or null when every record still validates.
+ *
+ * Used to refuse a field-definition change (a retype, changed select options, or
+ * a newly-required field) that would leave stored records invalid — including a
+ * `javascript:` string left behind in a text field being retyped to `url`.
+ * Writes are validated one record at a time (validateRecord runs on write), so
+ * without this a definition change would silently keep stale or unsafe values
+ * until each record's next edit.
+ */
+export async function firstInvalidRecord(
+  objectId: string,
+  defs: FieldDef[],
+): Promise<string | null> {
+  const rows = await db
+    .select({ data: tables.customRecords.data })
+    .from(tables.customRecords)
+    .where(eq(tables.customRecords.objectId, objectId));
+  for (const row of rows) {
+    const check = validateRecord(defs, JSON.parse(row.data) as Record<string, unknown>);
+    if (!check.ok) return check.error;
+  }
+  return null;
+}
+
 // ── Record CRUD (shared by REST routes, GraphQL, MCP) ───────────────────────
 
 export type RecordRow = { id: string; createdAt: number; updatedAt: number; data: Record<string, unknown> };
