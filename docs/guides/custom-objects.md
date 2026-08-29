@@ -38,6 +38,10 @@ Each custom object gets, for free:
 - Object definitions: `GET/POST /api/custom-objects` (+ `/fields`).
 - Records: `/api/objects/{apiName}` (see the [REST reference](../api/rest.md)).
 
+Editing a field's type, select options, or required flag is refused (`409`) when
+an existing record would become invalid under the new definition — fix those
+records first, then retry.
+
 ## Saved views
 
 Slice any object into reusable **saved views** (filters + sort + columns), managed at

@@ -21,6 +21,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   page (`/objects/{apiName}`) for creating, editing, and deleting records with
   server-side validation. Previously definitions and records were API-only.
 
+### Changed
+
+- **A custom-object field can no longer be retyped, made required, or have its
+  select options narrowed when an existing record would break under the new
+  definition.** `PATCH /api/custom-objects/{id}/fields/{fieldId}` now returns
+  `409` with a message naming the problem, instead of leaving stale or unsafe
+  values (for example a `javascript:` string in a field retyped to `url`) in
+  place until each record's next write. Fix the offending records first, then
+  retry the change.
+
 ## [2.0.0] — 2026-08-09
 
 Fourty keeps the CRM true on its own. Connect a mailbox and it fills in what it
