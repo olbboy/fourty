@@ -13,6 +13,9 @@ export function LoginForm({ mode, next }: { mode: "setup" | "login"; next?: stri
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [withDemo, setWithDemo] = useState(true);
+  // Revealed when the server answers `requires2fa` — the same form resubmits
+  // with the code, so email and password stay as typed.
+  const [needsCode, setNeedsCode] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -27,6 +30,8 @@ export function LoginForm({ mode, next }: { mode: "setup" | "login"; next?: stri
       body.name = form.get("name");
       body.seedDemo = withDemo;
     }
+    const token = (form.get("token") as string | null)?.trim();
+    if (token) body.token = token;
     const res = await fetch(mode === "setup" ? "/api/auth/setup" : "/api/auth/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -37,7 +42,12 @@ export function LoginForm({ mode, next }: { mode: "setup" | "login"; next?: stri
       router.refresh();
     } else {
       const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Something went wrong");
+      if (data.requires2fa && !token) {
+        // First round-trip for a 2FA account: ask for the code, not an error.
+        setNeedsCode(true);
+      } else {
+        setError(data.error ?? "Something went wrong");
+      }
       setBusy(false);
     }
   }
@@ -80,6 +90,27 @@ export function LoginForm({ mode, next }: { mode: "setup" | "login"; next?: stri
           autoComplete={mode === "setup" ? "new-password" : "current-password"}
           placeholder="••••••••" />
       </div>
+      {needsCode && (
+        <div>
+          <label htmlFor="login-token" className="mb-1.5 block text-sm font-medium">
+            Two-factor code
+          </label>
+          <Input
+            id="login-token"
+            name="token"
+            required
+            autoFocus
+            autoComplete="one-time-code"
+            inputMode="numeric"
+            minLength={6}
+            maxLength={20}
+            placeholder="123456"
+          />
+          <p className="mt-1.5 text-xs text-ink-muted">
+            Enter the 6-digit code from your authenticator app, or one of your backup codes.
+          </p>
+        </div>
+      )}
       {mode === "setup" && (
         <label className="flex items-center gap-2 text-sm text-ink-muted">
           <input

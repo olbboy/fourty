@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Two-factor authentication UI.** Enroll from *Settings → Two-factor
+  authentication* — scan a QR (rendered by a new dependency-free encoder,
+  verified bit-for-bit against an independent implementation) or type the key,
+  confirm with the first code, and save the one-time backup codes. The login
+  form now asks for the code when an account has 2FA on; disabling requires the
+  account password. Previously the whole feature was API-only.
+
+- **Custom objects UI.** Define objects and their fields from *Settings →
+  Custom objects*; each object appears in the sidebar with a generic records
+  page (`/objects/{apiName}`) for creating, editing, and deleting records with
+  server-side validation. Previously definitions and records were API-only.
+
 ## [2.0.0] — 2026-08-09
 
 Fourty keeps the CRM true on its own. Connect a mailbox and it fills in what it
