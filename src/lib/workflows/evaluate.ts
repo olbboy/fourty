@@ -55,10 +55,27 @@ export function evaluateConditions(
   return conditions.every((c) => evaluateCondition(c, snapshot));
 }
 
+/** Snapshot keys stored as unix millis. Templates print them as YYYY-MM-DD. */
+const DATE_KEYS = new Set([
+  "closedAt",
+  "createdAt",
+  "updatedAt",
+  "dueDate",
+  "expectedCloseDate",
+  "lastActivityAt",
+  "completedAt",
+  "stageEnteredAt",
+]);
+
+function formatTemplateValue(key: string, val: unknown): string {
+  if (val === null || val === undefined) return "";
+  if (DATE_KEYS.has(key) && typeof val === "number" && Number.isFinite(val)) {
+    return new Date(val).toISOString().slice(0, 10);
+  }
+  return String(val);
+}
+
 /** Resolve "{{field}}" placeholders against the entity snapshot. */
 export function renderTemplate(template: string, snapshot: Record<string, unknown>): string {
-  return template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key: string) => {
-    const val = snapshot[key];
-    return val === null || val === undefined ? "" : String(val);
-  });
+  return template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key: string) => formatTemplateValue(key, snapshot[key]));
 }

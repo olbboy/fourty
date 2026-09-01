@@ -3,10 +3,11 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import type { Company } from "@/lib/types";
-import { timeAgo } from "@/lib/format";
+import { timeAgo, displayName } from "@/lib/format";
 import { formatCompact } from "@/lib/currency";
-import { PageHeader, Modal, EmptyState, Spinner } from "@/components/ui";
+import { PageHeader, Modal, EmptyState, Spinner, LoadError } from "@/components/ui";
 import { IconPlus, IconDownload } from "@/components/icons";
+import { SavedViewsBar, type SavedView } from "@/components/saved-views";
 import { CompanyForm } from "./company-form";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,19 +21,36 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useLocale, useT } from "@/lib/i18n/provider";
 
 export function CompaniesClient() {
+  const t = useT();
+  const locale = useLocale();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [companies, setCompanies] = useState<Company[] | null>(null);
+  const [failed, setFailed] = useState(false);
   const [q, setQ] = useState("");
+  const [activeView, setActiveView] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(searchParams.get("new") === "1");
 
+  const applyView = useCallback((view: SavedView | null) => {
+    setActiveView(view?.id ?? null);
+    const cfg = view?.config ?? {};
+    setQ(typeof cfg.filters?.q === "string" ? cfg.filters.q : "");
+  }, []);
+
   const load = useCallback(async () => {
+    setFailed(false);
     const params = new URLSearchParams();
     if (q) params.set("q", q);
-    const res = await fetch(`/api/companies?${params}`);
-    if (res.ok) setCompanies((await res.json()).companies);
+    try {
+      const res = await fetch(`/api/companies?${params}`);
+      if (!res.ok) throw new Error("companies");
+      setCompanies((await res.json()).companies);
+    } catch {
+      setFailed(true);
+    }
   }, [q]);
 
   useEffect(() => {
@@ -43,21 +61,28 @@ export function CompaniesClient() {
   return (
     <div className="animate-fade-up">
       <PageHeader
-        title="Companies"
-        subtitle={companies ? `${companies.length} organizations` : undefined}
+        title={t("nav.companies")}
+        subtitle={companies ? t("page.companies.count", { count: companies.length }) : undefined}
         actions={
           <>
             <a href="/api/export/companies" className={cn(buttonVariants({ variant: "outline" }))}>
               <IconDownload width={15} height={15} />
-              <span className="hidden sm:inline">Export</span>
+              <span className="hidden sm:inline">{t("action.export")}</span>
             </a>
             <Button onClick={() => setShowNew(true)}>
               <IconPlus width={15} height={15} />
-              <span className="hidden sm:inline">New company</span>
-              <span className="sm:hidden">New</span>
+              <span className="hidden sm:inline">{t("page.companies.new")}</span>
+              <span className="sm:hidden">{t("action.new")}</span>
             </Button>
           </>
         }
+      />
+
+      <SavedViewsBar
+        entity="companies"
+        activeId={activeView}
+        current={{ filters: q.trim() ? { q: q.trim() } : {} }}
+        onApply={applyView}
       />
 
       <div className="mb-4">
@@ -65,20 +90,30 @@ export function CompaniesClient() {
             at best — say what it searches. */}
         <Input
           value={q}
-          onChange={(e) => setQ(e.target.value)}
-          aria-label="Search companies"
-          placeholder="Search name, domain, industry…" className="max-w-xs" />
+          onChange={(e) => {
+            setQ(e.target.value);
+            setActiveView(null);
+          }}
+          aria-label={t("page.companies.searchAria")}
+          placeholder={t("page.companies.searchPlaceholder")} className="max-w-xs" />
       </div>
 
-      {!companies ? (
+      {failed ? (
+        <LoadError
+          onRetry={() => {
+            setCompanies(null);
+            void load();
+          }}
+        />
+      ) : !companies ? (
         <Spinner />
       ) : companies.length === 0 ? (
         <EmptyState
-          title="No companies yet"
-          hint="Companies group your contacts and deals by organization."
+          title={t("page.companies.empty")}
+          hint={t("page.companies.emptyHint")}
           action={
             <Button onClick={() => setShowNew(true)}>
-              <IconPlus width={15} height={15} /> New company
+              <IconPlus width={15} height={15} /> {t("page.companies.new")}
             </Button>
           }
         />
@@ -87,12 +122,12 @@ export function CompaniesClient() {
           <Table className="min-w-[680px]">
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Industry</TableHead>
-                <TableHead>Size</TableHead>
-                <TableHead className="hidden lg:table-cell">Location</TableHead>
-                <TableHead>Revenue</TableHead>
-                <TableHead>Updated</TableHead>
+                <TableHead>{t("col.name")}</TableHead>
+                <TableHead>{t("col.industry")}</TableHead>
+                <TableHead>{t("col.size")}</TableHead>
+                <TableHead className="hidden lg:table-cell">{t("col.location")}</TableHead>
+                <TableHead>{t("col.revenue")}</TableHead>
+                <TableHead>{t("col.updated")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -103,7 +138,7 @@ export function CompaniesClient() {
                   className="cursor-pointer transition hover:bg-surface-2"
                 >
                   <TableCell className="font-medium">
-                    {c.name}
+                    {displayName(c.name)}
                     {c.domain && (
                       <span className="block text-xs font-normal text-ink-muted">{c.domain}</span>
                     )}
@@ -116,7 +151,7 @@ export function CompaniesClient() {
                   <TableCell className="text-ink-muted">
                     {c.annualRevenue ? formatCompact(c.annualRevenue, "USD") : "—"}
                   </TableCell>
-                  <TableCell className="text-ink-muted">{timeAgo(c.updatedAt)}</TableCell>
+                  <TableCell className="text-ink-muted">{timeAgo(c.updatedAt, locale)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -124,7 +159,7 @@ export function CompaniesClient() {
         </Card>
       )}
 
-      <Modal title="New company" open={showNew} onClose={() => setShowNew(false)} wide>
+      <Modal title={t("page.companies.newModal")} open={showNew} onClose={() => setShowNew(false)} wide>
         <CompanyForm
           onSaved={() => {
             setShowNew(false);

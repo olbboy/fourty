@@ -1,5 +1,5 @@
 import { withAuth, authorize, apiError, json } from "@/lib/api";
-import { isRecordEntity, permissionObjectFor } from "@/lib/ai/record-context";
+import { permissionObjectFor, resolveBindableEntity } from "@/lib/ai/record-context";
 import { principals } from "@/lib/ai/principals";
 import { listConversationsFor } from "@/lib/ai/store";
 
@@ -21,13 +21,17 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const entityType = url.searchParams.get("entityType");
     const entityId = url.searchParams.get("entityId");
-    if (!isRecordEntity(entityType) || !entityId) {
-      return apiError("Expected entityType (contact|company|deal) and entityId");
+    if (!entityType || !entityId) {
+      return apiError("Expected entityType (contact|company|deal or a custom-object apiName) and entityId");
     }
-    const denied = authorize(auth, permissionObjectFor(entityType), "read");
+    const bound = await resolveBindableEntity(entityType);
+    if (!bound) {
+      return apiError("Expected entityType (contact|company|deal or a custom-object apiName) and entityId");
+    }
+    const denied = authorize(auth, permissionObjectFor(bound), "read");
     if (denied) return denied;
 
-    const rows = await listConversationsFor({ entityType, entityId }, principals(auth).ownerId);
+    const rows = await listConversationsFor({ entityType: bound, entityId }, principals(auth).ownerId);
     return json({
       conversations: rows.map((c) => ({ id: c.id, title: c.title, updatedAt: c.updatedAt })),
     });

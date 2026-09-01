@@ -20,7 +20,7 @@ Base path `/api`. JSON in/out. Standard verbs GET/POST/PATCH/DELETE.
 - Tasks: `/api/tasks`, `/api/tasks/{id}`
 - Notes: `/api/notes`
 - Activities (timeline): `/api/activities`
-- Search (contacts+companies+deals): `/api/search?q=...`
+- Search (contacts+companies+deals+custom-object records): `/api/search?q=...`
 - Dashboard analytics: `/api/stats/dashboard`
 - Custom object records: `/api/objects/{apiName}`, `/api/objects/{apiName}/{id}`
 - Custom object definitions: `/api/custom-objects` (+ `/fields`)
@@ -33,9 +33,13 @@ denials return HTTP 403; unknown/other-workspace records return 404 (RLS).
 
 Single endpoint `POST /api/graphql` with `{ query, variables }`. Introspection is
 enabled. Typed queries for every object: `contacts`, `contact(id)`, `companies`,
-`deals`, `tasks`, `notes`, `customObjects`, `records(object)`, `record(object,id)`.
+`deals`, `tasks`, `notes`, `activities`, `factSuggestions`, `customObjects`, `records(object)`,
+`record(object,id)`.
 Mutations: `createContact`/`updateContact`/`deleteContact`,
-`createCompany`/`updateCompany`/`deleteCompany`, and
+`createCompany`/`updateCompany`/`deleteCompany`,
+`createDeal`/`updateDeal`/`deleteDeal`,
+`createTask`/`updateTask`/`deleteTask`, `createNote`, `logActivity`,
+`recordFact`/`decideFact`, and
 `createRecord`/`updateRecord`/`deleteRecord` for custom objects. Errors travel in
 the response body (`errors[]` with `extensions.code`); HTTP stays 200.
 
@@ -47,12 +51,16 @@ Fourty ships a self-hosted Model Context Protocol server over two transports:
   (single message or a batch array) — for hosted/remote MCP clients.
 
 Both serve the same JSON-RPC methods: `initialize`, `tools/list`, `tools/call`,
-`resources/list`, `resources/read`, `prompts/list`, `prompts/get`, `ping`. Tools:
-`search`, `list_contacts`, `create_contact`, `update_contact`, `delete_contact`,
-`list_companies`, `create_company`, `update_company`, `delete_company`,
-`list_deals`, `create_deal`, `update_deal`, `delete_deal`, `list_tasks`,
-`create_task`, `create_note`, `get_dashboard_stats`, `list_custom_objects`,
-`list_records`, `create_record`. Delete tools are dry-run by default (pass
+`resources/list`, `resources/read`, `prompts/list`, `prompts/get`, `ping`. Tools (39):
+`search`, `get_contact`, `get_company`, `get_deal`, `list_contacts`,
+`list_companies`, `list_deals`, `list_tasks`, `get_task`, `list_assignees`,
+`get_dashboard_stats`, `get_report_stats`, `list_pipelines`, `get_pipeline`,
+`list_custom_objects`, `list_records`, `get_record`, `list_fact_suggestions`,
+`list_notes`, `list_activities`, `create_contact`, `update_contact`, `delete_contact`,
+`create_company`, `update_company`, `delete_company`, `create_deal`,
+`update_deal`, `delete_deal`, `create_task`, `update_task`, `delete_task`,
+`create_note`, `log_activity`, `create_record`, `update_record`, `delete_record`, `record_fact`,
+`decide_fact`. Delete tools are dry-run by default (pass
 `confirm: true` to apply). Resources: `fourty://dashboard`, `fourty://custom-objects`.
 Every tool/resource runs under the key's workspace (RLS) and role (RBAC), with
 field-level permissions applied — the HTTP transport is not a bypass door.

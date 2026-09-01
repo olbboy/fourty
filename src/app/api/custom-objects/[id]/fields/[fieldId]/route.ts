@@ -4,6 +4,7 @@ import { db, tables } from "@/db";
 import { withAuth, authorize, json, apiError, parseBody } from "@/lib/api";
 import { audit } from "@/lib/audit";
 import { fieldById, fieldsOf, firstInvalidRecord } from "@/lib/custom-objects";
+import { fieldChangeInvalidMessage, patchedFieldDefs } from "@/lib/field-def-guard";
 
 type Params = { params: Promise<{ id: string; fieldId: string }> };
 
@@ -32,22 +33,14 @@ export async function PATCH(req: Request, { params }: Params) {
     // stored record would break, rather than mutating data silently; the caller
     // fixes the offending records first.
     if (body.data.type !== undefined || options !== undefined || required !== undefined) {
-      const nextDefs = (await fieldsOf(id)).map((f) =>
-        f.key === field.key
-          ? {
-              ...f,
-              type: body.data.type ?? f.type,
-              options: options ?? f.options,
-              required: required ?? f.required,
-            }
-          : f,
-      );
+      const nextDefs = patchedFieldDefs(await fieldsOf(id), field.key, {
+        type: body.data.type,
+        options,
+        required,
+      });
       const invalid = await firstInvalidRecord(id, nextDefs);
       if (invalid) {
-        return json(
-          { error: `Can't change this field — an existing record would be invalid: ${invalid}` },
-          { status: 409 },
-        );
+        return json({ error: fieldChangeInvalidMessage(invalid) }, { status: 409 });
       }
     }
 

@@ -36,9 +36,15 @@ FOURTY_ALLOW_PRIVATE_WEBHOOKS=1
 > internal addresses from the server. See
 > [Configuration → Security](../self-hosting/configuration.md#security).
 
-## Managing endpoints
+## Managing the signing secret
 
-Webhook configuration is available over `/api/webhooks` and in the workflow builder.
+Admins copy (and rotate) the workspace secret from **Settings → Webhooks**, or
+over `GET`/`POST /api/webhooks/secret`. Rotate during a quiet period: in-flight
+retries keep their original signature, and anything that retries after the
+five-minute window will fail verification against the new secret.
+
+Webhook **endpoints** themselves live on a [workflow](../guides/workflows.md)
+action, not in this panel.
 
 ## Related
 

@@ -14,6 +14,10 @@ The importer is built to handle messy real-world files:
   updates rather than duplicates.
 - **Company auto-linking** — a `company` column links to an existing company by name,
   or creates one if it doesn't exist.
+- **Custom fields** — a column whose header is a contact custom-field key (or its
+  label) writes that field. Invalid values (a `javascript:` URL, a bad date) are
+  skipped; the rest of the row still imports. A new row missing a required custom
+  field is skipped, matching REST create.
 
 The parser is a dependency-free RFC-4180 implementation (`src/lib/csv.ts`), so quoted
 fields, embedded commas, and newlines are handled correctly.
@@ -27,9 +31,11 @@ curl -H "Authorization: Bearer frty_..." \
   https://your-crm.example/api/export/contacts   # or /companies, /deals
 ```
 
-Exports use the same field set the UI shows and respect
-[field-permissions](../adr/011-field-level-permissions.md) — a restricted role can't
-export a column it can't see.
+Exports use the same field set the UI shows — built-in columns plus current
+[custom fields](./custom-objects.md#custom-fields) (by their stable key) — and respect
+[field-permissions](../adr/011-field-level-permissions.md). A restricted role can't
+export a column it can't see, including the whole custom-field set when `custom`
+is hidden.
 
 ## Bulk-loading other systems
 

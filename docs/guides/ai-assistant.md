@@ -32,6 +32,15 @@ AI_MAX_TOKENS=1024                       # primary cost guardrail
 AI_RATELIMIT_PER_HOUR=60                 # per-user budget
 ```
 
+Zhipu **GLM** works as that same OpenAI-compatible client. Set `GLM_API_KEY` (or
+`ZAI_API_KEY`) instead of `AI_API_KEY` and the defaults become
+`https://open.bigmodel.cn/api/paas/v4` + `glm-4.5-flash`. The request sends
+`thinking: { type: "disabled" }` so GLM-4.5 does not spend the token cap on
+hidden chain-of-thought (the chat would otherwise finish a tool call with no
+spoken reply). Override with `AI_BASE_URL` / `AI_MODEL` if you use a coding-plan
+host (`https://api.z.ai/api/coding/paas/v4`) or another model id. `AI_API_KEY`
+still wins when both are set.
+
 Tool-calling is tested against OpenAI / Groq / OpenRouter; local **Ollama / LM Studio**
 are best-effort (the agent degrades to a text-only assistant if the model emits no
 tool calls). Full details in [Configuration](../self-hosting/configuration.md#ai-assistant).
@@ -54,7 +63,7 @@ new rep.
 | **AI assistant** | `AI_API_KEY` in the environment | The chat itself and any model-backed pass |
 | **Mailbox sync** | Settings → Mailboxes | Threads, replies and signature blocks |
 | **Calendar** | Settings → Mailboxes (an ICS feed) | Meeting attendance |
-| **Outbound webhooks** | Automations → a workflow with a webhook action | Notifying other systems |
+| **Outbound webhooks** | Settings → Webhooks; Workflows → a webhook action | Notifying other systems |
 | **Custom objects** | Settings → Custom objects | Extra record types it may read |
 
 Everything except the API key is a **per-workspace row**, not an environment variable:
@@ -83,11 +92,12 @@ on writes, `via` audit tagging.
 
 ## The Agent tab on a record
 
-Every contact, company and deal has a **Timeline | Agent** switch. The Agent tab
+Every contact, company, deal, and **custom-object record** has a **Timeline | Agent** switch. The Agent tab
 is a conversation *about that record* — it already knows which one, so you do not
 paste an id or a name into your question. The record travels as an id the server
 re-checks against your own workspace and role; it is never spliced into your
-message text.
+message text. The prompt lists adjacent ids (company, deals, pinned tasks) so
+the assistant can walk the graph without a second search.
 
 - **Your threads are yours.** Two reps asking about the same contact are having
   two conversations. Old threads stay in the picker; the open one is in the URL,
@@ -95,16 +105,18 @@ message text.
 - **The transcript is stored, not remembered.** Reload, switch tabs, come back
   tomorrow — it is still there. Leaving the tab never cancels an answer in
   flight.
-- **The composer says what is actually true.** *Working* is a wait of seconds.
-  *Ended* is permanent and offers a new conversation. *Offline* means we could
-  not reach a provider — a fact about the install, not about your thread. They
-  are never used interchangeably.
+- **The composer says what is actually true.** *Working* means a reply is in
+  flight (a slow provider can take a minute or more; the stream sends heartbeats
+  so the tab does not look dead). *Ended* is permanent and offers a new
+  conversation. *Offline* means we could not reach a provider — a fact about the
+  install, not about your thread. They are never used interchangeably.
 
 **With no AI provider configured the tab is still worth opening.** The composer
-says so plainly, and below it sits *What research found* — every suggestion and
-every auto-filled field on this record, with the evidence behind each. That half
-is produced by the [keyless research pass](./research.md) and needs no model at
-all.
+says so plainly. On **contacts and companies**, below it sits *What research found*
+— every suggestion and every auto-filled field on this record, with the evidence
+behind each. That half is produced by the [keyless research pass](./research.md)
+and needs no model at all. Deals and custom-object records have no facts inbox,
+so that block is omitted.
 
 Background work — what the agent has queued about this record and why — stays
 where it has always been, in the left-hand column, visible whichever tab you are

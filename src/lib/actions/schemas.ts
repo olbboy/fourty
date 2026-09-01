@@ -40,3 +40,46 @@ export const listContactsInput = z.object({
   companyId: z.string().optional(),
   sort: z.string().optional(),
 });
+
+/** Company list controls. Same clamping rules as the contact list. */
+export const listCompaniesInput = z.object({
+  q: z.string().optional(),
+  limit: z.coerce.number().optional().catch(undefined),
+  industry: z.string().optional(),
+});
+
+/** Deal list controls. REST default/max (300/1000) live in the action, not here. */
+export const listDealsInput = z.object({
+  q: z.string().optional(),
+  limit: z.coerce.number().optional().catch(undefined),
+  stageId: z.string().optional(),
+  pipelineId: z.string().optional(),
+  companyId: z.string().optional(),
+  contactId: z.string().optional(),
+});
+
+/**
+ * Task list controls. REST defaults to open tasks sorted by due date; MCP and
+ * GraphQL pass `state=all` and `sort=createdAt` through their adapters.
+ */
+export const listTasksInput = z.object({
+  state: z.string().optional(),
+  entityType: z.string().optional(),
+  entityId: z.string().optional(),
+  limit: z.coerce.number().optional().catch(undefined),
+  sort: z.string().optional(),
+});
+
+/** Note list. Both entityType and entityId are required to return rows (REST). */
+export const listNotesInput = z.object({
+  entityType: z.string().optional(),
+  entityId: z.string().optional(),
+  limit: z.coerce.number().optional().catch(undefined),
+});
+
+/** Activity timeline. Same keys as notes: no record, no rows. */
+export const listActivitiesInput = z.object({
+  entityType: z.string().optional(),
+  entityId: z.string().optional(),
+  limit: z.coerce.number().optional().catch(undefined),
+});

@@ -58,6 +58,7 @@ function streamFrom(chunks: string[]): ReadableStream<Uint8Array> {
 const originalFetch = globalThis.fetch;
 let ws: string;
 let contactId: string;
+let ticketId: string;
 
 describe("per-record conversations", () => {
   beforeAll(async () => {
@@ -76,6 +77,33 @@ describe("per-record conversations", () => {
         email: "ada@fernhill.example",
         createdAt: Date.now(),
         updatedAt: Date.now(),
+      });
+      const objectId = newId();
+      ticketId = newId();
+      const now = Date.now();
+      await db.insert(tables.customObjects).values({
+        id: objectId,
+        apiName: "ticket",
+        nameSingular: "Ticket",
+        namePlural: "Tickets",
+        createdAt: now,
+      });
+      await db.insert(tables.customObjectFields).values({
+        id: newId(),
+        objectId,
+        key: "title",
+        label: "Title",
+        type: "text",
+        required: 1,
+        order: 0,
+        createdAt: now,
+      });
+      await db.insert(tables.customRecords).values({
+        id: ticketId,
+        objectId,
+        data: JSON.stringify({ title: "Orion Ticket" }),
+        createdAt: now,
+        updatedAt: now,
       });
     });
   });
@@ -176,5 +204,31 @@ describe("per-record conversations", () => {
   it("rejects a list request that names no record", async () => {
     expect((await listRoute.GET(listReq("?entityType=contact"))).status).toBe(400);
     expect((await listRoute.GET(listReq("?entityType=planet&entityId=x"))).status).toBe(400);
+  });
+
+  it("binds a new thread to a custom-object record by apiName", async () => {
+    const id = await converse(KEY_A, {
+      message: "what is this ticket?",
+      entityType: "ticket",
+      entityId: ticketId,
+    });
+    expect(id).not.toBeNull();
+    const listed = await (await listRoute.GET(listReq(`?entityType=ticket&entityId=${ticketId}`))).json();
+    expect(listed.conversations.map((c: { id: string }) => c.id)).toContain(id);
+    const thread = await (await threadRoute.GET(threadReq(id!), { params: Promise.resolve({ id: id! }) })).json();
+    expect(thread.conversation.entityType).toBe("ticket");
+    expect(thread.conversation.entityId).toBe(ticketId);
+  });
+
+  it("answers 404 for a named record of an unknown type", async () => {
+    process.env.AI_API_KEY = "test-key";
+    try {
+      const res = await chatRoute.POST(
+        chatReq({ message: "tell me about this", entityType: "planet", entityId: "x" }),
+      );
+      expect(res.status).toBe(404);
+    } finally {
+      delete process.env.AI_API_KEY;
+    }
   });
 });

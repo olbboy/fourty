@@ -15,7 +15,16 @@ On first boot Fourty creates a default **7-stage pipeline**. Each stage carries 
   `deal.lost` — which [workflows](./workflows.md) can react to.
 - **List view** — the same deals as a sortable table when you want density over drag.
 
-You can add, rename, reorder, and re-weight stages, and run multiple pipelines.
+Rename, reorder, recolour, add extra **open** stages, and set each stage's **win
+probability** from **Settings → Pipelines**. The kanban dots use that colour. New
+stages land before Won/Lost so the board keeps closed columns at the end (pick a
+colour when adding, or keep the warm-neutral default). Type (open/won/lost) is
+not editable, so won/lost workflows keep their meaning. Open stages with no deals can be deleted; Won/Lost
+cannot, and a pipeline keeps at least one open stage. Those weights drive the
+forecast and deal health. **Add pipeline** from the same Settings panel creates
+another 7-stage board; rename it there, or delete it once no deals remain. A
+workspace keeps at least one pipeline. The Deals page switches when more than
+one exists. The default pipeline is created on first boot.
 
 ## The weighted forecast
 

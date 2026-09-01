@@ -19,4 +19,4 @@ COPY --from=builder /app/src ./src
 COPY --from=builder /app/scripts ./scripts
 EXPOSE 3000
 # Next traps SIGTERM for graceful shutdown; Compose stop_grace_period drains it.
-CMD ["npx", "next", "start"]
+CMD ["node", "-r", "./scripts/init-tracing.cjs", "node_modules/next/dist/bin/next", "start"]

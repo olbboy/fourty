@@ -7,9 +7,9 @@
   "//types": "Read only by the design-system export (see .design-sync/NOTES.md), which needs a declaration entry to discover the component surface. The app never imports this; the file is generated, not committed.",
   "types": ".design-sync/.cache/types/.design-sync/ds-entry.d.ts",
   "scripts": {
-    "dev": "next dev",
+    "dev": "node -r ./scripts/init-tracing.cjs node_modules/next/dist/bin/next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "node -r ./scripts/init-tracing.cjs node_modules/next/dist/bin/next start",
     "worker": "tsx src/worker/index.ts",
     "mcp": "tsx src/mcp/stdio.ts",
     "test": "vitest run",

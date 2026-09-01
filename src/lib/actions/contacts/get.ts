@@ -11,7 +11,7 @@ export const contactsGet = defineAction({
   verb: "read",
   description: "Fetch a single contact by id.",
   input: byIdInput,
-  expose: { rest: true, graphql: true },
+  expose: { rest: true, graphql: true, mcp: true, ai: true },
   run: async ({ id }): Promise<Contact> => {
     const row = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0];
     if (!row) throw new ActionError("not_found", "Contact not found");

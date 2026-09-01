@@ -55,13 +55,3 @@ export type EventContext = {
   snapshot: Record<string, unknown>;
 };
 
-export const EVENT_LABELS: Record<WorkflowEvent, string> = {
-  "contact.created": "Contact created",
-  "contact.updated": "Contact updated",
-  "company.created": "Company created",
-  "deal.created": "Deal created",
-  "deal.stage_changed": "Deal stage changed",
-  "deal.won": "Deal won",
-  "deal.lost": "Deal lost",
-  "task.completed": "Task completed",
-};

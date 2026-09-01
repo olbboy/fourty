@@ -154,4 +154,28 @@ describe("custom-object field retype revalidation (real handlers + Postgres)", (
     );
     expect(res.status).toBe(200);
   });
+
+  it("refuses creating a required field while a record would be blank", async () => {
+    const res = await fieldRoutes.POST(
+      req(`/api/custom-objects/${objectId}/fields`, {
+        method: "POST",
+        body: JSON.stringify({ key: "nickname", label: "Nickname", type: "text", required: true }),
+      }),
+      idParams(objectId, ""),
+    );
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/required/i);
+  });
+
+  it("still creates an optional field while records are present", async () => {
+    const res = await fieldRoutes.POST(
+      req(`/api/custom-objects/${objectId}/fields`, {
+        method: "POST",
+        body: JSON.stringify({ key: "nickname", label: "Nickname", type: "text", required: false }),
+      }),
+      idParams(objectId, ""),
+    );
+    expect(res.status).toBe(201);
+    expect((await res.json()).field.required).toBe(false);
+  });
 });

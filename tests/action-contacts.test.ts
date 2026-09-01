@@ -180,4 +180,24 @@ describe("contact actions across every surface", () => {
     const rest = await contactRoutes.GET(new Request("http://localhost/api/contacts?limit=300", { headers }));
     expect((await rest.json()).contacts.length).toBeGreaterThan(200);
   });
+
+  it("refuses a second contact with the same email, case-insensitively", async () => {
+    const first = await contactRoutes.POST(
+      new Request("http://localhost/api/contacts", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ firstName: "One", email: "dupe@example.com" }),
+      }),
+    );
+    expect(first.status).toBe(201);
+    const again = await contactRoutes.POST(
+      new Request("http://localhost/api/contacts", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ firstName: "Two", email: "DUPE@example.com" }),
+      }),
+    );
+    expect(again.status).toBe(400);
+    expect((await again.json()).error).toMatch(/already exists/);
+  });
 });

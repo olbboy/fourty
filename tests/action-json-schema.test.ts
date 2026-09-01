@@ -124,7 +124,7 @@ const PUBLISHED: Record<string, { properties: Record<string, { type?: string; en
       description: { type: "string" },
       dueDate: { type: "number" },
       priority: { type: "string", enum: ["low", "medium", "high"] },
-      entityType: { type: "string", enum: ["contact", "company", "deal"] },
+      entityType: { type: "string" },
       entityId: { type: "string" },
     },
     required: ["title"],
@@ -132,7 +132,7 @@ const PUBLISHED: Record<string, { properties: Record<string, { type?: string; en
   create_note: {
     properties: {
       body: { type: "string" },
-      entityType: { type: "string", enum: ["contact", "company", "deal"] },
+      entityType: { type: "string" },
       entityId: { type: "string" },
     },
     required: ["body", "entityType", "entityId"],

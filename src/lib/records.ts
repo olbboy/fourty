@@ -83,5 +83,26 @@ export function validateRecord(fields: FieldDef[], input: Record<string, unknown
   return { ok: true, data: out };
 }
 
+/**
+ * Validate `input` against `defs`, keeping keys that no longer have a
+ * definition (a deleted custom field stays in the blob until a person clears
+ * it). Defined fields are coerced; unknown-to-the-schema leftover keys pass
+ * through unchanged.
+ */
+export function applyCustomFieldValues(
+  defs: FieldDef[],
+  input: Record<string, unknown>,
+): ValidateResult {
+  if (defs.length === 0) return { ok: true, data: input };
+  const check = validateRecord(defs, input);
+  if (!check.ok) return check;
+  const known = new Set(defs.map((d) => d.key));
+  const extras: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(input)) {
+    if (!known.has(k)) extras[k] = v;
+  }
+  return { ok: true, data: { ...extras, ...check.data } };
+}
+
 /** A slug for an object api_name / field key: lowercase, digits, underscores. */
 export const API_NAME_RE = /^[a-z][a-z0-9_]*$/;

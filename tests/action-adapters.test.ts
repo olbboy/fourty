@@ -167,6 +167,15 @@ describe("action adapters", () => {
     expect(out).toMatchObject({ q: "ada" });
   });
 
+  it("fills adapter defaults when a GraphQL arg is omitted", async () => {
+    const { withWorkspace } = await import("@/db");
+    const resolve = toResolver(echo, { defaults: { q: "from-default", limit: 200 } });
+    const out = await withWorkspace(ws, () =>
+      resolve(null, { limit: 10 }, { auth: { ...gqlCtx.auth, workspaceId: ws } }),
+    );
+    expect(out).toMatchObject({ q: "from-default", limit: 10 });
+  });
+
   // ── MCP + AI ──────────────────────────────────────────────────────────────
 
   it("generates the tool schema from the action's own input schema", () => {

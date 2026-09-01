@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { settleView } from "./helpers/view-health";
 
 /**
  * Every view, loaded in development mode, must produce a silent console.
@@ -39,12 +40,6 @@ function watchConsole(page: Page): string[] {
   return noise;
 }
 
-/** Lists arrive from a client fetch, so the heading paints before the content. */
-async function settle(page: Page): Promise<void> {
-  await page.waitForLoadState("networkidle");
-  await expect(page.locator('[data-slot="spinner"]')).toHaveCount(0);
-}
-
 const VIEWS = [
   ["dashboard", "/dashboard"],
   ["contacts", "/contacts"],
@@ -61,7 +56,7 @@ for (const [name, url] of VIEWS) {
   test(`${name} loads without a framework complaint`, async ({ page }) => {
     const noise = watchConsole(page);
     await page.goto(url);
-    await settle(page);
+    await settleView(page);
     expect(noise, `${url} was not silent in development`).toEqual([]);
   });
 }
@@ -84,7 +79,7 @@ for (const [name, list] of DETAILS) {
     const row = page.locator("tbody tr").first();
     await expect(row).toBeVisible();
     await row.click();
-    await settle(page);
+    await settleView(page);
     expect(noise, `${name} detail was not silent in development`).toEqual([]);
   });
 }
@@ -92,7 +87,7 @@ for (const [name, list] of DETAILS) {
 test("the workflow builder opens without a framework complaint", async ({ page }) => {
   const noise = watchConsole(page);
   await page.goto("/workflows");
-  await settle(page);
+  await settleView(page);
   await page.getByRole("button", { name: /New workflow/ }).first().click();
   await expect(page.getByRole("dialog", { name: "New workflow" })).toBeVisible();
   expect(noise, "the workflow builder was not silent in development").toEqual([]);

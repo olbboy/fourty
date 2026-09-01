@@ -2,14 +2,19 @@
 
 import { useState } from "react";
 import type { Company } from "@/lib/types";
-import { Field } from "@/components/ui";
+import { Field, LoadError } from "@/components/ui";
 import { CustomFieldsInputs, useCustomFields } from "@/components/custom-fields";
+import { stripBlockedWrites } from "@/lib/field-access";
+import { useFieldAccess } from "@/hooks/use-field-access";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
+import { useT } from "@/lib/i18n/provider";
 
 export function CompanyForm({ company, onSaved }: { company?: Company; onSaved: () => void }) {
-  const defs = useCustomFields("company");
+  const t = useT();
+  const { defs, failed, retry } = useCustomFields("company");
+  const access = useFieldAccess("companies");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [custom, setCustom] = useState<Record<string, unknown>>(company?.custom ?? {});
@@ -36,56 +41,89 @@ export function CompanyForm({ company, onSaved }: { company?: Company; onSaved: 
     const res = await fetch(company ? `/api/companies/${company.id}` : "/api/companies", {
       method: company ? "PATCH" : "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify(stripBlockedWrites(body, access.blockedWrites)),
     });
     if (res.ok) onSaved();
     else {
-      setError((await res.json().catch(() => ({}))).error ?? "Failed to save");
+      setError((await res.json().catch(() => ({}))).error ?? t("form.failedSave"));
       setBusy(false);
     }
   }
 
+  if (access.failed) return <LoadError compact onRetry={access.retry} />;
+
   return (
     <form onSubmit={onSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <Field label="Name" className="sm:col-span-2">
-        <Input name="name" required defaultValue={company?.name} />
-      </Field>
-      <Field label="Domain">
-        <Input name="domain" defaultValue={company?.domain ?? ""} placeholder="acme.com" />
-      </Field>
-      <Field label="Website">
-        <Input name="website" defaultValue={company?.website ?? ""} placeholder="https://…" />
-      </Field>
-      <Field label="Industry">
-        <Input name="industry" defaultValue={company?.industry ?? ""} />
-      </Field>
-      <Field label="Size">
-        <NativeSelect name="size" defaultValue={company?.size ?? ""} className="w-full">
-          <option value="">—</option>
-          {["1-10", "11-50", "51-200", "201-500", "501-1000", "1000+"].map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </NativeSelect>
-      </Field>
-      <Field label="Annual revenue (USD)">
-        <Input name="annualRevenue" type="number" min={0} defaultValue={company?.annualRevenue ?? ""} />
-      </Field>
-      <Field label="LinkedIn">
-        <Input name="linkedin" defaultValue={company?.linkedin ?? ""} />
-      </Field>
-      <Field label="City">
-        <Input name="city" defaultValue={company?.city ?? ""} />
-      </Field>
-      <Field label="Country">
-        <Input name="country" defaultValue={company?.country ?? ""} />
-      </Field>
-      <CustomFieldsInputs defs={defs} values={custom} onChange={setCustom} />
+      {(!company || !access.hidden.has("name")) && (
+        <Field label={t("field.name")} className="sm:col-span-2">
+          <Input
+            name="name"
+            required={!company}
+            disabled={!!company && access.blockedWrites.has("name")}
+            defaultValue={company?.name}
+          />
+        </Field>
+      )}
+      {!access.hidden.has("domain") && (
+        <Field label={t("field.domain")}>
+          <Input name="domain" disabled={access.blockedWrites.has("domain")} defaultValue={company?.domain ?? ""} placeholder={t("field.domainPlaceholder")} />
+        </Field>
+      )}
+      {!access.hidden.has("website") && (
+        <Field label={t("field.website")}>
+          <Input name="website" disabled={access.blockedWrites.has("website")} defaultValue={company?.website ?? ""} placeholder={t("field.websitePlaceholder")} />
+        </Field>
+      )}
+      {!access.hidden.has("industry") && (
+        <Field label={t("field.industry")}>
+          <Input name="industry" disabled={access.blockedWrites.has("industry")} defaultValue={company?.industry ?? ""} />
+        </Field>
+      )}
+      {!access.hidden.has("size") && (
+        <Field label={t("field.size")}>
+          <NativeSelect name="size" defaultValue={company?.size ?? ""} className="w-full" disabled={access.blockedWrites.has("size")}>
+            <option value="">—</option>
+            {["1-10", "11-50", "51-200", "201-500", "501-1000", "1000+"].map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </NativeSelect>
+        </Field>
+      )}
+      {!access.hidden.has("annualRevenue") && (
+        <Field label={t("field.annualRevenueUsd")}>
+          <Input
+            name="annualRevenue"
+            type="number"
+            min={0}
+            disabled={access.blockedWrites.has("annualRevenue")}
+            defaultValue={company?.annualRevenue ?? ""}
+          />
+        </Field>
+      )}
+      {!access.hidden.has("linkedin") && (
+        <Field label={t("field.linkedin")}>
+          <Input name="linkedin" disabled={access.blockedWrites.has("linkedin")} defaultValue={company?.linkedin ?? ""} />
+        </Field>
+      )}
+      {!access.hidden.has("city") && (
+        <Field label={t("field.city")}>
+          <Input name="city" disabled={access.blockedWrites.has("city")} defaultValue={company?.city ?? ""} />
+        </Field>
+      )}
+      {!access.hidden.has("country") && (
+        <Field label={t("field.country")}>
+          <Input name="country" disabled={access.blockedWrites.has("country")} defaultValue={company?.country ?? ""} />
+        </Field>
+      )}
+      {!access.hidden.has("custom") && (
+        <CustomFieldsInputs defs={defs} values={custom} onChange={setCustom} failed={failed} onRetry={retry} />
+      )}
       {error && <p className="col-span-full text-sm text-feedback-error">{error}</p>}
       <div className="col-span-full flex justify-end">
-        <Button type="submit" disabled={busy}>
-          {busy ? "Saving…" : company ? "Save changes" : "Create company"}
+        <Button type="submit" disabled={busy || !access.ready}>
+          {busy ? t("form.saving") : company ? t("form.saveChanges") : t("form.createCompany")}
         </Button>
       </div>
     </form>

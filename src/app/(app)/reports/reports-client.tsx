@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { formatCompact } from "@/lib/currency";
 import { formatDate } from "@/lib/format";
-import { PageHeader, Spinner } from "@/components/ui";
+import { PageHeader, Spinner, HealthBadge, LoadError } from "@/components/ui";
 import { WinLossChart, CategoryBars } from "@/components/charts";
 import { Card } from "@/components/ui/card";
+import { isReportStatsPayload } from "@/lib/stats-payload";
 import {
   Table,
   TableBody,
@@ -15,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useLocale, useT } from "@/lib/i18n/provider";
 
 type Reports = {
   sourceBreakdown: { source: string; leads: number; customers: number; conversion: number }[];
@@ -22,51 +24,75 @@ type Reports = {
   aging: {
     id: string;
     name: string;
-    stage: string;
-    amountUsd: number;
+    stage?: string;
+    amountUsd?: number;
     daysInStage: number;
-    expectedCloseDate: number | null;
-    overdue: boolean;
+    expectedCloseDate?: number | null;
+    overdue?: boolean;
+    score?: number;
   }[];
   scoreBands: { band: string; count: number }[];
   statusBreakdown: { status: string; count: number }[];
 };
 
 export function ReportsClient() {
+  const t = useT();
+  const locale = useLocale();
   const [data, setData] = useState<Reports | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
+    let cancelled = false;
+    setFailed(false);
+    setData(null);
     fetch("/api/stats/reports")
-      .then((r) => r.json())
-      .then(setData);
-  }, []);
+      .then(async (r) => {
+        if (!r.ok) throw new Error("reports");
+        const body: unknown = await r.json();
+        if (!isReportStatsPayload(body)) throw new Error("reports");
+        if (!cancelled) setData(body as Reports);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [retry]);
+
+  if (failed) {
+    return (
+      <div className="animate-fade-up space-y-4">
+        <PageHeader title={t("nav.reports")} subtitle={t("reports.subtitle")} />
+        <LoadError onRetry={() => setRetry((n) => n + 1)} />
+      </div>
+    );
+  }
 
   if (!data) return <Spinner />;
 
   return (
     <div className="animate-fade-up space-y-4">
-      <PageHeader
-        title="Reports"
-        subtitle="Pipeline velocity, win/loss, lead sources, and scoring — built in, no BI tool needed."
-      />
+      <PageHeader title={t("nav.reports")} subtitle={t("reports.subtitle")} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card size="flush" className="p-4">
-          <h2 className="mb-1 text-sm font-semibold">Win / loss by month</h2>
-          <p className="mb-3 text-xs text-ink-muted">Closed deal counts, last 6 months</p>
+          <h2 className="mb-1 text-sm font-semibold">{t("reports.winLoss")}</h2>
+          <p className="mb-3 text-xs text-ink-muted">{t("reports.winLossHint")}</p>
           <WinLossChart data={data.winLoss} />
         </Card>
 
         <Card size="flush" className="p-4">
-          <h2 className="mb-1 text-sm font-semibold">Lead source performance</h2>
-          <p className="mb-3 text-xs text-ink-muted">Volume and conversion to customer</p>
+          <h2 className="mb-1 text-sm font-semibold">{t("reports.source")}</h2>
+          <p className="mb-3 text-xs text-ink-muted">{t("reports.sourceHint")}</p>
           <Table className="min-w-[380px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Source</TableHead>
-                  <TableHead>Leads</TableHead>
-                  <TableHead>Customers</TableHead>
-                  <TableHead>Conversion</TableHead>
+                  <TableHead>{t("col.source")}</TableHead>
+                  <TableHead>{t("col.leads")}</TableHead>
+                  <TableHead>{t("col.customers")}</TableHead>
+                  <TableHead>{t("col.conversion")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -93,14 +119,14 @@ export function ReportsClient() {
         </Card>
 
         <Card size="flush" className="p-4">
-          <h2 className="mb-1 text-sm font-semibold">Lead temperature</h2>
-          <p className="mb-3 text-xs text-ink-muted">Auto-scored contact distribution</p>
+          <h2 className="mb-1 text-sm font-semibold">{t("reports.temperature")}</h2>
+          <p className="mb-3 text-xs text-ink-muted">{t("reports.temperatureHint")}</p>
           <CategoryBars data={data.scoreBands} nameKey="band" valueKey="count" height={150} />
         </Card>
 
         <Card size="flush" className="p-4">
-          <h2 className="mb-1 text-sm font-semibold">Contact lifecycle</h2>
-          <p className="mb-3 text-xs text-ink-muted">Contacts by status</p>
+          <h2 className="mb-1 text-sm font-semibold">{t("reports.lifecycle")}</h2>
+          <p className="mb-3 text-xs text-ink-muted">{t("reports.lifecycleHint")}</p>
           <CategoryBars
             data={data.statusBreakdown.map((s) => ({ ...s, status: s.status[0].toUpperCase() + s.status.slice(1) }))}
             nameKey="status"
@@ -111,18 +137,17 @@ export function ReportsClient() {
       </div>
 
       <Card size="flush" className="p-4">
-        <h2 className="mb-1 text-sm font-semibold">Pipeline aging</h2>
-        <p className="mb-3 text-xs text-ink-muted">
-          Every open deal, sorted by time in current stage — chase the top of this list.
-        </p>
+        <h2 className="mb-1 text-sm font-semibold">{t("reports.aging")}</h2>
+        <p className="mb-3 text-xs text-ink-muted">{t("reports.agingHint")}</p>
         <Table className="min-w-[640px]">
             <TableHeader>
               <TableRow>
-                <TableHead>Deal</TableHead>
-                <TableHead>Stage</TableHead>
-                <TableHead>Value (USD)</TableHead>
-                <TableHead>Days in stage</TableHead>
-                <TableHead>Expected close</TableHead>
+                <TableHead>{t("col.deal")}</TableHead>
+                <TableHead>{t("col.stage")}</TableHead>
+                <TableHead>{t("col.health")}</TableHead>
+                <TableHead>{t("col.valueUsd")}</TableHead>
+                <TableHead>{t("col.daysInStage")}</TableHead>
+                <TableHead>{t("col.expectedClose")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -133,25 +158,26 @@ export function ReportsClient() {
                       {d.name}
                     </Link>
                   </TableCell>
-                  <TableCell className="text-ink-muted">{d.stage}</TableCell>
-                  <TableCell>{formatCompact(d.amountUsd, "USD")}</TableCell>
+                  <TableCell className="text-ink-muted">{d.stage ?? "—"}</TableCell>
+                  <TableCell>{d.score != null ? <HealthBadge score={d.score} /> : "—"}</TableCell>
+                  <TableCell>{d.amountUsd != null ? formatCompact(d.amountUsd, "USD") : "—"}</TableCell>
                   <TableCell>
                     <span className={d.daysInStage > 14 ? "font-semibold text-feedback-warn" : ""}>
-                      {d.daysInStage}d
+                      {t("time.daysShort", { n: d.daysInStage })}
                     </span>
                   </TableCell>
                   <TableCell>
                     <span className={d.overdue ? "font-semibold text-feedback-error" : "text-ink-muted"}>
-                      {formatDate(d.expectedCloseDate)}
-                      {d.overdue && " · overdue"}
+                      {formatDate(d.expectedCloseDate, locale)}
+                      {d.overdue && t("reports.overdueSuffix")}
                     </span>
                   </TableCell>
                 </TableRow>
               ))}
               {data.aging.length === 0 && (
                 <TableRow>
-                  <TableCell className="text-ink-muted" colSpan={5}>
-                    No open deals.
+                  <TableCell className="text-ink-muted" colSpan={6}>
+                    {t("reports.noOpenDeals")}
                   </TableCell>
                 </TableRow>
               )}

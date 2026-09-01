@@ -48,6 +48,10 @@ const originalFetch = globalThis.fetch;
 afterEach(() => {
   globalThis.fetch = originalFetch;
   delete process.env.AI_API_KEY;
+  delete process.env.GLM_API_KEY;
+  delete process.env.ZAI_API_KEY;
+  delete process.env.AI_BASE_URL;
+  delete process.env.AI_MODEL;
   delete process.env.AI_MAX_TOKENS;
 });
 
@@ -57,6 +61,46 @@ describe("isAiEnabled", () => {
     expect(isAiEnabled()).toBe(false);
     process.env.AI_API_KEY = "sk-test";
     expect(isAiEnabled()).toBe(true);
+  });
+
+  it("treats GLM_API_KEY as enabling the same chat", () => {
+    delete process.env.AI_API_KEY;
+    process.env.GLM_API_KEY = "glm-test";
+    expect(isAiEnabled()).toBe(true);
+  });
+});
+
+describe("GLM alias", () => {
+  it("posts to Zhipu's OpenAI-compatible host when only GLM_API_KEY is set", async () => {
+    process.env.GLM_API_KEY = "glm-test";
+    const fetchMock = mockFetchOk([
+      sse({ choices: [{ delta: { content: "ok" } }] }),
+      sse({ choices: [{ delta: {}, finish_reason: "stop" }] }),
+    ]);
+    await collect(streamChat({ messages: [{ role: "user", content: "hi" }] }));
+    const req = fetchMock.mock.calls[0] as unknown as [string, { headers: { authorization: string }; body: string }];
+    expect(req[0]).toBe("https://open.bigmodel.cn/api/paas/v4/chat/completions");
+    expect(req[1].headers.authorization).toBe("Bearer glm-test");
+    const body = JSON.parse(req[1].body) as { model: string; thinking?: { type: string } };
+    expect(body.model).toBe("glm-4.5-flash");
+    // GLM-4.5 thinking defaults on and spends max_tokens on reasoning_content,
+    // so a tool round can finish with an empty spoken answer.
+    expect(body.thinking).toEqual({ type: "disabled" });
+  });
+
+  it("lets AI_API_KEY win over GLM_API_KEY for host and model", async () => {
+    process.env.AI_API_KEY = "sk-openai";
+    process.env.GLM_API_KEY = "glm-test";
+    const fetchMock = mockFetchOk([
+      sse({ choices: [{ delta: { content: "ok" } }] }),
+      sse({ choices: [{ delta: {}, finish_reason: "stop" }] }),
+    ]);
+    await collect(streamChat({ messages: [{ role: "user", content: "hi" }] }));
+    const req = fetchMock.mock.calls[0] as unknown as [string, { body: string }];
+    expect(req[0]).toBe("https://api.openai.com/v1/chat/completions");
+    const body = JSON.parse(req[1].body) as { model: string; thinking?: unknown };
+    expect(body.model).toBe("gpt-4o-mini");
+    expect(body.thinking).toBeUndefined();
   });
 });
 
@@ -111,6 +155,20 @@ describe("streamChat SSE parsing", () => {
         { id: "call_b", name: "create_company", arguments: { name: "Acme" } },
       ],
     });
+  });
+
+  it("does not stream GLM reasoning_content as the spoken answer", async () => {
+    process.env.AI_API_KEY = "sk-test";
+    mockFetchOk([
+      sse({ choices: [{ delta: { reasoning_content: "I will greet them." } }] }),
+      sse({ choices: [{ delta: { content: "Hello" } }] }),
+      sse({ choices: [{ delta: {}, finish_reason: "stop" }] }),
+    ]);
+    const events = await collect(streamChat({ messages: [{ role: "user", content: "hi" }] }));
+    expect(events).toEqual([
+      { type: "text", delta: "Hello" },
+      { type: "done", finishReason: "stop" },
+    ]);
   });
 
   it("ignores [DONE], heartbeats, blank lines, and malformed JSON without crashing", async () => {
@@ -192,7 +250,8 @@ describe("toProviderTools bridge + mutates flag", () => {
       "create_contact", "update_contact", "delete_contact",
       "create_company", "update_company", "delete_company",
       "create_deal", "update_deal", "delete_deal",
-      "create_task", "create_note", "create_record",
+      "create_task", "update_task", "delete_task", "create_note", "log_activity",
+      "create_record", "update_record", "delete_record",
       // The evidence ledger writes too: recording an observation adds a row, and
       // deciding one can write the record's field. Both are proposed to the user
       // for confirmation like any other write (ADR-015).

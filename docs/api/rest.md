@@ -13,16 +13,17 @@ error shapes.
 | Contacts | `/api/contacts`, `/api/contacts/{id}` |
 | Companies | `/api/companies`, `/api/companies/{id}` |
 | Deals | `/api/deals`, `/api/deals/{id}` |
-| Tasks | `/api/tasks`, `/api/tasks/{id}` |
-| Notes | `/api/notes` |
+| Tasks | `/api/tasks`, `/api/tasks/{id}` (`ownerId` assigns a member); `/api/tasks/assignees` (GraphQL `assignees`, MCP `list_assignees`) |
+| Notes | `/api/notes` (GET list + POST create; append-only) |
 | Activities (timeline) | `/api/activities` |
-| Pipelines | `/api/pipelines` |
+| Pipelines | `/api/pipelines` (GET, POST), `/api/pipelines/{id}` (PATCH name; DELETE when empty and not the last) |
+| Stages | `/api/stages` (POST name, winProbability, color), `/api/stages/{id}` (PATCH name, winProbability, order, color; DELETE open stages with no deals) |
 | Search | `/api/search?q=…` (contacts + companies + deals) |
 | Dashboard stats | `/api/stats/dashboard` |
 | Reports | `/api/stats/reports` |
 | Custom fields | `/api/custom-fields` |
 | Custom object definitions | `/api/custom-objects` (+ `/fields`) |
-| Custom object records | `/api/objects/{apiName}`, `/api/objects/{apiName}/{id}` |
+| Custom object records | `/api/objects/{apiName}` (`q`, `sort`, `limit`), `/api/objects/{apiName}/{id}` |
 | Suggestions (evidence ledger) | `/api/facts`, `/api/facts/{id}` |
 | Background agent queue (read-only) | `/api/agent-tasks?entityType=&entityId=` |
 | Saved views | `/api/saved-views` |
@@ -31,12 +32,12 @@ error shapes.
 | API keys | `/api/api-keys` |
 | Audit log | `/api/audit` |
 | Members | `/api/members` |
-| Field permissions | `/api/field-permissions` |
+| Field permissions | `/api/field-permissions` (admin), `/api/field-permissions/me` (own) |
 | Workflows | `/api/workflows` |
 | Webhooks | `/api/webhooks` |
 
-All support the same JSON shapes the UI uses. Standard verbs: `GET` / `POST` /
-`PATCH` / `DELETE`.
+Core CRM objects use the same JSON shapes the UI uses. Standard verbs: `GET` /
+`POST` / `PATCH` / `DELETE`. Notes are append-only (`GET` / `POST`).
 
 ## Examples
 

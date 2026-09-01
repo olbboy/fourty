@@ -20,6 +20,9 @@
 - **[Deal health scoring](../guides/lead-scoring.md#deal-health)** — a zero-config
   win-likelihood score per deal, anchored on stage probability and adjusted for
   momentum, stalling, and overdue close dates.
+- **[Next best action](../guides/lead-scoring.md#next-best-action)** — one
+  deterministic next step on each contact and deal (follow up, qualify, link a
+  contact), not a model-generated plan.
 - **[Analytics & reports](../guides/analytics.md)** — open pipeline, weighted forecast,
   90-day win rate, average sales cycle, revenue trend, funnel by stage, win/loss by
   month, lead-source conversion, pipeline aging, stale-deal alerts.
@@ -27,8 +30,9 @@
 ## Automation & extensibility
 
 - **[Workflows](../guides/workflows.md)** — "When a deal is won → create an onboarding
-  task and add a note." A visual builder with conditions, template variables, five
-  action types, and full run history, running on a **durable Postgres-backed queue**.
+  task and add a note." A visual builder with conditions, template variables, six
+  action types (AI draft is optional), and full run history, running on a
+  **durable Postgres-backed queue**.
 - **[Custom fields & objects](../guides/custom-objects.md)** — add fields to any object,
   or define whole **no-code custom objects** (Projects, Tickets…) served over REST,
   GraphQL, and MCP.
@@ -40,7 +44,7 @@
 - **[GraphQL API](../api/graphql.md)** — a single typed `POST /api/graphql` with
   introspection.
 - **[MCP server](../api/mcp.md)** — expose Fourty to Claude, Cursor, and other LLM
-  clients over stdio or HTTP (26 tools, workspace + role enforced).
+  clients over stdio or HTTP (39 tools, workspace + role enforced).
 - **[AI assistant](../guides/ai-assistant.md)** *(optional, BYO key)* — an in-app chat
   that reads your CRM and **proposes** writes you confirm. Off unless you set a key.
 

@@ -35,6 +35,7 @@ test("a contact page names its delete button and its add-task button", async ({ 
   // The task panel is shared by all three detail pages, so covering it here
   // covers it everywhere it appears.
   await expect(page.getByRole("button", { name: "Add task" })).toBeVisible();
+  await expect(page.getByTestId("next-best-action")).toBeVisible();
 });
 
 test("a company page names its delete button", async ({ page }) => {
@@ -54,4 +55,6 @@ test("a deal page names its delete button", async ({ page }) => {
   await page.goto(`/deals/${dealId}`);
   const name = (await page.getByRole("heading", { level: 1 }).innerText()).trim();
   await expect(page.getByRole("button", { name: `Delete ${name}` })).toBeVisible();
+  await expect(page.getByTestId("next-best-action")).toBeVisible();
+  await expect(page.getByTestId("health-badge")).toBeVisible();
 });

@@ -1,7 +1,7 @@
 # MCP server
 
 *Expose Fourty to Claude, Cursor, and other LLM clients over the Model Context
-Protocol — 26 tools, on stdio or HTTP, every call scoped by workspace and role.*
+Protocol — 39 tools, on stdio or HTTP, every call scoped by workspace and role.*
 
 Fourty ships a **hand-rolled, dependency-free** MCP server ([ADR-010](../adr/010-mcp-server.md))
 — no SDK, consistent with the ~10-dependency ethos. It's the centerpiece of Fourty's
@@ -33,19 +33,22 @@ MCP to Cloud/OAuth, Fourty's HTTP transport runs on the OSS build.
 `initialize`, `tools/list`, `tools/call`, `resources/list`, `resources/read`,
 `prompts/list`, `prompts/get`, `ping`.
 
-## Tools (26)
+## Tools (39)
 
 **Read:** `search`, `get_contact`, `get_company`, `get_deal`, `list_contacts`,
-`list_companies`, `list_deals`, `list_tasks`, `get_dashboard_stats`,
-`list_custom_objects`, `list_records`, `list_fact_suggestions`.
+`list_companies`, `list_deals`, `list_tasks`, `get_task`, `list_assignees`,
+`get_dashboard_stats`, `get_report_stats`, `list_pipelines`, `get_pipeline`,
+`list_custom_objects`, `list_records`, `get_record` (plus pinned `taskIds` / `noteIds` / `activityIds`), `list_fact_suggestions`,
+`list_notes`, `list_activities`.
 
 > [!TIP]
-> **Walk the graph, don't search twice.** `get_contact` / `get_company` / `get_deal`
-> return the record *plus the ids around it* — a contact's company, deals and
-> colleagues; a company's contacts and deals; a deal's company, contacts and stage
-> clock. `search` is **exact or prefix only**, deliberately: a fuzzy match that
+> **Walk the graph, don't search twice.** `get_contact` / `get_company` / `get_deal` /
+> `get_task` / `get_record` return the record *plus the ids around it* — a contact's company, deals,
+> colleagues, pinned tasks, notes and timeline; a company's contacts, deals, pinned tasks, notes and timeline; a deal's
+> company, contacts, pinned tasks, notes, timeline and stage clock; a custom-object record's pinned work; a task's parent record. `search` is **exact or prefix only**, deliberately: a fuzzy match that
 > returns "Marchetta" for "Marchetti" gives a caller no way to tell a near-miss from
-> a hit. An empty result says so rather than ending the conversation.
+> a hit. Surname-only and company-domain prefixes work. An empty result says so rather
+> than ending the conversation.
 >
 > A tool whose capability is not configured in the workspace returns
 > `{ ok: false, configured: false, reason }` instead of throwing — a configuration
@@ -53,7 +56,10 @@ MCP to Cloud/OAuth, Fourty's HTTP transport runs on the OSS build.
 
 **Write:** `create_contact`, `update_contact`, `delete_contact`, `create_company`,
 `update_company`, `delete_company`, `create_deal`, `update_deal`, `delete_deal`,
-`create_task`, `create_note`, `create_record`, `record_fact`, `decide_fact`.
+`create_task`, `update_task`, `delete_task` (pin `entityType` to a contact, company, deal, or custom-object apiName),
+`create_note` (contact, company, deal, or a custom-object apiName),
+`log_activity` (email, call, or meeting on a record's timeline),
+`create_record`, `update_record`, `delete_record`, `record_fact`, `decide_fact`.
 
 > [!IMPORTANT]
 > **Write safety.** Every tool carries a `mutates` flag, and the **delete** tools are
@@ -61,9 +67,12 @@ MCP to Cloud/OAuth, Fourty's HTTP transport runs on the OSS build.
 > deals come back with a [health score](../guides/lead-scoring.md#deal-health).
 >
 > `record_fact` takes **no score and no confidence** — you report what you observed,
-> from a closed set of evidence kinds, and a pure function prices it. An observation
-> a model chose caps at *probable*, so it becomes a
-> [suggestion for a human](../guides/suggestions.md), never a write.
+> from a closed set of evidence kinds, and a pure function prices it. MCP is
+> class C ([ADR-018](../adr/018-evidence-and-research.md)): the band is priced
+> honestly (it may be VERIFIED) but the field is never written — it stays a
+> [suggestion for a human](../guides/suggestions.md) until they accept. The
+> in-app assistant marks `via: "ai"` (class A) and caps a model-chosen
+> observation at *probable*.
 
 ## Resources & prompts
 

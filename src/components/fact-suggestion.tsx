@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/i18n/provider";
+import { factBandLabel, factFieldLabel } from "@/lib/fact-display";
 
 /**
  * Suggestions from the evidence ledger (ADR-018), shown under the fields they
@@ -47,28 +49,39 @@ type Props = {
 export function useFacts(entityType: string, entityId: string, refreshKey: number, enabled = true) {
   const [proposed, setProposed] = useState<RecordFact[]>([]);
   const [applied, setApplied] = useState<RecordFact[]>([]);
+  const [failed, setFailed] = useState(false);
+  const [retry, setRetry] = useState(0);
+  const reload = useCallback(() => setRetry((n) => n + 1), []);
 
   useEffect(() => {
     if (!enabled) return;
     let live = true;
+    setFailed(false);
     const load = async (status: string) => {
       const res = await fetch(
         `/api/facts?entityType=${entityType}&entityId=${entityId}&status=${status}`,
       );
-      if (!res.ok) return [];
+      if (!res.ok) throw new Error(String(res.status));
       return ((await res.json()).facts ?? []) as (Omit<RecordFact, "evidence"> & { evidence: string })[];
     };
-    Promise.all([load("PROPOSED"), load("APPLIED")]).then(([p, a]) => {
-      if (!live) return;
-      setProposed(p.map(parseEvidence));
-      setApplied(a.map(parseEvidence));
-    });
+    Promise.all([load("PROPOSED"), load("APPLIED")])
+      .then(([p, a]) => {
+        if (!live) return;
+        setProposed(p.map(parseEvidence));
+        setApplied(a.map(parseEvidence));
+      })
+      .catch(() => {
+        if (!live) return;
+        setProposed([]);
+        setApplied([]);
+        setFailed(true);
+      });
     return () => {
       live = false;
     };
-  }, [entityType, entityId, refreshKey, enabled]);
+  }, [entityType, entityId, refreshKey, enabled, retry]);
 
-  return { proposed, applied };
+  return { proposed, applied, failed, retry: reload };
 }
 
 function parseEvidence(row: Omit<RecordFact, "evidence"> & { evidence: string }): RecordFact {
@@ -76,25 +89,40 @@ function parseEvidence(row: Omit<RecordFact, "evidence"> & { evidence: string })
 }
 
 async function decide(id: string, decision: "accept" | "dismiss" | "revert"): Promise<void> {
-  await fetch(`/api/facts/${id}`, {
+  const res = await fetch(`/api/facts/${id}`, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ decision }),
   });
+  if (!res.ok) throw new Error(String(res.status));
+}
+
+function useFactDecision(id: string, onDecided: () => void) {
+  const t = useT();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const run = useCallback(
+    async (decision: "accept" | "dismiss" | "revert") => {
+      setBusy(true);
+      setError(null);
+      try {
+        await decide(id, decision);
+        onDecided();
+      } catch {
+        setError(t("fact.failedDecide"));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [id, onDecided, t],
+  );
+  return { busy, error, run };
 }
 
 /** One proposal: the value, why it is believed, and the two decisions. */
 export function FactSuggestion({ fact, onDecided }: { fact: RecordFact; onDecided: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const act = useCallback(
-    async (decision: "accept" | "dismiss") => {
-      setBusy(true);
-      await decide(fact.id, decision);
-      setBusy(false);
-      onDecided();
-    },
-    [fact.id, onDecided],
-  );
+  const t = useT();
+  const { busy, error, run } = useFactDecision(fact.id, onDecided);
 
   return (
     <div className="mt-1 rounded-lg border border-dashed border-line bg-surface-2/60 px-2.5 py-2">
@@ -107,7 +135,7 @@ export function FactSuggestion({ fact, onDecided }: { fact: RecordFact; onDecide
               <>
                 {" — "}
                 <a href={e.sourceUrl} rel="noreferrer noopener" target="_blank" className="underline">
-                  source
+                  {t("fact.source")}
                 </a>
               </>
             )}
@@ -116,21 +144,26 @@ export function FactSuggestion({ fact, onDecided }: { fact: RecordFact; onDecide
       </ul>
       <div className="mt-1.5 flex items-center gap-2">
         <Button
-          onClick={() => act("accept")}
+          onClick={() => run("accept")}
           disabled={busy}
-          aria-label={`Accept ${fact.value}`} size="xs">
-          Accept
+          aria-label={t("fact.acceptAria", { value: fact.value })} size="xs">
+          {t("action.accept")}
         </Button>
         <Button
-          onClick={() => act("dismiss")}
+          onClick={() => run("dismiss")}
           disabled={busy}
-          aria-label={`Dismiss ${fact.value} permanently`} variant="outline" size="xs">
-          Dismiss
+          aria-label={t("fact.dismissAria", { value: fact.value })} variant="outline" size="xs">
+          {t("action.dismiss")}
         </Button>
         <span className="text-[11px] text-ink-muted">
-          {fact.band === "VERIFIED" ? "Verified" : "Probable"} · {Math.round(fact.score * 100)}%
+          {factBandLabel(fact.band, t)} · {Math.round(fact.score * 100)}%
         </span>
       </div>
+      {error && (
+        <p role="alert" className="mt-1 text-xs text-feedback-error">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -142,27 +175,30 @@ export function FactSuggestion({ fact, onDecided }: { fact: RecordFact; onDecide
  * decides whether it can be taken back.
  */
 export function AppliedFact({ fact, onDecided }: { fact: RecordFact; onDecided: () => void }) {
-  const [busy, setBusy] = useState(false);
+  const t = useT();
+  const { busy, error, run } = useFactDecision(fact.id, onDecided);
   return (
-    <p className="mt-0.5 flex items-center gap-2 text-xs text-ink-muted">
-      <span>
-        {fact.decidedBy ? "Accepted from" : "Filled from"}{" "}
-        {fact.evidence[0]?.detail ?? "mailbox evidence"}
-      </span>
-      <button
-        onClick={async () => {
-          setBusy(true);
-          await decide(fact.id, "revert");
-          setBusy(false);
-          onDecided();
-        }}
-        disabled={busy}
-        aria-label={`Revert ${fact.field}`}
-        className="underline"
-      >
-        Revert
-      </button>
-    </p>
+    <div className="mt-0.5">
+      <p className="flex items-center gap-2 text-xs text-ink-muted">
+        <span>
+          {fact.decidedBy ? t("fact.acceptedFrom") : t("fact.filledFrom")}{" "}
+          {fact.evidence[0]?.detail ?? t("fact.mailboxEvidence")}
+        </span>
+        <button
+          onClick={() => run("revert")}
+          disabled={busy}
+          aria-label={t("fact.revertAria", { field: factFieldLabel(fact.field, t) })}
+          className="underline"
+        >
+          {t("action.revert")}
+        </button>
+      </p>
+      {error && (
+        <p role="alert" className="text-xs text-feedback-error">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
 

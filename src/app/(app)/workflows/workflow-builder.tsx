@@ -3,11 +3,14 @@
 import { useState } from "react";
 import { Field } from "@/components/ui";
 import { IconPlus, IconTrash } from "@/components/icons";
-import { EVENT_LABELS, type WorkflowEvent } from "@/lib/workflows/types";
+import type { WorkflowEvent } from "@/lib/workflows/types";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
+import { useT } from "@/lib/i18n/provider";
+import type { MessageKey } from "@/lib/i18n";
+import { WORKFLOW_EVENTS, workflowEventLabel, workflowFieldLabel } from "@/lib/workflow-field-display";
 
 type Condition = { field: string; op: string; value?: string };
 type Action = Record<string, unknown> & { type: string };
@@ -28,26 +31,28 @@ const FIELDS_BY_ENTITY: Record<string, string[]> = {
   task: ["title", "priority"],
 };
 
-const OPS = [
-  { value: "eq", label: "equals" },
-  { value: "neq", label: "not equals" },
-  { value: "contains", label: "contains" },
-  { value: "gt", label: ">" },
-  { value: "gte", label: "≥" },
-  { value: "lt", label: "<" },
-  { value: "lte", label: "≤" },
-  { value: "is_empty", label: "is empty" },
-  { value: "not_empty", label: "is not empty" },
-];
+const OPS = ["eq", "neq", "contains", "gt", "gte", "lt", "lte", "is_empty", "not_empty"] as const;
+const OP_KEYS: Record<(typeof OPS)[number], MessageKey> = {
+  eq: "wf.op.eq",
+  neq: "wf.op.neq",
+  contains: "wf.op.contains",
+  gt: "wf.op.gt",
+  gte: "wf.op.gte",
+  lt: "wf.op.lt",
+  lte: "wf.op.lte",
+  is_empty: "wf.op.is_empty",
+  not_empty: "wf.op.not_empty",
+};
 
-const ACTION_TYPES = [
-  { value: "create_task", label: "Create a task" },
-  { value: "add_note", label: "Add a note" },
-  { value: "update_field", label: "Update a field" },
-  { value: "webhook", label: "Call a webhook" },
-  { value: "ai_draft", label: "AI draft (BYO-key)" },
-  { value: "log", label: "Write to run log" },
-];
+const ACTION_TYPES = ["create_task", "add_note", "update_field", "webhook", "ai_draft", "log"] as const;
+const ACTION_KEYS: Record<(typeof ACTION_TYPES)[number], MessageKey> = {
+  create_task: "wf.action.create_task",
+  add_note: "wf.action.add_note",
+  update_field: "wf.action.update_field",
+  webhook: "wf.action.webhook",
+  ai_draft: "wf.action.ai_draft",
+  log: "wf.action.log",
+};
 
 function entityOf(event: string): string {
   return event.split(".")[0];
@@ -68,6 +73,7 @@ export function WorkflowBuilder({
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const t = useT();
 
   const entity = entityOf(event);
   const fields = FIELDS_BY_ENTITY[entity] ?? [];
@@ -121,23 +127,23 @@ export function WorkflowBuilder({
     });
     if (res.ok) onSaved();
     else {
-      setError((await res.json().catch(() => ({}))).error ?? "Failed to save workflow");
+      setError((await res.json().catch(() => ({}))).error ?? t("wf.failedSave"));
       setBusy(false);
     }
   }
 
   return (
     <div className="space-y-5">
-      <Field label="Workflow name">
+      <Field label={t("wf.name")}>
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Follow up on hot leads" />
+          placeholder={t("wf.namePlaceholder")} />
       </Field>
 
       <div>
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
-          When…
+          {t("wf.when")}
         </p>
         {/* The "When…" heading above is a paragraph, not a label. */}
         <NativeSelect
@@ -146,10 +152,10 @@ export function WorkflowBuilder({
             setEvent(e.target.value as WorkflowEvent);
             setConditions([]);
           }}
-          aria-label="Trigger event" className="w-full">
-          {Object.entries(EVENT_LABELS).map(([value, label]) => (
+          aria-label={t("wf.triggerAria")} className="w-full">
+          {WORKFLOW_EVENTS.map((value) => (
             <option key={value} value={value}>
-              {label}
+              {workflowEventLabel(value, t)}
             </option>
           ))}
         </NativeSelect>
@@ -158,16 +164,16 @@ export function WorkflowBuilder({
       <div>
         <div className="mb-2 flex items-center justify-between">
           <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-            Only if… (all must match)
+            {t("wf.onlyIf")}
           </p>
           <Button
             onClick={() => setConditions((cs) => [...cs, { field: fields[0] ?? "", op: "eq", value: "" }])} variant="outline" size="xs">
-            <IconPlus width={13} height={13} /> Condition
+            <IconPlus width={13} height={13} /> {t("wf.condition")}
           </Button>
         </div>
         <div className="space-y-2">
           {conditions.length === 0 && (
-            <p className="text-sm text-ink-muted">No conditions — runs on every event.</p>
+            <p className="text-sm text-ink-muted">{t("wf.noConditions")}</p>
           )}
           {conditions.map((c, i) => (
             <div key={i} className="flex flex-wrap items-center gap-2">
@@ -176,20 +182,20 @@ export function WorkflowBuilder({
               <NativeSelect
                 value={c.field}
                 onChange={(e) => setCondition(i, { field: e.target.value })}
-                aria-label={`Condition ${i + 1} field`}>
+                aria-label={t("wf.conditionField", { n: i + 1 })}>
                 {fields.map((f) => (
                   <option key={f} value={f}>
-                    {f}
+                    {workflowFieldLabel(f, t)}
                   </option>
                 ))}
               </NativeSelect>
               <NativeSelect
                 value={c.op}
                 onChange={(e) => setCondition(i, { op: e.target.value })}
-                aria-label={`Condition ${i + 1} operator`}>
-                {OPS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
+                aria-label={t("wf.conditionOp", { n: i + 1 })}>
+                {OPS.map((op) => (
+                  <option key={op} value={op}>
+                    {t(OP_KEYS[op])}
                   </option>
                 ))}
               </NativeSelect>
@@ -197,12 +203,12 @@ export function WorkflowBuilder({
                 <Input
                   value={c.value ?? ""}
                   onChange={(e) => setCondition(i, { value: e.target.value })}
-                  aria-label={`Condition ${i + 1} value`}
-                  placeholder="value" className="w-36" />
+                  aria-label={t("wf.conditionValue", { n: i + 1 })}
+                  placeholder={t("wf.valuePlaceholder")} className="w-36" />
               )}
               <Button
                 onClick={() => setConditions((cs) => cs.filter((_, idx) => idx !== i))}
-                aria-label="Remove condition" variant="ghost" size="icon-xs" className="text-feedback-error">
+                aria-label={t("wf.removeCondition")} variant="ghost" size="icon-xs" className="text-feedback-error">
                 <IconTrash width={14} height={14} />
               </Button>
             </div>
@@ -212,10 +218,10 @@ export function WorkflowBuilder({
 
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Then…</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">{t("wf.then")}</p>
           <Button
             onClick={() => setActions((as) => [...as, { type: "add_note", body: "" }])} variant="outline" size="xs">
-            <IconPlus width={13} height={13} /> Action
+            <IconPlus width={13} height={13} /> {t("wf.action")}
           </Button>
         </div>
         <div className="space-y-3">
@@ -236,17 +242,17 @@ export function WorkflowBuilder({
                     };
                     setActions((as) => as.map((x, idx) => (idx === i ? blank[type] : x)));
                   }}
-                  aria-label={`Action ${i + 1} type`}>
-                  {ACTION_TYPES.map((t) => (
-                    <option key={t.value} value={t.value}>
-                      {t.label}
+                  aria-label={t("wf.actionType", { n: i + 1 })}>
+                  {ACTION_TYPES.map((kind) => (
+                    <option key={kind} value={kind}>
+                      {t(ACTION_KEYS[kind])}
                     </option>
                   ))}
                 </NativeSelect>
                 <Button
                   onClick={() => setActions((as) => as.filter((_, idx) => idx !== i))}
                   disabled={actions.length === 1}
-                  aria-label="Remove action" variant="ghost" size="icon-xs" className="text-feedback-error disabled:opacity-30">
+                  aria-label={t("wf.removeAction")} variant="ghost" size="icon-xs" className="text-feedback-error disabled:opacity-30">
                   <IconTrash width={14} height={14} />
                 </Button>
               </div>
@@ -255,39 +261,39 @@ export function WorkflowBuilder({
                   <Input
                     value={(a.title as string) ?? ""}
                     onChange={(e) => setAction(i, { title: e.target.value })}
-                    aria-label={`Action ${i + 1} task title`}
-                    placeholder='Task title — use {{firstName}}, {{name}}, etc.' className="sm:col-span-3" />
+                    aria-label={t("wf.taskTitleAria", { n: i + 1 })}
+                    placeholder={t("wf.taskTitlePlaceholder")} className="sm:col-span-3" />
                   <NativeSelect
                     value={(a.priority as string) ?? "medium"}
                     onChange={(e) => setAction(i, { priority: e.target.value })}
-                    aria-label={`Action ${i + 1} task priority`} className="w-full">
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
+                    aria-label={t("wf.taskPriorityAria", { n: i + 1 })} className="w-full">
+                    <option value="low">{t("priority.low")}</option>
+                    <option value="medium">{t("priority.medium")}</option>
+                    <option value="high">{t("priority.high")}</option>
                   </NativeSelect>
                   <Input
                     type="number"
                     min={0}
                     value={(a.dueInDays as number) ?? ""}
                     onChange={(e) => setAction(i, { dueInDays: e.target.value })}
-                    aria-label={`Action ${i + 1} days until due`}
-                    placeholder="Due in days" />
+                    aria-label={t("wf.dueDaysAria", { n: i + 1 })}
+                    placeholder={t("wf.dueDaysPlaceholder")} />
                 </div>
               )}
               {a.type === "add_note" && (
                 <Textarea
                   value={(a.body as string) ?? ""}
                   onChange={(e) => setAction(i, { body: e.target.value })}
-                  aria-label={`Action ${i + 1} note body`}
+                  aria-label={t("wf.noteAria", { n: i + 1 })}
                   rows={2}
-                  placeholder='Note body — templates like {{name}} are filled in.' className="resize-y" />
+                  placeholder={t("wf.notePlaceholder")} className="resize-y" />
               )}
               {a.type === "update_field" && (
                 <div className="flex flex-wrap gap-2">
                   <NativeSelect
                     value={(a.field as string) ?? ""}
                     onChange={(e) => setAction(i, { field: e.target.value })}
-                    aria-label={`Action ${i + 1} field to update`}>
+                    aria-label={t("wf.updateFieldAria", { n: i + 1 })}>
                     {(entity === "contact"
                       ? ["status", "source", "jobTitle", "city", "country"]
                       : entity === "company"
@@ -295,44 +301,41 @@ export function WorkflowBuilder({
                         : ["currency"]
                     ).map((f) => (
                       <option key={f} value={f}>
-                        {f}
+                        {workflowFieldLabel(f, t)}
                       </option>
                     ))}
                   </NativeSelect>
                   <Input
                     value={(a.value as string) ?? ""}
                     onChange={(e) => setAction(i, { value: e.target.value })}
-                    aria-label={`Action ${i + 1} new value`}
-                    placeholder="new value" className="w-44" />
+                    aria-label={t("wf.newValueAria", { n: i + 1 })}
+                    placeholder={t("wf.newValuePlaceholder")} className="w-44" />
                 </div>
               )}
               {a.type === "webhook" && (
                 <Input
                   value={(a.url as string) ?? ""}
                   onChange={(e) => setAction(i, { url: e.target.value })}
-                  aria-label={`Action ${i + 1} webhook URL`}
-                  placeholder="https://hooks.example.com/… (POST, JSON payload)" />
+                  aria-label={t("wf.webhookAria", { n: i + 1 })}
+                  placeholder={t("wf.webhookPlaceholder")} />
               )}
               {a.type === "ai_draft" && (
                 <div className="space-y-1">
                   <Textarea
                     value={(a.prompt as string) ?? ""}
                     onChange={(e) => setAction(i, { prompt: e.target.value })}
-                    aria-label={`Action ${i + 1} AI prompt`}
+                    aria-label={t("wf.aiPromptAria", { n: i + 1 })}
                     rows={2}
-                    placeholder='AI prompt — e.g. "Draft a follow-up email for {{firstName}} at {{name}}."' className="resize-y" />
-                  <p className="text-xs text-ink-muted">
-                    Writes the result as a draft note (human-in-the-loop). Requires a configured
-                    provider (FOURTY_ENABLE_AI); off by default.
-                  </p>
+                    placeholder={t("wf.aiPromptPlaceholder")} className="resize-y" />
+                  <p className="text-xs text-ink-muted">{t("wf.aiHint")}</p>
                 </div>
               )}
               {a.type === "log" && (
                 <Input
                   value={(a.message as string) ?? ""}
                   onChange={(e) => setAction(i, { message: e.target.value })}
-                  aria-label={`Action ${i + 1} log message`}
-                  placeholder="Message for the run log" />
+                  aria-label={t("wf.logAria", { n: i + 1 })}
+                  placeholder={t("wf.logPlaceholder")} />
               )}
             </div>
           ))}
@@ -342,7 +345,7 @@ export function WorkflowBuilder({
       {error && <p className="text-sm text-feedback-error">{error}</p>}
       <div className="flex justify-end">
         <Button onClick={save} disabled={busy || !name.trim()}>
-          {busy ? "Saving…" : initial?.id ? "Save workflow" : "Create workflow"}
+          {busy ? t("form.saving") : initial?.id ? t("wf.save") : t("wf.create")}
         </Button>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import { db, tables } from "@/db";
 import { convert } from "@/lib/currency";
+import { canReadField, loadFieldPolicy, redact, type FieldPolicy } from "@/lib/field-permissions";
 
 const DAY = 86400000;
 
@@ -100,7 +101,8 @@ export async function computeDashboardStats() {
     .slice(0, 5)
     .map((c) => ({
       id: c.id,
-      name: `${c.firstName} ${c.lastName}`.trim(),
+      firstName: c.firstName,
+      lastName: c.lastName,
       score: c.score,
       status: c.status,
       jobTitle: c.jobTitle,
@@ -133,6 +135,7 @@ export async function computeDashboardStats() {
       currency: d.currency,
       stage: stageById.get(d.stageId)?.name ?? "",
       daysInStage: Math.floor((now - d.stageEnteredAt) / DAY),
+      score: d.score,
     }));
 
   return {
@@ -206,6 +209,7 @@ export async function computeReportStats() {
       daysInStage: Math.floor((now - d.stageEnteredAt) / 86400000),
       expectedCloseDate: d.expectedCloseDate,
       overdue: !!d.expectedCloseDate && d.expectedCloseDate < now,
+      score: d.score,
     }))
     .sort((a, b) => b.daysInStage - a.daysInStage);
 
@@ -222,4 +226,75 @@ export async function computeReportStats() {
   }));
 
   return { sourceBreakdown, winLoss, aging, scoreBands, statusBreakdown };
+}
+
+type DashboardStats = Awaited<ReturnType<typeof computeDashboardStats>>;
+type ReportStats = Awaited<ReturnType<typeof computeReportStats>>;
+
+function withoutKeys<T extends object>(row: T, keys: readonly (keyof T)[]): T {
+  const out = { ...row };
+  for (const key of keys) delete out[key];
+  return out;
+}
+
+/** Stage name is derived from `stageId`; redact it under the same rule. */
+function redactDealSummary<T extends Record<string, unknown>>(policy: FieldPolicy | null, row: T): T {
+  const out = { ...row };
+  if (!canReadField(policy, "deals", "stageId")) delete out.stage;
+  return redact(policy, "deals", out);
+}
+
+function visiblePersonName(row: { firstName?: unknown; lastName?: unknown }): string | undefined {
+  const s = [row.firstName, row.lastName]
+    .filter((p): p is string => typeof p === "string" && p.trim() !== "")
+    .join(" ")
+    .trim();
+  return s || undefined;
+}
+
+/** Strip unreadable per-record fields and amount-derived aggregates (ADR-011). */
+export function applyFieldPolicyToDashboard(policy: FieldPolicy | null, stats: DashboardStats): DashboardStats {
+  const hideAmount = !canReadField(policy, "deals", "amount");
+  return {
+    ...stats,
+    kpis: hideAmount
+      ? withoutKeys(stats.kpis, ["pipelineValue", "weightedForecast", "wonThisMonth", "avgDealSize"])
+      : stats.kpis,
+    funnel: hideAmount ? stats.funnel.map((row) => withoutKeys(row, ["value"])) : stats.funnel,
+    revenueByMonth: hideAmount
+      ? stats.revenueByMonth.map((row) => withoutKeys(row, ["won", "lost"]))
+      : stats.revenueByMonth,
+    hotLeads: stats.hotLeads.map((row) => {
+      const r = redact(policy, "contacts", { ...row });
+      const name = visiblePersonName(r);
+      const { firstName: _f, lastName: _l, ...rest } = r;
+      return { ...rest, ...(name ? { name } : {}) } as (typeof stats.hotLeads)[number];
+    }),
+    staleDeals: stats.staleDeals.map((row) => redactDealSummary(policy, { ...row })),
+  };
+}
+
+/** Strip unreadable per-record fields from report lists. `amountUsd` is deals.amount. */
+export function applyFieldPolicyToReports(policy: FieldPolicy | null, stats: ReportStats): ReportStats {
+  const hideAmount = !canReadField(policy, "deals", "amount");
+  const hideClose = !canReadField(policy, "deals", "expectedCloseDate");
+  return {
+    ...stats,
+    aging: stats.aging.map((row) => {
+      const out: Record<string, unknown> = { ...row };
+      if (hideAmount) delete out.amountUsd;
+      if (hideClose) delete out.overdue;
+      return redactDealSummary(policy, out) as typeof row;
+    }),
+  };
+}
+
+export async function dashboardStatsForRole(role: string): Promise<DashboardStats> {
+  const policy = await loadFieldPolicy(role);
+  return applyFieldPolicyToDashboard(policy, await computeDashboardStats());
+}
+
+export async function reportStatsForRole(role: string): Promise<ReportStats> {
+  const policy = await loadFieldPolicy(role);
+  return applyFieldPolicyToReports(policy, await computeReportStats());
 }

@@ -15,14 +15,10 @@ import { totp } from "../src/lib/totp";
  * project's `use` options — including the admin session — so a fresh context
  * is NOT signed out unless storageState is overridden.
  *
- * Login attempts are rate-limited to 10 per IP per 15 minutes and the whole
- * e2e run shares one IP, so this file budgets its POSTs: 6 here (2 for the TOTP
- * sign-in, 4 for the backup-code sign-in and its refused reuse) plus 2 from the
- * auth and invite specs = 8, under the limit. The wrong-TOTP path is covered at
- * enrollment (same server-side verify), not re-proven at login, to stay there.
- * Note: a CI retry (retries: 1) of a failing sign-in test can push a single run
- * over the limit — a retried failure may then surface as a 429 rather than its
- * own cause.
+ * Production login is 10 attempts per IP per 15 minutes. The Playwright
+ * webServer raises `RATELIMIT_LOGIN` so this file, the auth/invite specs, and a
+ * CI retry share one IP without 429. The wrong-TOTP path is covered at
+ * enrollment (same server-side verify), not re-proven at login.
  *
  * The file leaves the account 2FA-off, so the other specs' storage-state
  * session and the auth spec's password-only login stay valid in any order.

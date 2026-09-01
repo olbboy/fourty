@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { json, apiError, parseBody, tooManyRequests } from "@/lib/api";
 import { createSession, verifyPassword, membershipsOf, sha256 } from "@/lib/auth";
-import { rateLimit, clientIp } from "@/lib/ratelimit";
+import { rateLimit, clientIp, loginBudget } from "@/lib/ratelimit";
 import { verifyTotp } from "@/lib/totp";
 
 const schema = z.object({
@@ -14,15 +14,9 @@ const schema = z.object({
   token: z.string().min(6).max(20).optional(),
 });
 
-// Brute-force protection: 10 attempts per IP per 15 minutes.
-const LOGIN_LIMIT = 10;
-const LOGIN_WINDOW_MS = 15 * 60 * 1000;
-
 export async function POST(req: Request) {
-  const gate = rateLimit(`login:${clientIp(req)}`, {
-    limit: LOGIN_LIMIT,
-    windowMs: LOGIN_WINDOW_MS,
-  });
+  const { limit, windowMs } = loginBudget();
+  const gate = rateLimit(`login:${clientIp(req)}`, { limit, windowMs });
   if (!gate.allowed) {
     return tooManyRequests("Too many login attempts. Try again later.", gate.retryAfter);
   }

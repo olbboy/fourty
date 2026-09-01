@@ -7,8 +7,9 @@ import { log } from "@/lib/logger";
 import type { ToolContext } from "@/mcp/tools";
 import { isAiEnabled, streamChat } from "@/lib/ai/provider";
 import { runAgent, GENERIC_PROVIDER_ERROR, type AgentInput, type SseEvent } from "@/lib/ai/agent";
+import { encodeSseEvent, startSseHeartbeat } from "@/lib/ai/sse-heartbeat";
 import { buildSystemPrompt, localeFromRequest } from "@/lib/ai/prompt";
-import { isRecordEntity, loadRecordContext, type RecordContext } from "@/lib/ai/record-context";
+import { loadRecordContext, resolveBindableEntity, type RecordContext } from "@/lib/ai/record-context";
 import { principals } from "@/lib/ai/principals";
 import { grounding } from "@/lib/capabilities";
 import { aiTurnQuota } from "@/lib/ai/quota";
@@ -107,7 +108,7 @@ export async function POST(req: Request): Promise<Response> {
     const cid = input.conversationId;
     const owned = await withWorkspace(ctx.workspaceId, () => getConversation(cid, ownerId));
     if (!owned) return done(apiError("Conversation not found", 404), ctx.workspaceId);
-    if (owned.entityType && owned.entityId && isRecordEntity(owned.entityType)) {
+    if (owned.entityType && owned.entityId) {
       binding = { entityType: owned.entityType, entityId: owned.entityId };
     }
     if (input.kind === "message") {
@@ -124,9 +125,12 @@ export async function POST(req: Request): Promise<Response> {
   // opens (decision #2: no transaction spans the LLM call).
   const ground = await withWorkspace(ctx.workspaceId, async () => {
     const g = await grounding();
-    if (binding && isRecordEntity(binding.entityType)) {
-      recordContext =
-        (await loadRecordContext(binding.entityType, binding.entityId, auth.role)) ?? undefined;
+    if (binding) {
+      const bound = await resolveBindableEntity(binding.entityType);
+      if (bound) {
+        binding = { entityType: bound, entityId: binding.entityId };
+        recordContext = (await loadRecordContext(bound, binding.entityId, auth.role)) ?? undefined;
+      }
     }
     return g;
   });
@@ -195,7 +199,9 @@ export async function GET(req: Request): Promise<Response> {
 function parseRecord(body: unknown): { entityType: string; entityId: string } | null {
   if (!body || typeof body !== "object") return null;
   const b = body as Record<string, unknown>;
-  if (!isRecordEntity(b.entityType) || typeof b.entityId !== "string" || !b.entityId) return null;
+  if (typeof b.entityType !== "string" || !b.entityType || typeof b.entityId !== "string" || !b.entityId) {
+    return null;
+  }
   return { entityType: b.entityType, entityId: b.entityId };
 }
 
@@ -234,14 +240,24 @@ type Obs = { requestId: string; workspaceId: string; route: string; method: stri
  * withWorkspace transaction; none spans the LLM stream (decision #2).
  */
 function sseStream(run: () => AsyncGenerator<SseEvent>, obs: Obs): ReadableStream<Uint8Array> {
-  const enc = new TextEncoder();
   return new ReadableStream<Uint8Array>({
     async start(controller) {
       let status = 200;
+      let closed = false;
+      const enqueue = (chunk: Uint8Array) => {
+        if (closed) return;
+        try {
+          controller.enqueue(chunk);
+        } catch {
+          closed = true;
+        }
+      };
+      const stopBeat = startSseHeartbeat(enqueue);
       try {
         await withContext({ requestId: obs.requestId, workspaceId: obs.workspaceId }, async () => {
           for await (const evt of run()) {
-            controller.enqueue(enc.encode(`data: ${JSON.stringify(evt)}\n\n`));
+            if (closed) break;
+            enqueue(encodeSseEvent(evt));
             if (evt.type === "error") status = 500;
           }
         });
@@ -251,10 +267,16 @@ function sseStream(run: () => AsyncGenerator<SseEvent>, obs: Obs): ReadableStrea
           { err: e instanceof Error ? e.message : String(e) },
           "ai chat stream failed",
         );
-        controller.enqueue(enc.encode(`data: ${JSON.stringify({ type: "error", message: GENERIC_PROVIDER_ERROR })}\n\n`));
+        enqueue(encodeSseEvent({ type: "error", message: GENERIC_PROVIDER_ERROR }));
       } finally {
+        stopBeat();
+        closed = true;
         record(obs.route, obs.method, obs.requestId, obs.workspaceId, obs.startedAt, new Response(null, { status }));
-        controller.close();
+        try {
+          controller.close();
+        } catch {
+          // Client already cancelled (navigated away mid-turn).
+        }
       }
     },
   });

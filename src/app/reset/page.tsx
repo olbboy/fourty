@@ -1,5 +1,8 @@
 import { Logo } from "@/components/logo";
 import { ResetForm } from "./reset-form";
+import { LocaleProvider } from "@/lib/i18n/provider";
+import { translator } from "@/lib/i18n";
+import { requestLocale } from "@/lib/i18n/request-locale";
 
 export const dynamic = "force-dynamic";
 
@@ -15,33 +18,37 @@ export default async function ResetPage({
   searchParams: Promise<{ token?: string }>;
 }) {
   const token = (await searchParams).token?.trim();
+  const locale = await requestLocale();
+  const t = translator(locale);
 
   return (
-    <main className="flex min-h-dvh items-center justify-center p-4">
-      <div className="w-full max-w-sm animate-fade-up">
-        <div className="mb-8 flex flex-col items-center gap-3 text-center">
-          <h1>
-            <Logo variant="full" height={34} title="Fourty" />
-          </h1>
-          <p className="text-sm text-ink-muted">
-            {token ? "Choose a new password" : "This reset link is incomplete"}
-          </p>
+    <LocaleProvider locale={locale}>
+      <main className="flex min-h-dvh items-center justify-center p-4">
+        <div className="w-full max-w-sm animate-fade-up">
+          <div className="mb-8 flex flex-col items-center gap-3 text-center">
+            <h1>
+              <Logo variant="full" height={34} title="Fourty" />
+            </h1>
+            <p className="text-sm text-ink-muted">
+              {token ? t("auth.choosePassword") : t("auth.incompleteLink")}
+            </p>
+          </div>
+          {token ? (
+            <ResetForm token={token} />
+          ) : (
+            <p
+              role="alert"
+              className="rounded-lg bg-feedback-error-wash px-4 py-3 text-sm text-feedback-error"
+            >
+              {t("auth.missingToken")}{" "}
+              <a href="/forgot" className="underline underline-offset-2">
+                {t("auth.requestNew")}
+              </a>
+              .
+            </p>
+          )}
         </div>
-        {token ? (
-          <ResetForm token={token} />
-        ) : (
-          <p
-            role="alert"
-            className="rounded-lg bg-feedback-error-wash px-4 py-3 text-sm text-feedback-error"
-          >
-            The link is missing its token. Open the link from your reset email again, or{" "}
-            <a href="/forgot" className="underline underline-offset-2">
-              request a new one
-            </a>
-            .
-          </p>
-        )}
-      </div>
-    </main>
+      </main>
+    </LocaleProvider>
   );
 }

@@ -1,5 +1,5 @@
 import { withAuth, authorize, apiError, json } from "@/lib/api";
-import { isRecordEntity, permissionObjectFor } from "@/lib/ai/record-context";
+import { permissionObjectFor, resolveBindableEntity } from "@/lib/ai/record-context";
 import { principals } from "@/lib/ai/principals";
 import { getConversation, listMessages } from "@/lib/ai/store";
 
@@ -26,9 +26,12 @@ export async function GET(req: Request, { params }: Params) {
     // The same role check the list route makes. Ownership answers "is this
     // yours"; this answers "may you still read that kind of record" — a role
     // narrowed after the thread was written must narrow the thread with it.
-    if (isRecordEntity(conv.entityType)) {
-      const denied = authorize(auth, permissionObjectFor(conv.entityType), "read");
-      if (denied) return denied;
+    if (conv.entityType) {
+      const bound = await resolveBindableEntity(conv.entityType);
+      if (bound) {
+        const denied = authorize(auth, permissionObjectFor(bound), "read");
+        if (denied) return denied;
+      }
     }
     return json({
       conversation: {

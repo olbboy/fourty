@@ -4,6 +4,7 @@ node_modules/
 # Build output
 .next/
 .next-e2e-dev/
+.next-otel-check/
 out/
 build/
 *.tsbuildinfo

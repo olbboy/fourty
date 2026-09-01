@@ -10,10 +10,9 @@ import { audit } from "@/lib/audit";
  * either personal (user_id set — visible only to its owner) or shared (user_id
  * null — visible to the whole workspace). All rows are workspace-scoped + RLS.
  */
-const ENTITIES = ["contacts", "companies", "deals", "tasks"] as const;
-
 const input = z.object({
-  entity: z.enum(ENTITIES),
+  // Built-ins (`contacts` / `companies` / `deals` / `tasks`) or a no-code object's apiName.
+  entity: z.string().min(1).max(40),
   name: z.string().min(1).max(80),
   config: z
     .object({

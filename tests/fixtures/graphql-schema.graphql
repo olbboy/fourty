@@ -1,16 +1,25 @@
 type Query {
-  contacts(limit: Int, q: String): [Contact!]!
+  contacts(limit: Int, q: String, sort: String, status: String, companyId: String): [Contact!]!
   contact(id: ID!): Contact
   factSuggestions(entityType: String, entityId: ID, status: String, limit: Int): [RecordFact!]!
-  companies(limit: Int, q: String): [Company!]!
+  companies(limit: Int, q: String, industry: String): [Company!]!
   company(id: ID!): Company
-  deals(limit: Int, q: String): [Deal!]!
+  deals(limit: Int, q: String, stageId: String, pipelineId: String, companyId: String, contactId: String): [Deal!]!
   deal(id: ID!): Deal
-  tasks(limit: Int): [Task!]!
-  notes(entityType: String, entityId: String): [Note!]!
+  tasks(limit: Int, state: String, entityType: String, entityId: String, sort: String): [Task!]!
+  task(id: ID!): Task
+  assignees: [Assignee!]!
+  notes(limit: Int, entityType: String, entityId: String): [Note!]!
+  activities(limit: Int, entityType: String, entityId: String): [Activity!]!
   customObjects: [CustomObjectDef!]!
-  records(object: String!, limit: Int): [Record!]!
+  records(object: String!, limit: Int, q: String, sort: String): [Record!]!
   record(object: String!, id: ID!): Record
+  search(q: String!, limit: Int): SearchResult!
+  dashboardStats: DashboardStats!
+  reportStats: ReportStats!
+  pipelines: [Pipeline!]!
+  pipeline(id: ID!): Pipeline
+  stages(pipelineId: String): [Stage!]!
 }
 
 type Contact {
@@ -30,10 +39,133 @@ type Contact {
   city: String
   country: String
   custom: JSON
+  company: Company
+  deals: [Deal!]!
+  colleagues: [Contact!]!
+  tasks: [Task!]!
+  notes: [Note!]!
+  activities: [Activity!]!
+  facts: [RecordFact!]!
 }
 
 """Arbitrary JSON value"""
 scalar JSON
+
+type Company {
+  id: ID!
+  createdAt: Float
+  updatedAt: Float
+  name: String!
+  domain: String
+  industry: String
+  size: String
+  website: String
+  linkedin: String
+  city: String
+  country: String
+  annualRevenue: Float
+  custom: JSON
+  contacts: [Contact!]!
+  deals: [Deal!]!
+  tasks: [Task!]!
+  notes: [Note!]!
+  activities: [Activity!]!
+  facts: [RecordFact!]!
+}
+
+type Deal {
+  id: ID!
+  createdAt: Float
+  updatedAt: Float
+  name: String!
+  amount: Float
+  currency: String
+  pipelineId: String
+  stageId: String
+  companyId: String
+  contactId: String
+  expectedCloseDate: Float
+  closedAt: Float
+  score: Int
+  custom: JSON
+  company: Company
+  contact: Contact
+  stage: DealStage
+  tasks: [Task!]!
+  notes: [Note!]!
+  activities: [Activity!]!
+}
+
+type DealStage {
+  id: ID!
+  name: String
+  type: String
+  enteredAt: Float
+  daysInStage: Int
+}
+
+type Task {
+  id: ID!
+  createdAt: Float
+  updatedAt: Float
+  title: String!
+  description: String
+  dueDate: Float
+  completedAt: Float
+  priority: String
+  ownerId: String
+  owner: Assignee
+  entityType: String
+  entityId: String
+  contact: Contact
+  company: Company
+  deal: Deal
+  record: Record
+}
+
+type Assignee {
+  id: ID!
+  name: String!
+}
+
+type Record {
+  id: ID!
+  object: String
+  createdAt: Float
+  updatedAt: Float
+  data: JSON
+  tasks: [Task!]!
+  notes: [Note!]!
+  activities: [Activity!]!
+}
+
+type Note {
+  id: ID!
+  createdAt: Float
+  updatedAt: Float
+  body: String!
+  entityType: String
+  entityId: String
+  authorId: String
+  contact: Contact
+  company: Company
+  deal: Deal
+  record: Record
+}
+
+type Activity {
+  id: ID!
+  createdAt: Float
+  type: String!
+  entityType: String
+  entityId: String
+  actorId: String
+  meta: JSON
+  contact: Contact
+  company: Company
+  deal: Deal
+  record: Record
+}
 
 type RecordFact {
   id: ID!
@@ -52,61 +184,10 @@ type RecordFact {
   decidedAt: Float
   observedAt: Float
   supersededAt: Float
-}
-
-type Company {
-  id: ID!
-  createdAt: Float
-  updatedAt: Float
-  name: String!
-  domain: String
-  industry: String
-  size: String
-  website: String
-  linkedin: String
-  city: String
-  country: String
-  annualRevenue: Float
-  custom: JSON
-}
-
-type Deal {
-  id: ID!
-  createdAt: Float
-  updatedAt: Float
-  name: String!
-  amount: Float
-  currency: String
-  pipelineId: String
-  stageId: String
-  companyId: String
-  contactId: String
-  expectedCloseDate: Float
-  closedAt: Float
-  custom: JSON
-}
-
-type Task {
-  id: ID!
-  createdAt: Float
-  updatedAt: Float
-  title: String!
-  description: String
-  dueDate: Float
-  completedAt: Float
-  priority: String
-  entityType: String
-  entityId: String
-}
-
-type Note {
-  id: ID!
-  createdAt: Float
-  updatedAt: Float
-  body: String!
-  entityType: String
-  entityId: String
-  authorId: String
+  contact: Contact
+  company: Company
+  deal: Deal
+  record: Record
 }
 
 type CustomObjectDef {
@@ -118,11 +199,140 @@ type CustomObjectDef {
   description: String
 }
 
-type Record {
+type SearchResult {
+  contacts: [Contact!]!
+  companies: [Company!]!
+  deals: [Deal!]!
+  records: [Record!]!
+  note: String
+}
+
+type DashboardStats {
+  kpis: DashboardKpis!
+  funnel: [DashboardFunnelRow!]!
+  revenueByMonth: [DashboardMonthRow!]!
+  activityByWeek: [DashboardWeekRow!]!
+  hotLeads: [DashboardHotLead!]!
+  dueTasks: [DashboardDueTask!]!
+  staleDeals: [DashboardStaleDeal!]!
+}
+
+type DashboardKpis {
+  pipelineValue: Float
+  weightedForecast: Float
+  wonThisMonth: Float
+  winRate: Int
+  avgDealSize: Float
+  avgCycleDays: Int
+  openDeals: Int
+  contacts: Int
+  openTasks: Int
+  overdueTasks: Int
+}
+
+type DashboardFunnelRow {
+  stage: String
+  count: Int
+  value: Float
+}
+
+type DashboardMonthRow {
+  month: String
+  won: Float
+  lost: Float
+}
+
+type DashboardWeekRow {
+  week: String
+  count: Int
+}
+
+type DashboardHotLead {
+  id: ID
+  name: String
+  score: Int
+  status: String
+  jobTitle: String
+}
+
+type DashboardDueTask {
+  id: ID
+  title: String
+  dueDate: Float
+  priority: String
+  overdue: Boolean
+  entityType: String
+  entityId: String
+}
+
+type DashboardStaleDeal {
+  id: ID
+  name: String
+  amount: Float
+  currency: String
+  stage: String
+  daysInStage: Int
+  score: Int
+}
+
+type ReportStats {
+  sourceBreakdown: [ReportSourceRow!]!
+  winLoss: [ReportWinLossRow!]!
+  aging: [ReportAgingRow!]!
+  scoreBands: [ReportScoreBand!]!
+  statusBreakdown: [ReportStatusRow!]!
+}
+
+type ReportSourceRow {
+  source: String
+  leads: Int
+  customers: Int
+  conversion: Int
+}
+
+type ReportWinLossRow {
+  month: String
+  won: Int
+  lost: Int
+}
+
+type ReportAgingRow {
+  id: ID
+  name: String
+  stage: String
+  amountUsd: Float
+  daysInStage: Int
+  expectedCloseDate: Float
+  overdue: Boolean
+  score: Int
+}
+
+type ReportScoreBand {
+  band: String
+  count: Int
+}
+
+type ReportStatusRow {
+  status: String
+  count: Int
+}
+
+type Pipeline {
   id: ID!
+  name: String
+  isDefault: Int
   createdAt: Float
-  updatedAt: Float
-  data: JSON
+  stages: [Stage!]!
+}
+
+type Stage {
+  id: ID!
+  pipelineId: String
+  name: String
+  type: String
+  order: Int
+  winProbability: Int
+  color: String
 }
 
 type Mutation {
@@ -134,6 +344,14 @@ type Mutation {
   createCompany(input: JSON!): Company!
   updateCompany(id: ID!, input: JSON!): Company!
   deleteCompany(id: ID!): Boolean!
+  createDeal(input: JSON!): Deal!
+  updateDeal(id: ID!, input: JSON!): Deal!
+  deleteDeal(id: ID!): Boolean!
+  createTask(input: JSON!): Task!
+  updateTask(id: ID!, input: JSON!): Task!
+  deleteTask(id: ID!): Boolean!
+  createNote(input: JSON!): Note!
+  logActivity(input: JSON!): Activity!
   createRecord(object: String!, data: JSON!): Record!
   updateRecord(object: String!, id: ID!, data: JSON!): Record!
   deleteRecord(object: String!, id: ID!): Boolean!

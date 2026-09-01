@@ -1,32 +1,29 @@
-import { and, desc, eq, ilike, ne, or, sql, type SQL } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { newId } from "@/lib/id";
 import { can } from "@/lib/permissions";
-import { loadFieldPolicy, redact, blockedWrites, type FieldPolicy } from "@/lib/field-permissions";
-import { audit } from "@/lib/audit";
-import { logActivity } from "@/lib/activity";
-import { changedKeys } from "@/lib/changed-fields";
 import { toMcpTool } from "@/lib/actions/adapters/mcp";
-import { contactsCreate, contactsDelete, contactsList, contactsUpdate } from "@/lib/actions/contacts";
+import { searchCrm } from "@/lib/services/search";
+import { contactsCreate, contactsDelete, contactsGet, contactsList, contactsUpdate } from "@/lib/actions/contacts";
+import { companiesCreate, companiesDelete, companiesGet, companiesList, companiesUpdate } from "@/lib/actions/companies";
+import { dealsCreate, dealsDelete, dealsGet, dealsList, dealsUpdate } from "@/lib/actions/deals";
+import { dealStageClock } from "@/lib/actions/deals/shared";
+import { pinnedWorkIds } from "@/lib/pinned-tasks";
+import { tasksCreate, tasksDelete, tasksGet, tasksList, tasksUpdate } from "@/lib/actions/tasks";
+import { listAssignees } from "@/lib/actions/tasks/shared";
+import { notesCreate, notesList } from "@/lib/actions/notes";
+import { activitiesCreate, activitiesList } from "@/lib/actions/activities";
 import { factsDecide, factsList, factsRecord } from "@/lib/actions/facts";
-import { recomputeDealScore } from "@/lib/services/deal-score";
-import {
-  companyInput,
-  companyPatch,
-  dealInput,
-  dealPatch,
-  taskInput,
-  noteInput,
-} from "@/lib/validators";
-import { computeDashboardStats } from "@/lib/services/stats";
+import { dashboardStatsForRole, reportStatsForRole } from "@/lib/services/stats";
+import { getPipelineWithStages, listPipelinesWithStages } from "@/lib/services/pipelines";
 import { unavailable } from "@/lib/capabilities";
-import { dispatchEvent } from "@/lib/workflows/engine";
-import { ensureDefaultPipeline } from "@/db/seed";
 import {
   listObjects,
   objectByApiName,
   listRecords,
+  getRecord,
   createRecord,
+  updateRecord,
+  deleteRecord,
 } from "@/lib/custom-objects";
 
 /**
@@ -57,22 +54,81 @@ function requireRole(ctx: ToolContext, object: string, action: "read" | "create"
   }
 }
 
-// Field-level permissions (Gate D1, ADR-011): the same policy REST/GraphQL apply,
-// so MCP is not a bypass door. Unreadable fields are stripped from tool output;
-// a write to a non-writable field is refused.
-async function requireWritableFields(
-  ctx: ToolContext,
-  object: string,
-  args: Record<string, unknown>,
-): Promise<FieldPolicy | null> {
-  const policy = await loadFieldPolicy(ctx.role);
-  const blocked = blockedWrites(policy, object, Object.keys(args));
-  if (blocked.length) throw new ToolError(`Forbidden: cannot write ${object} field(s): ${blocked.join(", ")}`);
-  return policy;
-}
-
 /** Neighbour id lists are a navigation aid, not a page — capped, never paged. */
 const NEIGHBOUR_LIMIT = 25;
+
+async function contactNeighbours(id: string) {
+  const row = (
+    await db.select({ companyId: tables.contacts.companyId }).from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1)
+  )[0]!;
+  const deals = await db
+    .select({ id: tables.deals.id })
+    .from(tables.deals)
+    .where(eq(tables.deals.contactId, id))
+    .limit(NEIGHBOUR_LIMIT);
+  const colleagues = row.companyId
+    ? await db
+        .select({ id: tables.contacts.id })
+        .from(tables.contacts)
+        .where(and(eq(tables.contacts.companyId, row.companyId), ne(tables.contacts.id, id)))
+        .limit(NEIGHBOUR_LIMIT)
+    : [];
+  return {
+    companyId: row.companyId,
+    dealIds: deals.map((d) => d.id),
+    colleagueIds: colleagues.map((c) => c.id),
+    ...(await pinnedWorkIds("contact", id)),
+  };
+}
+
+async function companyNeighbours(id: string) {
+  const contacts = await db
+    .select({ id: tables.contacts.id })
+    .from(tables.contacts)
+    .where(eq(tables.contacts.companyId, id))
+    .limit(NEIGHBOUR_LIMIT);
+  const deals = await db
+    .select({ id: tables.deals.id })
+    .from(tables.deals)
+    .where(eq(tables.deals.companyId, id))
+    .limit(NEIGHBOUR_LIMIT);
+  return {
+    contactIds: contacts.map((c) => c.id),
+    dealIds: deals.map((d) => d.id),
+    ...(await pinnedWorkIds("company", id)),
+  };
+}
+
+async function dealNeighbours(id: string) {
+  const row = (
+    await db
+      .select({
+        companyId: tables.deals.companyId,
+        contactId: tables.deals.contactId,
+        stageId: tables.deals.stageId,
+        stageEnteredAt: tables.deals.stageEnteredAt,
+      })
+      .from(tables.deals)
+      .where(eq(tables.deals.id, id))
+      .limit(1)
+  )[0]!;
+  // The deal's own contact plus everyone else at its company: "who do I talk
+  // to about this" is one hop, not a second search.
+  const contacts = row.companyId
+    ? await db
+        .select({ id: tables.contacts.id })
+        .from(tables.contacts)
+        .where(eq(tables.contacts.companyId, row.companyId))
+        .limit(NEIGHBOUR_LIMIT)
+    : [];
+  const contactIds = [...new Set([row.contactId, ...contacts.map((c) => c.id)].filter((v): v is string => !!v))];
+  return {
+    companyId: row.companyId,
+    contactIds,
+    stage: await dealStageClock(row),
+    ...(await pinnedWorkIds("deal", id)),
+  };
+}
 
 /**
  * A custom-object name that does not resolve. Two different situations, and the
@@ -101,7 +157,7 @@ export const TOOLS: Tool[] = [
     name: "search",
     mutates: false,
     description:
-      "Search contacts, companies, and deals by name/email. EXACT or PREFIX match only — this is not a fuzzy search, so a misspelling returns nothing rather than the nearest name. Returns the top matches per type.",
+      "Search contacts, companies, deals, and custom-object records by name, email, company domain, or record title. EXACT or PREFIX match only — this is not a fuzzy search, so a misspelling returns nothing rather than the nearest name. Surname-only and domain prefixes work. Returns the top matches per type.",
     inputSchema: {
       type: "object",
       properties: { query: { type: "string", description: "Search text" }, limit: { type: "number" } },
@@ -110,38 +166,16 @@ export const TOOLS: Tool[] = [
     handler: async (args, ctx) => {
       requireRole(ctx, "contacts", "read");
       const q = str(args.query)?.trim();
-      if (!q) return { contacts: [], companies: [], deals: [] };
-      // Prefix, not infix: a caller that gets "Marchetta" back for "Marchetti"
-      // has no way to tell a near-miss from a hit, and acting on the wrong
-      // record is worse than an empty result the caller can ask about.
-      const like = `${q.replace(/[%_]/g, "")}%`;
+      if (!q) return { contacts: [], companies: [], deals: [], records: [] };
       const limit = Math.min(num(args.limit, 10), 25);
-      const contacts = await db
-        .select({ id: tables.contacts.id, firstName: tables.contacts.firstName, lastName: tables.contacts.lastName, email: tables.contacts.email })
-        .from(tables.contacts)
-        .where(
-          or(
-            ilike(sql`${tables.contacts.firstName} || ' ' || ${tables.contacts.lastName}`, like),
-            ilike(tables.contacts.email, like),
-          ),
-        )
-        .limit(limit);
-      const companies = await db
-        .select({ id: tables.companies.id, name: tables.companies.name })
-        .from(tables.companies)
-        .where(ilike(tables.companies.name, like))
-        .limit(limit);
-      const deals = await db
-        .select({ id: tables.deals.id, name: tables.deals.name, amount: tables.deals.amount })
-        .from(tables.deals)
-        .where(ilike(tables.deals.name, like))
-        .limit(limit);
-      const policy = await loadFieldPolicy(ctx.role);
-      const empty = contacts.length === 0 && companies.length === 0 && deals.length === 0;
+      const hits = await searchCrm(q, { mode: "prefix", limit, role: ctx.role });
+      const empty =
+        hits.contacts.length === 0 &&
+        hits.companies.length === 0 &&
+        hits.deals.length === 0 &&
+        hits.records.length === 0;
       return {
-        contacts: contacts.map((r) => redact(policy, "contacts", r)),
-        companies: companies.map((r) => redact(policy, "companies", r)),
-        deals: deals.map((r) => redact(policy, "deals", r)),
+        ...hits,
         // Without this a caller reads "no results" as "no such person" and ends
         // the conversation, when the real cause is usually a spelling variant.
         ...(empty
@@ -152,112 +186,24 @@ export const TOOLS: Tool[] = [
       };
     },
   },
-  {
+  toMcpTool(contactsGet, {
     name: "get_contact",
-    mutates: false,
     description:
-      "Fetch one contact by id, plus the ids of everything adjacent to it: its company, its deals, and colleagues at the same company. Use this instead of a second search to walk the graph.",
-    inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
-    handler: async (args, ctx) => {
-      requireRole(ctx, "contacts", "read");
-      const id = str(args.id);
-      if (!id) throw new ToolError("id is required");
-      const row = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0];
-      if (!row) throw new ToolError("Contact not found");
-      const deals = await db
-        .select({ id: tables.deals.id })
-        .from(tables.deals)
-        .where(eq(tables.deals.contactId, id))
-        .limit(NEIGHBOUR_LIMIT);
-      const colleagues = row.companyId
-        ? await db
-            .select({ id: tables.contacts.id })
-            .from(tables.contacts)
-            .where(and(eq(tables.contacts.companyId, row.companyId), ne(tables.contacts.id, id)))
-            .limit(NEIGHBOUR_LIMIT)
-        : [];
-      const policy = await loadFieldPolicy(ctx.role);
-      return {
-        contact: redact(policy, "contacts", { ...row, custom: JSON.parse(row.custom) }),
-        neighbours: {
-          companyId: row.companyId,
-          dealIds: deals.map((d) => d.id),
-          colleagueIds: colleagues.map((c) => c.id),
-        },
-      };
-    },
-  },
-  {
+      "Fetch one contact by id, plus the ids of everything adjacent to it: its company, its deals, colleagues at the same company, and pinned tasks, notes, and timeline. Use this instead of a second search to walk the graph.",
+    map: async (contact, args) => ({ contact, neighbours: await contactNeighbours(String(args.id)) }),
+  }),
+  toMcpTool(companiesGet, {
     name: "get_company",
-    mutates: false,
     description:
-      "Fetch one company by id, plus the ids of its contacts and deals. Use this instead of a second search to walk the graph.",
-    inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
-    handler: async (args, ctx) => {
-      requireRole(ctx, "companies", "read");
-      const id = str(args.id);
-      if (!id) throw new ToolError("id is required");
-      const row = (await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1))[0];
-      if (!row) throw new ToolError("Company not found");
-      const contacts = await db
-        .select({ id: tables.contacts.id })
-        .from(tables.contacts)
-        .where(eq(tables.contacts.companyId, id))
-        .limit(NEIGHBOUR_LIMIT);
-      const deals = await db
-        .select({ id: tables.deals.id })
-        .from(tables.deals)
-        .where(eq(tables.deals.companyId, id))
-        .limit(NEIGHBOUR_LIMIT);
-      const policy = await loadFieldPolicy(ctx.role);
-      return {
-        company: redact(policy, "companies", { ...row, custom: JSON.parse(row.custom) }),
-        neighbours: { contactIds: contacts.map((c) => c.id), dealIds: deals.map((d) => d.id) },
-      };
-    },
-  },
-  {
+      "Fetch one company by id, plus the ids of its contacts, deals, and pinned tasks, notes, and timeline. Use this instead of a second search to walk the graph.",
+    map: async (company, args) => ({ company, neighbours: await companyNeighbours(String(args.id)) }),
+  }),
+  toMcpTool(dealsGet, {
     name: "get_deal",
-    mutates: false,
     description:
-      "Fetch one deal by id, plus its company and contact ids and its stage clock (which stage, and how long it has sat there).",
-    inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
-    handler: async (args, ctx) => {
-      requireRole(ctx, "deals", "read");
-      const id = str(args.id);
-      if (!id) throw new ToolError("id is required");
-      const row = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0];
-      if (!row) throw new ToolError("Deal not found");
-      const stage = (await db.select().from(tables.stages).where(eq(tables.stages.id, row.stageId)).limit(1))[0];
-      // The deal's own contact plus everyone else at its company: "who do I talk
-      // to about this" is one hop, not a second search.
-      const contacts = row.companyId
-        ? await db
-            .select({ id: tables.contacts.id })
-            .from(tables.contacts)
-            .where(eq(tables.contacts.companyId, row.companyId))
-            .limit(NEIGHBOUR_LIMIT)
-        : [];
-      const contactIds = [...new Set([row.contactId, ...contacts.map((c) => c.id)].filter((v): v is string => !!v))];
-      const policy = await loadFieldPolicy(ctx.role);
-      return {
-        deal: redact(policy, "deals", { ...row, custom: JSON.parse(row.custom) }),
-        neighbours: {
-          companyId: row.companyId,
-          contactIds,
-          stage: {
-            id: row.stageId,
-            name: stage?.name ?? null,
-            type: stage?.type ?? null,
-            enteredAt: row.stageEnteredAt,
-            daysInStage: row.stageEnteredAt
-              ? Math.floor((Date.now() - row.stageEnteredAt) / 86_400_000)
-              : null,
-          },
-        },
-      };
-    },
-  },
+      "Fetch one deal by id, plus its company and contact ids, pinned task, note, and timeline ids, and its stage clock (which stage, and how long it has sat there).",
+    map: async (deal, args) => ({ deal, neighbours: await dealNeighbours(String(args.id)) }),
+  }),
   toMcpTool(contactsList, {
     name: "list_contacts",
     // This tool has always called the text filter `query` and returned 50 by
@@ -267,72 +213,24 @@ export const TOOLS: Tool[] = [
     max: { limit: 200 },
   }),
   toMcpTool(contactsCreate, { name: "create_contact" }),
-  {
+  toMcpTool(companiesList, {
     name: "list_companies",
-    mutates: false,
-    description: "List companies, most recently updated first. Optional text filter.",
-    inputSchema: { type: "object", properties: { query: { type: "string" }, limit: { type: "number" } } },
-    handler: async (args, ctx) => {
-      requireRole(ctx, "companies", "read");
-      const q = str(args.query)?.trim();
-      const rows = await db
-        .select()
-        .from(tables.companies)
-        .where(q ? ilike(tables.companies.name, `%${q.replace(/[%_]/g, "")}%`) : undefined)
-        .orderBy(desc(tables.companies.updatedAt))
-        .limit(Math.min(num(args.limit, 50), 200));
-      const policy = await loadFieldPolicy(ctx.role);
-      return rows.map((r) => redact(policy, "companies", { ...r, custom: JSON.parse(r.custom) }));
-    },
-  },
-  {
-    name: "create_company",
-    mutates: true,
-    description: "Create a company. Requires name.",
-    inputSchema: {
-      type: "object",
-      properties: { name: { type: "string" }, domain: { type: "string" }, industry: { type: "string" } },
-      required: ["name"],
-    },
-    handler: async (args, ctx) => {
-      requireRole(ctx, "companies", "create");
-      const policy = await requireWritableFields(ctx, "companies", args);
-      const parsed = companyInput.safeParse(args);
-      if (!parsed.success) throw new ToolError(parsed.error.issues[0].message);
-      const now = Date.now();
-      const id = newId();
-      const { custom, ...fields } = parsed.data;
-      await db.insert(tables.companies).values({
-        id,
-        ...fields,
-        ownerId: ctx.userId,
-        custom: JSON.stringify(custom ?? {}),
-        createdAt: now,
-        updatedAt: now,
-      });
-      await logActivity({ type: "created", entityType: "company", entityId: id, actorId: ctx.userId });
-      await audit(ctx.userId, "company.created", { objectType: "company", objectId: id, meta: { via: ctx.via ?? "mcp" } });
-      const row = (await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1))[0]!;
-      await dispatchEvent({ event: "company.created", entityType: "company", entityId: id, snapshot: { ...row, custom: undefined } });
-      return redact(policy, "companies", { ...row, custom: JSON.parse(row.custom) });
-    },
-  },
-  {
+    // This tool has always called the text filter `query` and returned 50 by
+    // default; the action calls it `q` and returns 200.
+    rename: { query: "q" },
+    defaults: { limit: 50 },
+    max: { limit: 200 },
+  }),
+  toMcpTool(companiesCreate, { name: "create_company" }),
+  toMcpTool(dealsList, {
     name: "list_deals",
-    mutates: false,
-    description: "List deals, most recently updated first.",
-    inputSchema: { type: "object", properties: { limit: { type: "number" } } },
-    handler: async (args, ctx) => {
-      requireRole(ctx, "deals", "read");
-      const rows = await db
-        .select()
-        .from(tables.deals)
-        .orderBy(desc(tables.deals.updatedAt))
-        .limit(Math.min(num(args.limit, 50), 200));
-      const policy = await loadFieldPolicy(ctx.role);
-      return rows.map((r) => redact(policy, "deals", { ...r, custom: JSON.parse(r.custom) }));
-    },
-  },
+    // This tool has always returned 50 by default; the action returns 300.
+    // `query` matches list_contacts / list_companies so an agent can filter
+    // by deal name without a second search.
+    rename: { query: "q" },
+    defaults: { limit: 50 },
+    max: { limit: 200 },
+  }),
   {
     name: "get_dashboard_stats",
     mutates: false,
@@ -340,7 +238,45 @@ export const TOOLS: Tool[] = [
     inputSchema: { type: "object", properties: {} },
     handler: async (_args, ctx) => {
       requireRole(ctx, "contacts", "read");
-      return computeDashboardStats();
+      return dashboardStatsForRole(ctx.role);
+    },
+  },
+  {
+    name: "get_report_stats",
+    mutates: false,
+    description: "Return CRM report analytics (source conversion, win/loss, pipeline aging, score bands).",
+    inputSchema: { type: "object", properties: {} },
+    handler: async (_args, ctx) => {
+      requireRole(ctx, "contacts", "read");
+      return reportStatsForRole(ctx.role);
+    },
+  },
+  {
+    name: "list_pipelines",
+    mutates: false,
+    description: "List sales pipelines with nested stages (name, type, order, win probability).",
+    inputSchema: { type: "object", properties: {} },
+    handler: async (_args, ctx) => {
+      requireRole(ctx, "pipelines", "read");
+      return listPipelinesWithStages();
+    },
+  },
+  {
+    name: "get_pipeline",
+    mutates: false,
+    description: "Fetch one sales pipeline by id, including its stages.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string", description: "Pipeline id" } },
+      required: ["id"],
+    },
+    handler: async (args, ctx) => {
+      requireRole(ctx, "pipelines", "read");
+      const id = str(args.id);
+      if (!id) throw new ToolError("id is required");
+      const row = await getPipelineWithStages(id);
+      if (!row) throw new ToolError("Pipeline not found");
+      return row;
     },
   },
   {
@@ -356,10 +292,16 @@ export const TOOLS: Tool[] = [
   {
     name: "list_records",
     mutates: false,
-    description: "List records of a custom object by its api name.",
+    description:
+      "List records of a custom object by its api name. Optional query matches any field; sort is createdAt, updatedAt, or a field key.",
     inputSchema: {
       type: "object",
-      properties: { object: { type: "string" }, limit: { type: "number" } },
+      properties: {
+        object: { type: "string" },
+        query: { type: "string" },
+        sort: { type: "string" },
+        limit: { type: "number" },
+      },
       required: ["object"],
     },
     handler: async (args, ctx) => {
@@ -368,7 +310,34 @@ export const TOOLS: Tool[] = [
       if (!apiName) throw new ToolError("object is required");
       const obj = await objectByApiName(apiName);
       if (!obj) return await unknownObject(apiName);
-      return listRecords(obj.id, num(args.limit, 50));
+      return listRecords(obj.id, {
+        limit: num(args.limit, 50),
+        q: str(args.query),
+        sort: str(args.sort),
+      });
+    },
+  },
+  {
+    name: "get_record",
+    mutates: false,
+    description:
+      "Fetch one custom-object record by object api name and id, plus pinned task, note, and timeline ids. Use this instead of a second list to walk the graph.",
+    inputSchema: {
+      type: "object",
+      properties: { object: { type: "string" }, id: { type: "string" } },
+      required: ["object", "id"],
+    },
+    handler: async (args, ctx) => {
+      requireRole(ctx, "objects", "read");
+      const apiName = str(args.object);
+      const id = str(args.id);
+      if (!apiName) throw new ToolError("object is required");
+      if (!id) throw new ToolError("id is required");
+      const obj = await objectByApiName(apiName);
+      if (!obj) return await unknownObject(apiName);
+      const record = await getRecord(obj.id, id);
+      if (!record) throw new ToolError("Record not found");
+      return { ...record, neighbours: await pinnedWorkIds(apiName, id) };
     },
   },
   {
@@ -387,15 +356,81 @@ export const TOOLS: Tool[] = [
       const obj = await objectByApiName(apiName);
       if (!obj) return await unknownObject(apiName);
       const data = (args.data && typeof args.data === "object" ? args.data : {}) as Record<string, unknown>;
-      const result = await createRecord(obj.id, data);
+      const result = await createRecord(obj.id, data, {
+        apiName: obj.apiName,
+        actorId: ctx.userId,
+        meta: { via: ctx.via ?? "mcp" },
+      });
       if (!result.ok) throw new ToolError(result.error);
-      await audit(ctx.userId, "record.created", { objectType: obj.apiName, objectId: result.record.id, meta: { via: ctx.via ?? "mcp" } });
       return result.record;
     },
   },
-  // The evidence ledger (ADR-018). An external agent may report what it observed
-  // and read what is waiting on a human; it cannot assert a confidence, and its
-  // observations cap at PROBABLE because a model chose them.
+  {
+    name: "update_record",
+    mutates: true,
+    description: "Update a custom-object record by id. `data` is merged into the existing fields and validated.",
+    inputSchema: {
+      type: "object",
+      properties: { object: { type: "string" }, id: { type: "string" }, data: { type: "object" } },
+      required: ["object", "id", "data"],
+    },
+    handler: async (args, ctx) => {
+      requireRole(ctx, "objects", "update");
+      const apiName = str(args.object);
+      const id = str(args.id);
+      if (!apiName) throw new ToolError("object is required");
+      if (!id) throw new ToolError("id is required");
+      const obj = await objectByApiName(apiName);
+      if (!obj) return await unknownObject(apiName);
+      const data = (args.data && typeof args.data === "object" ? args.data : {}) as Record<string, unknown>;
+      const result = await updateRecord(obj.id, id, data, {
+        apiName: obj.apiName,
+        actorId: ctx.userId,
+        meta: { via: ctx.via ?? "mcp" },
+      });
+      if (result === undefined) throw new ToolError("Record not found");
+      if (!result.ok) throw new ToolError(result.error);
+      return result.record;
+    },
+  },
+  {
+    name: "delete_record",
+    mutates: true,
+    description:
+      "Delete a custom-object record by id. SAFE BY DEFAULT: without confirm=true this only previews what would be deleted.",
+    inputSchema: {
+      type: "object",
+      properties: { object: { type: "string" }, id: { type: "string" }, confirm: { type: "boolean" } },
+      required: ["object", "id"],
+    },
+    handler: async (args, ctx) => {
+      requireRole(ctx, "objects", "delete");
+      const apiName = str(args.object);
+      const id = str(args.id);
+      if (!apiName) throw new ToolError("object is required");
+      if (!id) throw new ToolError("id is required");
+      const obj = await objectByApiName(apiName);
+      if (!obj) return await unknownObject(apiName);
+      const existing = await getRecord(obj.id, id);
+      if (!existing) throw new ToolError("Record not found");
+      if (args.confirm !== true) {
+        return {
+          dryRun: true,
+          wouldDelete: { type: obj.apiName, id },
+          hint: "Re-call with confirm=true to actually delete (also removes its notes + activities).",
+        };
+      }
+      await deleteRecord(obj.id, id, {
+        apiName: obj.apiName,
+        actorId: ctx.userId,
+        meta: { via: ctx.via ?? "mcp" },
+      });
+      return { deleted: true, type: obj.apiName, id };
+    },
+  },
+  // The evidence ledger (ADR-018). MCP is class C: report an observation, never
+  // a confidence, never a field write — even VERIFIED stays a suggestion until
+  // a human accepts. The in-app chat sets via:"ai" (class A) and caps at PROBABLE.
   toMcpTool(factsRecord, { name: "record_fact" }),
   toMcpTool(factsList, { name: "list_fact_suggestions" }),
   toMcpTool(factsDecide, { name: "decide_fact" }),
@@ -403,319 +438,71 @@ export const TOOLS: Tool[] = [
   // Unlike the other surfaces, an unconfirmed call here only reports what it
   // would remove — an agent shows its work before destroying anything.
   toMcpTool(contactsDelete, { name: "delete_contact", defaults: { confirm: false } }),
-  {
-    name: "update_company",
-    mutates: true,
-    description: "Update a company by id. Only the fields you pass change.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        id: { type: "string" },
-        name: { type: "string" },
-        domain: { type: "string" },
-        industry: { type: "string" },
-        size: { type: "string" },
-      },
-      required: ["id"],
-    },
-    handler: async (args, ctx) => {
-      requireRole(ctx, "companies", "update");
-      const id = str(args.id);
-      if (!id) throw new ToolError("id is required");
-      const rest: Record<string, unknown> = { ...args };
-      delete rest.id;
-      const policy = await requireWritableFields(ctx, "companies", rest);
-      const parsed = companyPatch.safeParse(rest);
-      if (!parsed.success) throw new ToolError(parsed.error.issues[0].message);
-      const existing = (await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1))[0];
-      if (!existing) throw new ToolError("Company not found");
-      const { custom, ...fields } = parsed.data;
-      const changed = changedKeys(fields, existing);
-      await db
-        .update(tables.companies)
-        .set({
-          ...fields,
-          ...(custom !== undefined
-            ? { custom: JSON.stringify({ ...JSON.parse(existing.custom), ...custom }) }
-            : {}),
-          updatedAt: Date.now(),
-        })
-        .where(eq(tables.companies.id, id));
-      if (changed.length > 0 || custom !== undefined) {
-        await logActivity({ type: "updated", entityType: "company", entityId: id, actorId: ctx.userId, meta: { fields: changed } });
-      }
-      await audit(ctx.userId, "company.updated", { objectType: "company", objectId: id, meta: { via: ctx.via ?? "mcp", fields: changed } });
-      const row = (await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1))[0]!;
-      return redact(policy, "companies", { ...row, custom: JSON.parse(row.custom) });
-    },
-  },
-  {
+  toMcpTool(companiesUpdate, { name: "update_company" }),
+  toMcpTool(companiesDelete, {
     name: "delete_company",
-    mutates: true,
     description:
       "Delete a company by id. SAFE BY DEFAULT: without confirm=true this only previews what would be deleted.",
-    inputSchema: {
-      type: "object",
-      properties: { id: { type: "string" }, confirm: { type: "boolean" } },
-      required: ["id"],
-    },
-    handler: async (args, ctx) => {
-      requireRole(ctx, "companies", "delete");
-      const id = str(args.id);
-      if (!id) throw new ToolError("id is required");
-      const existing = (await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1))[0];
-      if (!existing) throw new ToolError("Company not found");
-      if (args.confirm !== true) {
-        return {
-          dryRun: true,
-          wouldDelete: { type: "company", id, name: existing.name },
-          hint: "Re-call with confirm=true to delete (contacts/deals are detached, not deleted).",
-        };
-      }
-      await db.delete(tables.companies).where(eq(tables.companies.id, id));
-      await db.update(tables.contacts).set({ companyId: null }).where(eq(tables.contacts.companyId, id));
-      await db.update(tables.deals).set({ companyId: null }).where(eq(tables.deals.companyId, id));
-      await db.delete(tables.notes).where(eq(tables.notes.entityId, id));
-      await db.delete(tables.activities).where(eq(tables.activities.entityId, id));
-      await audit(ctx.userId, "company.deleted", { objectType: "company", objectId: id, meta: { via: ctx.via ?? "mcp" } });
-      return { deleted: true, type: "company", id };
-    },
-  },
-  {
-    name: "create_deal",
-    mutates: true,
-    description:
-      "Create a deal. Requires name. Uses the default pipeline's first stage unless stageId is given. Returns the deal with its computed health score.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        name: { type: "string" },
-        amount: { type: "number" },
-        currency: { type: "string" },
-        pipelineId: { type: "string" },
-        stageId: { type: "string" },
-        companyId: { type: "string" },
-        contactId: { type: "string" },
-        expectedCloseDate: { type: "number" },
-      },
-      required: ["name"],
-    },
-    handler: async (args, ctx) => {
-      requireRole(ctx, "deals", "create");
-      const policy = await requireWritableFields(ctx, "deals", args);
-      const parsed = dealInput.safeParse(args);
-      if (!parsed.success) throw new ToolError(parsed.error.issues[0].message);
-      const pipelineId = parsed.data.pipelineId ?? (await ensureDefaultPipeline());
-      let stageId = parsed.data.stageId;
-      if (!stageId) {
-        const first = (
-          await db
-            .select()
-            .from(tables.stages)
-            .where(eq(tables.stages.pipelineId, pipelineId))
-            .orderBy(tables.stages.order)
-            .limit(1)
-        )[0];
-        if (!first) throw new ToolError("Pipeline has no stages");
-        stageId = first.id;
-      } else {
-        const stage = (await db.select().from(tables.stages).where(eq(tables.stages.id, stageId)).limit(1))[0];
-        if (!stage || stage.pipelineId !== pipelineId) throw new ToolError("Invalid stage for pipeline");
-      }
-      const now = Date.now();
-      const id = newId();
-      const { custom, ...fields } = parsed.data;
-      await db.insert(tables.deals).values({
-        id,
-        ...fields,
-        pipelineId,
-        stageId,
-        ownerId: ctx.userId,
-        stageEnteredAt: now,
-        custom: JSON.stringify(custom ?? {}),
-        createdAt: now,
-        updatedAt: now,
-      });
-      await logActivity({ type: "created", entityType: "deal", entityId: id, actorId: ctx.userId });
-      await audit(ctx.userId, "deal.created", { objectType: "deal", objectId: id, meta: { via: ctx.via ?? "mcp" } });
-      await recomputeDealScore(id);
-      const row = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0]!;
-      await dispatchEvent({ event: "deal.created", entityType: "deal", entityId: id, snapshot: { ...row, custom: undefined } });
-      return redact(policy, "deals", { ...row, custom: JSON.parse(row.custom) });
-    },
-  },
-  {
-    name: "update_deal",
-    mutates: true,
-    description:
-      "Update a deal by id. Pass stageId to move it along the pipeline (fires won/lost workflows). Recomputes the health score.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        id: { type: "string" },
-        name: { type: "string" },
-        amount: { type: "number" },
-        currency: { type: "string" },
-        stageId: { type: "string" },
-        companyId: { type: "string" },
-        contactId: { type: "string" },
-        expectedCloseDate: { type: "number" },
-      },
-      required: ["id"],
-    },
-    handler: async (args, ctx) => {
-      requireRole(ctx, "deals", "update");
-      const id = str(args.id);
-      if (!id) throw new ToolError("id is required");
-      const rest: Record<string, unknown> = { ...args };
-      delete rest.id;
-      const policy = await requireWritableFields(ctx, "deals", rest);
-      const parsed = dealPatch.safeParse(rest);
-      if (!parsed.success) throw new ToolError(parsed.error.issues[0].message);
-      const existing = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0];
-      if (!existing) throw new ToolError("Deal not found");
-      const { custom, stageId, pipelineId: _pipe, ...fields } = parsed.data;
-      void _pipe; // deals cannot move between pipelines here
-
-      const now = Date.now();
-      const stageChanged = stageId !== undefined && stageId !== existing.stageId;
-      let newStage = null;
-      if (stageChanged) {
-        newStage = (await db.select().from(tables.stages).where(eq(tables.stages.id, stageId!)).limit(1))[0];
-        if (!newStage || newStage.pipelineId !== existing.pipelineId) throw new ToolError("Invalid stage");
-      }
-      await db
-        .update(tables.deals)
-        .set({
-          ...fields,
-          ...(stageChanged
-            ? { stageId: stageId!, stageEnteredAt: now, closedAt: newStage!.type === "open" ? null : now }
-            : {}),
-          ...(custom !== undefined
-            ? { custom: JSON.stringify({ ...JSON.parse(existing.custom), ...custom }) }
-            : {}),
-          updatedAt: now,
-        })
-        .where(eq(tables.deals.id, id));
-      const mid = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0]!;
-      const snapshot = { ...mid, custom: undefined, stageName: newStage?.name };
-      if (stageChanged) {
-        await logActivity({ type: "stage_changed", entityType: "deal", entityId: id, actorId: ctx.userId, meta: { to: newStage!.name } });
-        await dispatchEvent({ event: "deal.stage_changed", entityType: "deal", entityId: id, snapshot });
-        if (newStage!.type === "won") await dispatchEvent({ event: "deal.won", entityType: "deal", entityId: id, snapshot });
-        else if (newStage!.type === "lost") await dispatchEvent({ event: "deal.lost", entityType: "deal", entityId: id, snapshot });
-      }
-      await audit(ctx.userId, "deal.updated", { objectType: "deal", objectId: id, meta: { via: ctx.via ?? "mcp" } });
-      await recomputeDealScore(id);
-      const row = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0]!;
-      return redact(policy, "deals", { ...row, custom: JSON.parse(row.custom) });
-    },
-  },
-  {
+    defaults: { confirm: false },
+  }),
+  toMcpTool(dealsCreate, { name: "create_deal" }),
+  toMcpTool(dealsUpdate, { name: "update_deal" }),
+  toMcpTool(dealsDelete, {
     name: "delete_deal",
-    mutates: true,
     description:
       "Delete a deal by id. SAFE BY DEFAULT: without confirm=true this only previews what would be deleted.",
-    inputSchema: {
-      type: "object",
-      properties: { id: { type: "string" }, confirm: { type: "boolean" } },
-      required: ["id"],
+    defaults: { confirm: false },
+  }),
+  toMcpTool(tasksCreate, { name: "create_task" }),
+  toMcpTool(tasksUpdate, { name: "update_task" }),
+  toMcpTool(tasksDelete, {
+    name: "delete_task",
+    description: "Delete a task by id. SAFE BY DEFAULT: without confirm=true this only previews what would be deleted.",
+    defaults: { confirm: false },
+  }),
+  toMcpTool(tasksGet, {
+    name: "get_task",
+    description:
+      "Fetch one task by id, plus the record it is pinned to (entityType + entityId: contact, company, deal, or a custom-object apiName).",
+    map: (task) => {
+      const row = task as { entityType: string | null; entityId: string | null };
+      return {
+        task,
+        neighbours: row.entityId ? { entityType: row.entityType, entityId: row.entityId } : null,
+      };
     },
-    handler: async (args, ctx) => {
-      requireRole(ctx, "deals", "delete");
-      const id = str(args.id);
-      if (!id) throw new ToolError("id is required");
-      const existing = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0];
-      if (!existing) throw new ToolError("Deal not found");
-      if (args.confirm !== true) {
-        return {
-          dryRun: true,
-          wouldDelete: { type: "deal", id, name: existing.name, amount: existing.amount },
-          hint: "Re-call with confirm=true to actually delete (also removes its notes + activities).",
-        };
-      }
-      await db.delete(tables.deals).where(eq(tables.deals.id, id));
-      await db.delete(tables.notes).where(eq(tables.notes.entityId, id));
-      await db.delete(tables.activities).where(eq(tables.activities.entityId, id));
-      await audit(ctx.userId, "deal.deleted", { objectType: "deal", objectId: id, meta: { via: ctx.via ?? "mcp" } });
-      return { deleted: true, type: "deal", id };
-    },
-  },
-  {
-    name: "create_task",
-    mutates: true,
-    description: "Create a task. Requires title. Optionally link it to a contact/company/deal.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        title: { type: "string" },
-        description: { type: "string" },
-        dueDate: { type: "number" },
-        priority: { type: "string", enum: ["low", "medium", "high"] },
-        entityType: { type: "string", enum: ["contact", "company", "deal"] },
-        entityId: { type: "string" },
-      },
-      required: ["title"],
-    },
-    handler: async (args, ctx) => {
-      requireRole(ctx, "tasks", "create");
-      const parsed = taskInput.safeParse(args);
-      if (!parsed.success) throw new ToolError(parsed.error.issues[0].message);
-      const now = Date.now();
-      const id = newId();
-      await db.insert(tables.tasks).values({ id, ...parsed.data, ownerId: ctx.userId, createdAt: now });
-      await audit(ctx.userId, "task.created", { objectType: "task", objectId: id, meta: { via: ctx.via ?? "mcp" } });
-      return (await db.select().from(tables.tasks).where(eq(tables.tasks.id, id)).limit(1))[0]!;
-    },
-  },
-  {
+  }),
+  toMcpTool(tasksList, {
     name: "list_tasks",
-    mutates: false,
     description: "List tasks, newest first. Optional entity filter (entityType + entityId).",
-    inputSchema: {
-      type: "object",
-      properties: { entityType: { type: "string" }, entityId: { type: "string" }, limit: { type: "number" } },
-    },
-    handler: async (args, ctx) => {
-      requireRole(ctx, "tasks", "read");
-      const where: SQL[] = [];
-      const et = str(args.entityType);
-      const ei = str(args.entityId);
-      if (et) where.push(eq(tables.tasks.entityType, et));
-      if (ei) where.push(eq(tables.tasks.entityId, ei));
-      return db
-        .select()
-        .from(tables.tasks)
-        .where(where.length ? and(...where) : undefined)
-        .orderBy(desc(tables.tasks.createdAt))
-        .limit(Math.min(num(args.limit, 50), 200));
-    },
-  },
+    defaults: { state: "all", sort: "createdAt", limit: 50 },
+    max: { limit: 200 },
+  }),
   {
-    name: "create_note",
-    mutates: true,
-    description: "Add a note to a contact, company, or deal.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        body: { type: "string" },
-        entityType: { type: "string", enum: ["contact", "company", "deal"] },
-        entityId: { type: "string" },
-      },
-      required: ["body", "entityType", "entityId"],
-    },
-    handler: async (args, ctx) => {
-      requireRole(ctx, "notes", "create");
-      const parsed = noteInput.safeParse(args);
-      if (!parsed.success) throw new ToolError(parsed.error.issues[0].message);
-      const now = Date.now();
-      const id = newId();
-      await db.insert(tables.notes).values({ id, ...parsed.data, authorId: ctx.userId, createdAt: now });
-      await logActivity({ type: "note_added", entityType: parsed.data.entityType, entityId: parsed.data.entityId, actorId: ctx.userId });
-      await audit(ctx.userId, "note.created", { objectType: "note", objectId: id, meta: { via: ctx.via ?? "mcp" } });
-      return (await db.select().from(tables.notes).where(eq(tables.notes.id, id)).limit(1))[0]!;
+    name: "list_assignees",
+    mutates: false,
+    description:
+      "List workspace members a task can be assigned to (id and name). Pass id as ownerId on create_task or update_task.",
+    inputSchema: { type: "object", properties: {} },
+    handler: async (_args, ctx) => {
+      requireRole(ctx, "tasks", "read");
+      return listAssignees();
     },
   },
+  toMcpTool(notesList, {
+    name: "list_notes",
+    description:
+      "List notes on a record. Requires entityType (contact, company, deal, or a custom-object apiName) and entityId. Newest first.",
+    defaults: { limit: 50 },
+    max: { limit: 200 },
+  }),
+  toMcpTool(notesCreate, { name: "create_note" }),
+  toMcpTool(activitiesList, {
+    name: "list_activities",
+    defaults: { limit: 50 },
+    max: { limit: 200 },
+  }),
+  toMcpTool(activitiesCreate, { name: "log_activity" }),
 ];
 
 export { ToolError };

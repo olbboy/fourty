@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyHeartbeat,
   canSend,
   composerState,
   offersRestart,
@@ -47,6 +48,11 @@ describe("composer state", () => {
       "working",
     ],
     [
+      "a turn kept alive by a heartbeat just inside the timeout",
+      snapshot({ turn: { kind: "streaming", lastEventAt: NOW - QUIET_MS + 1 } }),
+      "working",
+    ],
+    [
       "a turn quiet for exactly the timeout",
       snapshot({ turn: { kind: "streaming", lastEventAt: NOW - QUIET_MS } }),
       "ended",
@@ -77,6 +83,21 @@ describe("composer state", () => {
     expect(
       composerState(snapshot({ aiEnabled: false, threadsLoaded: false, turn: { kind: "awaiting_confirmation" } })),
     ).toBe("offline");
+  });
+});
+
+describe("applyHeartbeat", () => {
+  it("refreshes lastEventAt only while the turn is streaming", () => {
+    expect(applyHeartbeat({ kind: "streaming", lastEventAt: NOW - 80_000 }, NOW)).toEqual({
+      kind: "streaming",
+      lastEventAt: NOW,
+    });
+  });
+
+  it("does not reopen a confirming or idle turn", () => {
+    expect(applyHeartbeat({ kind: "awaiting_confirmation" }, NOW)).toEqual({ kind: "awaiting_confirmation" });
+    expect(applyHeartbeat({ kind: "idle" }, NOW)).toEqual({ kind: "idle" });
+    expect(applyHeartbeat({ kind: "unreachable" }, NOW)).toEqual({ kind: "unreachable" });
   });
 });
 

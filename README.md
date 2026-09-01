@@ -41,7 +41,7 @@ Read the full rationale in **[Why Fourty](./docs/getting-started/why-fourty.md)*
 <td width="50%">
 
 **🏢 Core CRM**
-Contacts, Companies, Deals, Tasks, Notes — each with a polymorphic activity timeline, list views with search/filter/sort, and full detail pages.
+Contacts, Companies, Deals, Tasks, Notes — polymorphic activity timeline, list views with search/filter/sort, and detail pages (notes live on the record they are pinned to).
 
 </td>
 <td width="50%">
@@ -83,7 +83,7 @@ A background pass mines your own mailbox for job titles and company links. No AP
 <td>
 
 **🔌 APIs Everywhere**
-REST, typed GraphQL, a native MCP server (26 tools, stdio + HTTP), and signed webhooks — every object accessible from every surface.
+REST, typed GraphQL, a native MCP server (39 tools, stdio + HTTP), and signed webhooks — every object accessible from every surface.
 
 </td>
 <td>
@@ -120,7 +120,7 @@ Full tour: **[Key Features](./docs/getting-started/key-features.md)** · **[User
 | Lead scoring | ✅ Automatic, zero-config | ❌ | Einstein ($$) |
 | Workflow automation | ✅ Visual builder, durable queue | Limited | Flow ($$) |
 | REST **and** GraphQL | ✅ Both | GraphQL-first | ✅ |
-| MCP server (AI agents) | ✅ Self-host, 26 tools | ✅ (Cloud/OAuth) | ❌ |
+| MCP server (AI agents) | ✅ Self-host, 39 tools | ✅ (Cloud/OAuth) | ❌ |
 | Self-host complexity | Minimal (1 process + PG) | High (5+ services) | N/A |
 | License | **BSL 1.1** (free for internal use) | AGPL | Proprietary |
 

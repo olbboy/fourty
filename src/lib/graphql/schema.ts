@@ -13,19 +13,20 @@ import {
   Kind,
   type GraphQLFieldConfigMap,
 } from "graphql";
-import { and, desc, eq, ilike, type SQL } from "drizzle-orm";
-import { db, tables } from "@/db";
-import { newId } from "@/lib/id";
 import { can } from "@/lib/permissions";
-import { loadFieldPolicy, redact, blockedWrites, type FieldPolicy } from "@/lib/field-permissions";
-import { audit } from "@/lib/audit";
-import { logActivity } from "@/lib/activity";
-import { changedKeys } from "@/lib/changed-fields";
 import { toResolver } from "@/lib/actions/adapters/graphql";
 import { contactsCreate, contactsDelete, contactsGet, contactsList, contactsUpdate } from "@/lib/actions/contacts";
+import { companiesCreate, companiesDelete, companiesGet, companiesList, companiesUpdate } from "@/lib/actions/companies";
+import { dealsCreate, dealsDelete, dealsGet, dealsList, dealsUpdate } from "@/lib/actions/deals";
+import { dealStageClock } from "@/lib/actions/deals/shared";
+import { tasksCreate, tasksDelete, tasksGet, tasksList, tasksUpdate } from "@/lib/actions/tasks";
+import { getAssignee, listAssignees } from "@/lib/actions/tasks/shared";
+import { notesCreate, notesList } from "@/lib/actions/notes";
+import { activitiesCreate, activitiesList } from "@/lib/actions/activities";
 import { factsDecide, factsList, factsRecord } from "@/lib/actions/facts";
-import { dispatchEvent } from "@/lib/workflows/engine";
-import { companyInput, companyPatch } from "@/lib/validators";
+import { searchCrm } from "@/lib/services/search";
+import { dashboardStatsForRole, reportStatsForRole } from "@/lib/services/stats";
+import { getPipelineWithStages, listPipelinesWithStages, listStages } from "@/lib/services/pipelines";
 import {
   listObjects,
   listRecords,
@@ -36,23 +37,17 @@ import {
   objectByApiName,
 } from "@/lib/custom-objects";
 import type { AuthOk } from "@/lib/api";
-import type { z } from "zod";
 
 /**
  * Auto-generated GraphQL API (Gate C2, ADR-008). Typed queries for every core
- * object plus custom objects/records, and mutations for the objects whose writes
- * are side-effect-simple (contacts, companies, custom records). Deals/tasks/notes
- * are read here but written via REST, where their stage/entity-link side effects
- * live — a stated scope, not a stub. Resolvers run inside the request's
- * withWorkspace() transaction, so every query is RLS-scoped to the caller's
- * workspace and mutations are RBAC-gated via can().
+ * object plus custom objects/records. Mutations cover contacts, companies,
+ * deals, tasks, notes, the activity timeline, and custom records. Resolvers
+ * run inside the request's withWorkspace() transaction, so every query is
+ * RLS-scoped to the caller's workspace and mutations are RBAC-gated via can().
  */
 
 export type GqlContext = {
   auth: AuthOk;
-  // Field-level policy for the caller's role, memoized per request so a query
-  // touching several objects loads it once (Gate D1 enforcement, ADR-011).
-  _fieldPolicy?: Promise<FieldPolicy | null>;
 };
 
 // A JSON scalar for the `custom` blob on core objects and `data` on records.
@@ -92,35 +87,10 @@ function requireRbac(ctx: GqlContext, object: string, action: "read" | "create" 
   }
 }
 
-// ── Field-level permissions (Gate D1, ADR-011) ───────────────────────────────
-// The same policy the REST handlers apply, enforced here so GraphQL is not a
-// bypass door: unreadable fields are stripped from results, and a write to a
-// non-writable field is refused. Only the core objects carry field rules.
-
-function fieldPolicy(ctx: GqlContext): Promise<FieldPolicy | null> {
-  return (ctx._fieldPolicy ??= loadFieldPolicy(ctx.auth.role));
-}
-
-/** Strip fields the caller may not read from a fetched row (null-safe). */
-async function redactRow<T extends Record<string, unknown>>(
-  ctx: GqlContext,
-  object: string,
-  row: T | undefined,
-): Promise<T | undefined> {
-  if (!row) return row;
-  return redact(await fieldPolicy(ctx), object, row);
-}
-
-/** Refuse a mutation that writes a field the caller's role may not write. */
-async function guardWrites(ctx: GqlContext, object: string, input: unknown): Promise<void> {
-  const keys = input && typeof input === "object" ? Object.keys(input as Record<string, unknown>) : [];
-  const blocked = blockedWrites(await fieldPolicy(ctx), object, keys);
-  if (blocked.length) {
-    throw new GraphQLError(`Forbidden: cannot write ${object} field(s): ${blocked.join(", ")}`, {
-      extensions: { code: "FORBIDDEN" },
-    });
-  }
-}
+// Field-level permissions (ADR-011) run inside the action kernel for every
+// resolver that goes through toResolver. Hand-wired queries either call a
+// service that already redacts (`search`, `dashboardStats`, `reportStats`) or are object-level
+// RBAC only (custom-object records).
 
 // Common column set for the polymorphic types.
 /**
@@ -138,9 +108,9 @@ const timestamps = {
   updatedAt: { type: GraphQLFloat },
 };
 
-const Contact = new GraphQLObjectType({
+const Contact: GraphQLObjectType = new GraphQLObjectType({
   name: "Contact",
-  fields: {
+  fields: () => ({
     ...timestamps,
     firstName: { type: new GraphQLNonNull(S) },
     lastName: { type: S },
@@ -154,13 +124,37 @@ const Contact = new GraphQLObjectType({
     linkedin: { type: S },
     city: { type: S },
     country: { type: S },
-    custom: { type: JSONScalar, resolve: (r) => parseCustom(r.custom) },
-  },
+    custom: { type: JSONScalar, resolve: (r: { id: string; custom?: unknown; companyId?: string | null }) => parseCustom(r.custom) },
+    // Nested company so the published example `{ contacts { company { name } } }`
+    // works. Hidden `companyId` (field perms) means this stays null.
+    company: {
+      type: Company,
+      resolve: (row: { id: string; custom?: unknown; companyId?: string | null }, _args: unknown, ctx: GqlContext) => {
+        if (!row.companyId) return null;
+        return toResolver(companiesGet, { onNotFound: () => null })(row, { id: row.companyId }, ctx);
+      },
+    },
+    deals: {
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Deal))),
+      resolve: (row: { id: string; custom?: unknown; companyId?: string | null }, _args: unknown, ctx: GqlContext) =>
+        toResolver(dealsList)(row, { contactId: row.id }, ctx),
+    },
+    colleagues: {
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Contact))),
+      resolve: async (row: { id: string; custom?: unknown; companyId?: string | null }, _args: unknown, ctx: GqlContext) => {
+        if (!row.companyId) return [];
+        const people = (await toResolver(contactsList)(row, { companyId: row.companyId }, ctx)) as { id: string }[];
+        return people.filter((p) => p.id !== row.id);
+      },
+    },
+    ...recordChildren("contact"),
+    ...factChildren("contact"),
+  }),
 });
 
-const Company = new GraphQLObjectType({
+const Company: GraphQLObjectType = new GraphQLObjectType({
   name: "Company",
-  fields: {
+  fields: () => ({
     ...timestamps,
     name: { type: new GraphQLNonNull(S) },
     domain: { type: S },
@@ -171,8 +165,20 @@ const Company = new GraphQLObjectType({
     city: { type: S },
     country: { type: S },
     annualRevenue: { type: GraphQLFloat },
-    custom: { type: JSONScalar, resolve: (r) => JSON.parse(r.custom ?? "{}") },
-  },
+    custom: { type: JSONScalar, resolve: (r: { id: string; custom?: unknown }) => parseCustom(r.custom) },
+    contacts: {
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Contact))),
+      resolve: (row: { id: string; custom?: unknown }, _args: unknown, ctx: GqlContext) =>
+        toResolver(contactsList)(row, { companyId: row.id }, ctx),
+    },
+    deals: {
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Deal))),
+      resolve: (row: { id: string; custom?: unknown }, _args: unknown, ctx: GqlContext) =>
+        toResolver(dealsList)(row, { companyId: row.id }, ctx),
+    },
+    ...recordChildren("company"),
+    ...factChildren("company"),
+  }),
 });
 
 /**
@@ -180,9 +186,9 @@ const Company = new GraphQLObjectType({
  * observations as given — it is data a client renders as text, never as HTML,
  * and it is what makes a suggestion answerable rather than merely scored.
  */
-const RecordFact = new GraphQLObjectType({
+const RecordFact: GraphQLObjectType = new GraphQLObjectType({
   name: "RecordFact",
-  fields: {
+  fields: () => ({
     id: { type: new GraphQLNonNull(GraphQLID) },
     entityType: { type: new GraphQLNonNull(S) },
     entityId: { type: new GraphQLNonNull(GraphQLID) },
@@ -191,7 +197,10 @@ const RecordFact = new GraphQLObjectType({
     previousValue: { type: S },
     score: { type: GraphQLFloat },
     band: { type: S },
-    evidence: { type: JSONScalar, resolve: (r) => JSON.parse(r.evidence ?? "[]") },
+    evidence: {
+      type: JSONScalar,
+      resolve: (r: PinRow & { evidence?: string | null }) => JSON.parse(r.evidence ?? "[]"),
+    },
     method: { type: S },
     sourceUrl: { type: S },
     status: { type: S },
@@ -199,7 +208,9 @@ const RecordFact = new GraphQLObjectType({
     decidedAt: { type: GraphQLFloat },
     observedAt: { type: GraphQLFloat },
     supersededAt: { type: GraphQLFloat },
-  },
+    // Facts only attach to contacts and companies (FACT_ENTITIES); deal/record stay null.
+    ...pinFields(),
+  }),
 });
 
 /** What recording or deciding answered. `reason` is written for a human to read. */
@@ -213,9 +224,29 @@ const FactResult = new GraphQLObjectType({
   },
 });
 
-const Deal = new GraphQLObjectType({
-  name: "Deal",
+const DealStage = new GraphQLObjectType({
+  name: "DealStage",
   fields: {
+    id: { type: new GraphQLNonNull(GraphQLID) },
+    name: { type: S },
+    type: { type: S },
+    enteredAt: { type: GraphQLFloat },
+    daysInStage: { type: GraphQLInt },
+  },
+});
+
+type DealRow = {
+  id: string;
+  custom?: unknown;
+  companyId?: string | null;
+  contactId?: string | null;
+  stageId?: string | null;
+  stageEnteredAt?: number;
+};
+
+const Deal: GraphQLObjectType = new GraphQLObjectType({
+  name: "Deal",
+  fields: () => ({
     ...timestamps,
     name: { type: new GraphQLNonNull(S) },
     amount: { type: GraphQLFloat },
@@ -226,34 +257,171 @@ const Deal = new GraphQLObjectType({
     contactId: { type: S },
     expectedCloseDate: { type: GraphQLFloat },
     closedAt: { type: GraphQLFloat },
-    custom: { type: JSONScalar, resolve: (r) => JSON.parse(r.custom ?? "{}") },
+    score: { type: GraphQLInt },
+    custom: { type: JSONScalar, resolve: (r: DealRow) => parseCustom(r.custom) },
+    // Same as Contact.company: one round trip, and a hidden id stays null.
+    company: {
+      type: Company,
+      resolve: (row: DealRow, _args: unknown, ctx: GqlContext) => {
+        if (!row.companyId) return null;
+        return toResolver(companiesGet, { onNotFound: () => null })(row, { id: row.companyId }, ctx);
+      },
+    },
+    contact: {
+      type: Contact,
+      resolve: (row: DealRow, _args: unknown, ctx: GqlContext) => {
+        if (!row.contactId) return null;
+        return toResolver(contactsGet, { onNotFound: () => null })(row, { id: row.contactId }, ctx);
+      },
+    },
+    stage: {
+      type: DealStage,
+      resolve: async (row: DealRow) => {
+        if (!row.stageId || row.stageEnteredAt == null) return null;
+        return dealStageClock({ stageId: row.stageId, stageEnteredAt: row.stageEnteredAt });
+      },
+    },
+    ...recordChildren("deal"),
+  }),
+});
+
+const Assignee = new GraphQLObjectType({
+  name: "Assignee",
+  fields: {
+    id: { type: new GraphQLNonNull(GraphQLID) },
+    name: { type: new GraphQLNonNull(S) },
   },
 });
 
-const Task = new GraphQLObjectType({
+type PinRow = { entityType?: string | null; entityId?: string | null };
+
+const CRM_PIN = new Set(["contact", "company", "deal"]);
+
+async function resolvePinnedRecord(row: PinRow, _args: unknown, ctx: GqlContext) {
+  if (!row.entityType || !row.entityId || CRM_PIN.has(row.entityType)) return null;
+  requireRbac(ctx, "objects", "read");
+  const obj = await objectByApiName(row.entityType);
+  if (!obj) return null;
+  const rec = await getRecord(obj.id, row.entityId);
+  return rec ? { ...rec, object: row.entityType } : null;
+}
+
+/**
+ * Nested pin used by Task, Note, Activity, and RecordFact. CRM pins nest
+ * contact / company / deal; a custom-object pin nests `record`.
+ */
+function pinFields(): GraphQLFieldConfigMap<PinRow, GqlContext> {
+  return {
+    contact: {
+      type: Contact,
+      resolve: (row: PinRow, _args: unknown, ctx: GqlContext) => {
+        if (row.entityType !== "contact" || !row.entityId) return null;
+        return toResolver(contactsGet, { onNotFound: () => null })(row, { id: row.entityId }, ctx);
+      },
+    },
+    company: {
+      type: Company,
+      resolve: (row: PinRow, _args: unknown, ctx: GqlContext) => {
+        if (row.entityType !== "company" || !row.entityId) return null;
+        return toResolver(companiesGet, { onNotFound: () => null })(row, { id: row.entityId }, ctx);
+      },
+    },
+    deal: {
+      type: Deal,
+      resolve: (row: PinRow, _args: unknown, ctx: GqlContext) => {
+        if (row.entityType !== "deal" || !row.entityId) return null;
+        return toResolver(dealsGet, { onNotFound: () => null })(row, { id: row.entityId }, ctx);
+      },
+    },
+    record: {
+      type: RecordType,
+      resolve: resolvePinnedRecord,
+    },
+  };
+}
+
+const Task: GraphQLObjectType = new GraphQLObjectType({
   name: "Task",
-  fields: {
+  fields: () => ({
     ...timestamps,
     title: { type: new GraphQLNonNull(S) },
     description: { type: S },
     dueDate: { type: GraphQLFloat },
     completedAt: { type: GraphQLFloat },
     priority: { type: S },
+    ownerId: { type: S },
+    owner: {
+      type: Assignee,
+      resolve: async (row: PinRow & { ownerId?: string | null }) => {
+        if (!row.ownerId) return null;
+        return (await getAssignee(row.ownerId)) ?? null;
+      },
+    },
     entityType: { type: S },
     entityId: { type: S },
-  },
+    ...pinFields(),
+  }),
 });
 
-const Note = new GraphQLObjectType({
+const Note: GraphQLObjectType = new GraphQLObjectType({
   name: "Note",
-  fields: {
+  fields: () => ({
     ...timestamps,
     body: { type: new GraphQLNonNull(S) },
     entityType: { type: S },
     entityId: { type: S },
     authorId: { type: S },
-  },
+    ...pinFields(),
+  }),
 });
+
+const Activity: GraphQLObjectType = new GraphQLObjectType({
+  name: "Activity",
+  fields: () => ({
+    id: { type: new GraphQLNonNull(GraphQLID) },
+    createdAt: { type: GraphQLFloat },
+    type: { type: new GraphQLNonNull(S) },
+    entityType: { type: S },
+    entityId: { type: S },
+    actorId: { type: S },
+    meta: {
+      type: JSONScalar,
+      resolve: (r: { meta?: unknown }) =>
+        typeof r.meta === "string" ? JSON.parse(r.meta || "{}") : ((r.meta ?? {}) as Record<string, unknown>),
+    },
+    ...pinFields(),
+  }),
+});
+
+function factChildren(entityType: "contact" | "company") {
+  return {
+    facts: {
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(RecordFact))),
+      resolve: (row: { id: string }, _args: unknown, ctx: GqlContext) =>
+        toResolver(factsList)(row, { entityType, entityId: row.id }, ctx),
+    },
+  };
+}
+
+function recordChildren(entityType: string) {
+  return {
+    tasks: {
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Task))),
+      resolve: (row: { id: string }, _args: unknown, ctx: GqlContext) =>
+        toResolver(tasksList)(row, { entityType, entityId: row.id, state: "all" }, ctx),
+    },
+    notes: {
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Note))),
+      resolve: (row: { id: string }, _args: unknown, ctx: GqlContext) =>
+        toResolver(notesList)(row, { entityType, entityId: row.id }, ctx),
+    },
+    activities: {
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Activity))),
+      resolve: (row: { id: string }, _args: unknown, ctx: GqlContext) =>
+        toResolver(activitiesList)(row, { entityType, entityId: row.id }, ctx),
+    },
+  };
+}
 
 const CustomObjectDef = new GraphQLObjectType({
   name: "CustomObjectDef",
@@ -267,30 +435,240 @@ const CustomObjectDef = new GraphQLObjectType({
   },
 });
 
-const RecordType = new GraphQLObjectType({
+type CustomRecordRow = { id: string; object?: string };
+
+const customRecordChildren: GraphQLFieldConfigMap<CustomRecordRow, GqlContext> = {
+  tasks: {
+    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Task))),
+    resolve: (row: CustomRecordRow, _args: unknown, ctx: GqlContext) => {
+      if (!row.object) return [];
+      return toResolver(tasksList)(row, { entityType: row.object, entityId: row.id, state: "all" }, ctx);
+    },
+  },
+  notes: {
+    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Note))),
+    resolve: (row: CustomRecordRow, _args: unknown, ctx: GqlContext) => {
+      if (!row.object) return [];
+      return toResolver(notesList)(row, { entityType: row.object, entityId: row.id }, ctx);
+    },
+  },
+  activities: {
+    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Activity))),
+    resolve: (row: CustomRecordRow, _args: unknown, ctx: GqlContext) => {
+      if (!row.object) return [];
+      return toResolver(activitiesList)(row, { entityType: row.object, entityId: row.id }, ctx);
+    },
+  },
+};
+
+const RecordType: GraphQLObjectType = new GraphQLObjectType({
   name: "Record",
   fields: {
     id: { type: new GraphQLNonNull(GraphQLID) },
+    object: {
+      type: S,
+      resolve: (row: CustomRecordRow) => row.object ?? null,
+    },
     createdAt: { type: GraphQLFloat },
     updatedAt: { type: GraphQLFloat },
     data: { type: JSONScalar },
+    ...customRecordChildren,
+  },
+});
+
+const SearchResult = new GraphQLObjectType({
+  name: "SearchResult",
+  fields: () => ({
+    contacts: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Contact))) },
+    companies: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Company))) },
+    deals: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Deal))) },
+    records: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(RecordType))) },
+    note: { type: S },
+  }),
+});
+
+const DashboardKpis = new GraphQLObjectType({
+  name: "DashboardKpis",
+  fields: {
+    pipelineValue: { type: GraphQLFloat },
+    weightedForecast: { type: GraphQLFloat },
+    wonThisMonth: { type: GraphQLFloat },
+    winRate: { type: GraphQLInt },
+    avgDealSize: { type: GraphQLFloat },
+    avgCycleDays: { type: GraphQLInt },
+    openDeals: { type: GraphQLInt },
+    contacts: { type: GraphQLInt },
+    openTasks: { type: GraphQLInt },
+    overdueTasks: { type: GraphQLInt },
+  },
+});
+
+const DashboardFunnelRow = new GraphQLObjectType({
+  name: "DashboardFunnelRow",
+  fields: {
+    stage: { type: S },
+    count: { type: GraphQLInt },
+    value: { type: GraphQLFloat },
+  },
+});
+
+const DashboardMonthRow = new GraphQLObjectType({
+  name: "DashboardMonthRow",
+  fields: {
+    month: { type: S },
+    won: { type: GraphQLFloat },
+    lost: { type: GraphQLFloat },
+  },
+});
+
+const DashboardWeekRow = new GraphQLObjectType({
+  name: "DashboardWeekRow",
+  fields: {
+    week: { type: S },
+    count: { type: GraphQLInt },
+  },
+});
+
+const DashboardHotLead = new GraphQLObjectType({
+  name: "DashboardHotLead",
+  fields: {
+    id: { type: GraphQLID },
+    name: { type: S },
+    score: { type: GraphQLInt },
+    status: { type: S },
+    jobTitle: { type: S },
+  },
+});
+
+const DashboardDueTask = new GraphQLObjectType({
+  name: "DashboardDueTask",
+  fields: {
+    id: { type: GraphQLID },
+    title: { type: S },
+    dueDate: { type: GraphQLFloat },
+    priority: { type: S },
+    overdue: { type: GraphQLBoolean },
+    entityType: { type: S },
+    entityId: { type: S },
+  },
+});
+
+const DashboardStaleDeal = new GraphQLObjectType({
+  name: "DashboardStaleDeal",
+  fields: {
+    id: { type: GraphQLID },
+    name: { type: S },
+    amount: { type: GraphQLFloat },
+    currency: { type: S },
+    stage: { type: S },
+    daysInStage: { type: GraphQLInt },
+    score: { type: GraphQLInt },
+  },
+});
+
+const DashboardStats = new GraphQLObjectType({
+  name: "DashboardStats",
+  fields: {
+    kpis: { type: new GraphQLNonNull(DashboardKpis) },
+    funnel: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(DashboardFunnelRow))) },
+    revenueByMonth: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(DashboardMonthRow))) },
+    activityByWeek: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(DashboardWeekRow))) },
+    hotLeads: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(DashboardHotLead))) },
+    dueTasks: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(DashboardDueTask))) },
+    staleDeals: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(DashboardStaleDeal))) },
+  },
+});
+
+const ReportSourceRow = new GraphQLObjectType({
+  name: "ReportSourceRow",
+  fields: {
+    source: { type: S },
+    leads: { type: GraphQLInt },
+    customers: { type: GraphQLInt },
+    conversion: { type: GraphQLInt },
+  },
+});
+
+const ReportWinLossRow = new GraphQLObjectType({
+  name: "ReportWinLossRow",
+  fields: {
+    month: { type: S },
+    won: { type: GraphQLInt },
+    lost: { type: GraphQLInt },
+  },
+});
+
+const ReportAgingRow = new GraphQLObjectType({
+  name: "ReportAgingRow",
+  fields: {
+    id: { type: GraphQLID },
+    name: { type: S },
+    stage: { type: S },
+    amountUsd: { type: GraphQLFloat },
+    daysInStage: { type: GraphQLInt },
+    expectedCloseDate: { type: GraphQLFloat },
+    overdue: { type: GraphQLBoolean },
+    score: { type: GraphQLInt },
+  },
+});
+
+const ReportScoreBand = new GraphQLObjectType({
+  name: "ReportScoreBand",
+  fields: {
+    band: { type: S },
+    count: { type: GraphQLInt },
+  },
+});
+
+const ReportStatusRow = new GraphQLObjectType({
+  name: "ReportStatusRow",
+  fields: {
+    status: { type: S },
+    count: { type: GraphQLInt },
+  },
+});
+
+const ReportStats = new GraphQLObjectType({
+  name: "ReportStats",
+  fields: {
+    sourceBreakdown: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(ReportSourceRow))) },
+    winLoss: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(ReportWinLossRow))) },
+    aging: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(ReportAgingRow))) },
+    scoreBands: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(ReportScoreBand))) },
+    statusBreakdown: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(ReportStatusRow))) },
+  },
+});
+
+type PipelineRow = { id: string; stages?: unknown[] };
+
+const StageType = new GraphQLObjectType({
+  name: "Stage",
+  fields: {
+    id: { type: new GraphQLNonNull(GraphQLID) },
+    pipelineId: { type: S },
+    name: { type: S },
+    type: { type: S },
+    order: { type: GraphQLInt },
+    winProbability: { type: GraphQLInt },
+    color: { type: S },
+  },
+});
+
+const PipelineType = new GraphQLObjectType({
+  name: "Pipeline",
+  fields: {
+    id: { type: new GraphQLNonNull(GraphQLID) },
+    name: { type: S },
+    isDefault: { type: GraphQLInt },
+    createdAt: { type: GraphQLFloat },
+    stages: {
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(StageType))),
+      resolve: (row: PipelineRow) => row.stages ?? [],
+    },
   },
 });
 
 // ── Resolver helpers ─────────────────────────────────────────────────────────
-
-// Drizzle's per-table row types don't unify across the polymorphic core tables;
-// these two internal helpers erase to a permissive shape so the resolvers stay
-// clean. RLS still scopes every row at query time.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function listCore(table: any, where: SQL | undefined, limit: number): Promise<any[]> {
-  return db.select().from(table).where(where).orderBy(desc(table.updatedAt)).limit(Math.min(limit, 500));
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function byId(table: any, id: string): Promise<any> {
-  return (await db.select().from(table).where(eq(table.id, id)).limit(1))[0];
-}
 
 async function requireObject(apiName: string) {
   const obj = await objectByApiName(apiName);
@@ -303,7 +681,13 @@ async function requireObject(apiName: string) {
 const queryFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
   contacts: {
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Contact))),
-    args: { limit: { type: GraphQLInt }, q: { type: GraphQLString } },
+    args: {
+      limit: { type: GraphQLInt },
+      q: { type: GraphQLString },
+      sort: { type: GraphQLString },
+      status: { type: GraphQLString },
+      companyId: { type: GraphQLString },
+    },
     resolve: toResolver(contactsList),
   },
   contact: {
@@ -323,65 +707,71 @@ const queryFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
   },
   companies: {
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Company))),
-    args: { limit: { type: GraphQLInt }, q: { type: GraphQLString } },
-    resolve: async (_r, { limit, q }, ctx) => {
-      requireRbac(ctx, "companies", "read");
-      const where = q ? ilike(tables.companies.name, `%${String(q).replace(/[%_]/g, "")}%`) : undefined;
-      const rows = await listCore(tables.companies, where, limit ?? 200);
-      const policy = await fieldPolicy(ctx);
-      return rows.map((r) => redact(policy, "companies", r));
-    },
+    args: { limit: { type: GraphQLInt }, q: { type: GraphQLString }, industry: { type: GraphQLString } },
+    resolve: toResolver(companiesList),
   },
   company: {
     type: Company,
     args: { id: { type: new GraphQLNonNull(GraphQLID) } },
-    resolve: async (_r, { id }, ctx) => {
-      requireRbac(ctx, "companies", "read");
-      return redactRow(ctx, "companies", await byId(tables.companies, id));
-    },
+    resolve: toResolver(companiesGet, { onNotFound: () => null }),
   },
   deals: {
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Deal))),
-    args: { limit: { type: GraphQLInt }, q: { type: GraphQLString } },
-    resolve: async (_r, { limit, q }, ctx) => {
-      requireRbac(ctx, "deals", "read");
-      const where = q ? ilike(tables.deals.name, `%${String(q).replace(/[%_]/g, "")}%`) : undefined;
-      const rows = await listCore(tables.deals, where, limit ?? 200);
-      const policy = await fieldPolicy(ctx);
-      return rows.map((r) => redact(policy, "deals", r));
+    args: {
+      limit: { type: GraphQLInt },
+      q: { type: GraphQLString },
+      stageId: { type: GraphQLString },
+      pipelineId: { type: GraphQLString },
+      companyId: { type: GraphQLString },
+      contactId: { type: GraphQLString },
     },
+    resolve: toResolver(dealsList),
   },
   deal: {
     type: Deal,
     args: { id: { type: new GraphQLNonNull(GraphQLID) } },
-    resolve: async (_r, { id }, ctx) => {
-      requireRbac(ctx, "deals", "read");
-      return redactRow(ctx, "deals", await byId(tables.deals, id));
-    },
+    resolve: toResolver(dealsGet, { onNotFound: () => null }),
   },
   tasks: {
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Task))),
-    args: { limit: { type: GraphQLInt } },
-    resolve: (_r, { limit }, ctx) => {
+    args: {
+      limit: { type: GraphQLInt },
+      state: { type: GraphQLString },
+      entityType: { type: GraphQLString },
+      entityId: { type: GraphQLString },
+      sort: { type: GraphQLString },
+    },
+    resolve: toResolver(tasksList, { defaults: { state: "all", sort: "createdAt", limit: 200 } }),
+  },
+  task: {
+    type: Task,
+    args: { id: { type: new GraphQLNonNull(GraphQLID) } },
+    resolve: toResolver(tasksGet, { onNotFound: () => null }),
+  },
+  assignees: {
+    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Assignee))),
+    resolve: (_r, _a, ctx) => {
       requireRbac(ctx, "tasks", "read");
-      return db.select().from(tables.tasks).orderBy(desc(tables.tasks.createdAt)).limit(Math.min(limit ?? 200, 500));
+      return listAssignees();
     },
   },
   notes: {
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Note))),
-    args: { entityType: { type: GraphQLString }, entityId: { type: GraphQLString } },
-    resolve: (_r, { entityType, entityId }, ctx) => {
-      requireRbac(ctx, "notes", "read");
-      const where: SQL[] = [];
-      if (entityType) where.push(eq(tables.notes.entityType, entityType));
-      if (entityId) where.push(eq(tables.notes.entityId, entityId));
-      return db
-        .select()
-        .from(tables.notes)
-        .where(where.length ? and(...where) : undefined)
-        .orderBy(desc(tables.notes.createdAt))
-        .limit(500);
+    args: {
+      limit: { type: GraphQLInt },
+      entityType: { type: GraphQLString },
+      entityId: { type: GraphQLString },
     },
+    resolve: toResolver(notesList),
+  },
+  activities: {
+    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Activity))),
+    args: {
+      limit: { type: GraphQLInt },
+      entityType: { type: GraphQLString },
+      entityId: { type: GraphQLString },
+    },
+    resolve: toResolver(activitiesList),
   },
   customObjects: {
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(CustomObjectDef))),
@@ -392,11 +782,16 @@ const queryFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
   },
   records: {
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(RecordType))),
-    args: { object: { type: new GraphQLNonNull(GraphQLString) }, limit: { type: GraphQLInt } },
-    resolve: async (_r, { object, limit }, ctx) => {
+    args: {
+      object: { type: new GraphQLNonNull(GraphQLString) },
+      limit: { type: GraphQLInt },
+      q: { type: GraphQLString },
+      sort: { type: GraphQLString },
+    },
+    resolve: async (_r, { object, limit, q, sort }, ctx) => {
       requireRbac(ctx, "objects", "read");
       const obj = await requireObject(object);
-      return listRecords(obj.id, limit ?? 200);
+      return (await listRecords(obj.id, { limit: limit ?? 200, q, sort })).map((r) => ({ ...r, object }));
     },
   },
   record: {
@@ -405,23 +800,80 @@ const queryFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
     resolve: async (_r, { object, id }, ctx) => {
       requireRbac(ctx, "objects", "read");
       const obj = await requireObject(object);
-      return getRecord(obj.id, id);
+      const row = await getRecord(obj.id, id);
+      return row ? { ...row, object } : row;
+    },
+  },
+  search: {
+    type: new GraphQLNonNull(SearchResult),
+    args: {
+      q: { type: new GraphQLNonNull(GraphQLString) },
+      limit: { type: GraphQLInt },
+    },
+    resolve: async (_r, { q, limit }, ctx) => {
+      requireRbac(ctx, "contacts", "read");
+      const query = String(q ?? "").trim();
+      if (!query) return { contacts: [], companies: [], deals: [], records: [] };
+      const hits = await searchCrm(query, {
+        mode: "prefix",
+        limit: Math.min(Number(limit) || 10, 25),
+        role: ctx.auth.role,
+      });
+      const empty =
+        hits.contacts.length === 0 &&
+        hits.companies.length === 0 &&
+        hits.deals.length === 0 &&
+        hits.records.length === 0;
+      return {
+        ...hits,
+        ...(empty
+          ? {
+              note: `No exact or prefix match for "${query}". This search is not fuzzy — try a shorter prefix, the surname alone, or an email address.`,
+            }
+          : {}),
+      };
+    },
+  },
+  dashboardStats: {
+    type: new GraphQLNonNull(DashboardStats),
+    resolve: async (_r, _a, ctx) => {
+      requireRbac(ctx, "contacts", "read");
+      return dashboardStatsForRole(ctx.auth.role);
+    },
+  },
+  reportStats: {
+    type: new GraphQLNonNull(ReportStats),
+    resolve: async (_r, _a, ctx) => {
+      requireRbac(ctx, "contacts", "read");
+      return reportStatsForRole(ctx.auth.role);
+    },
+  },
+  pipelines: {
+    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(PipelineType))),
+    resolve: async (_r, _a, ctx) => {
+      requireRbac(ctx, "pipelines", "read");
+      return listPipelinesWithStages();
+    },
+  },
+  pipeline: {
+    type: PipelineType,
+    args: { id: { type: new GraphQLNonNull(GraphQLID) } },
+    resolve: async (_r, { id }, ctx) => {
+      requireRbac(ctx, "pipelines", "read");
+      return getPipelineWithStages(String(id));
+    },
+  },
+  stages: {
+    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(StageType))),
+    args: { pipelineId: { type: GraphQLString } },
+    resolve: async (_r, { pipelineId }, ctx) => {
+      requireRbac(ctx, "pipelines", "read");
+      return listStages(pipelineId ? String(pipelineId) : undefined);
     },
   },
 };
 
 // ── Mutation ──────────────────────────────────────────────────────────────────
-
-function zparse<T extends z.ZodTypeAny>(schema: T, input: unknown): z.infer<T> {
-  const parsed = schema.safeParse(input);
-  if (!parsed.success) {
-    const issue = parsed.error.issues[0];
-    throw new GraphQLError(`${issue.path.join(".") || "input"}: ${issue.message}`, {
-      extensions: { code: "BAD_USER_INPUT" },
-    });
-  }
-  return parsed.data;
-}
 
 const mutationFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
   createContact: {
@@ -457,71 +909,57 @@ const mutationFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
   createCompany: {
     type: new GraphQLNonNull(Company),
     args: { input: { type: new GraphQLNonNull(JSONScalar) } },
-    resolve: async (_r, { input }, ctx) => {
-      requireRbac(ctx, "companies", "create");
-      await guardWrites(ctx, "companies", input);
-      const data = zparse(companyInput, input);
-      const now = Date.now();
-      const id = newId();
-      const { custom, ...fields } = data;
-      await db.insert(tables.companies).values({
-        id,
-        ...fields,
-        ownerId: ctx.auth.user?.id ?? null,
-        custom: JSON.stringify(custom ?? {}),
-        createdAt: now,
-        updatedAt: now,
-      });
-      await logActivity({ type: "created", entityType: "company", entityId: id, actorId: ctx.auth.user?.id });
-      await audit(ctx.auth.user?.id, "company.created", { objectType: "company", objectId: id });
-      const row = await byId(tables.companies, id);
-      // Workflows see the full snapshot; the API caller sees a redacted row.
-      await dispatchEvent({ event: "company.created", entityType: "company", entityId: id, snapshot: { ...row, custom: undefined } });
-      return redactRow(ctx, "companies", row);
-    },
+    resolve: toResolver(companiesCreate),
   },
   updateCompany: {
     type: new GraphQLNonNull(Company),
     args: { id: { type: new GraphQLNonNull(GraphQLID) }, input: { type: new GraphQLNonNull(JSONScalar) } },
-    resolve: async (_r, { id, input }, ctx) => {
-      requireRbac(ctx, "companies", "update");
-      await guardWrites(ctx, "companies", input);
-      const existing = await byId(tables.companies, id);
-      if (!existing) throw new GraphQLError("Company not found", { extensions: { code: "NOT_FOUND" } });
-      const data = zparse(companyPatch, input);
-      const { custom, ...fields } = data;
-      const changed = changedKeys(fields, existing);
-      await db
-        .update(tables.companies)
-        .set({
-          ...fields,
-          ...(custom !== undefined ? { custom: JSON.stringify({ ...JSON.parse(existing.custom), ...custom }) } : {}),
-          updatedAt: Date.now(),
-        })
-        .where(eq(tables.companies.id, id));
-      if (changed.length > 0 || custom !== undefined) {
-        await logActivity({ type: "updated", entityType: "company", entityId: id, actorId: ctx.auth.user?.id, meta: { fields: changed } });
-      }
-      await audit(ctx.auth.user?.id, "company.updated", { objectType: "company", objectId: id, meta: { fields: changed } });
-      return redactRow(ctx, "companies", await byId(tables.companies, id));
-    },
+    resolve: toResolver(companiesUpdate),
   },
   deleteCompany: {
     type: new GraphQLNonNull(GraphQLBoolean),
     args: { id: { type: new GraphQLNonNull(GraphQLID) } },
-    resolve: async (_r, { id }, ctx) => {
-      requireRbac(ctx, "companies", "delete");
-      const existing = await byId(tables.companies, id);
-      if (!existing) return false;
-      await db.delete(tables.companies).where(eq(tables.companies.id, id));
-      // detach children rather than cascade-delete
-      await db.update(tables.contacts).set({ companyId: null }).where(eq(tables.contacts.companyId, id));
-      await db.update(tables.deals).set({ companyId: null }).where(eq(tables.deals.companyId, id));
-      await db.delete(tables.notes).where(eq(tables.notes.entityId, id));
-      await db.delete(tables.activities).where(eq(tables.activities.entityId, id));
-      await audit(ctx.auth.user?.id, "company.deleted", { objectType: "company", objectId: id });
-      return true;
-    },
+    resolve: toResolver(companiesDelete, { onNotFound: () => false, map: () => true }),
+  },
+  createDeal: {
+    type: new GraphQLNonNull(Deal),
+    args: { input: { type: new GraphQLNonNull(JSONScalar) } },
+    resolve: toResolver(dealsCreate),
+  },
+  updateDeal: {
+    type: new GraphQLNonNull(Deal),
+    args: { id: { type: new GraphQLNonNull(GraphQLID) }, input: { type: new GraphQLNonNull(JSONScalar) } },
+    resolve: toResolver(dealsUpdate),
+  },
+  deleteDeal: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    args: { id: { type: new GraphQLNonNull(GraphQLID) } },
+    resolve: toResolver(dealsDelete, { onNotFound: () => false, map: () => true }),
+  },
+  createTask: {
+    type: new GraphQLNonNull(Task),
+    args: { input: { type: new GraphQLNonNull(JSONScalar) } },
+    resolve: toResolver(tasksCreate),
+  },
+  updateTask: {
+    type: new GraphQLNonNull(Task),
+    args: { id: { type: new GraphQLNonNull(GraphQLID) }, input: { type: new GraphQLNonNull(JSONScalar) } },
+    resolve: toResolver(tasksUpdate),
+  },
+  deleteTask: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    args: { id: { type: new GraphQLNonNull(GraphQLID) } },
+    resolve: toResolver(tasksDelete, { onNotFound: () => false, map: () => true }),
+  },
+  createNote: {
+    type: new GraphQLNonNull(Note),
+    args: { input: { type: new GraphQLNonNull(JSONScalar) } },
+    resolve: toResolver(notesCreate),
+  },
+  logActivity: {
+    type: new GraphQLNonNull(Activity),
+    args: { input: { type: new GraphQLNonNull(JSONScalar) } },
+    resolve: toResolver(activitiesCreate),
   },
   createRecord: {
     type: new GraphQLNonNull(RecordType),
@@ -529,10 +967,9 @@ const mutationFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
     resolve: async (_r, { object, data }, ctx) => {
       requireRbac(ctx, "objects", "create");
       const obj = await requireObject(object);
-      const result = await createRecord(obj.id, data ?? {});
+      const result = await createRecord(obj.id, data ?? {}, { apiName: obj.apiName, actorId: ctx.auth.user?.id });
       if (!result.ok) throw new GraphQLError(result.error, { extensions: { code: "BAD_USER_INPUT" } });
-      await audit(ctx.auth.user?.id, "record.created", { objectType: obj.apiName, objectId: result.record.id });
-      return result.record;
+      return { ...result.record, object };
     },
   },
   updateRecord: {
@@ -545,11 +982,10 @@ const mutationFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
     resolve: async (_r, { object, id, data }, ctx) => {
       requireRbac(ctx, "objects", "update");
       const obj = await requireObject(object);
-      const result = await updateRecord(obj.id, id, data ?? {});
+      const result = await updateRecord(obj.id, id, data ?? {}, { apiName: obj.apiName, actorId: ctx.auth.user?.id });
       if (result === undefined) throw new GraphQLError("Record not found", { extensions: { code: "NOT_FOUND" } });
       if (!result.ok) throw new GraphQLError(result.error, { extensions: { code: "BAD_USER_INPUT" } });
-      await audit(ctx.auth.user?.id, "record.updated", { objectType: obj.apiName, objectId: id });
-      return result.record;
+      return { ...result.record, object };
     },
   },
   deleteRecord: {
@@ -558,9 +994,7 @@ const mutationFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
     resolve: async (_r, { object, id }, ctx) => {
       requireRbac(ctx, "objects", "delete");
       const obj = await requireObject(object);
-      const ok = await deleteRecord(obj.id, id);
-      if (ok) await audit(ctx.auth.user?.id, "record.deleted", { objectType: obj.apiName, objectId: id });
-      return ok;
+      return deleteRecord(obj.id, id, { apiName: obj.apiName, actorId: ctx.auth.user?.id });
     },
   },
 };

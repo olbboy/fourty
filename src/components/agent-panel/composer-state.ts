@@ -11,7 +11,8 @@
  *   unrecoverable, because the next read fails identically.
  * - A turn that has been quiet for ninety seconds is `ended`, not `working`. A
  *   restarted worker leaves a turn with no closing boundary; treating it as
- *   in-flight locks the thread forever.
+ *   in-flight locks the thread forever. JSON heartbeats from the live stream
+ *   refresh `lastEventAt` so a slow provider is not that silence.
  * - `ended` and `working` both disable the input and mean opposite things: one
  *   is a wait of seconds, the other is permanent and offers a new conversation.
  */
@@ -72,6 +73,16 @@ export function composerState(s: Snapshot): ComposerState {
 /** Only one state accepts a message. Everything else is a reason it cannot. */
 export function canSend(state: ComposerState): boolean {
   return state === "ready";
+}
+
+/**
+ * A JSON heartbeat proves the stream is still open. It must not reopen a turn
+ * that already stopped (`awaiting_confirmation` / idle / unreachable) — a beat
+ * can race the closing event.
+ */
+export function applyHeartbeat(turn: TurnPhase, now: number): TurnPhase {
+  if (turn.kind !== "streaming") return turn;
+  return { kind: "streaming", lastEventAt: now };
 }
 
 /**

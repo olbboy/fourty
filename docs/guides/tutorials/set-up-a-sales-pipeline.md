@@ -13,7 +13,10 @@ board — one column per stage. You can use it as-is or reshape it in the next s
 ## 2. Rename and reorder stages
 
 In **Settings → Pipelines**, rename stages to match how your team actually sells (e.g.
-*Discovery → Demo → Proposal → Negotiation → Won/Lost*) and drag them into order.
+*Discovery → Demo → Proposal → Negotiation → Won/Lost*) and use the up/down controls
+to put them in that order. Need an extra column? **Add stage** inserts an open
+stage before Won/Lost. A leftover open stage with no deals can be deleted. Set a
+win probability per stage.
 
 ## 3. Set a win probability per stage
 

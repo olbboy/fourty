@@ -74,4 +74,11 @@ describe("renderTemplate", () => {
   it("renders missing/null values as empty", () => {
     expect(renderTemplate("City: {{city}}, X: {{nope}}", snapshot)).toBe("City: , X: ");
   });
+
+  it("prints timestamp fields as YYYY-MM-DD, not unix millis", () => {
+    const closedAt = Date.UTC(2026, 7, 31);
+    expect(renderTemplate("Won on {{closedAt}} for {{amount}}", { ...snapshot, closedAt })).toBe(
+      "Won on 2026-08-31 for 5000",
+    );
+  });
 });
