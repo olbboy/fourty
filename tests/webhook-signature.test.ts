@@ -104,3 +104,72 @@ describe("signed webhook delivery (real engine + inline queue)", () => {
     });
   });
 });
+
+describe("webhook secret REST (GET/POST /api/webhooks/secret)", () => {
+  const ADMIN = "frty_whsec_admin";
+  const MEMBER = "frty_whsec_member";
+  let db: typeof import("@/db").db;
+  let tables: typeof import("@/db").tables;
+  let secretRoutes: typeof import("@/app/api/webhooks/secret/route");
+
+  const req = (token: string, method = "GET") =>
+    new Request("http://localhost/api/webhooks/secret", {
+      method,
+      headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
+    });
+
+  beforeAll(async () => {
+    await resetDb();
+    ({ db, tables } = await import("@/db"));
+    const { sha256 } = await import("@/lib/auth");
+    const { newId } = await import("@/lib/id");
+    secretRoutes = await import("@/app/api/webhooks/secret/route");
+    const ws = await createWorkspace();
+    await db.insert(tables.apiKeys).values([
+      {
+        id: newId(),
+        workspaceId: ws,
+        name: "admin",
+        prefix: ADMIN.slice(0, 8),
+        keyHash: sha256(ADMIN),
+        role: "admin",
+        createdAt: Date.now(),
+      },
+      {
+        id: newId(),
+        workspaceId: ws,
+        name: "member",
+        prefix: MEMBER.slice(0, 8),
+        keyHash: sha256(MEMBER),
+        role: "member",
+        createdAt: Date.now(),
+      },
+    ]);
+  });
+
+  it("creates a secret on first GET and returns it again unchanged", async () => {
+    const first = await secretRoutes.GET(req(ADMIN));
+    expect(first.status).toBe(200);
+    const a = await first.json();
+    expect(a.secret).toMatch(/^whsec_/);
+    expect(a.signatureHeader).toBe(SIGNATURE_HEADER);
+    expect(a.timestampHeader).toBe(TIMESTAMP_HEADER);
+
+    const second = await secretRoutes.GET(req(ADMIN));
+    expect((await second.json()).secret).toBe(a.secret);
+  });
+
+  it("refuses a member key", async () => {
+    expect((await secretRoutes.GET(req(MEMBER))).status).toBe(403);
+    expect((await secretRoutes.POST(req(MEMBER, "POST"))).status).toBe(403);
+  });
+
+  it("rotates the secret on POST", async () => {
+    const before = (await (await secretRoutes.GET(req(ADMIN))).json()).secret as string;
+    const rotated = await secretRoutes.POST(req(ADMIN, "POST"));
+    expect(rotated.status).toBe(200);
+    const after = (await rotated.json()).secret as string;
+    expect(after).toMatch(/^whsec_/);
+    expect(after).not.toBe(before);
+  });
+});

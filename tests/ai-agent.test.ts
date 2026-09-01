@@ -92,6 +92,29 @@ describe("AI agent loop (Postgres + injected provider)", () => {
     expect(await contactCount()).toBe(0);
   });
 
+  it("nudges once when a read tool ran and the model spoke nothing", async () => {
+    const events = await drive(
+      cfg([
+        toolCallsTurn([{ id: "r1", name: "search", arguments: { query: "maya" } }]),
+        [{ type: "done", finishReason: "stop" }],
+        textTurn("Chen."),
+      ]),
+      { kind: "message", conversationId: null, message: "last name?" },
+    );
+    expect(events.find((e) => e.type === "tool_result")).toMatchObject({ name: "search", ok: true });
+    expect(
+      events
+        .filter((e): e is Extract<SseEvent, { type: "delta" }> => e.type === "delta")
+        .map((e) => e.text)
+        .join(""),
+    ).toBe("Chen.");
+    expect(events.at(-1)).toEqual({ type: "done", finishReason: "stop" });
+    const users = await withWorkspace(ws, async () =>
+      (await db.select().from(tables.aiMessages)).filter((m) => m.role === "user").map((m) => m.content),
+    );
+    expect(users).toEqual(["last name?"]);
+  });
+
   it("stops at a write with a proposal and creates no row until confirmed", async () => {
     const events = await drive(
       cfg([toolCallsTurn([{ id: "w1", name: "create_contact", arguments: { firstName: "Ada" } }])]),

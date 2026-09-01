@@ -9,10 +9,15 @@ A workflow is **trigger → conditions → actions**:
 
 1. **Trigger** — a CRM event, e.g. `deal.won`, `deal.stage_changed`, `contact.created`.
 2. **Conditions** *(optional)* — only run when the record matches (e.g. amount > 50000).
-3. **Actions** — one or more of the five types below.
+3. **Actions** — one or more of the six types below (AI draft is optional).
 
-Build it in the **visual builder**, with **template variables** like `{{firstName}}`
-that interpolate the triggering record into text.
+Open **Workflows** in the sidebar and click **New workflow**. The visual builder is a
+modal: name, trigger (**When…**), optional conditions (**Only if…**), then actions
+(**Then…**). New workflows start enabled; the toggle on the row turns them off. Click
+the run count on a row for **run history**.
+
+**Template variables** like `{{firstName}}` and `{{name}}` interpolate the triggering
+record into text. Timestamp fields such as `{{closedAt}}` render as `YYYY-MM-DD`.
 
 ## Action types
 

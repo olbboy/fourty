@@ -61,6 +61,12 @@ per-instance — front them with a shared gateway limiter.
 | `RATELIMIT_READ` | `600` | Read requests per window. |
 | `RATELIMIT_WRITE` | `300` | Write requests per window. |
 | `RATELIMIT_BULK` | `60` | Bulk (import/export) requests per window. |
+| `RATELIMIT_LOGIN` | `10` | Login attempts per IP per auth window. |
+| `RATELIMIT_LOGIN_WINDOW_MS` | `900000` | Auth-login window length (ms). Default 15 minutes. |
+| `RATELIMIT_FORGOT` | `5` | Password-reset email requests per IP per auth window. |
+| `RATELIMIT_FORGOT_WINDOW_MS` | `900000` | Forgot-password window length (ms). Default 15 minutes. |
+| `RATELIMIT_RESET` | `10` | Password-reset redemptions per IP per auth window. |
+| `RATELIMIT_RESET_WINDOW_MS` | `900000` | Reset-token window length (ms). Default 15 minutes. |
 
 ## HTTP
 
@@ -151,13 +157,14 @@ record, since a domain may only publish one.
 ## AI assistant
 
 The optional in-app chat ([ADR-015](../adr/015-ai-agent-chat.md)). **Disabled entirely
-when `AI_API_KEY` is unset** — route and UI both hidden. See
+when no key is set** — route and UI both hidden. See
 [AI assistant](../guides/ai-assistant.md).
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `AI_API_KEY` | unset | OpenAI-compatible key. **Unset = AI chat disabled.** |
-| `AI_BASE_URL` | `https://api.openai.com/v1` | OpenAI-compatible endpoint (OpenAI, Groq, OpenRouter, local `…/v1`). |
+| `AI_API_KEY` | unset | OpenAI-compatible key. **Unset (and no GLM/ZAI key) = AI chat disabled.** |
+| `GLM_API_KEY` / `ZAI_API_KEY` | unset | Zhipu GLM aliases. Used only when `AI_API_KEY` is empty; default host `https://open.bigmodel.cn/api/paas/v4`, model `glm-4.5-flash`. Chat sends `thinking: disabled` on that host so the token cap is spent on the reply, not hidden reasoning. |
+| `AI_BASE_URL` | `https://api.openai.com/v1` | OpenAI-compatible endpoint (OpenAI, Groq, OpenRouter, GLM, local `…/v1`). |
 | `AI_MODEL` | `gpt-4o-mini` | Model id sent to the endpoint. |
 | `AI_MAX_TOKENS` | `1024` | Cap per completion — the primary cost guardrail. |
 | `AI_RATELIMIT_PER_HOUR` | `60` | Chat turns per user per hour (every role); `429` when exceeded. |

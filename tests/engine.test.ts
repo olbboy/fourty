@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import { resetDb, createWorkspace } from "./pg-setup";
 
 /**
@@ -87,6 +88,36 @@ describe("workflow engine + scoring integration", () => {
     });
   });
 
+  it("renders closedAt as a calendar date in a won-deal note", async () => {
+    await withWorkspace(ws, async () => {
+      await db.insert(tables.workflows).values({
+        id: "wf-won-date",
+        name: "Won date note",
+        enabled: 1,
+        trigger: JSON.stringify({ event: "deal.won" }),
+        conditions: "[]",
+        actions: JSON.stringify([
+          { type: "add_note", body: "Won on {{closedAt}} for {{amount}} {{currency}}" },
+        ]),
+        createdAt: Date.now(),
+      });
+      await dispatchEvent({
+        event: "deal.won",
+        entityType: "deal",
+        entityId: "deal-won-date",
+        snapshot: {
+          name: "Acme",
+          amount: 48000,
+          currency: "USD",
+          closedAt: Date.UTC(2026, 7, 31),
+        },
+      });
+      const notes = (await db.select().from(tables.notes)).filter((n) => n.entityId === "deal-won-date");
+      expect(notes).toHaveLength(1);
+      expect(notes[0].body).toBe("Won on 2026-08-31 for 48000 USD");
+    });
+  });
+
   it("recomputes contact scores from db state", async () => {
     await withWorkspace(ws, async () => {
       const now = Date.now();
@@ -118,6 +149,52 @@ describe("workflow engine + scoring integration", () => {
       const row = (await db.select().from(tables.contacts)).find((c) => c.id === "score1")!;
       expect(row.score).toBe(score);
       expect(row.lastActivityAt).toBe(now - 3600_000);
+    });
+  });
+
+  it("update_field writes allowed columns and skips a forbidden one", async () => {
+    await withWorkspace(ws, async () => {
+      const now = Date.now();
+      const id = newId();
+      await db.insert(tables.contacts).values({
+        id,
+        firstName: "Zoe",
+        lastName: "Lead",
+        status: "lead",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await db.insert(tables.workflows).values({
+        id: "wf-update-field",
+        name: "Qualify lead",
+        enabled: 1,
+        trigger: JSON.stringify({ event: "contact.created" }),
+        conditions: "[]",
+        actions: JSON.stringify([
+          { type: "update_field", field: "status", value: "qualified" },
+          { type: "update_field", field: "jobTitle", value: "{{firstName}} Ops" },
+          { type: "update_field", field: "score", value: 99 },
+        ]),
+        createdAt: now,
+      });
+      await dispatchEvent({
+        event: "contact.created",
+        entityType: "contact",
+        entityId: id,
+        snapshot: { firstName: "Zoe", status: "lead" },
+      });
+
+      const row = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)))[0];
+      expect(row.status).toBe("qualified");
+      expect(row.jobTitle).toBe("Zoe Ops");
+      expect(row.score).not.toBe(99);
+
+      const run = (await db.select().from(tables.workflowRuns).where(eq(tables.workflowRuns.workflowId, "wf-update-field")))[0];
+      expect(JSON.parse(run.log)).toEqual([
+        "set status = qualified",
+        "set jobTitle = Zoe Ops",
+        'skipped update_field: field "score" not allowed',
+      ]);
     });
   });
 });

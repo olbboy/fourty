@@ -108,3 +108,71 @@ describe("rate limit enforced through withAuth", () => {
     expect((await get("10.3.3.3")).status).toBe(200); // independent IP
   });
 });
+
+describe("auth budgets", () => {
+  let loginBudget: typeof import("@/lib/ratelimit").loginBudget;
+  let forgotBudget: typeof import("@/lib/ratelimit").forgotBudget;
+  let resetBudget: typeof import("@/lib/ratelimit").resetBudget;
+
+  beforeAll(async () => {
+    ({ loginBudget, forgotBudget, resetBudget } = await import("@/lib/ratelimit"));
+  });
+  afterEach(() => {
+    delete process.env.RATELIMIT_LOGIN;
+    delete process.env.RATELIMIT_LOGIN_WINDOW_MS;
+    delete process.env.RATELIMIT_FORGOT;
+    delete process.env.RATELIMIT_FORGOT_WINDOW_MS;
+    delete process.env.RATELIMIT_RESET;
+    delete process.env.RATELIMIT_RESET_WINDOW_MS;
+  });
+
+  it("defaults login to 10, forgot to 5, reset to 10, each per 15 minutes", () => {
+    expect(loginBudget()).toEqual({ limit: 10, windowMs: 15 * 60 * 1000 });
+    expect(forgotBudget()).toEqual({ limit: 5, windowMs: 15 * 60 * 1000 });
+    expect(resetBudget()).toEqual({ limit: 10, windowMs: 15 * 60 * 1000 });
+  });
+
+  it("reads env at call time", () => {
+    process.env.RATELIMIT_LOGIN = "3";
+    process.env.RATELIMIT_LOGIN_WINDOW_MS = "1000";
+    process.env.RATELIMIT_FORGOT = "2";
+    process.env.RATELIMIT_FORGOT_WINDOW_MS = "2000";
+    process.env.RATELIMIT_RESET = "4";
+    process.env.RATELIMIT_RESET_WINDOW_MS = "3000";
+    expect(loginBudget()).toEqual({ limit: 3, windowMs: 1000 });
+    expect(forgotBudget()).toEqual({ limit: 2, windowMs: 2000 });
+    expect(resetBudget()).toEqual({ limit: 4, windowMs: 3000 });
+  });
+});
+
+describe("login rate limit on POST /api/auth/login", () => {
+  let __resetRateLimits: typeof import("@/lib/ratelimit").__resetRateLimits;
+  let login: typeof import("@/app/api/auth/login/route");
+
+  beforeAll(async () => {
+    await resetDb();
+    ({ __resetRateLimits } = await import("@/lib/ratelimit"));
+    login = await import("@/app/api/auth/login/route");
+  });
+  afterEach(() => {
+    __resetRateLimits();
+    delete process.env.RATELIMIT_LOGIN;
+  });
+
+  const post = (ip: string) =>
+    login.POST(
+      new Request("http://localhost/api/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": ip },
+        body: JSON.stringify({ email: "nobody@fourty.test", password: "not-the-password" }),
+      }),
+    );
+
+  it("returns 429 once RATELIMIT_LOGIN is spent, even on a bad password", async () => {
+    process.env.RATELIMIT_LOGIN = "1";
+    __resetRateLimits();
+    expect((await post("10.8.8.8")).status).toBe(401);
+    expect((await post("10.8.8.8")).status).toBe(429);
+    expect((await post("10.8.8.9")).status).toBe(401); // independent IP
+  });
+});

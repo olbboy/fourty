@@ -38,6 +38,7 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -45,6 +46,7 @@ import {
   SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar";
+import type { CustomObjectDef } from "@/lib/types";
 import { Logo } from "@/components/logo";
 import { useTheme } from "@/components/theme-provider";
 import { initials } from "@/lib/format";
@@ -66,6 +68,92 @@ export function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + "/");
 }
 
+function NavCustomObjects({ locale }: { locale: Locale }) {
+  const pathname = usePathname();
+  const t = translator(locale);
+  const [objects, setObjects] = useState<CustomObjectDef[]>([]);
+  const [failed, setFailed] = useState(false);
+  const [retry, setRetry] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      fetch("/api/custom-objects")
+        .then(async (r) => {
+          if (!r.ok) throw new Error(String(r.status));
+          return r.json();
+        })
+        .then((d) => {
+          if (cancelled) return;
+          setFailed(false);
+          setObjects(Array.isArray(d.objects) ? d.objects : []);
+        })
+        .catch(() => {
+          if (!cancelled) setFailed(true);
+        });
+    };
+    load();
+    window.addEventListener("fourty:objects-changed", load);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("fourty:objects-changed", load);
+    };
+  }, [pathname, retry]);
+
+  if (failed) {
+    return (
+      <SidebarGroup>
+        <SidebarGroupLabel>{t("settings.customObjects")}</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => setRetry((n) => n + 1)}
+                tooltip={t("error.loadFailed")}
+                aria-label={t("error.loadFailed")}
+              >
+                <Box />
+                <span>{t("action.retry")}</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+    );
+  }
+  if (objects.length === 0) return null;
+
+  return (
+    <SidebarGroup>
+      <SidebarGroupLabel>{t("settings.customObjects")}</SidebarGroupLabel>
+      <SidebarGroupContent>
+        <nav aria-label={t("nav.objects")}>
+        <SidebarMenu>
+          {objects.map((obj) => {
+            const href = `/objects/${obj.apiName}`;
+            const active = isActivePath(pathname, href);
+            return (
+              <SidebarMenuItem key={obj.id}>
+                <SidebarMenuButton
+                  isActive={active}
+                  tooltip={obj.namePlural}
+                  render={
+                    <Link href={href} aria-current={active ? "page" : undefined} />
+                  }
+                >
+                  <Box />
+                  <span>{obj.namePlural}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            );
+          })}
+        </SidebarMenu>
+        </nav>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
+}
+
 function NavMain({ locale }: { locale: Locale }) {
   const pathname = usePathname();
   const t = translator(locale);
@@ -75,7 +163,7 @@ function NavMain({ locale }: { locale: Locale }) {
       {/* shadcn's sidebar parts are all divs, so the navigation landmark has to
           be declared here or screen-reader users lose it entirely. */}
       <SidebarGroupContent>
-        <nav aria-label="Main">
+        <nav aria-label={t("shell.primaryNav")}>
           <SidebarMenu>
             {NAV.map(({ href, key, icon: Icon }) => {
               const active = isActivePath(pathname, href);
@@ -106,71 +194,19 @@ function NavMain({ locale }: { locale: Locale }) {
 }
 
 /**
- * Custom objects, straight from their definitions — the group only exists when
- * at least one is defined. The settings panel fires `fourty:objects-changed`
- * after creating or deleting one, so the list stays fresh without a reload.
- */
-function NavObjects({ locale }: { locale: Locale }) {
-  const pathname = usePathname();
-  const t = translator(locale);
-  const [objects, setObjects] = useState<{ id: string; apiName: string; namePlural: string }[]>([]);
-
-  useEffect(() => {
-    let alive = true;
-    const load = async () => {
-      const res = await fetch("/api/custom-objects").catch(() => null);
-      if (res?.ok && alive) setObjects((await res.json()).objects ?? []);
-    };
-    load();
-    window.addEventListener("fourty:objects-changed", load);
-    return () => {
-      alive = false;
-      window.removeEventListener("fourty:objects-changed", load);
-    };
-  }, []);
-
-  if (objects.length === 0) return null;
-  return (
-    <SidebarGroup>
-      <SidebarGroupContent>
-        <nav aria-label={t("nav.objects")}>
-          <SidebarMenu>
-            {objects.map((o) => {
-              const href = `/objects/${o.apiName}`;
-              const active = isActivePath(pathname, href);
-              return (
-                <SidebarMenuItem key={o.id}>
-                  <SidebarMenuButton
-                    isActive={active}
-                    tooltip={o.namePlural}
-                    render={
-                      <Link href={href} aria-current={active ? "page" : undefined} />
-                    }
-                  >
-                    <Box />
-                    <span>{o.namePlural}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              );
-            })}
-          </SidebarMenu>
-        </nav>
-      </SidebarGroupContent>
-    </SidebarGroup>
-  );
-}
-
-/**
  * Footer account row. Collapsed to an avatar when the sidebar is in icon mode;
  * the dropdown keeps theme and sign-out reachable in both states.
  */
 function NavUser({
   user,
+  locale,
   onSignOut,
 }: {
   user: { name: string; email: string };
+  locale: Locale;
   onSignOut: () => void;
 }) {
+  const t = translator(locale);
   const { isMobile } = useSidebar();
   const { dark, toggle } = useTheme();
 
@@ -179,7 +215,7 @@ function NavUser({
       <SidebarMenuItem>
         <DropdownMenu>
           <DropdownMenuTrigger
-            aria-label="Account menu"
+            aria-label={t("shell.accountMenu")}
             render={<SidebarMenuButton size="lg" tooltip={user.name} />}
           >
             <Avatar className="size-8 rounded-lg">
@@ -223,12 +259,12 @@ function NavUser({
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={toggle}>
               {dark ? <Sun /> : <Moon />}
-              Toggle theme
+              {t("shell.toggleTheme")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onSignOut}>
               <LogOut />
-              Sign out
+              {t("shell.signOut")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -249,6 +285,7 @@ export function AppSidebar({
   onSearch: () => void;
   onSignOut: () => void;
 }) {
+  const t = translator(locale);
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
@@ -283,11 +320,11 @@ export function AppSidebar({
           <SidebarMenuItem>
             <SidebarMenuButton
               onClick={onSearch}
-              tooltip="Search"
+              tooltip={t("action.search")}
               className="text-ink-muted"
             >
               <Search />
-              <span>Search…</span>
+              <span>{t("shell.search")}</span>
               <Kbd className="ml-auto">⌘K</Kbd>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -295,10 +332,10 @@ export function AppSidebar({
       </SidebarHeader>
       <SidebarContent>
         <NavMain locale={locale} />
-        <NavObjects locale={locale} />
+        <NavCustomObjects locale={locale} />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={user} onSignOut={onSignOut} />
+        <NavUser user={user} locale={locale} onSignOut={onSignOut} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

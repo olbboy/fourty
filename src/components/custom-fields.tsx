@@ -1,30 +1,53 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { CustomFieldDef } from "@/lib/types";
-import { Field } from "./ui";
+import { Field, LoadError } from "./ui";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
 
 export function useCustomFields(entity: "contact" | "company" | "deal") {
   const [defs, setDefs] = useState<CustomFieldDef[]>([]);
+  const [failed, setFailed] = useState(false);
+  const [retry, setRetry] = useState(0);
+  const reload = useCallback(() => setRetry((n) => n + 1), []);
+
   useEffect(() => {
+    let cancelled = false;
+    setFailed(false);
     fetch(`/api/custom-fields?entity=${entity}`)
-      .then((r) => (r.ok ? r.json() : { fields: [] }))
-      .then((d) => setDefs(d.fields ?? []));
-  }, [entity]);
-  return defs;
+      .then(async (r) => {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json();
+      })
+      .then((d) => {
+        if (!cancelled) setDefs(Array.isArray(d.fields) ? d.fields : []);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [entity, retry]);
+
+  return { defs, failed, retry: reload };
 }
 
 export function CustomFieldsInputs({
   defs,
   values,
   onChange,
+  failed,
+  onRetry,
 }: {
   defs: CustomFieldDef[];
   values: Record<string, unknown>;
   onChange: (values: Record<string, unknown>) => void;
+  failed?: boolean;
+  onRetry?: () => void;
 }) {
+  if (failed && onRetry) return <LoadError compact onRetry={onRetry} />;
   if (defs.length === 0) return null;
 
   function set(key: string, value: unknown) {
@@ -78,10 +101,15 @@ export function CustomFieldsInputs({
 export function CustomFieldsDisplay({
   defs,
   values,
+  failed,
+  onRetry,
 }: {
   defs: CustomFieldDef[];
   values: Record<string, unknown>;
+  failed?: boolean;
+  onRetry?: () => void;
 }) {
+  if (failed && onRetry) return <LoadError compact onRetry={onRetry} />;
   if (defs.length === 0) return null;
   return (
     <>

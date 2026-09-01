@@ -363,6 +363,13 @@ describe("side-effect parity across REST / GraphQL / MCP", () => {
     // Importing these is what wires the adapters up in a running process.
     await import("@/app/api/contacts/route");
     await import("@/app/api/contacts/[id]/route");
+    await import("@/app/api/companies/route");
+    await import("@/app/api/companies/[id]/route");
+    await import("@/app/api/deals/route");
+    await import("@/app/api/deals/[id]/route");
+    await import("@/app/api/tasks/route");
+    await import("@/app/api/tasks/[id]/route");
+    await import("@/app/api/notes/route");
     await import("@/app/api/facts/route");
     await import("@/app/api/facts/[id]/route");
     await import("@/lib/graphql/schema");
@@ -379,7 +386,25 @@ describe("side-effect parity across REST / GraphQL / MCP", () => {
     }
   });
 
-  it.skip("GraphQL task completion — no task mutations exist yet (backlog #10)", () => {});
+  it("GraphQL task completion dispatches task.completed and logs on the parent", async () => {
+    const contactId = await createContact.graphql();
+    const data = await runGql(`mutation($i: JSON!) { createTask(input: $i) { id } }`, {
+      i: { title: "Call Ada", entityType: "contact", entityId: contactId },
+    });
+    const taskId = (data.createTask as { id: string }).id;
+    await runGql(`mutation($id: ID!, $i: JSON!) { updateTask(id: $id, input: $i) { completedAt } }`, {
+      id: taskId,
+      i: { completed: true },
+    });
+    expect(await eventsFor(taskId)).toEqual(["task.completed"]);
+    expect((await activitiesFor(contactId)).map((a) => a.type)).toContain("task_completed");
+  });
 
-  it.skip("MCP task completion — no tool completes a task; create_task/list_tasks only", () => {});
+  it("MCP task completion dispatches task.completed and logs on the parent", async () => {
+    const contactId = await createContact.mcp();
+    const created = await callTool("create_task", { title: "Call Ada", entityType: "contact", entityId: contactId });
+    await callTool("update_task", { id: created.id, completed: true });
+    expect(await eventsFor(created.id as string)).toEqual(["task.completed"]);
+    expect((await activitiesFor(contactId)).map((a) => a.type)).toContain("task_completed");
+  });
 });

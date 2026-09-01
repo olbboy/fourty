@@ -38,4 +38,27 @@ describe("source hygiene", () => {
     }
     expect(offenders, `files containing a NUL byte:\n${offenders.join("\n")}`).toEqual([]);
   });
+
+  it("does not send users to Settings or Automations for workflows", () => {
+    // Workflows live at /workflows in the sidebar. A tutorial that pointed
+    // at Settings for workflows sent people into a panel that does not exist.
+    const root = path.resolve(__dirname, "..");
+    const files = execFileSync("git", ["ls-files", "-z", "docs", "src"], {
+      cwd: root,
+      encoding: "buffer",
+    })
+      .toString("utf8")
+      .split("\0")
+      .filter(Boolean);
+
+    const offenders: string[] = [];
+    for (const rel of files) {
+      if (!/\.(md|ts|tsx)$/.test(rel)) continue;
+      const text = readFileSync(path.join(root, rel), "utf8");
+      if (/Settings\s*→\s*Workflows/.test(text) || /Automations\s*→/.test(text)) {
+        offenders.push(rel);
+      }
+    }
+    expect(offenders, `wrong workflow path:\n${offenders.join("\n")}`).toEqual([]);
+  });
 });

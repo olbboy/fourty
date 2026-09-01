@@ -2,13 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { timeAgo } from "@/lib/format";
-import { Modal, Field, Spinner, useConfirm } from "@/components/ui";
+import { Modal, Field, Spinner, LoadError, useConfirm } from "@/components/ui";
 import { IconPlus, IconTrash, IconMail } from "@/components/icons";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { useLocale, useT } from "@/lib/i18n/provider";
+import type { MessageKey } from "@/lib/i18n";
+import { formatMailboxLastError, isSecretKeyError } from "@/lib/mailbox-display";
 
 type SyncAccount = {
   id: string;
@@ -29,31 +32,40 @@ type SyncAccount = {
 // object, so the panel is shown to everyone who can read the list and the writes
 // report their own 403 — the API stays the single source of truth on permission.
 const MAILBOX_PROVIDERS = [
-  { value: "google", label: "Google (Gmail)", note: "Connect with OAuth, then pull mail." },
-  { value: "microsoft", label: "Microsoft 365", note: "Connect with OAuth, then pull mail." },
-  { value: "ics", label: "Calendar feed (ICS)", note: "Fourty fetches the feed URL you provide." },
-  {
-    value: "imap",
-    label: "IMAP (receive only)",
-    note: "No automatic pull yet — mail has to be pushed to the ingest endpoint.",
-  },
-] as const;
+  { value: "google", label: "settings.mailboxProviderGoogle", note: "settings.mailboxNoteOauth" },
+  { value: "microsoft", label: "settings.mailboxProviderMicrosoft", note: "settings.mailboxNoteOauth" },
+  { value: "ics", label: "settings.mailboxProviderIcs", note: "settings.mailboxNoteIcs" },
+  { value: "imap", label: "settings.mailboxProviderImap", note: "settings.mailboxNoteImap" },
+] as const satisfies ReadonlyArray<{ value: string; label: MessageKey; note: MessageKey }>;
 
 /** When a booked pull comes round, in words. */
-function whenDue(dueAt: number): string {
+function whenDue(dueAt: number, t: (key: MessageKey, vars?: Record<string, string | number>) => string): string {
   const minutes = Math.round((dueAt - Date.now()) / 60_000);
-  if (minutes <= 0) return "is due now";
-  if (minutes < 60) return `in ${minutes} min`;
-  return `in ${Math.round(minutes / 60)} h`;
+  if (minutes <= 0) return t("settings.mailboxDueNow");
+  if (minutes < 60) return t("settings.mailboxDueMin", { n: minutes });
+  return t("settings.mailboxDueHour", { n: Math.round(minutes / 60) });
 }
 
 /** Providers whose mail Fourty can go and fetch itself. */
 const CAN_PULL = new Set(["google", "microsoft", "ics"]);
 
+type Translate = (key: MessageKey, vars?: Record<string, string | number>) => string;
+
+/** Map known mailbox-API English errors to catalog keys; else a generic fallback. */
+function mailboxError(t: Translate, error: unknown, fallback: MessageKey): string {
+  if (error === "Account not found") return t("settings.mailboxNotFound");
+  if (isSecretKeyError(error)) return t("settings.mailboxNoSecretKey");
+  return t(fallback);
+}
+
 export function MailboxSection() {
+  const t = useT();
+  const locale = useLocale();
   const [askConfirm, confirmDialog] = useConfirm();
   const [accounts, setAccounts] = useState<SyncAccount[] | null>(null);
+  const [failed, setFailed] = useState(false);
   const [nextPull, setNextPull] = useState<Record<string, string>>({});
+  const [pullFailed, setPullFailed] = useState<Record<string, boolean>>({});
   const [showNew, setShowNew] = useState(false);
   const [provider, setProvider] = useState<string>("google");
   const [busy, setBusy] = useState<string | null>(null);
@@ -61,24 +73,33 @@ export function MailboxSection() {
   const [result, setResult] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    setFailed(false);
+    try {
     const res = await fetch("/api/sync/accounts");
-    if (!res.ok) return;
+    if (!res.ok) throw new Error("mailbox");
     const rows: SyncAccount[] = (await res.json()).accounts;
     setAccounts(rows);
     // One request per account, and there are never many. Reading each account's
     // own booking is what makes "it pulls by itself now" visible rather than a
-    // claim in a changelog.
-    const due: Record<string, string> = {};
-    await Promise.all(
+    // claim in a changelog. A failed GET is not "nothing booked" — flag the row.
+    const entries = await Promise.all(
       rows.map(async (a) => {
-        const r = await fetch(`/api/agent-tasks?entityType=sync_account&entityId=${a.id}`);
-        if (!r.ok) return;
-        const task = ((await r.json()).tasks ?? [])[0] as { dueAt: number } | undefined;
-        if (task) due[a.id] = whenDue(task.dueAt);
+        try {
+          const r = await fetch(`/api/agent-tasks?entityType=sync_account&entityId=${a.id}`);
+          if (!r.ok) throw new Error(String(r.status));
+          const task = ((await r.json()).tasks ?? [])[0] as { dueAt: number } | undefined;
+          return { id: a.id, when: task ? whenDue(task.dueAt, t) : undefined, failed: false };
+        } catch {
+          return { id: a.id, when: undefined, failed: true };
+        }
       }),
     );
-    setNextPull(due);
-  }, []);
+    setNextPull(Object.fromEntries(entries.flatMap((e) => (e.when ? [[e.id, e.when]] : []))));
+    setPullFailed(Object.fromEntries(entries.map((e) => [e.id, e.failed])));
+    } catch {
+      setFailed(true);
+    }
+  }, [t]);
   useEffect(() => {
     load();
   }, [load]);
@@ -103,7 +124,7 @@ export function MailboxSection() {
       setShowNew(false);
       load();
     } else {
-      setError((await res.json().catch(() => ({}))).error ?? "Failed to add mailbox");
+      setError(mailboxError(t, (await res.json().catch(() => ({}))).error, "settings.mailboxFailedAdd"));
     }
   }
 
@@ -115,9 +136,15 @@ export function MailboxSection() {
     const body = await res.json().catch(() => ({}));
     if (res.ok) {
       const counts = body.emails ?? body.calendar ?? {};
-      setResult(`${a.email}: ${counts.ingested ?? 0} new, ${counts.duplicates ?? 0} already seen`);
+      setResult(
+        t("settings.mailboxResult", {
+          email: a.email,
+          ingested: counts.ingested ?? 0,
+          duplicates: counts.duplicates ?? 0,
+        }),
+      );
     } else {
-      setError(body.error ?? "Sync failed");
+      setError(mailboxError(t, body.error, "settings.mailboxFailedSync"));
     }
     setBusy(null);
     load();
@@ -133,8 +160,11 @@ export function MailboxSection() {
     // A viewer may reach this button — say so rather than appear to do nothing.
     if (!res.ok) {
       setError(
-        (await res.json().catch(() => ({}))).error ??
-          (status === "paused" ? "Failed to pause mailbox" : "Failed to resume mailbox"),
+        mailboxError(
+          t,
+          (await res.json().catch(() => ({}))).error,
+          status === "paused" ? "settings.mailboxFailedPause" : "settings.mailboxFailedResume",
+        ),
       );
     }
     load();
@@ -142,13 +172,15 @@ export function MailboxSection() {
 
   async function remove(a: SyncAccount) {
     const ok = await askConfirm({
-      title: `Disconnect ${a.email}?`,
-      body: "Mail and events already filed against your contacts stay on their timelines.",
-      confirmLabel: "Disconnect",
+      title: t("settings.mailboxDisconnectTitle", { email: a.email }),
+      body: t("settings.mailboxDisconnectBody"),
+      confirmLabel: t("settings.mailboxDisconnect"),
     });
     if (!ok) return;
     const res = await fetch(`/api/sync/accounts/${a.id}`, { method: "DELETE" });
-    if (!res.ok) setError((await res.json().catch(() => ({}))).error ?? "Failed to disconnect");
+    if (!res.ok) {
+      setError(mailboxError(t, (await res.json().catch(() => ({}))).error, "settings.mailboxFailedDisconnect"));
+    }
     load();
   }
 
@@ -157,23 +189,27 @@ export function MailboxSection() {
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="flex items-center gap-1.5 text-sm font-semibold">
-            <IconMail width={15} height={15} /> Mailboxes &amp; calendars
+            <IconMail width={15} height={15} /> {t("settings.mailbox")}
           </h2>
-          <p className="text-sm text-ink-muted">
-            Pull email and calendar events in and file them against the matching contact
-            automatically.
-          </p>
+          <p className="text-sm text-ink-muted">{t("settings.mailboxHint")}</p>
         </div>
         <Button onClick={() => setShowNew(true)}>
-          <IconPlus width={15} height={15} /> Add mailbox
+          <IconPlus width={15} height={15} /> {t("settings.mailboxAdd")}
         </Button>
       </div>
       {error && <p className="mb-3 text-sm text-feedback-error">{error}</p>}
       {result && <p className="mb-3 text-sm text-ink-muted">{result}</p>}
-      {!accounts ? (
+      {failed ? (
+        <LoadError
+          onRetry={() => {
+            setAccounts(null);
+            void load();
+          }}
+        />
+      ) : !accounts ? (
         <Spinner />
       ) : accounts.length === 0 ? (
-        <p className="py-2 text-sm text-ink-muted">No mailboxes connected yet.</p>
+        <p className="py-2 text-sm text-ink-muted">{t("settings.mailboxEmpty")}</p>
       ) : (
         <div className="divide-y divide-line/60">
           {accounts.map((a) => {
@@ -196,17 +232,25 @@ export function MailboxSection() {
                         server (ADR-019); its hostname identifies the feed. */}
                     {a.config.urlHost && ` · ${a.config.urlHost}`}
                     {a.config.host && ` · ${a.config.host}`}
-                    {a.lastSyncedAt ? ` · synced ${timeAgo(a.lastSyncedAt)}` : " · never synced"}
-                    {a.status === "paused" && " · paused"}
+                    {a.lastSyncedAt
+                      ? ` · ${t("settings.mailboxSynced", { when: timeAgo(a.lastSyncedAt, locale) })}`
+                      : ` · ${t("settings.mailboxNeverSynced")}`}
+                    {a.status === "paused" && ` · ${t("settings.mailboxPaused")}`}
                   </p>
                   {a.status === "error" && a.lastError && (
-                    <p className="mt-0.5 break-all text-xs text-feedback-error">Last sync failed: {a.lastError}</p>
+                    <p className="mt-0.5 break-all text-xs text-feedback-error">
+                      {formatMailboxLastError(a.lastError, t)}
+                    </p>
                   )}
                   {/* Pulling is scheduled work, not a cron: the booking is a row,
                       so the panel can say when this mailbox is next due. */}
-                  {nextPull[a.id] && (
-                    <p className="mt-0.5 text-xs text-ink-muted">Next automatic pull {nextPull[a.id]}</p>
-                  )}
+                  {pullFailed[a.id] ? (
+                    <LoadError compact onRetry={() => void load()} />
+                  ) : nextPull[a.id] ? (
+                    <p className="mt-0.5 text-xs text-ink-muted">
+                      {t("settings.mailboxNextPull", { when: nextPull[a.id] })}
+                    </p>
+                  ) : null}
                 </div>
                 {needsConnect ? (
                   // A full browser navigation, not fetch: this endpoint answers with a
@@ -218,25 +262,25 @@ export function MailboxSection() {
                     href={`/api/sync/accounts/${a.id}/connect`}
                     className={cn(buttonVariants({ size: "xs" }))}
                   >
-                    Connect
+                    {t("settings.mailboxConnect")}
                   </a>
                 ) : (
                   CAN_PULL.has(a.provider) && (
                     <Button
                       onClick={() => syncNow(a)}
                       disabled={busy === a.id} variant="outline" size="sm" className="text-xs">
-                      {busy === a.id ? "Syncing…" : "Sync now"}
+                      {busy === a.id ? t("settings.mailboxSyncing") : t("settings.mailboxSyncNow")}
                     </Button>
                   )
                 )}
                 <Button
                   onClick={() => setStatus(a, a.status === "paused" ? "active" : "paused")} variant="outline" size="sm" className="text-xs">
-                  {a.status === "paused" ? "Resume" : "Pause"}
+                  {a.status === "paused" ? t("settings.mailboxResume") : t("settings.mailboxPause")}
                 </Button>
                 {/* Icon-only, so the mailbox has to be named in the label. */}
                 <Button
                   onClick={() => remove(a)}
-                  aria-label={`Disconnect ${a.email}`} variant="outline" size="icon-sm" className="text-feedback-error">
+                  aria-label={t("settings.mailboxDisconnectAria", { email: a.email })} variant="outline" size="icon-sm" className="text-feedback-error">
                   <IconTrash width={14} height={14} />
                 </Button>
               </div>
@@ -246,7 +290,7 @@ export function MailboxSection() {
       )}
 
       <Modal
-        title="Add a mailbox or calendar"
+        title={t("settings.mailboxModal")}
         open={showNew}
         onClose={() => {
           setShowNew(false);
@@ -254,38 +298,38 @@ export function MailboxSection() {
         }}
       >
         <form onSubmit={create} className="space-y-4">
-          <Field label="Provider">
+          <Field label={t("settings.mailboxProvider")}>
             <NativeSelect value={provider} onChange={(e) => setProvider(e.target.value)} className="w-full">
               {MAILBOX_PROVIDERS.map((p) => (
                 <option key={p.value} value={p.value}>
-                  {p.label}
+                  {t(p.label)}
                 </option>
               ))}
             </NativeSelect>
           </Field>
           <p className="text-xs text-ink-muted">
-            {MAILBOX_PROVIDERS.find((p) => p.value === provider)?.note}
+            {t(MAILBOX_PROVIDERS.find((p) => p.value === provider)?.note ?? "settings.mailboxNoteOauth")}
           </p>
-          <Field label="Email address">
-            <Input name="email" required type="email" placeholder="you@company.com" />
+          <Field label={t("settings.mailboxEmail")}>
+            <Input name="email" required type="email" placeholder={t("login.emailPlaceholder")} />
           </Field>
-          <Field label="Label (optional)">
-            <Input name="label" maxLength={120} placeholder="Sales inbox" />
+          <Field label={t("settings.mailboxLabelOptional")}>
+            <Input name="label" maxLength={120} placeholder={t("settings.mailboxLabelPlaceholder")} />
           </Field>
           {provider === "ics" && (
-            <Field label="Calendar feed URL">
-              <Input name="url" required type="url" placeholder="https://calendar.example.com/feed.ics" />
+            <Field label={t("settings.mailboxFeedUrl")}>
+              <Input name="url" required type="url" placeholder={t("settings.mailboxFeedUrlPlaceholder")} />
             </Field>
           )}
           {provider === "imap" && (
-            <Field label="IMAP host (optional — recorded for reference)">
-              <Input name="host" placeholder="imap.company.com" />
+            <Field label={t("settings.mailboxImapHost")}>
+              <Input name="host" placeholder={t("settings.mailboxImapHostPlaceholder")} />
             </Field>
           )}
           {error && <p className="text-sm text-feedback-error">{error}</p>}
           <div className="flex justify-end">
             <Button type="submit">
-              Add mailbox
+              {t("settings.mailboxAdd")}
             </Button>
           </div>
         </form>

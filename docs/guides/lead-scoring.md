@@ -47,6 +47,13 @@ comes back on deals from both the [REST routes](../api/rest.md) and the
 | 33–65 | `at_risk` |
 | < 33 | `stalled` |
 
+## Next best action
+
+Contact and deal detail pages also show **one next step**, computed by the same
+kind of rule table (`src/lib/next-action.ts`). First matching rule wins — add a
+way to reach them, follow up a quiet deal, update an overdue close date — so a
+rep sees something to do, not a score to interpret. No model, no extra request.
+
 ## Why deterministic?
 
 A score you can't explain can't be trusted to route a rep's time. Pure functions are

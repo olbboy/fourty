@@ -4,7 +4,9 @@ import { newId } from "@/lib/id";
 import { contactInput } from "@/lib/validators";
 import { recomputeContactScore } from "@/lib/services/contact-score";
 import { defineAction } from "../define";
-import { auditMeta, toContact, type Contact } from "./shared";
+import { encodeCustom } from "@/lib/custom-fields";
+import { ActionError } from "../types";
+import { auditMeta, findContactIdByEmail, toContact, type Contact } from "./shared";
 
 export const contactsCreate = defineAction({
   name: "contacts.create",
@@ -14,14 +16,22 @@ export const contactsCreate = defineAction({
   input: contactInput,
   expose: { rest: true, graphql: true, mcp: true, ai: true },
   run: async (data, ctx): Promise<Contact> => {
+    if (data.email) {
+      const existing = await findContactIdByEmail(data.email);
+      if (existing) {
+        throw new ActionError("invalid", `A contact with this email already exists (${existing})`);
+      }
+    }
     const now = Date.now();
     const id = newId();
     const { custom, ...fields } = data;
+    const blob = await encodeCustom("contact", custom ?? {});
+    if (!blob.ok) throw new ActionError("invalid", blob.error);
     await db.insert(tables.contacts).values({
       id,
       ...fields,
       ownerId: ctx.userId,
-      custom: JSON.stringify(custom ?? {}),
+      custom: blob.json,
       createdAt: now,
       updatedAt: now,
     });

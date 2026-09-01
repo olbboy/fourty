@@ -17,7 +17,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { LocaleProvider } from "@/lib/i18n/provider";
+import { LocaleProvider, useT } from "@/lib/i18n/provider";
 import { translator, type Locale } from "@/lib/i18n";
 
 // Primary items for the mobile bottom bar. The rest of the nav stays reachable
@@ -28,12 +28,13 @@ const MOBILE_NAV = NAV.filter((n) =>
 
 function ThemeToggle() {
   const { dark, toggle } = useTheme();
+  const t = useT();
   return (
     <Button
       variant="ghost"
       size="icon"
       onClick={toggle}
-      aria-label="Toggle theme"
+      aria-label={t("shell.toggleTheme")}
     >
       {dark ? <Sun /> : <Moon />}
     </Button>
@@ -81,7 +82,7 @@ function AppShellInner({
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:text-primary-foreground"
       >
-        Skip to content
+        {t("shell.skipToContent")}
       </a>
 
       <AppSidebar
@@ -117,7 +118,7 @@ function AppShellInner({
               variant="ghost"
               size="icon"
               onClick={() => setPaletteOpen(true)}
-              aria-label="Search"
+              aria-label={t("action.search")}
             >
               <Search />
             </Button>
@@ -126,7 +127,7 @@ function AppShellInner({
               variant="ghost"
               size="icon"
               onClick={logout}
-              aria-label="Sign out"
+              aria-label={t("shell.signOut")}
             >
               <LogOut />
             </Button>
@@ -143,7 +144,7 @@ function AppShellInner({
 
       {/* Mobile bottom nav */}
       <nav
-        aria-label="Primary"
+        aria-label={t("shell.primaryNav")}
         className="fixed inset-x-0 bottom-0 z-30 flex border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] md:hidden"
       >
         {MOBILE_NAV.map(({ href, key, icon: Icon }) => {

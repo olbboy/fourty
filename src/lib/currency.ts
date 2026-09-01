@@ -49,27 +49,43 @@ export function convert(
   return (amount * fromRate) / toRate;
 }
 
-export function formatMoney(amount: number, currency: string): string {
+export function formatMoney(amount: number | null | undefined, currency?: string | null): string {
+  if (amount == null) return "—";
+  const code = currency || "USD";
   try {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency,
+      currency: code,
       maximumFractionDigits: amount >= 1000 ? 0 : 2,
     }).format(amount);
   } catch {
-    return `${currency} ${amount.toLocaleString()}`;
+    return `${code} ${amount.toLocaleString()}`;
   }
 }
 
-export function formatCompact(amount: number, currency: string): string {
+export function formatCompact(amount: number | null | undefined, currency?: string | null): string {
+  if (amount == null) return "—";
+  const code = currency || "USD";
   try {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency,
+      currency: code,
       notation: "compact",
       maximumFractionDigits: 1,
     }).format(amount);
   } catch {
-    return `${currency} ${Math.round(amount).toLocaleString()}`;
+    return `${code} ${Math.round(amount).toLocaleString()}`;
   }
+}
+
+/** USD total, or null when any amount is absent (field-level hide). */
+export function sumUsd(
+  rows: readonly { amount?: number | null; currency?: string | null }[],
+): number | null {
+  let total = 0;
+  for (const row of rows) {
+    if (row.amount == null) return null;
+    total += convert(row.amount, row.currency || "USD", "USD");
+  }
+  return total;
 }

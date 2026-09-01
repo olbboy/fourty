@@ -5,7 +5,7 @@ subscribe to calendars via ICS.*
 
 ## Connect a mailbox
 
-From **Settings → Sync accounts**, connect a **Gmail** or **Microsoft** mailbox over
+From **Settings → Mailboxes & calendars**, connect a **Gmail** or **Microsoft** mailbox over
 OAuth (Authorization Code + PKCE, **read-only** scopes — Gmail `gmail.readonly`, Graph
 `Mail.Read`). Once connected, Fourty pulls recent mail and:
 

@@ -1,64 +1,13 @@
-import { eq } from "drizzle-orm";
-import { db, tables } from "@/db";
-import { withAuth, authorize, json, apiError, parseBody } from "@/lib/api";
-import { logActivity } from "@/lib/activity";
-import { audit } from "@/lib/audit";
-import { dispatchEvent } from "@/lib/workflows/engine";
-import { taskPatch } from "@/lib/validators";
+import { toRouteHandler } from "@/lib/actions/adapters/rest";
+import { tasksDelete, tasksGet, tasksUpdate } from "@/lib/actions/tasks";
 
 type Params = { params: Promise<{ id: string }> };
 
-export async function PATCH(req: Request, { params }: Params) {
-  return withAuth(req, async (auth) => {
-  const denied = authorize(auth, "tasks", "update");
-  if (denied) return denied;
-  const { id } = await params;
-  const existing = (await db.select().from(tables.tasks).where(eq(tables.tasks.id, id)).limit(1))[0];
-  if (!existing) return apiError("Task not found", 404);
+const getTask = toRouteHandler(tasksGet, { body: (task) => ({ task }) });
+const updateTask = toRouteHandler(tasksUpdate, { body: (task) => ({ task }) });
+// REST has never offered the dry run the MCP tool does; a DELETE here deletes.
+const deleteTask = toRouteHandler(tasksDelete, { body: () => ({ ok: true }) });
 
-  const body = await parseBody(req, taskPatch);
-  if (!body.ok) return body.response;
-  const { completed, ...fields } = body.data;
-
-  const justCompleted = completed === true && !existing.completedAt;
-  await db
-    .update(tables.tasks)
-    .set({
-      ...fields,
-      ...(completed !== undefined ? { completedAt: completed ? Date.now() : null } : {}),
-    })
-    .where(eq(tables.tasks.id, id));
-
-  const row = (await db.select().from(tables.tasks).where(eq(tables.tasks.id, id)).limit(1))[0]!;
-  if (justCompleted) {
-    if (row.entityType && row.entityId) {
-      await logActivity({
-        type: "task_completed",
-        entityType: row.entityType,
-        entityId: row.entityId,
-        actorId: auth.user?.id,
-        meta: { title: row.title },
-      });
-    }
-    await dispatchEvent({
-      event: "task.completed",
-      entityType: "task",
-      entityId: id,
-      snapshot: { ...row },
-    });
-  }
-  await audit(auth.user?.id, "task.updated", { objectType: "task", objectId: id });
-  return json({ task: row });
-  });
-}
-
-export async function DELETE(req: Request, { params }: Params) {
-  return withAuth(req, async (auth) => {
-  const denied = authorize(auth, "tasks", "delete");
-  if (denied) return denied;
-  const { id } = await params;
-  await db.delete(tables.tasks).where(eq(tables.tasks.id, id));
-  await audit(auth.user?.id, "task.deleted", { objectType: "task", objectId: id });
-  return json({ ok: true });
-  });
-}
+export const GET = (req: Request, ctx: Params) => getTask(req, ctx);
+export const PATCH = (req: Request, ctx: Params) => updateTask(req, ctx);
+export const DELETE = (req: Request, ctx: Params) => deleteTask(req, ctx);

@@ -61,9 +61,8 @@ jobs:
       - name: Dependency audit (high+)
         run: npm audit --audit-level=high
 
-  # Playwright smoke suite (auth / kanban / ⌘K) in real Chromium. Non-blocking
-  # for now (continue-on-error) — surfaced on the PR but does not gate merge;
-  # flip to required once it proves stable.
+  # Playwright smoke suite in real Chromium. Required: a failing smoke run
+  # blocks merge the same way unit tests do.
   e2e:
     runs-on: ubuntu-latest
     services:
@@ -108,9 +107,8 @@ jobs:
             playwright-${{ runner.os }}-
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
-      - name: Run Playwright smoke suite (non-blocking)
+      - name: Run Playwright smoke suite
         run: npm run test:e2e
-        continue-on-error: true
       - name: Upload Playwright report + traces
         if: always()
         uses: actions/upload-artifact@v4

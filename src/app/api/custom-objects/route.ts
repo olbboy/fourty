@@ -17,6 +17,11 @@ const RESERVED = new Set([
   "pipelines",
   "stages",
   "workflows",
+  // Singular CRM enum used as Agent/search entityType — a custom object named
+  // `contact` would steal the Agent tab on real contacts.
+  "contact",
+  "company",
+  "deal",
 ]);
 
 const input = z.object({

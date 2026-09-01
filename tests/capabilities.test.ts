@@ -48,6 +48,13 @@ describe("capability renderers (pure)", () => {
   it("renders a name-only identity block when nobody has described the workspace", () => {
     expect(workspaceMarkdown({ name: "Fernhill", about: null })).toBe("You are working inside Fernhill.");
   });
+
+  it("points webhook workflows at the sidebar, not Settings", () => {
+    const webhooks = CAPABILITY_MODULES.find((m) => m.id === "WEBHOOKS")!;
+    expect(webhooks.configuredFrom).toContain("Workflows →");
+    expect(webhooks.configuredFrom).not.toMatch(/Automations/);
+    expect(webhooks.configuredFrom).not.toMatch(/Settings\s*→\s*Workflows/);
+  });
 });
 
 describe("unavailable()", () => {
@@ -85,6 +92,8 @@ describe("capability probes (Postgres + RLS)", () => {
 
   afterEach(() => {
     delete process.env.AI_API_KEY;
+    delete process.env.GLM_API_KEY;
+    delete process.env.ZAI_API_KEY;
   });
 
   it("reports every registered module for a bare workspace, all off", async () => {
@@ -96,6 +105,11 @@ describe("capability probes (Postgres + RLS)", () => {
 
   it("reads AI_PROVIDER from the environment, not from a row", async () => {
     process.env.AI_API_KEY = "sk-test";
+    expect(await on(wsA, "AI_PROVIDER")).toBe(true);
+  });
+
+  it("turns AI_PROVIDER on from GLM_API_KEY", async () => {
+    process.env.GLM_API_KEY = "glm-test";
     expect(await on(wsA, "AI_PROVIDER")).toBe(true);
   });
 

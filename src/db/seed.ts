@@ -8,6 +8,7 @@ import { db, tables } from "./index";
 import { newId } from "@/lib/id";
 import { logActivity } from "@/lib/activity";
 import { recomputeContactScore } from "@/lib/services/contact-score";
+import { recomputeDealScore } from "@/lib/services/deal-score";
 
 /**
  * Stage dot colours, in the design system's warm-repitched palette.
@@ -30,15 +31,11 @@ export const DEFAULT_STAGES = [
   { name: "Lost", winProbability: 0, type: "lost", color: "#ff6467" },
 ] as const;
 
-/** Create the default sales pipeline if none exists. Returns pipeline id. */
-export async function ensureDefaultPipeline(): Promise<string> {
-  const existing = (await db.select().from(tables.pipelines).limit(1))[0];
-  if (existing) return existing.id;
+/** Insert a pipeline with the default 7-stage ladder. Returns pipeline id. */
+export async function createPipelineWithDefaultStages(name: string, isDefault = 0): Promise<string> {
   const pipelineId = newId();
   const now = Date.now();
-  await db
-    .insert(tables.pipelines)
-    .values({ id: pipelineId, name: "Sales Pipeline", isDefault: 1, createdAt: now });
+  await db.insert(tables.pipelines).values({ id: pipelineId, name, isDefault, createdAt: now });
   for (let i = 0; i < DEFAULT_STAGES.length; i++) {
     const s = DEFAULT_STAGES[i];
     await db.insert(tables.stages).values({
@@ -52,6 +49,13 @@ export async function ensureDefaultPipeline(): Promise<string> {
     });
   }
   return pipelineId;
+}
+
+/** Create the default sales pipeline if none exists. Returns pipeline id. */
+export async function ensureDefaultPipeline(): Promise<string> {
+  const rows = await db.select().from(tables.pipelines);
+  if (rows.length) return rows.find((p) => p.isDefault === 1)?.id ?? rows[0].id;
+  return createPipelineWithDefaultStages("Sales Pipeline", 1);
 }
 
 function daysAgo(n: number): number {
@@ -151,6 +155,7 @@ export async function seedDemoData(): Promise<void> {
     });
   }
 
+  const dealIds: string[] = [];
   const dealSpecs = [
     { name: "Acme — Assembly line retrofit", amount: 145000, currency: "USD", stage: "Negotiation", companyIdx: 0, contactIdx: 0, closeIn: 12 },
     { name: "Helios — Enterprise rollout", amount: 320000, currency: "EUR", stage: "Won", companyIdx: 3, contactIdx: 1, closeIn: -20 },
@@ -164,6 +169,7 @@ export async function seedDemoData(): Promise<void> {
   for (const d of dealSpecs) {
     const stage = stageByName.get(d.stage)!;
     const id = newId();
+    dealIds.push(id);
     const created = daysAgo(20 + Math.floor(Math.random() * 60));
     const closed = stage.type !== "open" ? daysAgo(Math.abs(d.closeIn)) : null;
     await db.insert(tables.deals).values({
@@ -231,6 +237,7 @@ export async function seedDemoData(): Promise<void> {
   });
 
   for (const id of contactIds) await recomputeContactScore(id);
+  for (const id of dealIds) await recomputeDealScore(id);
   console.log(
     `Seeded ${companyIds.length} companies, ${contactIds.length} contacts, ${dealSpecs.length} deals, ${taskSpecs.length} tasks, 2 workflows.`,
   );

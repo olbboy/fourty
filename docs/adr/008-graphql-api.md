@@ -19,6 +19,16 @@ taking on a heavy server framework or diverging from REST behavior.
   the same scoring/audit as REST) and custom records. Deals/tasks/notes are
   **read** via GraphQL but **written via REST**, where their stage-transition and
   polymorphic-link side effects live. This is a stated scope, not a stub.
+
+> **Amended (2026-08-30).** Deal writes now ship on GraphQL
+> (`createDeal` / `updateDeal` / `deleteDeal`) through the action registry
+> ([ADR-017](./017-action-registry.md)).
+>
+> **Amended (2026-08-30).** Task writes now ship on GraphQL
+> (`createTask` / `updateTask` / `deleteTask`).
+>
+> **Amended (2026-08-30).** Note creates now ship on GraphQL (`createNote`).
+> Notes have no edit/delete on REST either; that remains out of scope.
 - Resolvers run inside the request's `withWorkspace()` transaction (RLS holds) and
   enforce **RBAC per-resolver via `can()`** — the same predicate the REST
   `authorize()` wraps. The route is therefore exempt from the route-level

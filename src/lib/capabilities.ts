@@ -41,7 +41,7 @@ export const CAPABILITY_MODULES: readonly CapabilityModule[] = [
   {
     id: "AI_PROVIDER",
     label: "AI assistant",
-    configuredFrom: "AI_API_KEY in the environment (bring your own key)",
+    configuredFrom: "AI_API_KEY or GLM_API_KEY in the environment (bring your own key)",
     gives: "the chat and any model-backed pass",
   },
   {
@@ -59,7 +59,7 @@ export const CAPABILITY_MODULES: readonly CapabilityModule[] = [
   {
     id: "WEBHOOKS",
     label: "Outbound webhooks",
-    configuredFrom: "Automations → a workflow with a webhook action",
+    configuredFrom: "Settings → Webhooks (signing secret); Workflows → a workflow with a webhook action",
     gives: "notifying other systems when a record changes",
   },
   {

@@ -1,6 +1,6 @@
 # ADR-017 — Action Registry: one definition, every surface
 
-**Status:** Accepted for contacts · **Date:** 2026-07-27 · **Reviewed:** 2026-08-01
+**Status:** Accepted for contacts, companies, deals, tasks, notes (create), and activities · **Date:** 2026-07-27 · **Reviewed:** 2026-08-01 · **Amended:** 2026-08-30 (deals, tasks, notes, companies) · **Amended:** 2026-08-31 (activities)
 
 > **Relationship to ADR-016.** ADR-016 rejected an "AI SDK / apps platform" and an
 > "in-app agent framework as a core feature". **This ADR does not reverse either.**
@@ -221,8 +221,8 @@ rather than once:
    the kernel's own and had become self-referential — unremarkable. The other two
    were not.
 
-**Decision: accepted for contacts, not yet for the rest.** The pattern works and
-the drift gate now exists, so contacts stay as they are. The remaining entities
-are *not* pre-approved: one entity is a thin basis for a 57-route commitment,
-and the three costs above are per-entity. Each next entity is its own decision,
-made against these numbers rather than against the original hope.
+**Decision (amended 2026-08-30): accepted for contacts, companies, deals, tasks,
+and notes (create).** The pattern and the drift gate held for those entities.
+Remaining writes (notes update/delete, custom-object records) are *not*
+pre-approved: each next entity is its own decision, made against the three costs
+above rather than against the original hope.

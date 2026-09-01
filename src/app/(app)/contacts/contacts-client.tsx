@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import type { Contact, Company } from "@/lib/types";
-import { timeAgo } from "@/lib/format";
-import { PageHeader, Modal, Field, StatusChip, ScoreBadge, EmptyState, Spinner } from "@/components/ui";
+import { timeAgo, displayName } from "@/lib/format";
+import { PageHeader, Modal, Field, StatusChip, ScoreBadge, EmptyState, Spinner, LoadError } from "@/components/ui";
 import { IconPlus, IconDownload, IconUpload } from "@/components/icons";
 import { SavedViewsBar, type SavedView } from "@/components/saved-views";
 import { ContactForm } from "./contact-form";
@@ -22,11 +22,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useLocale, useT } from "@/lib/i18n/provider";
 
 export function ContactsClient() {
+  const t = useT();
+  const locale = useLocale();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [contacts, setContacts] = useState<Contact[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [lookupsFailed, setLookupsFailed] = useState(false);
+  const [lookupRetry, setLookupRetry] = useState(0);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
@@ -43,54 +49,76 @@ export function ContactsClient() {
   }, []);
 
   const load = useCallback(async () => {
+    setFailed(false);
     const params = new URLSearchParams();
     if (q) params.set("q", q);
     if (status) params.set("status", status);
     params.set("sort", sort);
-    const res = await fetch(`/api/contacts?${params}`);
-    if (res.ok) setContacts((await res.json()).contacts);
+    try {
+      const res = await fetch(`/api/contacts?${params}`);
+      if (!res.ok) throw new Error("contacts");
+      setContacts((await res.json()).contacts);
+    } catch {
+      setFailed(true);
+    }
   }, [q, status, sort]);
 
   useEffect(() => {
-    const t = setTimeout(load, q ? 150 : 0);
-    return () => clearTimeout(t);
+    const timer = setTimeout(load, q ? 150 : 0);
+    return () => clearTimeout(timer);
   }, [load, q]);
 
   useEffect(() => {
+    let cancelled = false;
     fetch("/api/companies")
-      .then((r) => r.json())
-      .then((d) => setCompanies(d.companies ?? []));
-  }, []);
+      .then(async (r) => {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json();
+      })
+      .then((d) => {
+        if (cancelled) return;
+        setCompanies(Array.isArray(d.companies) ? d.companies : []);
+        setLookupsFailed(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setCompanies([]);
+        setLookupsFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [lookupRetry]);
 
   const companyName = (id: string | null) => companies.find((c) => c.id === id)?.name ?? "—";
 
   return (
     <div className="animate-fade-up">
       <PageHeader
-        title="Contacts"
-        subtitle={contacts ? `${contacts.length} people` : undefined}
+        title={t("nav.contacts")}
+        subtitle={contacts ? t("page.contacts.count", { count: contacts.length }) : undefined}
         actions={
           <>
             <a
               href="/api/export/contacts"
-              title="Export CSV"
+              title={t("page.contacts.exportTitle")}
               className={cn(buttonVariants({ variant: "outline" }))}
             >
               <IconDownload width={15} height={15} />
-              <span className="hidden sm:inline">Export</span>
+              <span className="hidden sm:inline">{t("action.export")}</span>
             </a>
             <Link
               href="/settings/import"
-              title="Import CSV"
+              title={t("page.contacts.importTitle")}
               className={cn(buttonVariants({ variant: "outline" }))}
             >
               <IconUpload width={15} height={15} />
-              <span className="hidden sm:inline">Import</span>
+              <span className="hidden sm:inline">{t("action.import")}</span>
             </Link>
-            <Button onClick={() => setShowNew(true)}>
+            <Button onClick={() => setShowNew(true)} disabled={lookupsFailed}>
               <IconPlus width={15} height={15} />
-              <span className="hidden sm:inline">New contact</span>
-              <span className="sm:hidden">New</span>
+              <span className="hidden sm:inline">{t("page.contacts.new")}</span>
+              <span className="sm:hidden">{t("action.new")}</span>
             </Button>
           </>
         }
@@ -109,20 +137,20 @@ export function ContactsClient() {
         <Input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          aria-label="Search contacts"
-          placeholder="Search name, email, title…" className="max-w-xs" />
+          aria-label={t("page.contacts.searchAria")}
+          placeholder={t("page.contacts.searchPlaceholder")} className="max-w-xs" />
         <NativeSelect
           value={status}
           onChange={(e) => {
             setStatus(e.target.value);
             setActiveView(null);
           }}
-          aria-label="Filter by status">
-          <option value="">All statuses</option>
-          <option value="lead">Lead</option>
-          <option value="qualified">Qualified</option>
-          <option value="customer">Customer</option>
-          <option value="churned">Churned</option>
+          aria-label={t("page.contacts.filterStatus")}>
+          <option value="">{t("page.contacts.allStatuses")}</option>
+          <option value="lead">{t("status.lead")}</option>
+          <option value="qualified">{t("status.qualified")}</option>
+          <option value="customer">{t("status.customer")}</option>
+          <option value="churned">{t("status.churned")}</option>
         </NativeSelect>
         <NativeSelect
           value={sort}
@@ -130,23 +158,34 @@ export function ContactsClient() {
             setSort(e.target.value);
             setActiveView(null);
           }}
-          aria-label="Sort contacts">
-          <option value="updatedAt">Recently updated</option>
-          <option value="score">Highest score</option>
-          <option value="name">Name</option>
-          <option value="createdAt">Newest</option>
+          aria-label={t("page.contacts.sortAria")}>
+          <option value="updatedAt">{t("page.contacts.sortUpdated")}</option>
+          <option value="score">{t("page.contacts.sortScore")}</option>
+          <option value="name">{t("page.contacts.sortName")}</option>
+          <option value="createdAt">{t("page.contacts.sortNewest")}</option>
         </NativeSelect>
       </div>
 
-      {!contacts ? (
+      {lookupsFailed && (
+        <LoadError compact onRetry={() => setLookupRetry((n) => n + 1)} />
+      )}
+
+      {failed ? (
+        <LoadError
+          onRetry={() => {
+            setContacts(null);
+            void load();
+          }}
+        />
+      ) : !contacts ? (
         <Spinner />
       ) : contacts.length === 0 ? (
         <EmptyState
-          title="No contacts yet"
-          hint="Add your first contact or import a CSV to get going."
+          title={t("page.contacts.empty")}
+          hint={t("page.contacts.emptyHint")}
           action={
             <Button onClick={() => setShowNew(true)}>
-              <IconPlus width={15} height={15} /> New contact
+              <IconPlus width={15} height={15} /> {t("page.contacts.new")}
             </Button>
           }
         />
@@ -155,12 +194,12 @@ export function ContactsClient() {
           <Table className="min-w-[720px]">
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Company</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Score</TableHead>
-                <TableHead className="hidden lg:table-cell">Email</TableHead>
-                <TableHead>Last activity</TableHead>
+                <TableHead>{t("col.name")}</TableHead>
+                <TableHead>{t("col.company")}</TableHead>
+                <TableHead>{t("col.status")}</TableHead>
+                <TableHead>{t("col.score")}</TableHead>
+                <TableHead className="hidden lg:table-cell">{t("col.email")}</TableHead>
+                <TableHead>{t("col.lastActivity")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -171,7 +210,7 @@ export function ContactsClient() {
                   className="cursor-pointer transition hover:bg-surface-2"
                 >
                   <TableCell className="font-medium">
-                    {c.firstName} {c.lastName}
+                    {displayName(c.firstName, c.lastName)}
                     {c.jobTitle && (
                       <span className="block text-xs font-normal text-ink-muted">{c.jobTitle}</span>
                     )}
@@ -184,7 +223,7 @@ export function ContactsClient() {
                     <ScoreBadge score={c.score} />
                   </TableCell>
                   <TableCell className="hidden text-ink-muted lg:table-cell">{c.email ?? "—"}</TableCell>
-                  <TableCell className="text-ink-muted">{timeAgo(c.lastActivityAt)}</TableCell>
+                  <TableCell className="text-ink-muted">{timeAgo(c.lastActivityAt, locale)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -192,7 +231,7 @@ export function ContactsClient() {
         </Card>
       )}
 
-      <Modal title="New contact" open={showNew} onClose={() => setShowNew(false)} wide>
+      <Modal title={t("page.contacts.newModal")} open={showNew} onClose={() => setShowNew(false)} wide>
         <ContactForm
           companies={companies}
           onSaved={() => {

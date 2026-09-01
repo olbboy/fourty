@@ -28,8 +28,11 @@ import { Button } from "@/components/ui/button";
 import { Spinner as ShadcnSpinner } from "@/components/ui/spinner";
 import { Avatar as ShadcnAvatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/provider";
+import type { MessageKey } from "@/lib/i18n";
 import { initials } from "@/lib/format";
 import { Card } from "@/components/ui/card";
+import { dealHealthLabel } from "@/lib/deal-scoring";
 
 export function PageHeader({
   title,
@@ -132,6 +135,7 @@ export function useConfirm(): [
   (request: ConfirmRequest) => Promise<boolean>,
   React.ReactNode,
 ] {
+  const t = useT();
   const [request, setRequest] = useState<ConfirmRequest | null>(null);
   const settle = useRef<((confirmed: boolean) => void) | null>(null);
 
@@ -157,10 +161,10 @@ export function useConfirm(): [
       {request?.body && <p className="text-sm text-ink-muted">{request.body}</p>}
       <div className="mt-5 flex justify-end gap-2">
         <Button variant="outline" onClick={() => answer(false)}>
-          Cancel
+          {t("action.cancel")}
         </Button>
         <Button variant="destructive" onClick={() => answer(true)}>
-          {request?.confirmLabel ?? "Delete"}
+          {request?.confirmLabel ?? t("action.delete")}
         </Button>
       </div>
     </Modal>
@@ -211,36 +215,77 @@ const STATUS_STYLES: Record<string, string> = {
   churned: "bg-status-churned-wash text-status-churned",
 };
 
-export function StatusChip({ status }: { status: string }) {
+const STATUS_KEYS: Record<string, MessageKey> = {
+  lead: "status.lead",
+  qualified: "status.qualified",
+  customer: "status.customer",
+  churned: "status.churned",
+};
+
+export function StatusChip({ status }: { status: string | null | undefined }) {
+  const t = useT();
+  if (!status) return null;
+  const key = STATUS_KEYS[status];
   return (
     <span
-      className={`chip capitalize ${STATUS_STYLES[status] ?? "bg-status-lead-wash text-status-lead"}`}
+      className={cn("chip", !key && "capitalize", STATUS_STYLES[status] ?? "bg-status-lead-wash text-status-lead")}
     >
-      {status}
+      {key ? t(key) : status}
     </span>
   );
 }
 
-export function ScoreBadge({ score }: { score: number }) {
-  const label = score >= 70 ? "hot" : score >= 40 ? "warm" : "cold";
+export function ScoreBadge({ score }: { score: number | null | undefined }) {
+  const t = useT();
+  if (score == null) return null;
+  const band = score >= 70 ? "hot" : score >= 40 ? "warm" : "cold";
   // The band scale runs red → amber → blue, not orange → amber → sky: an orange
   // "hot" chip sitting beside the brand-orange primary button stops meaning
   // anything. Each chip is a 10% wash behind saturated text, never a solid fill.
   const style =
-    label === "hot"
+    band === "hot"
       ? "bg-score-hot-wash text-score-hot"
-      : label === "warm"
+      : band === "warm"
         ? "bg-score-warm-wash text-score-warm"
         : "bg-score-cold-wash text-score-cold";
+  const labelKey = band === "hot" ? "score.hot" : band === "warm" ? "score.warm" : "score.cold";
   // The band is named, not drawn as an emoji: an OS-rendered glyph has its own
   // stroke voice and its own advance width, so the score after it never lines up
   // down a column. The wash already carries the band; the word removes the guess.
   return (
     <span
       className={`chip capitalize tabular-nums ${style}`}
-      title={`Lead score: ${score}/100 (auto-computed)`}
+      title={t("score.leadTitle", { score })}
     >
-      {label} {score}
+      {t(labelKey)} {score}
+    </span>
+  );
+}
+
+const HEALTH_STYLES: Record<ReturnType<typeof dealHealthLabel>, string> = {
+  healthy: "bg-feedback-ok-wash text-feedback-ok",
+  at_risk: "bg-feedback-warn-wash text-feedback-warn",
+  stalled: "bg-feedback-error-wash text-feedback-error",
+};
+
+const HEALTH_KEYS = {
+  healthy: "health.healthy",
+  at_risk: "health.at_risk",
+  stalled: "health.stalled",
+} as const;
+
+export function HealthBadge({ score }: { score: number | null | undefined }) {
+  const t = useT();
+  if (score == null) return null;
+  const band = dealHealthLabel(score);
+  return (
+    <span
+      data-testid="health-badge"
+      data-band={band}
+      className={`chip capitalize tabular-nums ${HEALTH_STYLES[band]}`}
+      title={t("health.title", { score })}
+    >
+      {t(HEALTH_KEYS[band])} {score}
     </span>
   );
 }
@@ -251,10 +296,18 @@ const PRIORITY_STYLES: Record<string, string> = {
   low: "bg-priority-low-wash text-priority-low",
 };
 
+const PRIORITY_KEYS: Record<string, MessageKey> = {
+  high: "priority.high",
+  medium: "priority.medium",
+  low: "priority.low",
+};
+
 export function PriorityChip({ priority }: { priority: string }) {
+  const t = useT();
+  const key = PRIORITY_KEYS[priority];
   return (
-    <span className={`chip capitalize ${PRIORITY_STYLES[priority] ?? ""}`}>
-      {priority}
+    <span className={cn("chip", !key && "capitalize", PRIORITY_STYLES[priority])}>
+      {key ? t(key) : priority}
     </span>
   );
 }
@@ -338,6 +391,31 @@ export function EmptyState({
         {action && <EmptyContent>{action}</EmptyContent>}
       </Empty>
     </Card>
+  );
+}
+
+/** A failed client fetch: retry instead of spinning forever. */
+export function LoadError({ onRetry, compact }: { onRetry: () => void; compact?: boolean }) {
+  const t = useT();
+  const retry = (
+    <Button onClick={onRetry} variant={compact ? "outline" : "default"} size={compact ? "sm" : "default"}>
+      {t("action.retry")}
+    </Button>
+  );
+  if (compact) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-4 text-center">
+        <p className="text-sm text-ink-muted">{t("error.loadFailed")}</p>
+        {retry}
+      </div>
+    );
+  }
+  return (
+    <EmptyState
+      title={t("error.loadFailed")}
+      hint={t("error.loadFailedHint")}
+      action={retry}
+    />
   );
 }
 

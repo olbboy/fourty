@@ -10,7 +10,9 @@ import { dragCardToColumn } from "./helpers/drag";
  */
 test("dragging a deal card moves it between stages", async ({ page }) => {
   await page.goto("/deals");
-  await expect(page.getByTestId("deal-card").first()).toBeVisible();
+  const firstCard = page.getByTestId("deal-card").first();
+  await expect(firstCard).toBeVisible();
+  await expect(firstCard.getByTestId("health-badge")).toBeVisible();
 
   const column = (stageId: string) =>
     page.locator(`[data-testid="stage-column"][data-stage-id="${stageId}"]`);

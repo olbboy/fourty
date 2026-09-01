@@ -62,6 +62,19 @@ export async function findViewProblems(page: Page): Promise<ViewProblem[]> {
   });
 }
 
+/**
+ * Wait until client-side fetches have painted. Every list and settings section
+ * shows a spinner until its rows exist, so a zero count is the signal that the
+ * view is the one a person would see — not the empty first paint.
+ *
+ * `networkidle` is the wrong signal here: Settings (and any page with many
+ * `<Link>`s) keeps prefetch connections open long after the view has rendered,
+ * and Playwright itself warns that the load state is flaky on SPAs.
+ */
+export async function settleView(page: Page): Promise<void> {
+  await expect(page.locator('[data-slot="spinner"]')).toHaveCount(0);
+}
+
 /** Fail with the offending elements listed, not just a count. */
 export async function expectHealthyView(page: Page): Promise<void> {
   const problems = await findViewProblems(page);

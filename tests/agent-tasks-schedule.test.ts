@@ -310,4 +310,52 @@ describe("the agent work ledger", () => {
       expect(last?.outcome).toBe("no handler for this kind yet");
     });
   });
+
+  describe("GET /api/agent-tasks", () => {
+    const TOKEN = "frty_agent_tasks_key";
+    let routes: typeof import("@/app/api/agent-tasks/route");
+
+    const get = (url: string, token = TOKEN) =>
+      routes.GET(new Request(`http://localhost${url}`, { headers: { Authorization: `Bearer ${token}` } }));
+
+    beforeAll(async () => {
+      const { sha256 } = await import("@/lib/auth");
+      routes = await import("@/app/api/agent-tasks/route");
+      await db.insert(tables.apiKeys).values({
+        id: newId(),
+        workspaceId: ws,
+        name: "agent-tasks",
+        prefix: TOKEN.slice(0, 8),
+        keyHash: sha256(TOKEN),
+        role: "admin",
+        createdAt: Date.now(),
+      });
+    });
+
+    it("lists open tasks for one record", async () => {
+      await inWs(() =>
+        scheduleTask({ kind: "deal.health", entityType: "deal", entityId: "d-rest", reason: "stale on the board" }),
+      );
+      const res = await get("/api/agent-tasks?entityType=deal&entityId=d-rest");
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.tasks.some((t: { reason: string }) => t.reason === "stale on the board")).toBe(true);
+      expect(body.last).toBeNull();
+    });
+
+    it("lists due tasks across the workspace when unscoped", async () => {
+      await inWs(() =>
+        scheduleTask({ kind: "deal.health", entityType: "deal", entityId: "d-due", reason: "due now" }),
+      );
+      const res = await get("/api/agent-tasks");
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.tasks.some((t: { reason: string }) => t.reason === "due now")).toBe(true);
+      expect(body.last).toBeNull();
+    });
+
+    it("refuses an invalid key", async () => {
+      expect((await get("/api/agent-tasks", "frty_bogus")).status).toBe(401);
+    });
+  });
 });

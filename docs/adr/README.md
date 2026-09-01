@@ -27,7 +27,7 @@ are short by design.
 | [014](./014-sso-oidc.md) | SSO: OIDC Authorization Code + PKCE, injectable transport | Accepted |
 | [015](./015-ai-agent-chat.md) | In-app AI agent / chat: stop-at-write loop, BYO OpenAI-compatible provider | Accepted |
 | [016](./016-ai-native-strategy.md) | AI-native strategy: be the substrate for AI, not a Twenty clone | Accepted (T1+T2+T3 done) |
-| [017](./017-action-registry.md) | Action Registry: one definition, every surface | Accepted for contacts |
+| [017](./017-action-registry.md) | Action Registry: one definition, every surface | Accepted for contacts, companies, deals, tasks, notes |
 | [018](./018-evidence-and-research.md) | Evidence, not confidence: how a background pass may write | Accepted |
 | [019](./019-secrets-at-rest.md) | Mailbox credentials encrypted at rest, key outside the database | Accepted |
 

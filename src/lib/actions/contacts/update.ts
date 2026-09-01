@@ -5,8 +5,9 @@ import { contactPatch } from "@/lib/validators";
 import { changedKeys } from "@/lib/changed-fields";
 import { recomputeContactScore } from "@/lib/services/contact-score";
 import { defineAction } from "../define";
+import { encodeCustom } from "@/lib/custom-fields";
 import { ActionError } from "../types";
-import { auditMeta, toContact, type Contact } from "./shared";
+import { auditMeta, findContactIdByEmail, toContact, type Contact } from "./shared";
 
 type UpdateResult = { payload: Contact; changedFields: string[]; touchedCustom: boolean };
 
@@ -23,14 +24,24 @@ export const contactsUpdate = defineAction({
     if (!existing) throw new ActionError("not_found", "Contact not found");
 
     const { custom, ...fields } = patch;
+    if (fields.email) {
+      const other = await findContactIdByEmail(fields.email, id);
+      if (other) {
+        throw new ActionError("invalid", `A contact with this email already exists (${other})`);
+      }
+    }
     const changedFields = changedKeys(fields, existing);
+    let customJson: string | undefined;
+    if (custom !== undefined) {
+      const blob = await encodeCustom("contact", { ...JSON.parse(existing.custom), ...custom });
+      if (!blob.ok) throw new ActionError("invalid", blob.error);
+      customJson = blob.json;
+    }
     await db
       .update(tables.contacts)
       .set({
         ...fields,
-        ...(custom !== undefined
-          ? { custom: JSON.stringify({ ...JSON.parse(existing.custom), ...custom }) }
-          : {}),
+        ...(customJson !== undefined ? { custom: customJson } : {}),
         updatedAt: Date.now(),
       })
       .where(eq(tables.contacts.id, id));

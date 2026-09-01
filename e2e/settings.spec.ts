@@ -130,7 +130,16 @@ test.describe("Row controls are named", () => {
     // Exact: the key field's label also contains the word "label".
     await dialog.getByLabel("Label", { exact: true }).fill(fieldLabel);
     await dialog.getByRole("button", { name: "Create field" }).click();
-    const del = custom.getByRole("button", { name: `Delete ${fieldLabel}` });
+    await expect(custom.getByRole("button", { name: `Edit field ${fieldLabel}` })).toBeVisible();
+
+    await custom.getByRole("button", { name: `Edit field ${fieldLabel}` }).click();
+    const edit = page.getByRole("dialog", { name: `Edit field ${fieldLabel}` });
+    await expect(edit).toBeVisible();
+    await edit.getByLabel("Label", { exact: true }).fill(`${fieldLabel} renamed`);
+    await edit.getByRole("button", { name: "Save field" }).click();
+    await expect(edit).toBeHidden();
+
+    const del = custom.getByRole("button", { name: `Delete field ${fieldLabel} renamed` });
     await expect(del).toBeVisible();
     await confirmDeletion(page, del);
     await expect(del).toHaveCount(0);
@@ -244,5 +253,98 @@ test.describe("Diagnostics", () => {
     await about.fill("");
     await panel.getByRole("button", { name: "Save" }).click();
     await expect(panel.getByRole("button", { name: "Save" })).toBeDisabled();
+  });
+});
+
+test.describe("Pipelines", () => {
+  const PIPE = "E2E Renewals";
+  const RENAMED = "E2E Expansions";
+  const STAGE = "E2E Contract";
+  const STAGE_RENAMED = "E2E Signed";
+
+  test("adds, stages, switches, and deletes a pipeline", async ({ page }) => {
+    await page.goto("/settings");
+
+    const panel = page.locator("[data-slot=card]", { has: page.getByRole("heading", { name: "Pipelines" }) });
+    await expect(panel).toBeVisible();
+
+    const pipeline = (name: string) => panel.locator(`[data-testid="pipeline"][data-pipeline-name="${name}"]`);
+    await expect(panel.getByTestId("pipeline").first()).toBeVisible();
+
+    // A leftover from an interrupted run would collide with the names below.
+    for (const name of [PIPE, RENAMED]) {
+      const leftover = pipeline(name);
+      if (await leftover.count()) {
+        await confirmDeletion(page, leftover.getByRole("button", { name: `Delete pipeline ${name}` }));
+        await expect(leftover).toHaveCount(0);
+      }
+    }
+
+    await expect(panel.getByTestId("pipeline")).toHaveCount(1);
+    await expect(panel.getByRole("button", { name: /Delete pipeline/ })).toBeDisabled();
+
+    await panel.getByLabel("New pipeline name").fill(PIPE);
+    await panel.getByRole("button", { name: "Add a pipeline" }).click();
+
+    const extra = pipeline(PIPE);
+    await expect(extra).toBeVisible();
+    await expect(extra.getByTestId("pipeline-stage")).toHaveCount(7);
+    await expect(extra.locator('[data-testid="pipeline-stage"][data-stage-type="won"]')).toBeVisible();
+    await expect(extra.getByRole("button", { name: "Delete stage Won" })).toBeDisabled();
+    await expect(extra.getByRole("button", { name: "Delete stage Lost" })).toBeDisabled();
+
+    await extra.getByLabel("Pipeline name").fill(RENAMED);
+    await extra.getByRole("button", { name: `Save pipeline ${PIPE}` }).click();
+    await expect(pipeline(RENAMED)).toBeVisible();
+
+    const renamed = pipeline(RENAMED);
+    await renamed.getByLabel("New stage name").fill(STAGE);
+    await renamed.getByLabel("New stage win %").fill("90");
+    await renamed.getByRole("button", { name: `Add a stage to ${RENAMED}` }).click();
+
+    const contract = renamed.locator(`[data-testid="pipeline-stage"][data-stage-name="${STAGE}"]`);
+    await expect(contract).toBeVisible();
+    await expect(renamed.getByTestId("pipeline-stage")).toHaveCount(8);
+
+    await contract.getByLabel(STAGE, { exact: true }).fill(STAGE_RENAMED);
+    await contract.getByLabel(`${STAGE} win %`).fill("92");
+    await contract.getByRole("button", { name: `Save stage ${STAGE}` }).click();
+    await expect(renamed.locator(`[data-testid="pipeline-stage"][data-stage-name="${STAGE_RENAMED}"]`)).toBeVisible();
+
+    const signed = renamed.locator(`[data-testid="pipeline-stage"][data-stage-name="${STAGE_RENAMED}"]`);
+    const stageNames = () =>
+      renamed.getByTestId("pipeline-stage").evaluateAll((els) => els.map((e) => e.getAttribute("data-stage-name")));
+    const beforeMove = await stageNames();
+    expect(beforeMove.at(-3)).toBe(STAGE_RENAMED);
+    await signed.getByRole("button", { name: `Move ${STAGE_RENAMED} up` }).click();
+    await expect.poll(stageNames).toEqual(
+      (() => {
+        const next = beforeMove.slice();
+        const i = next.indexOf(STAGE_RENAMED);
+        [next[i - 1], next[i]] = [next[i], next[i - 1]];
+        return next;
+      })(),
+    );
+
+    await confirmDeletion(page, signed.getByRole("button", { name: `Delete stage ${STAGE_RENAMED}` }));
+    await expect(signed).toHaveCount(0);
+    await expect(renamed.getByTestId("pipeline-stage")).toHaveCount(7);
+
+    // Documented: the Deals page switches when more than one pipeline exists.
+    await page.goto("/deals");
+    // exact: a saved-view chip named "E2E pipeline" also matches getByLabel("Pipeline").
+    const switcher = page.getByLabel("Pipeline", { exact: true });
+    await expect(switcher).toBeVisible();
+    await expect(switcher.locator("option", { hasText: RENAMED })).toHaveCount(1);
+    await switcher.selectOption({ label: RENAMED });
+    await expect(page.getByText("No deals in this pipeline")).toBeVisible();
+
+    await page.goto("/settings");
+    const still = pipeline(RENAMED);
+    await expect(still).toBeVisible();
+    await confirmDeletion(page, still.getByRole("button", { name: `Delete pipeline ${RENAMED}` }));
+    await expect(still).toHaveCount(0);
+    await expect(panel.getByTestId("pipeline")).toHaveCount(1);
+    await expect(panel.getByRole("button", { name: /Delete pipeline/ })).toBeDisabled();
   });
 });

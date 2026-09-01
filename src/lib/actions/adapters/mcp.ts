@@ -42,6 +42,15 @@ export function toMcpTool<I, O>(
      * action's and are held here rather than loosened for everyone.
      */
     max?: Record<string, number>;
+    /**
+     * Wrap the kernel's result. `get_contact` (and company/deal) attach
+     * neighbour ids the other surfaces do not return.
+     */
+    map?: (
+      out: unknown,
+      args: Record<string, unknown>,
+      ctx: { workspaceId: string; role: string; userId: string | null; via?: string },
+    ) => unknown | Promise<unknown>;
   } = {},
 ): McpTool {
   recordBinding("mcp", action.name);
@@ -55,13 +64,15 @@ export function toMcpTool<I, O>(
     inputSchema: applyNaming(schema, opts.rename, opts.defaults, opts.max),
     // Reads run inline for the AI agent; writes are proposed and confirmed.
     mutates: action.verb !== "read",
-    handler: (args, ctx) =>
-      execute(action, clamp({ ...opts.defaults, ...translate(args, opts.rename) }, opts.max), {
+    handler: async (args, ctx) => {
+      const out = await execute(action, clamp({ ...opts.defaults, ...translate(args, opts.rename) }, opts.max), {
         ...ctx,
         // Everything reaching a tool is agent-initiated; the AI chat marks its
         // own calls "ai" and anything else is a plain MCP client.
         via: ctx.via ?? "mcp",
-      }) as Promise<unknown>,
+      });
+      return opts.map ? opts.map(out, args, ctx) : out;
+    },
   };
 }
 

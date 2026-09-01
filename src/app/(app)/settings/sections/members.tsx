@@ -2,13 +2,23 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { timeAgo } from "@/lib/format";
-import { Spinner, useConfirm } from "@/components/ui";
+import { Spinner, LoadError, useConfirm } from "@/components/ui";
 import { IconPlus, IconTrash } from "@/components/icons";
 import { ROLES } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { useLocale, useT } from "@/lib/i18n/provider";
+import type { MessageKey } from "@/lib/i18n";
+import { roleLabel } from "@/lib/role-display";
+
+/** Map known members-API English errors to catalog keys; else a generic fallback. */
+function memberError(t: (key: MessageKey) => string, error: unknown, fallback: MessageKey): string {
+  if (error === "Cannot demote the last admin") return t("settings.inviteLastAdminDemote");
+  if (error === "Cannot remove the last admin") return t("settings.inviteLastAdminRemove");
+  return t(fallback);
+}
 
 type Member = {
   userId: string;
@@ -20,8 +30,11 @@ type Member = {
 };
 
 export function MembersSection() {
+  const t = useT();
+  const locale = useLocale();
   const [askConfirm, confirmDialog] = useConfirm();
   const [members, setMembers] = useState<Member[] | null>(null);
+  const [failed, setFailed] = useState(false);
   const [adminOnly, setAdminOnly] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<string>("member");
@@ -31,12 +44,18 @@ export function MembersSection() {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/members");
-    if (res.status === 403) {
-      setAdminOnly(true);
-      return;
+    setFailed(false);
+    try {
+      const res = await fetch("/api/members");
+      if (res.status === 403) {
+        setAdminOnly(true);
+        return;
+      }
+      if (!res.ok) throw new Error("members");
+      setMembers((await res.json()).members);
+    } catch {
+      setFailed(true);
     }
-    if (res.ok) setMembers((await res.json()).members);
   }, []);
   useEffect(() => {
     load();
@@ -61,29 +80,38 @@ export function MembersSection() {
       setEmail("");
       load();
     } else {
-      setError((await res.json().catch(() => ({}))).error ?? "Failed to invite");
+      const body = await res.json().catch(() => ({}));
+      setError(memberError(t, body.error, "settings.inviteFailed"));
     }
   }
 
   async function changeRole(m: Member, next: string) {
+    setError(null);
     const res = await fetch(`/api/members/${m.userId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ role: next }),
     });
-    if (!res.ok) alert((await res.json().catch(() => ({}))).error ?? "Failed to change role");
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(memberError(t, body.error, "settings.inviteFailedRole"));
+    }
     load();
   }
 
   async function remove(m: Member) {
     const ok = await askConfirm({
-      title: `Remove ${m.name} from this workspace?`,
-      body: "They lose access immediately.",
-      confirmLabel: "Remove",
+      title: t("settings.inviteRemoveTitle", { name: m.name }),
+      body: t("settings.inviteRemoveBody"),
+      confirmLabel: t("settings.inviteRemove"),
     });
     if (!ok) return;
+    setError(null);
     const res = await fetch(`/api/members/${m.userId}`, { method: "DELETE" });
-    if (!res.ok) alert((await res.json().catch(() => ({}))).error ?? "Failed to remove");
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(memberError(t, body.error, "settings.inviteFailedRemove"));
+    }
     load();
   }
 
@@ -93,11 +121,8 @@ export function MembersSection() {
   return (
     <Card size="flush" className="p-4">
       <div className="mb-3">
-        <h2 className="text-sm font-semibold">Team members</h2>
-        <p className="text-sm text-ink-muted">
-          Invite teammates and control their access. Roles: <strong>admin</strong> (full control),{" "}
-          <strong>member</strong> (read + write records), <strong>viewer</strong> (read only).
-        </p>
+        <h2 className="text-sm font-semibold">{t("settings.members")}</h2>
+        <p className="text-sm text-ink-muted">{t("settings.membersHint")}</p>
       </div>
       <div className="mb-3 flex flex-wrap gap-2">
         {/* An unlabelled invite row: the placeholder is a fallback name at best
@@ -106,21 +131,21 @@ export function MembersSection() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && sendInvite()}
-          aria-label="Email address to invite"
-          placeholder="teammate@company.com"
+          aria-label={t("settings.inviteEmailAria")}
+          placeholder={t("settings.inviteEmailPlaceholder")}
           type="email" className="max-w-xs" />
         <NativeSelect
           value={role}
           onChange={(e) => setRole(e.target.value)}
-          aria-label="Role for the invitee" className="max-w-[8rem]">
+          aria-label={t("settings.inviteRoleAria")} className="max-w-[8rem]">
           {ROLES.map((r) => (
             <option key={r} value={r}>
-              {r}
+              {roleLabel(r, t)}
             </option>
           ))}
         </NativeSelect>
         <Button onClick={sendInvite} disabled={!email.trim()}>
-          <IconPlus width={15} height={15} /> Invite
+          <IconPlus width={15} height={15} /> {t("settings.invite")}
         </Button>
       </div>
       {error && <p className="mb-3 text-sm text-feedback-error">{error}</p>}
@@ -138,15 +163,22 @@ export function MembersSection() {
             }`}
           >
             {invite.emailed
-              ? `Invite emailed to ${invite.to}. The link is shown once, in case it doesn't arrive (or lands in spam):`
-              : `Email isn't configured — send ${invite.to} this link yourself (shown once):`}
+              ? t("settings.inviteEmailed", { email: invite.to })
+              : t("settings.inviteNoSmtp", { email: invite.to })}
           </p>
           <code className="block select-all break-all rounded bg-surface px-2 py-1.5 text-xs">
             {invite.url}
           </code>
         </div>
       )}
-      {!members ? (
+      {failed ? (
+        <LoadError
+          onRetry={() => {
+            setMembers(null);
+            void load();
+          }}
+        />
+      ) : !members ? (
         <Spinner />
       ) : (
         <div className="divide-y divide-line/60">
@@ -157,8 +189,8 @@ export function MembersSection() {
                   {m.name}
                 </p>
                 <p className="text-xs text-ink-muted">
-                  {m.email} · joined {timeAgo(m.createdAt)}
-                  {m.deactivatedAt && " · removed"}
+                  {m.email} · {t("settings.inviteJoined", { when: timeAgo(m.createdAt, locale) })}
+                  {m.deactivatedAt && t("settings.inviteRemoved")}
                 </p>
               </div>
               {!m.deactivatedAt && (
@@ -168,16 +200,16 @@ export function MembersSection() {
                   <NativeSelect
                     value={m.role}
                     onChange={(e) => changeRole(m, e.target.value)}
-                    aria-label={`Role for ${m.name}`} size="sm">
+                    aria-label={t("settings.inviteRoleFor", { name: m.name })} size="sm">
                     {ROLES.map((r) => (
                       <option key={r} value={r}>
-                        {r}
+                        {roleLabel(r, t)}
                       </option>
                     ))}
                   </NativeSelect>
                   <Button
                     onClick={() => remove(m)}
-                    aria-label={`Remove ${m.name}`} variant="outline" size="icon-sm" className="text-feedback-error">
+                    aria-label={t("settings.inviteRemoveAria", { name: m.name })} variant="outline" size="icon-sm" className="text-feedback-error">
                     <IconTrash width={14} height={14} />
                   </Button>
                 </>

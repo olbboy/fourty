@@ -15,8 +15,12 @@ describe("REST API integration (real handlers + Postgres + RLS)", () => {
   let sha256: typeof import("@/lib/auth").sha256;
   let newId: typeof import("@/lib/id").newId;
   let contactRoutes: typeof import("@/app/api/contacts/route");
+  let contactIdRoutes: typeof import("@/app/api/contacts/[id]/route");
   let dealRoutes: typeof import("@/app/api/deals/route");
   let dealIdRoutes: typeof import("@/app/api/deals/[id]/route");
+  let factsRoutes: typeof import("@/app/api/facts/route");
+  let factsIdRoutes: typeof import("@/app/api/facts/[id]/route");
+  let activityRoutes: typeof import("@/app/api/activities/route");
   let ws: string;
 
   const auth = { Authorization: `Bearer ${TOKEN}`, "content-type": "application/json" };
@@ -29,8 +33,12 @@ describe("REST API integration (real handlers + Postgres + RLS)", () => {
     ({ sha256 } = await import("@/lib/auth"));
     ({ newId } = await import("@/lib/id"));
     contactRoutes = await import("@/app/api/contacts/route");
+    contactIdRoutes = await import("@/app/api/contacts/[id]/route");
     dealRoutes = await import("@/app/api/deals/route");
     dealIdRoutes = await import("@/app/api/deals/[id]/route");
+    factsRoutes = await import("@/app/api/facts/route");
+    factsIdRoutes = await import("@/app/api/facts/[id]/route");
+    activityRoutes = await import("@/app/api/activities/route");
 
     ws = await createWorkspace();
     await db.insert(tables.apiKeys).values({
@@ -152,5 +160,85 @@ describe("REST API integration (real handlers + Postgres + RLS)", () => {
       params: Promise.resolve({ id: "nope" }),
     });
     expect(res.status).toBe(404);
+  });
+
+  it("records, lists, and accepts a fact suggestion over REST", async () => {
+    const created = await contactRoutes.POST(
+      req("/api/contacts", {
+        method: "POST",
+        body: JSON.stringify({ firstName: "Fact", lastName: "Rest" }),
+      }),
+    );
+    expect(created.status).toBe(201);
+    const contactId = (await created.json()).contact.id as string;
+
+    const recorded = await factsRoutes.POST(
+      req("/api/facts", {
+        method: "POST",
+        body: JSON.stringify({
+          entityType: "contact",
+          entityId: contactId,
+          field: "job_title",
+          value: "Head of Ops",
+          evidence: [{ kind: "crm.signature-block", detail: "their signature on 14 July reads Head of Ops" }],
+        }),
+      }),
+    );
+    expect(recorded.status).toBe(201);
+    const { result } = await recorded.json();
+    expect(result.ok).toBe(true);
+    expect(result.applied).toBe(false);
+    expect(result.fact.band).toBe("PROBABLE");
+    const factId = result.fact.id as string;
+
+    const listed = await factsRoutes.GET(req(`/api/facts?entityType=contact&entityId=${contactId}`));
+    expect(listed.status).toBe(200);
+    const { facts } = await listed.json();
+    expect(facts.some((f: { id: string }) => f.id === factId)).toBe(true);
+
+    const decided = await factsIdRoutes.PATCH(
+      req(`/api/facts/${factId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ decision: "accept" }),
+      }),
+      { params: Promise.resolve({ id: factId }) },
+    );
+    expect(decided.status).toBe(200);
+    const accepted = (await decided.json()).result;
+    expect(accepted.ok).toBe(true);
+    expect(accepted.fact.status).toBe("APPLIED");
+
+    const after = await contactIdRoutes.GET(req(`/api/contacts/${contactId}`), {
+      params: Promise.resolve({ id: contactId }),
+    });
+    expect((await after.json()).contact.jobTitle).toBe("Head of Ops");
+  });
+
+  it("logs a touchpoint on a contact timeline and does not dump the workspace", async () => {
+    const created = await contactRoutes.POST(
+      req("/api/contacts", {
+        method: "POST",
+        body: JSON.stringify({ firstName: "Call", lastName: "Target" }),
+      }),
+    );
+    const contactId = (await created.json()).contact.id as string;
+
+    const logged = await activityRoutes.POST(
+      req("/api/activities", {
+        method: "POST",
+        body: JSON.stringify({ type: "call", entityType: "contact", entityId: contactId, note: "Intro call" }),
+      }),
+    );
+    expect(logged.status).toBe(201);
+
+    const listed = await activityRoutes.GET(req(`/api/activities?entityType=contact&entityId=${contactId}`));
+    expect(listed.status).toBe(200);
+    const rows = (await listed.json()).activities as { type: string; meta: { note?: string } }[];
+    expect(rows.some((a) => a.type === "call" && a.meta.note === "Intro call")).toBe(true);
+    expect(rows.some((a) => a.type === "created")).toBe(true);
+
+    const unscoped = await activityRoutes.GET(req("/api/activities"));
+    expect(unscoped.status).toBe(200);
+    expect((await unscoped.json()).activities).toEqual([]);
   });
 });

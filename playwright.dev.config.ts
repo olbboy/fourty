@@ -50,7 +50,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "npm run db:e2e:reset && npx next dev -p 3110",
+    command: "npm run db:e2e:reset && npm run dev -- -p 3110",
     url: APP_URL,
     // Never attach to a server this config did not start: a developer's own
     // `next dev` is pointed at their database, and the setup project seeds.
@@ -65,6 +65,20 @@ export default defineConfig({
       FOURTY_SECRET_KEY: "ZTJlLW9ubHkta2V5LW5vdC1mb3ItcHJvZHVjdGlvbiE=",
       // Its own build directory, so this coexists with a running `npm run dev`.
       NEXT_DIST_DIR: ".next-e2e-dev",
+      // Same reason as playwright.config.ts: one admin IP would trip the
+      // production 600-read window across the suite.
+      RATELIMIT_READ: "100000000",
+      RATELIMIT_WRITE: "100000000",
+      RATELIMIT_BULK: "100000000",
+      RATELIMIT_LOGIN: "100000000",
+      RATELIMIT_FORGOT: "100000000",
+      RATELIMIT_RESET: "100000000",
+      // Same as playwright.config.ts: e2e is the unconfigured-mail path.
+      SMTP_HOST: "",
+      SMTP_USER: "",
+      SMTP_PASSWORD: "",
+      RESEND_API_KEY: "",
+      MAIL_FROM: "",
     },
   },
 });

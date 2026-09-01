@@ -26,12 +26,17 @@ type ResolverContext = { auth: { workspaceId: string; role: string; user: { id: 
  */
 export function toResolver<I, O>(
   action: ActionDef<I, O>,
-  opts: { onNotFound?: () => unknown; map?: (out: unknown) => unknown } = {},
+  opts: {
+    onNotFound?: () => unknown;
+    map?: (out: unknown) => unknown;
+    /** Filled in when this field's GraphQL args omit a value the action needs. */
+    defaults?: Record<string, unknown>;
+  } = {},
 ) {
   recordBinding("graphql", action.name);
   return async (_root: unknown, args: Record<string, unknown>, ctx: ResolverContext): Promise<unknown> => {
     try {
-      const out = await execute(action, flatten(args), {
+      const out = await execute(action, { ...opts.defaults, ...defined(flatten(args)) }, {
         workspaceId: ctx.auth.workspaceId,
         role: ctx.auth.role,
         userId: ctx.auth.user?.id ?? null,
@@ -52,3 +57,8 @@ function flatten(args: Record<string, unknown>): Record<string, unknown> {
 
 const asRecord = (v: unknown): Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+
+/** Drop null/undefined so a missing GraphQL arg does not wipe an adapter default. */
+function defined(obj: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined && v !== null));
+}

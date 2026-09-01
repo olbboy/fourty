@@ -1,20 +1,16 @@
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { AppShell } from "@/components/shell";
-import { LOCALE_COOKIE, resolveLocale } from "@/lib/i18n";
 import { isAiEnabled } from "@/lib/ai/provider";
+import { requestLocale } from "@/lib/i18n/request-locale";
 
 export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
-  const [jar, hdrs] = await Promise.all([cookies(), headers()]);
-  const locale = resolveLocale({
-    cookie: jar.get(LOCALE_COOKIE)?.value,
-    acceptLanguage: hdrs.get("accept-language"),
-  });
+  const [jar, locale] = await Promise.all([cookies(), requestLocale()]);
   // shadcn's Sidebar persists its collapsed state in this cookie; reading it here
   // means the server renders the rail in the state the user left it.
   const defaultSidebarOpen = jar.get("sidebar_state")?.value !== "false";

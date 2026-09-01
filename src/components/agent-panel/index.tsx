@@ -6,8 +6,9 @@ import { parseSseStream } from "@/lib/ai/sse-client";
 import { timeAgo } from "@/lib/format";
 import { useFacts, type RecordFact } from "@/components/fact-suggestion";
 import { IconArrowRight } from "@/components/icons";
-import { Spinner } from "@/components/ui";
+import { Spinner, LoadError } from "@/components/ui";
 import {
+  applyHeartbeat,
   canSend,
   composerState,
   offersRestart,
@@ -18,6 +19,9 @@ import { resolveThread, toItems, turnFrom, type Item, type StoredMessage, type T
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
+import { useLocale, useT } from "@/lib/i18n/provider";
+import type { MessageKey } from "@/lib/i18n";
+import { factBandLabel, factFieldLabel } from "@/lib/fact-display";
 
 /**
  * The per-record agent panel (Phase 4).
@@ -54,10 +58,11 @@ type ServerEvent =
   | { type: "tool_proposal"; messageId: string; name: string; arguments: Record<string, unknown> }
   | { type: "awaiting_confirmation" }
   | { type: "done"; finishReason: string }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  | { type: "heartbeat" };
 
 export type AgentPanelProps = {
-  entityType: "contact" | "company" | "deal";
+  entityType: string;
   entityId: string;
   aiEnabled: boolean;
   /** The tab is not open. The panel stays mounted and renders hidden. */
@@ -77,6 +82,7 @@ export function AgentPanel({
 }: AgentPanelProps) {
   const router = useRouter();
   const params = useSearchParams();
+  const t = useT();
 
   // Rule 3: opening the tab is what starts the work, and closing it never undoes
   // it. `opened` only ever goes true.
@@ -92,6 +98,10 @@ export function AgentPanel({
   const [turn, setTurn] = useState<TurnPhase>({ kind: "idle" });
   const [input, setInput] = useState("");
   const [tick, setTick] = useState(0);
+  const [listFailed, setListFailed] = useState(false);
+  const [listRetry, setListRetry] = useState(0);
+  const [transcriptFailed, setTranscriptFailed] = useState(false);
+  const [transcriptRetry, setTranscriptRetry] = useState(0);
 
   const threadRef = useRef<string | null>(null);
   threadRef.current = threadId;
@@ -114,7 +124,15 @@ export function AgentPanel({
   // Gated on `opened`: the detail page already loads these for the under-field
   // chips, and fetching them again on every record view — for a tab nobody
   // opened — is the "does no work until opened" promise being quietly broken.
-  const { proposed, applied } = useFacts(entityType, entityId, refreshKey, opened);
+  // Facts only attach to contacts and companies (FACT_ENTITIES). A custom
+  // object or deal would 400 `/api/facts` and the panel would render LoadError.
+  const showFacts = entityType === "contact" || entityType === "company";
+  const { proposed, applied, failed: factsFailed, retry: retryFacts } = useFacts(
+    entityType,
+    entityId,
+    refreshKey,
+    opened && showFacts,
+  );
 
   // A new record is a new panel: everything about the old one goes.
   useEffect(() => {
@@ -123,6 +141,8 @@ export function AgentPanel({
     setItems([]);
     setStreamingText("");
     setTurn({ kind: "idle" });
+    setListFailed(false);
+    setTranscriptFailed(false);
     loaded.current = null;
     generation.current += 1;
   }, [entityType, entityId]);
@@ -130,25 +150,31 @@ export function AgentPanel({
   // Rule 1: load the list first, and rule 2: decide the thread from it exactly
   // once. `params` is deliberately read here and not tracked as a dependency —
   // re-running this on every URL change is the swap-under-a-live-answer bug.
+  // A failed GET must not become `[]`: that unlocks the composer and the next
+  // send starts a *second* conversation on top of history that never appeared.
   useEffect(() => {
     if (!opened) return;
     let live = true;
     fetch(`/api/ai/conversations?entityType=${entityType}&entityId=${entityId}`)
-      .then((r) => (r.ok ? r.json() : { conversations: [] }))
+      .then(async (r) => {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json();
+      })
       .then((d) => {
         if (!live) return;
         const list = (d.conversations ?? []) as Thread[];
+        setListFailed(false);
         setThreads(list);
         setThreadId(resolveThread(list, params.get("thread")));
       })
       .catch(() => {
-        if (live) setThreads([]);
+        if (live) setListFailed(true);
       });
     return () => {
       live = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- see rule 2 above
-  }, [opened, entityType, entityId]);
+  }, [opened, entityType, entityId, listRetry]);
 
   // The transcript of whichever thread we landed on, read back from storage so
   // it survives a reload, a tab switch and a provider that is not answering.
@@ -156,19 +182,25 @@ export function AgentPanel({
     if (!threadId || loaded.current === threadId) return;
     let live = true;
     fetch(`/api/ai/conversations/${threadId}`)
-      .then((r) => (r.ok ? r.json() : null))
+      .then(async (r) => {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json();
+      })
       .then((d) => {
-        if (!live || !d) return;
+        if (!live) return;
         const messages = (d.messages ?? []) as StoredMessage[];
         loaded.current = threadId;
+        setTranscriptFailed(false);
         setItems(toItems(messages));
         setTurn(turnFrom(messages));
       })
-      .catch(() => {});
+      .catch(() => {
+        if (live) setTranscriptFailed(true);
+      });
     return () => {
       live = false;
     };
-  }, [threadId]);
+  }, [threadId, transcriptRetry]);
 
   // `ended` is reached by time passing rather than by an event, so the panel has
   // to look again. One tick a second, only while a turn is open.
@@ -190,6 +222,7 @@ export function AgentPanel({
     (id: string | null) => {
       loaded.current = null; // a thread the user chose is read back from storage
       generation.current += 1; // and any answer still arriving is not about it
+      setTranscriptFailed(false);
       setThreadId(id);
       setItems([]);
       setStreamingText("");
@@ -202,10 +235,22 @@ export function AgentPanel({
     [params, router],
   );
 
+  const failTurn = useCallback(
+    (gen: number) => {
+      if (generation.current !== gen) return;
+      // A 429/500 is not "no provider". `unreachable` maps to `offline` and
+      // locks the composer with no retry; idle + an error row lets them send again.
+      setItems((xs) => [...xs, { kind: "error", message: t("chat.unreachable") }]);
+      setStreamingText("");
+      setTurn({ kind: "idle" });
+    },
+    [t],
+  );
+
   const consume = useCallback(async (res: Response, gen: number) => {
     const current = () => generation.current === gen;
     if (!res.ok || !res.body) {
-      if (current()) setTurn({ kind: "unreachable" });
+      failTurn(gen);
       return;
     }
     if (current()) setTurn({ kind: "streaming", lastEventAt: Date.now() });
@@ -215,6 +260,10 @@ export function AgentPanel({
         // Read to the end regardless — an abandoned response still has to be
         // drained — but write nothing into a panel that has moved on.
         if (!current()) continue;
+        if (evt.type === "heartbeat") {
+          setTurn((s) => applyHeartbeat(s, Date.now()));
+          continue;
+        }
         setTurn({ kind: "streaming", lastEventAt: Date.now() });
         if (evt.type === "conversation") {
           // This thread's transcript is the one being written right now, so it
@@ -246,16 +295,19 @@ export function AgentPanel({
         }
       }
     } catch {
-      // The connection dropped mid-answer. That is a fact about the transport,
-      // so say so rather than leaving the thread looking busy forever.
-      if (current()) setTurn({ kind: "unreachable" });
+      // The connection dropped mid-answer. Say so and unlock the composer —
+      // locking `offline` would make a dropped stream look like no provider.
+      failTurn(gen);
       return;
     }
     if (current() && assistant.trim()) {
       setItems((xs) => [...xs, { kind: "assistant", content: assistant }]);
       setStreamingText("");
     }
-  }, []);
+    // Stream closed without `done` (proxy cut, empty body). Stay confirming
+    // if a proposal is up; otherwise unlock — 90s of `working` is a lock.
+    if (current()) setTurn((s) => (s.kind === "streaming" ? { kind: "idle" } : s));
+  }, [failTurn]);
 
   async function send() {
     const message = input.trim();
@@ -277,18 +329,14 @@ export function AgentPanel({
       });
       await consume(res, gen);
     } catch {
-      if (generation.current === gen) setTurn({ kind: "unreachable" });
+      failTurn(gen);
     }
   }
 
   async function decide(messageId: string, approve: boolean) {
-    setItems((xs) =>
-      xs.map((i) =>
-        i.kind === "proposal" && i.messageId === messageId
-          ? { ...i, resolved: approve ? "approved" : "rejected" }
-          : i,
-      ),
-    );
+    // Buttons disable on `working`. Mark the card resolved only after the POST
+    // is accepted — a 409/429/500 is not a decision the server stored, and the
+    // proposal is still theirs to answer.
     const gen = generation.current;
     setTurn({ kind: "streaming", lastEventAt: Date.now() });
     try {
@@ -297,38 +345,61 @@ export function AgentPanel({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ conversationId: threadRef.current, decision: { messageId, approve } }),
       });
+      if (!res.ok || !res.body) {
+        if (generation.current === gen) setTurn({ kind: "awaiting_confirmation" });
+        return;
+      }
+      setItems((xs) =>
+        xs.map((i) =>
+          i.kind === "proposal" && i.messageId === messageId
+            ? { ...i, resolved: approve ? "approved" : "rejected" }
+            : i,
+        ),
+      );
       await consume(res, gen);
+      onChanged();
     } catch {
-      if (generation.current === gen) setTurn({ kind: "unreachable" });
+      if (generation.current === gen) setTurn({ kind: "awaiting_confirmation" });
     }
-    onChanged();
   }
 
   return (
     <div hidden={hidden} className="space-y-4">
       {!opened ? null : (
         <>
-          {threads === null ? (
+          {listFailed ? (
+            <LoadError compact onRetry={() => setListRetry((n) => n + 1)} />
+          ) : threads === null ? (
             <Spinner />
           ) : (
             <>
               <ThreadBar threads={threads} threadId={threadId} onOpen={openThread} />
-              <Transcript items={items} streamingText={streamingText} onDecide={decide} state={state} />
-              <Composer
-                state={state}
-                value={input}
-                onChange={setInput}
-                onSend={send}
-                onRestart={() => openThread(null)}
-              />
+              {transcriptFailed ? (
+                <LoadError compact onRetry={() => setTranscriptRetry((n) => n + 1)} />
+              ) : (
+                <>
+                  <Transcript items={items} streamingText={streamingText} onDecide={decide} state={state} />
+                  <Composer
+                    state={state}
+                    value={input}
+                    onChange={setInput}
+                    onSend={send}
+                    onRestart={() => openThread(null)}
+                  />
+                </>
+              )}
             </>
           )}
-          <ResearchFindings
-            proposed={proposed}
-            applied={applied}
-            entityType={entityType}
-            onChanged={onChanged}
-          />
+          {showFacts ? (
+            <ResearchFindings
+              proposed={proposed}
+              applied={applied}
+              failed={factsFailed}
+              onRetry={retryFacts}
+              entityType={entityType}
+              onChanged={onChanged}
+            />
+          ) : null}
         </>
       )}
     </div>
@@ -346,20 +417,22 @@ function ThreadBar({
   threadId: string | null;
   onOpen: (id: string | null) => void;
 }) {
+  const t = useT();
+  const locale = useLocale();
   if (threads.length === 0) return null;
   return (
     <div className="flex items-center gap-2">
       <label htmlFor="agent-thread" className="text-xs text-ink-muted">
-        Conversation
+        {t("agent.conversation")}
       </label>
       <NativeSelect
         id="agent-thread"
         value={threadId ?? ""}
         onChange={(e) => onOpen(e.target.value || null)} size="sm">
-        <option value="">New conversation</option>
-        {threads.map((t) => (
-          <option key={t.id} value={t.id}>
-            {t.title ?? `Conversation · ${timeAgo(t.updatedAt)}`}
+        <option value="">{t("agent.newConversation")}</option>
+        {threads.map((thread) => (
+          <option key={thread.id} value={thread.id}>
+            {thread.title ?? t("agent.conversationAgo", { when: timeAgo(thread.updatedAt, locale) })}
           </option>
         ))}
       </NativeSelect>
@@ -380,6 +453,7 @@ function Transcript({
   onDecide: (messageId: string, approve: boolean) => void;
   state: ComposerState;
 }) {
+  const t = useT();
   const ref = useRef<HTMLDivElement>(null);
   // Rule 7: follow the tail only while the reader is already at the bottom, and
   // let go the moment they scroll up to read something.
@@ -399,9 +473,7 @@ function Transcript({
       className="max-h-[420px] min-h-[120px] space-y-3 overflow-y-auto rounded-lg bg-surface-2/40 p-3"
     >
       {items.length === 0 && !streamingText && (
-        <p className="text-sm text-ink-muted">
-          Ask about this record — what changed, what to do next, who else is involved.
-        </p>
+        <p className="text-sm text-ink-muted">{t("agent.empty")}</p>
       )}
       {items.map((item, i) => (
         <TranscriptRow
@@ -429,6 +501,7 @@ function TranscriptRow({
   onDecide: (messageId: string, approve: boolean) => void;
   disabled: boolean;
 }) {
+  const t = useT();
   if (item.kind === "user") {
     // Tinted, not filled — see the note on the same bubble in ai-chat.tsx.
     return (
@@ -457,24 +530,26 @@ function TranscriptRow({
   return (
     <div className="rounded-xl border border-feedback-warn/20 bg-feedback-warn-wash p-3 text-sm">
       <p className="mb-2">
-        <span className="font-mono font-semibold">{item.name}</span> wants to run:
+        <span className="font-mono font-semibold">{item.name}</span> {t("agent.wantsToRun")}
       </p>
       <pre className="mb-2 overflow-x-auto rounded bg-surface px-2 py-1 text-xs">
         {JSON.stringify(item.args, null, 2)}
       </pre>
       {item.resolved ? (
-        <p className="text-xs text-ink-muted">{item.resolved === "approved" ? "✓ Confirmed" : "✕ Cancelled"}</p>
+        <p className="text-xs text-ink-muted">
+          {item.resolved === "approved" ? t("agent.confirmed") : t("agent.cancelled")}
+        </p>
       ) : (
         <div className="flex gap-2">
           <Button
             onClick={() => onDecide(item.messageId, true)}
             disabled={disabled} size="xs">
-            Confirm
+            {t("action.confirm")}
           </Button>
           <Button
             onClick={() => onDecide(item.messageId, false)}
             disabled={disabled} variant="outline" size="xs">
-            Cancel
+            {t("action.cancel")}
           </Button>
         </div>
       )}
@@ -485,12 +560,12 @@ function TranscriptRow({
 // ── Composer ─────────────────────────────────────────────────────────────────
 
 /** What each state tells the user. Every line is true of that state and no other. */
-const PLACEHOLDER: Record<ComposerState, string> = {
-  ready: "Ask about this record…",
-  working: "Working…",
-  confirming: "Answer the proposal above to carry on",
-  ended: "This conversation has ended",
-  offline: "The assistant is not available",
+const PLACEHOLDER_KEYS: Record<ComposerState, MessageKey> = {
+  ready: "agent.placeholder.ready",
+  working: "agent.placeholder.working",
+  confirming: "agent.placeholder.confirming",
+  ended: "agent.placeholder.ended",
+  offline: "agent.placeholder.offline",
 };
 
 function Composer({
@@ -506,6 +581,7 @@ function Composer({
   onSend: () => void;
   onRestart: () => void;
 }) {
+  const t = useT();
   return (
     <div className="space-y-2">
       <form
@@ -518,26 +594,23 @@ function Composer({
         <Input
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={PLACEHOLDER[state]}
-          aria-label="Ask about this record"
+          placeholder={t(PLACEHOLDER_KEYS[state])}
+          aria-label={t("agent.askAria")}
           disabled={!canSend(state)} />
         <Button
           type="submit"
           disabled={!canSend(state) || !value.trim()}
-          aria-label="Send" className="px-3">
+          aria-label={t("action.send")} className="px-3">
           <IconArrowRight width={16} height={16} />
         </Button>
       </form>
       {offersRestart(state) && (
         <Button onClick={onRestart} variant="outline" size="xs">
-          Start a new conversation
+          {t("agent.restart")}
         </Button>
       )}
       {state === "offline" && (
-        <p className="text-xs text-ink-muted">
-          No AI provider is configured, or it could not be reached. Everything below still works — it is
-          produced by the keyless research pass, which needs no model.
-        </p>
+        <p className="text-xs text-ink-muted">{t("agent.offlineHint")}</p>
       )}
     </div>
   );
@@ -553,41 +626,54 @@ function Composer({
 function ResearchFindings({
   proposed,
   applied,
+  failed,
+  onRetry,
   entityType,
   onChanged,
 }: {
   proposed: RecordFact[];
   applied: RecordFact[];
+  failed: boolean;
+  onRetry: () => void;
   entityType: string;
   onChanged: () => void;
 }) {
+  const t = useT();
+  if (failed) {
+    return (
+      <div className="border-t border-line pt-3">
+        <LoadError compact onRetry={onRetry} />
+      </div>
+    );
+  }
   const research = applied.filter((f) => f.method === "research");
   if (proposed.length === 0 && research.length === 0) {
     return (
       <p className="border-t border-line pt-3 text-xs text-ink-muted">
-        Nothing found about this {entityType} yet. Connect a mailbox and the research pass fills in what
-        it can, with the source shown.
+        {t("agent.researchEmpty", { entityType })}
       </p>
     );
   }
   return (
     <div className="space-y-2 border-t border-line pt-3">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">What research found</h3>
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+        {t("agent.researchTitle")}
+      </h3>
       {[...proposed, ...research].map((f) => (
         <div key={f.id} className="rounded-lg bg-surface-2 px-3 py-2 text-sm">
           <p>
-            <span className="font-medium">{f.field.replace(/_/g, " ")}</span>: {f.value}
+            <span className="font-medium">{factFieldLabel(f.field, t)}</span>: {f.value}
             <span className="ml-2 text-xs text-ink-muted">
-              {f.status === "APPLIED" ? "filled in" : "suggested"} · {f.band.toLowerCase()}
+              {f.status === "APPLIED" ? t("agent.filledIn") : t("agent.suggested")} · {factBandLabel(f.band, t)}
             </span>
           </p>
           {f.evidence[0] && <p className="mt-0.5 text-xs text-ink-muted">{f.evidence[0].detail}</p>}
         </div>
       ))}
       <p className="text-xs text-ink-muted">
-        Accept, dismiss or revert any of these under the field it is about.{" "}
+        {t("agent.researchHint")}{" "}
         <button onClick={onChanged} className="underline">
-          Refresh
+          {t("agent.refresh")}
         </button>
       </p>
     </div>

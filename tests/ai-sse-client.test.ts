@@ -55,11 +55,18 @@ describe("parseSseStream", () => {
     expect(events.map((e) => (e as { type: string }).type)).toEqual(["delta", "delta", "done"]);
   });
 
-  it("ignores blank lines, heartbeats, and [DONE]", async () => {
+  it("ignores blank lines, comment heartbeats, and [DONE]", async () => {
     const events = await collect(
       streamFrom(["\n\n", ": keep-alive\n\n", "data: [DONE]\n\n", sse({ type: "done", finishReason: "stop" })]),
     );
     expect(events).toEqual([{ type: "done", finishReason: "stop" }]);
+  });
+
+  it("yields a JSON heartbeat data event so the composer can stay working", async () => {
+    const events = await collect(
+      streamFrom([sse({ type: "heartbeat" }), sse({ type: "delta", text: "ok" })]),
+    );
+    expect(events).toEqual([{ type: "heartbeat" }, { type: "delta", text: "ok" }]);
   });
 
   it("yields a final event not terminated by a blank line", async () => {

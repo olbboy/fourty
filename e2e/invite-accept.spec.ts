@@ -58,7 +58,7 @@ test("an invited teammate redeems the link and lands in the workspace", async ({
     await guestPage.getByLabel("Your name").fill("Replay");
     await guestPage.getByLabel("Choose a password").fill("replay-password-123");
     await guestPage.getByRole("button", { name: "Create account and join" }).click();
-    await expect(guestPage.getByRole("main").getByRole("alert")).toContainText(/invalid or expired/i);
+    await expect(guestPage.getByRole("main").getByRole("alert")).toContainText(/invalid or has expired/i);
   } finally {
     await guest.close();
   }

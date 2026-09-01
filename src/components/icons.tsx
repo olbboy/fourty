@@ -4,6 +4,8 @@ import {
   Building2,
   Calendar,
   CheckSquare,
+  ChevronDown,
+  ChevronUp,
   Download,
   Flame,
   Key,
@@ -80,6 +82,8 @@ export const IconUpload = icon(Upload);
 export const IconDownload = icon(Download);
 export const IconKey = icon(Key);
 export const IconArrowRight = icon(ArrowRight);
+export const IconChevronUp = icon(ChevronUp);
+export const IconChevronDown = icon(ChevronDown);
 export const IconFlame = icon(Flame);
 export const IconMenu = icon(Menu);
 export const IconKanban = icon(SquareKanban);

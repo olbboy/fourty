@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { expectHealthyView } from "./helpers/view-health";
+import { expectHealthyView, settleView } from "./helpers/view-health";
 
 /**
  * Every view, loaded and checked for the failures that report themselves
@@ -11,17 +11,6 @@ import { expectHealthyView } from "./helpers/view-health";
  * which is the question nothing was asking when a design pass shipped a broken
  * workflows page through a full green suite.
  */
-
-/**
- * Every list here arrives from a client-side fetch, so the heading paints long
- * before the rows do. Checking the view at that moment checks an empty page —
- * which is how the first draft of this spec passed while the workflow row was
- * still visibly stacked.
- */
-async function settle(page: Page): Promise<void> {
-  await page.waitForLoadState("networkidle");
-  await expect(page.locator('[data-slot="spinner"]')).toHaveCount(0);
-}
 
 /** Anything the browser reported while the view was loading. */
 function collectBrowserErrors(page: Page): string[] {
@@ -53,7 +42,7 @@ for (const [name, url, heading] of VIEWS) {
     // The heading proves the view rendered rather than falling to an error
     // boundary, which paints a page that is otherwise perfectly healthy.
     await expect(page.getByRole("heading", { name: heading, level: 1 })).toBeVisible();
-    await settle(page);
+    await settleView(page);
     await expectHealthyView(page);
     expect(errors, `${url} reported browser errors`).toEqual([]);
   });
@@ -81,7 +70,7 @@ for (const [name, list, urlPattern] of DETAILS) {
     await expect(page).toHaveURL(urlPattern);
 
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-    await settle(page);
+    await settleView(page);
     await expectHealthyView(page);
     expect(errors, `${name} detail reported browser errors`).toEqual([]);
   });

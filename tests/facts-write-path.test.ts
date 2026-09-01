@@ -1,7 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { createWorkspace, resetDb } from "./pg-setup";
-import { recordFact, decideFact, listFacts, ownerOf } from "@/lib/facts/record-fact";
+import { recordFact, decideFact, listFacts, ownerOf, writeClassFor } from "@/lib/facts/record-fact";
 import type { Evidence } from "@/lib/facts/evidence";
 
 /**
@@ -346,6 +346,14 @@ describe("evidence ledger write path (Postgres + RLS)", () => {
   });
 
   describe("write classes", () => {
+    it("maps via to the three write classes", () => {
+      expect(writeClassFor("research")).toBe("B");
+      expect(writeClassFor("ai")).toBe("A");
+      expect(writeClassFor("agent:research")).toBe("A");
+      expect(writeClassFor("mcp")).toBe("C");
+      expect(writeClassFor(undefined)).toBe("C");
+    });
+
     it("caps a generative caller at PROBABLE even on VERIFIED evidence", async () => {
       const out = await inWs(() =>
         recordFact(
@@ -363,6 +371,18 @@ describe("evidence ledger write path (Postgres + RLS)", () => {
         recordFact(
           { entityType: "contact", entityId: contactId, field: "job_title", value: "Head of Ops", evidence: VERIFIED },
           human(newId()),
+        ),
+      );
+      expect(out.ok && out.fact.band).toBe("VERIFIED");
+      expect(out.ok && out.applied).toBe(false);
+      expect((await contactRow()).jobTitle).toBeNull();
+    });
+
+    it("treats MCP the same as a human caller: honestly banded, never applied", async () => {
+      const out = await inWs(() =>
+        recordFact(
+          { entityType: "contact", entityId: contactId, field: "job_title", value: "Head of Ops", evidence: VERIFIED },
+          { userId: null, via: "mcp" },
         ),
       );
       expect(out.ok && out.fact.band).toBe("VERIFIED");

@@ -5,10 +5,22 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { useT } from "@/lib/i18n/provider";
+import type { MessageKey } from "@/lib/i18n";
+
+/** Map known login/setup API English errors to catalog keys; else a generic fallback. */
+function loginError(t: (key: MessageKey) => string, error: unknown): string {
+  if (error === "Invalid email or password") return t("login.invalidCredentials");
+  if (error === "Invalid two-factor code") return t("login.twoFactorInvalid");
+  if (error === "Too many login attempts. Try again later.") return t("login.tooManyAttempts");
+  if (error === "Workspace already set up") return t("login.alreadySetup");
+  return t("login.error");
+}
 
 // `next` arrives pre-validated by the page (safeInternalPath) — this form
 // never reads the query string itself, so the guard has exactly one call site.
 export function LoginForm({ mode, next }: { mode: "setup" | "login"; next?: string | null }) {
+  const t = useT();
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -46,7 +58,7 @@ export function LoginForm({ mode, next }: { mode: "setup" | "login"; next?: stri
         // First round-trip for a 2FA account: ask for the code, not an error.
         setNeedsCode(true);
       } else {
-        setError(data.error ?? "Something went wrong");
+        setError(loginError(t, data.error));
       }
       setBusy(false);
     }
@@ -60,14 +72,14 @@ export function LoginForm({ mode, next }: { mode: "setup" | "login"; next?: stri
       {mode === "setup" && (
         <div>
           <label htmlFor="login-name" className="mb-1.5 block text-sm font-medium">
-            Your name
+            {t("login.yourName")}
           </label>
-          <Input id="login-name" name="name" required placeholder="Ada Lovelace" />
+          <Input id="login-name" name="name" required placeholder={t("login.namePlaceholder")} />
         </div>
       )}
       <div>
         <label htmlFor="login-email" className="mb-1.5 block text-sm font-medium">
-          Email
+          {t("field.email")}
         </label>
         <Input
           id="login-email"
@@ -75,11 +87,11 @@ export function LoginForm({ mode, next }: { mode: "setup" | "login"; next?: stri
           type="email"
           required
           autoComplete="email"
-          placeholder="you@company.com" />
+          placeholder={t("login.emailPlaceholder")} />
       </div>
       <div>
         <label htmlFor="login-password" className="mb-1.5 block text-sm font-medium">
-          Password
+          {t("login.password")}
         </label>
         <Input
           id="login-password"
@@ -93,7 +105,7 @@ export function LoginForm({ mode, next }: { mode: "setup" | "login"; next?: stri
       {needsCode && (
         <div>
           <label htmlFor="login-token" className="mb-1.5 block text-sm font-medium">
-            Two-factor code
+            {t("login.twoFactorCode")}
           </label>
           <Input
             id="login-token"
@@ -107,7 +119,7 @@ export function LoginForm({ mode, next }: { mode: "setup" | "login"; next?: stri
             placeholder="123456"
           />
           <p className="mt-1.5 text-xs text-ink-muted">
-            Enter the 6-digit code from your authenticator app, or one of your backup codes.
+            {t("login.twoFactorHint")}
           </p>
         </div>
       )}
@@ -119,12 +131,12 @@ export function LoginForm({ mode, next }: { mode: "setup" | "login"; next?: stri
             onChange={(e) => setWithDemo(e.target.checked)}
             className="h-4 w-4 accent-indigo-600"
           />
-          Load sample data so I can explore
+          {t("login.sampleData")}
         </label>
       )}
       {error && <p className="text-sm text-feedback-error">{error}</p>}
       <Button type="submit" disabled={busy} className="w-full">
-        {busy ? "Please wait…" : mode === "setup" ? "Create workspace" : "Sign in"}
+        {busy ? t("settings.twofaWait") : mode === "setup" ? t("login.createWorkspace") : t("login.signIn")}
       </Button>
     </Card>
   );

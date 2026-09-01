@@ -10,7 +10,12 @@ import { SsoSection } from "@/app/(app)/settings/sections/sso";
 import { MailboxSection } from "@/app/(app)/settings/sections/mailbox";
 import { SecuritySection } from "@/app/(app)/settings/sections/security";
 import { CustomObjectsSection } from "@/app/(app)/settings/sections/custom-objects";
-import { RecordsClient } from "@/app/(app)/objects/[object]/records-client";
+import { CustomFieldsSection } from "@/app/(app)/settings/sections/custom-fields";
+import { PipelinesSection } from "@/app/(app)/settings/sections/pipelines";
+import { FieldPermissionsSection } from "@/app/(app)/settings/sections/field-permissions";
+import { AuditLogSection } from "@/app/(app)/settings/sections/audit-log";
+import { WebhooksSection } from "@/app/(app)/settings/sections/webhooks";
+import { DiagnosticsSection } from "@/app/(app)/settings/sections/diagnostics";
 
 /**
  * Accessibility guarantees (Gate C5). Two layers: render the reusable primitives
@@ -88,15 +93,48 @@ describe("settings panels render", () => {
     expect(html).toContain("Two-factor authentication");
   });
 
-  it("the custom-objects panel renders while its objects are still loading", () => {
+  it("the custom-objects panel renders while its types are still loading", () => {
     const html = renderToStaticMarkup(createElement(CustomObjectsSection));
     expect(html).toContain("Custom objects");
     expect(html).toContain("New object");
   });
 
-  it("the custom-object records page renders while its object is still loading", () => {
-    const html = renderToStaticMarkup(createElement(RecordsClient, { apiName: "projects" }));
-    expect(html).toContain("animate-spin"); // the loading spinner frame
+  it("the custom-object records page renders a spinner while loading", () => {
+    expect(src("src/app/(app)/objects/[apiName]/records-client.tsx")).toContain("<Spinner />");
+  });
+
+  it("the pipelines panel renders while its stages are still loading", () => {
+    const html = renderToStaticMarkup(createElement(PipelinesSection));
+    expect(html).toContain("Pipelines");
+  });
+
+  it("the custom-fields panel renders while its defs are still loading", () => {
+    const html = renderToStaticMarkup(createElement(CustomFieldsSection));
+    expect(html).toContain("Custom fields");
+    expect(html).toContain("New field");
+  });
+
+  it("the field-permissions panel renders while its rules are still loading", () => {
+    const html = renderToStaticMarkup(createElement(FieldPermissionsSection));
+    expect(html).toContain("Field permissions");
+    expect(html).toContain("Add rule");
+  });
+
+  it("the audit-log panel renders while its entries are still loading", () => {
+    const html = renderToStaticMarkup(createElement(AuditLogSection));
+    expect(html).toContain("Audit log");
+    expect(html).toContain("Export CSV");
+  });
+
+  it("the webhooks panel renders while its secret is still loading", () => {
+    const html = renderToStaticMarkup(createElement(WebhooksSection));
+    expect(html).toContain("Webhooks");
+    expect(html).toContain("Rotate secret");
+  });
+
+  it("the diagnostics panel renders while its capabilities are still loading", () => {
+    const html = renderToStaticMarkup(createElement(DiagnosticsSection));
+    expect(html).toContain("Diagnostics");
   });
 });
 
@@ -188,20 +226,51 @@ describe("every form control has an accessible name", () => {
 describe("source-level a11y contract (router-bound components)", () => {
   it("shell has a skip link, main landmark, and aria-current", () => {
     const shell = src("src/components/shell.tsx");
-    expect(shell).toContain("Skip to content");
+    expect(shell).toContain('t("shell.skipToContent")');
     expect(shell).toContain('href="#main"');
     expect(shell).toContain('id="main"');
     // The mobile bottom bar is the shell's own nav landmark.
-    expect(shell).toContain('aria-label="Primary"');
+    expect(shell).toContain('aria-label={t("shell.primaryNav")}');
     expect(shell).toContain("aria-current");
+  });
+
+  it("record tabs name the tablist from the catalog", () => {
+    const tabs = src("src/components/agent-panel/record-tabs.tsx");
+    expect(tabs).toContain('role="tablist"');
+    expect(tabs).toContain('aria-label={t("record.tabsAria")}');
   });
 
   it("sidebar navigation is a labelled landmark with a current page", () => {
     // shadcn's sidebar parts render as divs, so the landmark is declared by hand;
     // this locks that in, because losing it is silent for sighted users.
     const sidebar = src("src/components/app-sidebar.tsx");
-    expect(sidebar).toContain('aria-label="Main"');
+    expect(sidebar).toContain('aria-label={t("shell.primaryNav")}');
     expect(sidebar).toContain("aria-current");
+  });
+
+  it("spinner and sidebar toggle take their names from the catalog", () => {
+    const spinner = src("src/components/ui/spinner.tsx");
+    expect(spinner).toContain('aria-label={t("common.loading")}');
+    const chrome = src("src/components/ui/sidebar.tsx");
+    expect(chrome).toContain('t("shell.toggleSidebar")');
+    expect(chrome).not.toContain("Toggle Sidebar");
+  });
+
+  it("dialog and sheet close buttons take their names from the catalog", () => {
+    const dialog = src("src/components/ui/dialog.tsx");
+    const sheet = src("src/components/ui/sheet.tsx");
+    expect(dialog).toContain('t("action.close")');
+    expect(sheet).toContain('t("action.close")');
+    expect(dialog).not.toContain(">Close</span>");
+    expect(sheet).not.toContain(">Close</span>");
+  });
+
+  it("breadcrumb landmark and ellipsis take their names from the catalog", () => {
+    const crumb = src("src/components/ui/breadcrumb.tsx");
+    expect(crumb).toContain('aria-label={t("nav.breadcrumb")}');
+    expect(crumb).toContain('t("common.more")');
+    expect(crumb).not.toContain('aria-label="breadcrumb"');
+    expect(crumb).not.toContain(">More</span>");
   });
 
   it("command palette and modal delegate dialog semantics to shadcn primitives", () => {
@@ -214,7 +283,7 @@ describe("source-level a11y contract (router-bound components)", () => {
     expect(palette).toContain("CommandInput");
     expect(palette).toContain("CommandItem");
     // A dialog with no accessible name is the regression worth catching.
-    expect(palette).toContain('title="Command palette"');
+    expect(palette).toContain('title={t("cmd.title")}');
 
     const ui = src("src/components/ui.tsx");
     expect(ui).toContain("DialogTitle");

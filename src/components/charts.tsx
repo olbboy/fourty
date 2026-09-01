@@ -162,10 +162,12 @@ export function FunnelChart({
   data,
   height = 240,
 }: {
-  data: { stage: string; count: number; value: number }[];
+  data: { stage: string; count: number; value?: number }[];
   height?: number;
 }) {
   const colors = useChartColors();
+  const showValue = data.some((d) => d.value != null);
+  const measure = showValue ? "value" : "count";
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={data} layout="vertical" margin={{ top: 4, right: 64, left: 8, bottom: 4 }}>
@@ -180,17 +182,19 @@ export function FunnelChart({
         />
         <Tooltip
           contentStyle={tooltipStyle}
-          formatter={(v, _n, item) => [
-            `${item.payload.count} deals · ${formatCompact(item.payload.value, "USD")}`,
+          formatter={(_v, _n, item) => [
+            showValue
+              ? `${item.payload.count} deals · ${formatCompact(Number(item.payload.value), "USD")}`
+              : `${item.payload.count} deals`,
             "Open",
           ]}
           cursor={{ fill: colors.grid, opacity: 0.35 }}
         />
-        <Bar dataKey="value" fill={colors.series} radius={[0, 4, 4, 0]} maxBarSize={22}>
+        <Bar dataKey={measure} fill={colors.series} radius={[0, 4, 4, 0]} maxBarSize={22}>
           <LabelList
-            dataKey="value"
+            dataKey={measure}
             position="right"
-            formatter={(v) => formatCompact(Number(v ?? 0), "USD")}
+            formatter={(v) => (showValue ? formatCompact(Number(v ?? 0), "USD") : String(v ?? 0))}
             style={{ fontSize: 11, fill: colors.text }}
           />
         </Bar>

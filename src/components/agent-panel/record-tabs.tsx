@@ -5,6 +5,7 @@ import { Timeline } from "@/components/record-panels";
 import { useAiEnabled } from "@/components/ai-enabled";
 import { AgentPanel } from "./index";
 import { Card } from "@/components/ui/card";
+import { useT } from "@/lib/i18n/provider";
 
 /**
  * The record's middle column: **Timeline | Agent** (Phase 4).
@@ -23,17 +24,18 @@ export function RecordTabs({
   refreshKey,
   onChanged,
 }: {
-  entityType: "contact" | "company" | "deal";
+  entityType: string;
   entityId: string;
   refreshKey: number;
   onChanged: () => void;
 }) {
   const [tab, setTab] = useState<"timeline" | "agent">("timeline");
   const aiEnabled = useAiEnabled();
+  const t = useT();
 
   return (
     <Card size="flush" className="p-4">
-      <div role="tablist" aria-label="Record detail" className="mb-3 flex gap-1">
+      <div role="tablist" aria-label={t("record.tabsAria")} className="mb-3 flex gap-1">
         {(["timeline", "agent"] as const).map((key) => (
           <button
             key={key}
@@ -46,7 +48,7 @@ export function RecordTabs({
               tab === key ? "bg-accent-600/10 text-accent-700 dark:text-accent-400" : "text-ink-muted hover:bg-surface-2"
             }`}
           >
-            {key === "timeline" ? "Timeline" : "Agent"}
+            {key === "timeline" ? t("record.timeline") : t("record.agent")}
           </button>
         ))}
       </div>

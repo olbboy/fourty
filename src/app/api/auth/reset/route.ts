@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { json, apiError, parseBody, tooManyRequests } from "@/lib/api";
-import { rateLimit, clientIp } from "@/lib/ratelimit";
+import { rateLimit, clientIp, resetBudget } from "@/lib/ratelimit";
 import { consumePasswordReset } from "@/lib/password-reset";
 
 const schema = z.object({
@@ -10,19 +10,12 @@ const schema = z.object({
   password: z.string().min(8).max(200),
 });
 
-// Brute-forcing a 24-byte token is hopeless, but the limit keeps a script from
-// hammering stolen-link guesses for free. Login's budget fits fine.
-const RESET_LIMIT = 10;
-const RESET_WINDOW_MS = 15 * 60 * 1000;
-
 /** Redeem a reset token for a new password. One error message for unknown,
  *  expired, and already-used — distinguishing them only helps an attacker
  *  probing stolen links. */
 export async function POST(req: Request) {
-  const gate = rateLimit(`reset:${clientIp(req)}`, {
-    limit: RESET_LIMIT,
-    windowMs: RESET_WINDOW_MS,
-  });
+  const { limit, windowMs } = resetBudget();
+  const gate = rateLimit(`reset:${clientIp(req)}`, { limit, windowMs });
   if (!gate.allowed) {
     return tooManyRequests("Too many attempts. Try again later.", gate.retryAfter);
   }

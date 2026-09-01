@@ -12,8 +12,10 @@ import { log } from "@/lib/logger";
  *         @opentelemetry/auto-instrumentations-node
  *   export OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
  *
- * The require is done via createRequire with a variable specifier so bundlers
- * don't try to resolve the (possibly absent) packages at build time.
+ * The Next.js app process must not import this file (Turbopack traces the
+ * optional package specifiers and fails the compile when they are absent).
+ * `npm start` preloads `scripts/init-tracing.cjs` instead; the worker calls
+ * `initTracing()` here via tsx, which does not statically resolve them.
  */
 let started = false;
 
@@ -24,15 +26,11 @@ export function initTracing(): void {
 
   try {
     const req = createRequire(import.meta.url);
-    const sdkPkg = "@opentelemetry/sdk-node";
-    const otlpPkg = "@opentelemetry/exporter-trace-otlp-http";
-    const autoPkg = "@opentelemetry/auto-instrumentations-node";
-
-    const { NodeSDK } = req(sdkPkg);
-    const { OTLPTraceExporter } = req(otlpPkg);
+    const { NodeSDK } = req("@opentelemetry/sdk-node");
+    const { OTLPTraceExporter } = req("@opentelemetry/exporter-trace-otlp-http");
     let instrumentations: unknown[] = [];
     try {
-      instrumentations = [req(autoPkg).getNodeAutoInstrumentations()];
+      instrumentations = [req("@opentelemetry/auto-instrumentations-node").getNodeAutoInstrumentations()];
     } catch {
       // auto-instrumentations optional — export manual spans without it.
     }

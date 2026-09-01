@@ -2,13 +2,22 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { timeAgo } from "@/lib/format";
-import { Modal, Field, Spinner, useConfirm } from "@/components/ui";
+import { Modal, Field, Spinner, LoadError, useConfirm } from "@/components/ui";
 import { IconPlus, IconTrash, IconEdit } from "@/components/icons";
 import { ROLES } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { useLocale, useT } from "@/lib/i18n/provider";
+import type { MessageKey } from "@/lib/i18n";
+import { roleLabel } from "@/lib/role-display";
+
+/** Map known SSO-API English errors to catalog keys; else a generic fallback. */
+function ssoError(t: (key: MessageKey) => string, error: unknown, fallback: MessageKey): string {
+  if (error === "Connection not found") return t("settings.ssoNotFound");
+  return t(fallback);
+}
 
 type SsoConnection = {
   id: string;
@@ -27,19 +36,28 @@ type SsoConnection = {
 // OIDC providers (Gate D4). Instance-level and admin-only, so a non-admin gets a
 // 403 from the list and sees nothing at all rather than a panel of dead controls.
 export function SsoSection() {
+  const t = useT();
+  const locale = useLocale();
   const [askConfirm, confirmDialog] = useConfirm();
   const [connections, setConnections] = useState<SsoConnection[] | null>(null);
+  const [failed, setFailed] = useState(false);
   const [adminOnly, setAdminOnly] = useState(false);
   const [editing, setEditing] = useState<SsoConnection | "new" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/sso/connections");
-    if (res.status === 403) {
-      setAdminOnly(true);
-      return;
+    setFailed(false);
+    try {
+      const res = await fetch("/api/sso/connections");
+      if (res.status === 403) {
+        setAdminOnly(true);
+        return;
+      }
+      if (!res.ok) throw new Error("sso");
+      setConnections((await res.json()).connections);
+    } catch {
+      setFailed(true);
     }
-    if (res.ok) setConnections((await res.json()).connections);
   }, []);
   useEffect(() => {
     load();
@@ -65,7 +83,7 @@ export function SsoSection() {
 
     const isNew = editing === "new";
     if (isNew && !secret) {
-      setError("A client secret is required for a new provider");
+      setError(t("settings.ssoSecretRequired"));
       return;
     }
     const res = await fetch(isNew ? "/api/sso/connections" : `/api/sso/connections/${(editing as SsoConnection).id}`, {
@@ -77,13 +95,13 @@ export function SsoSection() {
       setEditing(null);
       load();
     } else {
-      setError((await res.json().catch(() => ({}))).error ?? "Failed to save provider");
+      setError(ssoError(t, (await res.json().catch(() => ({}))).error, "settings.ssoFailedSave"));
     }
   }
 
   /** Surface why a write was refused; silence would read as success. */
-  async function report(res: Response, fallback: string) {
-    if (!res.ok) setError((await res.json().catch(() => ({}))).error ?? fallback);
+  async function report(res: Response, fallback: MessageKey) {
+    if (!res.ok) setError(ssoError(t, (await res.json().catch(() => ({}))).error, fallback));
   }
 
   async function toggle(c: SsoConnection) {
@@ -93,19 +111,19 @@ export function SsoSection() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ enabled: !c.enabled }),
     });
-    await report(res, c.enabled ? "Failed to disable provider" : "Failed to enable provider");
+    await report(res, c.enabled ? "settings.ssoFailedDisable" : "settings.ssoFailedEnable");
     load();
   }
 
   async function remove(c: SsoConnection) {
     const ok = await askConfirm({
-      title: `Delete “${c.label}”?`,
-      body: "Anyone who signs in through this provider loses access immediately.",
+      title: t("settings.ssoDeleteTitle", { label: c.label }),
+      body: t("settings.ssoDeleteBody"),
     });
     if (!ok) return;
     setError(null);
     const res = await fetch(`/api/sso/connections/${c.id}`, { method: "DELETE" });
-    await report(res, "Failed to delete provider");
+    await report(res, "settings.ssoFailedDelete");
     load();
   }
 
@@ -117,23 +135,27 @@ export function SsoSection() {
     <Card size="flush" className="p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-sm font-semibold">Single sign-on</h2>
-          <p className="text-sm text-ink-muted">
-            Let your team sign in through an OIDC provider (Okta, Entra ID, Google Workspace, Keycloak).
-            New users join the workspace below with the role you pick.
-          </p>
+          <h2 className="text-sm font-semibold">{t("settings.sso")}</h2>
+          <p className="text-sm text-ink-muted">{t("settings.ssoHint")}</p>
         </div>
         <Button onClick={() => setEditing("new")}>
-          <IconPlus width={15} height={15} /> Add provider
+          <IconPlus width={15} height={15} /> {t("settings.ssoAdd")}
         </Button>
       </div>
       {/* Failures from the row buttons land here; the form has its own copy. */}
       {error && editing === null && <p className="mb-3 text-sm text-feedback-error">{error}</p>}
-      {!connections ? (
+      {failed ? (
+        <LoadError
+          onRetry={() => {
+            setConnections(null);
+            void load();
+          }}
+        />
+      ) : !connections ? (
         <Spinner />
       ) : connections.length === 0 ? (
         <p className="py-2 text-sm text-ink-muted">
-          No providers yet — everyone signs in with email and password.
+          {t("settings.ssoEmpty")}
         </p>
       ) : (
         <div className="divide-y divide-line/60">
@@ -149,22 +171,22 @@ export function SsoSection() {
                   {c.label}
                 </p>
                 <p className="break-all text-xs text-ink-muted">
-                  {c.issuer} · joins as {c.defaultRole} · added {timeAgo(c.createdAt)}
-                  {!c.hasClientSecret && " · no client secret set"}
+                  {c.issuer} · {t("settings.ssoJoinsAs", { role: roleLabel(c.defaultRole, t), when: timeAgo(c.createdAt, locale) })}
+                  {!c.hasClientSecret && t("settings.ssoNoSecret")}
                 </p>
               </div>
               <Button onClick={() => toggle(c)} variant="outline" size="sm" className="text-xs">
-                {c.enabled ? "Disable" : "Enable"}
+                {c.enabled ? t("settings.ssoDisable") : t("settings.ssoEnable")}
               </Button>
               {/* Icon-only, so the provider name has to come from the label. */}
               <Button
                 onClick={() => setEditing(c)}
-                aria-label={`Edit ${c.label}`} variant="outline" size="icon-sm">
+                aria-label={t("settings.ssoEditAria", { label: c.label })} variant="outline" size="icon-sm">
                 <IconEdit width={14} height={14} />
               </Button>
               <Button
                 onClick={() => remove(c)}
-                aria-label={`Delete ${c.label}`} variant="outline" size="icon-sm" className="text-feedback-error">
+                aria-label={t("settings.ssoDeleteAria", { label: c.label })} variant="outline" size="icon-sm" className="text-feedback-error">
                 <IconTrash width={14} height={14} />
               </Button>
             </div>
@@ -173,7 +195,7 @@ export function SsoSection() {
       )}
 
       <Modal
-        title={current ? `Edit ${current.label}` : "Add an OIDC provider"}
+        title={current ? t("settings.ssoModalEdit", { label: current.label }) : t("settings.ssoModalAdd")}
         open={editing !== null}
         onClose={() => {
           setEditing(null);
@@ -181,45 +203,45 @@ export function SsoSection() {
         }}
       >
         <form onSubmit={save} className="space-y-4">
-          <Field label="Name (shown on the sign-in button)">
-            <Input name="label" required maxLength={80} defaultValue={current?.label} placeholder="Okta" />
+          <Field label={t("settings.ssoName")}>
+            <Input name="label" required maxLength={80} defaultValue={current?.label} placeholder={t("settings.ssoNamePlaceholder")} />
           </Field>
-          <Field label="Issuer URL">
+          <Field label={t("settings.ssoIssuer")}>
             <Input
               name="issuer"
               required
               type="url"
               maxLength={400}
               defaultValue={current?.issuer}
-              placeholder="https://example.okta.com" />
+              placeholder={t("settings.ssoIssuerPlaceholder")} />
           </Field>
-          <Field label="Client ID">
+          <Field label={t("settings.ssoClientId")}>
             <Input name="clientId" required maxLength={400} defaultValue={current?.clientId} />
           </Field>
-          <Field label={current ? "Client secret (leave blank to keep the current one)" : "Client secret"}>
+          <Field label={current ? t("settings.ssoClientSecretKeep") : t("settings.ssoClientSecret")}>
             <Input
               name="clientSecret"
               type="password"
               maxLength={1000}
-              placeholder={current?.hasClientSecret ? "•••••••• (unchanged)" : ""} />
+              placeholder={current?.hasClientSecret ? t("settings.ssoSecretUnchanged") : ""} />
           </Field>
-          <Field label="Scopes">
+          <Field label={t("settings.ssoScopes")}>
             <Input
               name="scopes"
               maxLength={400}
               defaultValue={current?.scopes}
-              placeholder="openid email profile" />
+              placeholder={t("settings.ssoScopesPlaceholder")} />
           </Field>
-          <Field label="Role for new users">
+          <Field label={t("settings.ssoDefaultRole")}>
             <NativeSelect name="defaultRole" defaultValue={current?.defaultRole ?? "member"} className="w-full">
               {ROLES.map((r) => (
                 <option key={r} value={r}>
-                  {r}
+                  {roleLabel(r, t)}
                 </option>
               ))}
             </NativeSelect>
           </Field>
-          <Field label="Workspace new users join (optional — blank means none)">
+          <Field label={t("settings.ssoWorkspace")}>
             <Input
               name="defaultWorkspaceId"
               maxLength={40}
@@ -227,14 +249,13 @@ export function SsoSection() {
           </Field>
           {current && (
             <p className="text-xs text-ink-muted">
-              Changing the issuer or client ID takes effect on the next sign-in — check them against your
-              provider before saving.
+              {t("settings.ssoIssuerHint")}
             </p>
           )}
           {error && <p className="text-sm text-feedback-error">{error}</p>}
           <div className="flex justify-end">
             <Button type="submit">
-              {current ? "Save provider" : "Add provider"}
+              {current ? t("settings.ssoSave") : t("settings.ssoAdd")}
             </Button>
           </div>
         </form>

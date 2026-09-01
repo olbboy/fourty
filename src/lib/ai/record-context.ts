@@ -1,6 +1,10 @@
 import { eq } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { can } from "@/lib/permissions";
+import { loadFieldPolicy, redact } from "@/lib/field-permissions";
+import { pinnedWorkIds } from "@/lib/pinned-tasks";
+import { fieldsOf, getRecord, objectByApiName } from "@/lib/custom-objects";
+import { recordTitle } from "@/lib/custom-object-display";
 
 /**
  * The record a per-record conversation is about (Phase 4).
@@ -14,25 +18,41 @@ import { can } from "@/lib/permissions";
  */
 
 export const RECORD_ENTITIES = ["contact", "company", "deal"] as const;
-export type RecordEntity = (typeof RECORD_ENTITIES)[number];
+export type CrmRecordEntity = (typeof RECORD_ENTITIES)[number];
+/** @deprecated Use CrmRecordEntity — kept so existing imports still type-check. */
+export type RecordEntity = CrmRecordEntity;
 
-export function isRecordEntity(value: unknown): value is RecordEntity {
+export function isCrmRecordEntity(value: unknown): value is CrmRecordEntity {
   return typeof value === "string" && (RECORD_ENTITIES as readonly string[]).includes(value);
 }
 
+/** CRM enum only. Custom-object apiNames go through `resolveBindableEntity`. */
+export function isRecordEntity(value: unknown): value is CrmRecordEntity {
+  return isCrmRecordEntity(value);
+}
+
+/** Canonical entityType the Agent may bind, or null. Must run inside `withWorkspace()`. */
+export async function resolveBindableEntity(value: string): Promise<string | null> {
+  if (isCrmRecordEntity(value)) return value;
+  const obj = await objectByApiName(value);
+  return obj ? obj.apiName : null;
+}
+
 /** The permission object name for an entity — the same one its REST route uses. */
-const PERM_OBJECT: Record<RecordEntity, string> = {
+const PERM_OBJECT: Record<CrmRecordEntity, string> = {
   contact: "contacts",
   company: "companies",
   deal: "deals",
 };
 
-export function permissionObjectFor(entity: RecordEntity): string {
-  return PERM_OBJECT[entity];
+export function permissionObjectFor(entity: string): string {
+  return isCrmRecordEntity(entity) ? PERM_OBJECT[entity] : "objects";
 }
 
+const CUSTOM_FACT_CAP = 12;
+
 export type RecordContext = {
-  entityType: RecordEntity;
+  entityType: string;
   entityId: string;
   /** What a person calls this record. */
   label: string;
@@ -51,19 +71,24 @@ export type RecordContext = {
  * either way rather than confirming a record exists in a workspace.
  */
 export async function loadRecordContext(
-  entityType: RecordEntity,
+  entityType: string,
   entityId: string,
   role: string,
 ): Promise<RecordContext | null> {
-  if (!can(role, PERM_OBJECT[entityType], "read")) return null;
-  if (entityType === "contact") return contactContext(entityId);
-  if (entityType === "company") return companyContext(entityId);
-  return dealContext(entityId);
+  if (isCrmRecordEntity(entityType)) {
+    if (!can(role, PERM_OBJECT[entityType], "read")) return null;
+    if (entityType === "contact") return contactContext(entityId, role);
+    if (entityType === "company") return companyContext(entityId, role);
+    return dealContext(entityId, role);
+  }
+  return customObjectContext(entityType, entityId, role);
 }
 
-async function contactContext(id: string): Promise<RecordContext | null> {
-  const [row] = await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1);
-  if (!row) return null;
+async function contactContext(id: string, role: string): Promise<RecordContext | null> {
+  const [raw] = await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1);
+  if (!raw) return null;
+  const policy = await loadFieldPolicy(role);
+  const row = redact(policy, "contacts", { ...raw, custom: JSON.parse(raw.custom) });
   const deals = await db
     .select({ id: tables.deals.id })
     .from(tables.deals)
@@ -76,18 +101,21 @@ async function contactContext(id: string): Promise<RecordContext | null> {
       row.jobTitle && `Job title: ${row.jobTitle}`,
       row.email && `Email: ${row.email}`,
       row.status && `Status: ${row.status}`,
-      `Lead score: ${row.score}`,
+      row.score != null && `Lead score: ${row.score}`,
     ]),
     neighbours: {
       companyIds: row.companyId ? [row.companyId] : [],
       dealIds: deals.map((d) => d.id),
+      ...(await pinnedWorkIds("contact", id)),
     },
   };
 }
 
-async function companyContext(id: string): Promise<RecordContext | null> {
-  const [row] = await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1);
-  if (!row) return null;
+async function companyContext(id: string, role: string): Promise<RecordContext | null> {
+  const [raw] = await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1);
+  if (!raw) return null;
+  const policy = await loadFieldPolicy(role);
+  const row = redact(policy, "companies", { ...raw, custom: JSON.parse(raw.custom) });
   const contacts = await db
     .select({ id: tables.contacts.id })
     .from(tables.contacts)
@@ -99,32 +127,65 @@ async function companyContext(id: string): Promise<RecordContext | null> {
   return {
     entityType: "company",
     entityId: id,
-    label: row.name,
+    label: row.name as string,
     facts: compact([
       row.domain && `Domain: ${row.domain}`,
       row.industry && `Industry: ${row.industry}`,
       row.size && `Size: ${row.size}`,
     ]),
-    neighbours: { contactIds: contacts.map((c) => c.id), dealIds: deals.map((d) => d.id) },
+    neighbours: {
+      contactIds: contacts.map((c) => c.id),
+      dealIds: deals.map((d) => d.id),
+      ...(await pinnedWorkIds("company", id)),
+    },
   };
 }
 
-async function dealContext(id: string): Promise<RecordContext | null> {
-  const [row] = await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1);
-  if (!row) return null;
+async function dealContext(id: string, role: string): Promise<RecordContext | null> {
+  const [raw] = await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1);
+  if (!raw) return null;
+  const policy = await loadFieldPolicy(role);
+  const row = redact(policy, "deals", { ...raw, custom: JSON.parse(raw.custom) });
   return {
     entityType: "deal",
     entityId: id,
-    label: row.name,
+    label: row.name as string,
     facts: compact([
-      `Amount: ${row.amount} ${row.currency}`,
+      row.amount != null && `Amount: ${row.amount} ${row.currency ?? ""}`.trim(),
       row.stageId && `Stage id: ${row.stageId}`,
-      `Health score: ${row.score}`,
+      row.score != null && `Health score: ${row.score}`,
     ]),
     neighbours: {
-      contactIds: row.contactId ? [row.contactId] : [],
-      companyIds: row.companyId ? [row.companyId] : [],
+      contactIds: row.contactId ? [row.contactId as string] : [],
+      companyIds: row.companyId ? [row.companyId as string] : [],
+      ...(await pinnedWorkIds("deal", id)),
     },
+  };
+}
+
+async function customObjectContext(
+  apiName: string,
+  id: string,
+  role: string,
+): Promise<RecordContext | null> {
+  if (!can(role, "objects", "read")) return null;
+  const obj = await objectByApiName(apiName);
+  if (!obj) return null;
+  const row = await getRecord(obj.id, id);
+  if (!row) return null;
+  const fields = await fieldsOf(obj.id);
+  return {
+    entityType: obj.apiName,
+    entityId: id,
+    label: recordTitle(row.data, fields, "Untitled"),
+    facts: compact(
+      fields.map((f) => {
+        const v = row.data[f.key];
+        if (v === null || v === undefined || v === "") return false;
+        return `${f.label}: ${String(v)}`;
+      }),
+    ).slice(0, CUSTOM_FACT_CAP),
+    neighbours: await pinnedWorkIds(obj.apiName, id),
   };
 }
 

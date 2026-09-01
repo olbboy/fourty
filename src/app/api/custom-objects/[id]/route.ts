@@ -49,7 +49,10 @@ export async function DELETE(req: Request, { params }: Params) {
     const { id } = await params;
     const object = await objectById(id);
     if (!object) return apiError("Object not found", 404);
-    // Drop the object with its fields and every record (all workspace-scoped).
+    // Drop the object with its fields, records, and notes/tasks/timeline on those records.
+    await db.delete(tables.notes).where(eq(tables.notes.entityType, object.apiName));
+    await db.delete(tables.tasks).where(eq(tables.tasks.entityType, object.apiName));
+    await db.delete(tables.activities).where(eq(tables.activities.entityType, object.apiName));
     await db.delete(tables.customRecords).where(eq(tables.customRecords.objectId, id));
     await db.delete(tables.customObjectFields).where(eq(tables.customObjectFields.objectId, id));
     await db.delete(tables.customObjects).where(eq(tables.customObjects.id, id));

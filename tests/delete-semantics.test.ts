@@ -25,6 +25,7 @@ describe("delete semantics parity (REST / GraphQL / MCP)", () => {
   let newId: typeof import("@/lib/id").newId;
   let contactIdRoutes: typeof import("@/app/api/contacts/[id]/route");
   let companyIdRoutes: typeof import("@/app/api/companies/[id]/route");
+  let recIdRoutes: typeof import("@/app/api/objects/[object]/[id]/route");
   let gql: typeof import("@/app/api/graphql/route");
   let ws: string;
   let mcpCtx: ToolContext;
@@ -133,6 +134,7 @@ describe("delete semantics parity (REST / GraphQL / MCP)", () => {
     ({ newId } = await import("@/lib/id"));
     contactIdRoutes = await import("@/app/api/contacts/[id]/route");
     companyIdRoutes = await import("@/app/api/companies/[id]/route");
+    recIdRoutes = await import("@/app/api/objects/[object]/[id]/route");
     gql = await import("@/app/api/graphql/route");
 
     ws = await createWorkspace();
@@ -223,6 +225,60 @@ describe("delete semantics parity (REST / GraphQL / MCP)", () => {
     const doomed = await seedContact();
     await restDelete(contactIdRoutes, "/api/contacts", doomed);
     expect(await orphansOf(keep)).toEqual({ notes: 2, activities: 2 });
+  });
+
+  async function seedCustomRecord(): Promise<{ apiName: string; recordId: string }> {
+    return withWorkspace(ws, async () => {
+      const now = Date.now();
+      const objectId = newId();
+      const recordId = newId();
+      const apiName = `rec${recordId.replace(/-/g, "").slice(0, 12)}`;
+      await db.insert(tables.customObjects).values({
+        id: objectId,
+        apiName,
+        nameSingular: "Record",
+        namePlural: "Records",
+        createdAt: now,
+      });
+      await db.insert(tables.customRecords).values({
+        id: recordId,
+        objectId,
+        data: "{}",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await seedChildren(apiName, recordId);
+      return { apiName, recordId };
+    });
+  }
+
+  it("REST delete custom record removes its notes + activities", async () => {
+    const { apiName, recordId } = await seedCustomRecord();
+    const res = await recIdRoutes.DELETE(
+      new Request(`http://localhost/api/objects/${apiName}/${recordId}`, { method: "DELETE", headers }),
+      { params: Promise.resolve({ object: apiName, id: recordId }) },
+    );
+    expect(res.status).toBe(200);
+    expect(await orphansOf(recordId)).toEqual({ notes: 0, activities: 0 });
+  });
+
+  it("MCP delete_record removes its notes + activities", async () => {
+    const { apiName, recordId } = await seedCustomRecord();
+    const res = await callTool("delete_record", { object: apiName, id: recordId, confirm: true });
+    expect(res.isError).toBe(false);
+    expect(res.data.deleted).toBe(true);
+    expect(await orphansOf(recordId)).toEqual({ notes: 0, activities: 0 });
+  });
+
+  it("GraphQL deleteRecord removes its notes + activities", async () => {
+    const { apiName, recordId } = await seedCustomRecord();
+    const body = await runGql(`mutation($object: String!, $id: ID!) { deleteRecord(object: $object, id: $id) }`, {
+      object: apiName,
+      id: recordId,
+    });
+    expect(body.errors).toBeUndefined();
+    expect(body.data?.deleteRecord).toBe(true);
+    expect(await orphansOf(recordId)).toEqual({ notes: 0, activities: 0 });
   });
 
   // ── not-found: deliberately different per surface ──────────────────────────

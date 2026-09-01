@@ -4,6 +4,8 @@ import { db, tables } from "@/db";
 import { withAuth, authorize, json, parseBody } from "@/lib/api";
 import { newId } from "@/lib/id";
 import { audit } from "@/lib/audit";
+import { customFieldDefsOf, firstInvalidCustom } from "@/lib/custom-fields";
+import { defsWithNewField, fieldChangeInvalidMessage } from "@/lib/field-def-guard";
 
 const input = z.object({
   entity: z.enum(["contact", "company", "deal"]),
@@ -42,6 +44,21 @@ export async function POST(req: Request) {
     .where(eq(tables.customFieldDefs.entity, body.data.entity));
   if (existing.some((f) => f.key === body.data.key)) {
     return json({ error: "A field with this key already exists" }, { status: 409 });
+  }
+  // A newly-required field is the same trap as PATCH required:true — every
+  // existing record would fail the next write. Refuse instead of stranding them.
+  if (body.data.required) {
+    const nextDefs = defsWithNewField(await customFieldDefsOf(body.data.entity), {
+      key: body.data.key,
+      label: body.data.label,
+      type: body.data.type,
+      options: body.data.options,
+      required: true,
+    });
+    const invalid = await firstInvalidCustom(body.data.entity, nextDefs);
+    if (invalid) {
+      return json({ error: fieldChangeInvalidMessage(invalid) }, { status: 409 });
+    }
   }
   const id = newId();
   await db.insert(tables.customFieldDefs)

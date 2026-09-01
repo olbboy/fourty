@@ -34,7 +34,7 @@ Three principles shape every decision (and every [ADR](../adr/)):
 | Lead scoring | ✅ Automatic, zero-config | ❌ ("coming soon") | Einstein ($$) |
 | Workflow automation | ✅ Visual builder, durable queue | ✅ | Flow ($$) |
 | REST **and** GraphQL | ✅ Both | GraphQL-first | ✅ |
-| MCP server (AI agents) | ✅ Self-host, 26 tools, stdio + HTTP | ✅ (Cloud/OAuth) | ❌ |
+| MCP server (AI agents) | ✅ Self-host, 39 tools, stdio + HTTP | ✅ (Cloud/OAuth) | ❌ |
 | Licence | **MIT** | AGPL-3.0 | Proprietary |
 
 > [!NOTE]

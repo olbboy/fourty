@@ -66,6 +66,33 @@ export default defineConfig({
       NODE_ENV: "production",
       // Boot on the dedicated E2E port (matches APP_URL above).
       PORT: "3100",
+      // The in-process limiter is 600 reads/min per caller+IP. A smoke run is
+      // one IP, one admin, dozens of specs each firing a handful of GETs — it
+      // self-DoS'd at 429, the dashboard treated `{ error }` as stats and
+      // unmounted the shell, and list views spun forever. Same override the
+      // bench uses; production defaults stay in src/lib/ratelimit.ts.
+      RATELIMIT_READ: "100000000",
+      RATELIMIT_WRITE: "100000000",
+      RATELIMIT_BULK: "100000000",
+      // Login is a separate IP budget (10 / 15 min in production). One smoke
+      // IP plus CI retries of the 2FA sign-in would 429 the rest of the suite.
+      RATELIMIT_LOGIN: "100000000",
+      RATELIMIT_FORGOT: "100000000",
+      RATELIMIT_RESET: "100000000",
+      // Next.js loads the developer's `.env` into `next start`. E2E asserts the
+      // unconfigured-mail path (no forgot-password link, invite shows the URL
+      // instead of claiming a send). Empty strings beat `.env` because they are
+      // already set — a local Resend/SMTP key must not silently enable a transport.
+      SMTP_HOST: "",
+      SMTP_USER: "",
+      SMTP_PASSWORD: "",
+      RESEND_API_KEY: "",
+      MAIL_FROM: "",
+      // Agent-panel smoke asserts the offline composer. Empty strings beat a
+      // developer `.env` GLM/OpenAI key so those specs stay honest.
+      AI_API_KEY: "",
+      GLM_API_KEY: "",
+      ZAI_API_KEY: "",
     },
   },
 });

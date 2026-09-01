@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+/** Built-in records (`contact` / `company` / `deal`) plus a no-code object's apiName. */
+const entityType = z.string().min(1).max(40);
+
 export const contactInput = z.object({
   firstName: z.string().min(1).max(120),
   lastName: z.string().max(120).optional().default(""),
@@ -51,7 +54,8 @@ export const taskInput = z.object({
   description: z.string().max(4000).nullable().optional(),
   dueDate: z.number().nullable().optional(),
   priority: z.enum(["low", "medium", "high"]).optional().default("medium"),
-  entityType: z.enum(["contact", "company", "deal"]).nullable().optional(),
+  ownerId: z.string().min(1).max(64).nullable().optional(),
+  entityType: entityType.nullable().optional(),
   entityId: z.string().nullable().optional(),
 });
 
@@ -61,13 +65,13 @@ export const taskPatch = taskInput.partial().extend({
 
 export const noteInput = z.object({
   body: z.string().min(1).max(10000),
-  entityType: z.enum(["contact", "company", "deal"]),
+  entityType,
   entityId: z.string().min(1),
 });
 
 export const activityLogInput = z.object({
   type: z.enum(["email", "call", "meeting"]),
-  entityType: z.enum(["contact", "company", "deal"]),
+  entityType,
   entityId: z.string().min(1),
   note: z.string().max(2000).optional(),
 });
