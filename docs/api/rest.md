@@ -34,7 +34,7 @@ error shapes.
 | Members | `/api/members` |
 | Field permissions | `/api/field-permissions` (admin), `/api/field-permissions/me` (own) |
 | Workflows | `/api/workflows` |
-| Webhooks | `/api/webhooks` |
+| Webhooks | `/api/webhooks/secret` (HMAC signing secret) |
 
 Core CRM objects use the same JSON shapes the UI uses. Standard verbs: `GET` /
 `POST` / `PATCH` / `DELETE`. Notes are append-only (`GET` / `POST`).

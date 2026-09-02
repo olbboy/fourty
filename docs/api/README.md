@@ -1,7 +1,8 @@
 # API & developers
 
-Everything the Fourty UI does is available over the wire, authenticated with a
+CRM records and the settings the UI uses are available over REST, authenticated with a
 workspace API key and governed by the same RLS + RBAC + field-permissions as the app.
+GraphQL and MCP cover the CRM record surface (not admin routes).
 
 - **[Overview](./overview.md)** — authentication, API keys, error shapes, rate limiting.
 - **[REST API](./rest.md)** — every resource, over JSON.

@@ -25,7 +25,7 @@ Typed queries for every object, plus custom-object records:
   `Contact.company` / `Contact.deals` / `Contact.colleagues` nest like MCP `get_contact` neighbours;
   `Contact.tasks` / `Contact.notes` / `Contact.activities` are the lists REST already filtered by that contact;
   `Contact.facts` is the suggestion inbox REST already filtered by that contact
-- `companies`, `company(id)` — `companies(industry:)` matches REST/MCP;
+- `companies`, `company(id)` — `companies(industry:, sort:)` matches REST/MCP;
   `Company.contacts` / `Company.deals` nest like `Deal.company`;
   `Company.tasks` / `Company.notes` / `Company.activities` likewise;
   `Company.facts` likewise
