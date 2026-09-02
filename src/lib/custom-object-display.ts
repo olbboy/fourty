@@ -22,6 +22,17 @@ export function recordTitle(
   return String(v);
 }
 
+/** http(s) only — never turn a leftover `javascript:` value into a live link. */
+export function isSafeHttpUrl(value: unknown): value is string {
+  if (typeof value !== "string" || !value) return false;
+  try {
+    const u = new URL(value);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 type Translate = (key: MessageKey, vars?: Record<string, string | number>) => string;
 
 /**

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { translator } from "@/lib/i18n";
-import { formatCustomObjectError, recordTitle } from "@/lib/custom-object-display";
+import { formatCustomObjectError, isSafeHttpUrl, recordTitle } from "@/lib/custom-object-display";
 
 describe("formatCustomObjectError", () => {
   const en = translator("en");
@@ -50,5 +50,15 @@ describe("recordTitle", () => {
     expect(recordTitle({ budget: 3 }, [{ key: "budget", type: "number" }])).toBe("3");
     expect(recordTitle({ name: "" }, [{ key: "name", type: "text" }])).toBe("Untitled");
     expect(recordTitle({}, [])).toBe("Untitled");
+  });
+});
+
+describe("isSafeHttpUrl", () => {
+  it("allows http(s) and rejects javascript: and relative values", () => {
+    expect(isSafeHttpUrl("https://example.com/x")).toBe(true);
+    expect(isSafeHttpUrl("http://example.com")).toBe(true);
+    expect(isSafeHttpUrl("javascript:alert(1)")).toBe(false);
+    expect(isSafeHttpUrl("/objects/ticket/1")).toBe(false);
+    expect(isSafeHttpUrl("")).toBe(false);
   });
 });

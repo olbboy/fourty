@@ -67,6 +67,16 @@ describe("pipeline stage updates (real handlers + Postgres)", () => {
     leadId = lead.id;
   });
 
+  it("looking up a missing pipeline does not seed a default on an empty workspace", async () => {
+    const { withWorkspace } = await import("@/db");
+    const { getPipelineWithStages } = await import("@/lib/services/pipelines");
+    const empty = await createWorkspace();
+    await withWorkspace(empty, async () => {
+      expect(await getPipelineWithStages("no-such-pipeline")).toBeNull();
+      expect(await db.select().from(tables.pipelines)).toEqual([]);
+    });
+  });
+
   it("renames a stage and updates its win probability", async () => {
     const res = await stageRoutes.PATCH(
       req(ADMIN, `/api/stages/${leadId}`, {
