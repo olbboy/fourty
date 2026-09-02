@@ -13,6 +13,7 @@ import { SavedViewsBar, type SavedView } from "@/components/saved-views";
 import { DealForm } from "./deal-form";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
+import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { withViewTransition } from "@/lib/view-transition";
@@ -44,6 +45,7 @@ export function DealsClient() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [pipelineId, setPipelineId] = useState<string>("");
+  const [q, setQ] = useState("");
   const [view, setView] = useState<"kanban" | "list">("kanban");
   const [activeView, setActiveView] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(searchParams.get("new") === "1");
@@ -52,6 +54,7 @@ export function DealsClient() {
     setActiveView(saved?.id ?? null);
     const cfg = saved?.config ?? {};
     if (typeof cfg.filters?.pipelineId === "string") setPipelineId(cfg.filters.pipelineId);
+    setQ(typeof cfg.filters?.q === "string" ? cfg.filters.q : "");
     const nextView = cfg.filters?.view;
     if (nextView === "list" || nextView === "kanban") setView(nextView);
   }, []);
@@ -60,18 +63,21 @@ export function DealsClient() {
 
   const load = useCallback(async () => {
     setFailed(false);
+    const params = new URLSearchParams();
+    if (q.trim()) params.set("q", q.trim());
     try {
-      const res = await fetch("/api/deals");
+      const res = await fetch(`/api/deals?${params}`);
       if (!res.ok) throw new Error("deals");
       setDeals((await res.json()).deals);
     } catch {
       setFailed(true);
     }
-  }, []);
+  }, [q]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    const timer = setTimeout(load, q.trim() ? 150 : 0);
+    return () => clearTimeout(timer);
+  }, [load, q]);
 
   useEffect(() => {
     let cancelled = false;
@@ -206,11 +212,25 @@ export function DealsClient() {
         current={{
           filters: {
             ...(pipelineId ? { pipelineId } : {}),
+            ...(q.trim() ? { q: q.trim() } : {}),
             view,
           },
         }}
         onApply={applyView}
       />
+
+      <div className="mb-4">
+        <Input
+          value={q}
+          onChange={(e) => {
+            setQ(e.target.value);
+            setActiveView(null);
+          }}
+          aria-label={t("page.deals.searchAria")}
+          placeholder={t("page.deals.searchPlaceholder")}
+          className="max-w-xs"
+        />
+      </div>
 
       {failed ? (
         <LoadError

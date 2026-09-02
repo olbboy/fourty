@@ -46,6 +46,7 @@ export const listCompaniesInput = z.object({
   q: z.string().optional(),
   limit: z.coerce.number().optional().catch(undefined),
   industry: z.string().optional(),
+  sort: z.string().optional(),
 });
 
 /** Deal list controls. REST default/max (300/1000) live in the action, not here. */

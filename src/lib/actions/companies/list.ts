@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, or, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, or, type SQL } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { defineAction } from "../define";
 import { listCompaniesInput } from "../schemas";
@@ -33,8 +33,15 @@ export const companiesList = defineAction({
       .select()
       .from(tables.companies)
       .where(where.length ? and(...where) : undefined)
-      .orderBy(desc(tables.companies.updatedAt))
+      .orderBy(orderFor(input.sort))
       .limit(Math.min(Number(input.limit) || DEFAULT_LIMIT, MAX_LIMIT));
     return rows.map(toCompany);
   },
 });
+
+/** Unrecognised sort falls back to most recently updated, as the REST list does. */
+function orderFor(sort: string | undefined) {
+  if (sort === "name") return asc(tables.companies.name);
+  if (sort === "createdAt") return desc(tables.companies.createdAt);
+  return desc(tables.companies.updatedAt);
+}
