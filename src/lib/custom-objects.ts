@@ -1,10 +1,27 @@
-import { and, asc, desc, eq, ilike, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, sql, type SQL } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { audit } from "./audit";
 import { logActivity } from "./activity";
 import { newId } from "./id";
 import { validateRecord, type FieldDef } from "./records";
 export { recordTitle } from "./custom-object-display";
+
+/** Escape `\`, `%`, and `_` so a user term cannot become a LIKE wildcard. */
+export function escapeLikeLiteral(term: string): string {
+  return term.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
+/**
+ * Top-level JSON *string* values only — not keys, numbers, dates, or bools.
+ * Dates are millis; matching them as text would make `1` a near-match-all.
+ */
+export function customRecordStringIlike(pattern: string): SQL {
+  return sql`exists (
+    select 1 from jsonb_each(${tables.customRecords.data}::jsonb) as kv
+    where jsonb_typeof(kv.value) = 'string'
+      and kv.value #>> '{}' ilike ${pattern}
+  )`;
+}
 
 /**
  * Shared access helpers for custom objects (Gate C1). Must run inside a
@@ -118,9 +135,8 @@ const FIELD_SORT = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
 export async function listRecords(objectId: string, opts: ListRecordsOpts = {}): Promise<RecordRow[]> {
   const where: SQL[] = [eq(tables.customRecords.objectId, objectId)];
   const term = opts.q?.trim();
-  if (term) {
-    const pattern = `%${term.replace(/[%_]/g, "")}%`;
-    where.push(ilike(tables.customRecords.data, pattern));
+  if (term && term.replace(/[%_]/g, "")) {
+    where.push(customRecordStringIlike(`%${escapeLikeLiteral(term)}%`));
   }
 
   const rows = await db

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { eq } from "drizzle-orm";
 import { resetDb, createWorkspace } from "./pg-setup";
 import { db, tables, withWorkspace } from "@/db";
 import { sha256 } from "@/lib/auth";
@@ -206,6 +207,16 @@ describe("per-record conversations", () => {
     expect((await listRoute.GET(listReq("?entityType=planet&entityId=x"))).status).toBe(400);
   });
 
+  it("rejects a chat that names only one half of the record pair", async () => {
+    process.env.AI_API_KEY = "test-key";
+    try {
+      const res = await chatRoute.POST(chatReq({ message: "hello", entityType: "contact" }));
+      expect(res.status).toBe(400);
+    } finally {
+      delete process.env.AI_API_KEY;
+    }
+  });
+
   it("binds a new thread to a custom-object record by apiName", async () => {
     const id = await converse(KEY_A, {
       message: "what is this ticket?",
@@ -229,6 +240,56 @@ describe("per-record conversations", () => {
       expect(res.status).toBe(404);
     } finally {
       delete process.env.AI_API_KEY;
+    }
+  });
+
+  it("still accepts a reject after the bound record is deleted", async () => {
+    process.env.AI_API_KEY = "test-key";
+    globalThis.fetch = vi.fn(
+      async () =>
+        ({
+          ok: true,
+          body: streamFrom([
+            `data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: "w1", function: { name: "create_contact", arguments: '{"firstName":"Ada"}' } }] } }] }) }\n\n`,
+            `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "tool_calls" }] }) }\n\n`,
+          ]),
+          text: async () => "",
+        }) as unknown as Response,
+    ) as unknown as typeof fetch;
+    try {
+      const first = await chatRoute.POST(
+        chatReq({ message: "add Ada", entityType: "ticket", entityId: ticketId }),
+      );
+      const events = (await first.text())
+        .split("\n\n")
+        .filter((b) => b.trim())
+        .map((b) => JSON.parse(b.replace(/^data:\s*/, "")));
+      expect(events.some((e: { type: string }) => e.type === "awaiting_confirmation")).toBe(true);
+      const conversationId = (events[0] as { conversationId: string }).conversationId;
+      const messageId = (events.find((e: { type: string }) => e.type === "tool_proposal") as { messageId: string })
+        .messageId;
+      await withWorkspace(ws, () => db.delete(tables.customRecords).where(eq(tables.customRecords.id, ticketId)));
+      const decision = await chatRoute.POST(
+        chatReq({ conversationId, decision: { messageId, approve: false } }),
+      );
+      expect(decision.status).toBe(200);
+
+      globalThis.fetch = vi.fn(
+        async () =>
+          ({
+            ok: true,
+            body: streamFrom([
+              `data: ${JSON.stringify({ choices: [{ delta: { content: "still here" } }] }) }\n\n`,
+              "data: [DONE]\n\n",
+            ]),
+            text: async () => "",
+          }) as unknown as Response,
+      ) as unknown as typeof fetch;
+      const follow = await chatRoute.POST(chatReq({ conversationId, message: "what now?" }));
+      expect(follow.status).toBe(200);
+    } finally {
+      delete process.env.AI_API_KEY;
+      globalThis.fetch = originalFetch;
     }
   });
 });

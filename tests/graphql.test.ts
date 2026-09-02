@@ -272,6 +272,12 @@ describe("GraphQL API (real handler + Postgres + RLS)", () => {
     expect(
       (filtered.body.data.stages as { pipelineId: string }[]).every((s) => s.pipelineId === pipeline.id),
     ).toBe(true);
+
+    const asB = await run(ADMIN_B, `{ pipelines { id } }`);
+    expect(asB.body.errors).toBeUndefined();
+    expect(
+      (asB.body.data.pipelines as { id: string }[]).every((p) => p.id !== pipeline.id),
+    ).toBe(true);
   });
 
   it("serves report stats like REST, scoped to the workspace", async () => {

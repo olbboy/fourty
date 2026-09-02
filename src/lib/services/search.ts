@@ -1,8 +1,8 @@
-import { ilike, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { loadFieldPolicy, redact } from "@/lib/field-permissions";
 import { can } from "@/lib/permissions";
-import { fieldsOf, listObjects, listRecords } from "@/lib/custom-objects";
+import { customRecordStringIlike, escapeLikeLiteral, fieldsOf, listObjects } from "@/lib/custom-objects";
 import { recordTitle } from "@/lib/custom-object-display";
 
 export type SearchMode = "prefix" | "contains";
@@ -27,8 +27,14 @@ function emptyHits(): CrmSearchHits {
   return { contacts: [], companies: [], deals: [], records: [] };
 }
 
+/** True when `q` is only LIKE wildcards — those queries must not match everything. */
+function isWildcardOnlyQuery(q: string): boolean {
+  return !q.trim().replace(/[%_]/g, "");
+}
+
 function likePattern(term: string, mode: SearchMode): string {
-  return mode === "prefix" ? `${term}%` : `%${term}%`;
+  const escaped = escapeLikeLiteral(term);
+  return mode === "prefix" ? `${escaped}%` : `%${escaped}%`;
 }
 
 /**
@@ -41,8 +47,8 @@ export async function searchCrm(
   q: string,
   opts: { mode: SearchMode; limit: number; role: string },
 ): Promise<CrmSearchHits> {
-  const term = q.replace(/[%_]/g, "").trim();
-  if (!term) return emptyHits();
+  const term = q.trim();
+  if (isWildcardOnlyQuery(term)) return emptyHits();
   const like = likePattern(term, opts.mode);
   const limit = Math.min(25, Math.max(1, Number(opts.limit) || 10));
   const policy = await loadFieldPolicy(opts.role);
@@ -80,6 +86,32 @@ export async function searchCrm(
   };
 }
 
+/**
+ * Match top-level JSON *string* values (not keys, numbers, dates, or bools).
+ * Filtering in SQL before LIMIT so a prefix query cannot be starved by infix
+ * JSON-text hits. Dates are millis — matching them as text would make `1` a
+ * near-match-all.
+ */
+async function matchingCustomRows(objectId: string, pattern: string, limit: number) {
+  const rows = await db
+    .select()
+    .from(tables.customRecords)
+    .where(
+      and(
+        eq(tables.customRecords.objectId, objectId),
+        customRecordStringIlike(pattern),
+      ),
+    )
+    .orderBy(desc(tables.customRecords.updatedAt))
+    .limit(limit);
+  return rows.map((row) => ({
+    id: row.id,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    data: JSON.parse(row.data) as Record<string, unknown>,
+  }));
+}
+
 async function searchCustomRecords(
   term: string,
   mode: SearchMode,
@@ -89,31 +121,20 @@ async function searchCustomRecords(
   if (!can(role, "objects", "read")) return [];
   const objects = await listObjects();
   const hits: CustomSearchHit[] = [];
-  const needle = term.toLowerCase();
+  const pattern = likePattern(term, mode);
   for (const obj of objects) {
     if (hits.length >= limit) break;
     const fields = await fieldsOf(obj.id);
-    const rows = await listRecords(obj.id, { q: term, limit });
+    const rows = await matchingCustomRows(obj.id, pattern, limit - hits.length);
     for (const row of rows) {
-      const title = recordTitle(row.data, fields, "Untitled");
-      if (mode === "prefix") {
-        const prefixHit =
-          title.toLowerCase().startsWith(needle) ||
-          fields.some((f) => {
-            const v = row.data[f.key];
-            return typeof v === "string" && v.toLowerCase().startsWith(needle);
-          });
-        if (!prefixHit) continue;
-      }
       hits.push({
         id: row.id,
         object: obj.apiName,
         data: row.data,
-        title,
+        title: recordTitle(row.data, fields, "Untitled"),
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
       });
-      if (hits.length >= limit) break;
     }
   }
   return hits;

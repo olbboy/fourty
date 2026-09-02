@@ -166,6 +166,9 @@ describe("custom objects (real handlers + Postgres + RLS)", () => {
 
     const byBudget = await recRoutes.GET(req("/api/objects/project?q=pad&sort=budget", TOKEN_A), recParams);
     expect((await byBudget.json()).records.map((r: { data: { budget: number } }) => r.data.budget)).toEqual([2, 10]);
+
+    const byKey = await recRoutes.GET(req("/api/objects/project?q=title", TOKEN_A), recParams);
+    expect((await byKey.json()).records.map((r: { data: { title: string } }) => r.data.title)).toEqual([]);
   });
 
   it("rejects a reserved api name and duplicates", async () => {

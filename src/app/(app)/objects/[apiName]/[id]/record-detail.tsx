@@ -12,7 +12,7 @@ import { IconEdit, IconTrash } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { RecordForm } from "../record-form";
-import { formatFieldValue, recordTitle } from "../shared";
+import { formatFieldValue, isSafeHttpUrl, recordTitle } from "../shared";
 import { useLocale, useT } from "@/lib/i18n/provider";
 
 export function RecordDetail({ apiName, id }: { apiName: string; id: string }) {
@@ -141,7 +141,7 @@ export function RecordDetail({ apiName, id }: { apiName: string; id: string }) {
                 <div key={field.id}>
                   <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">{field.label}</p>
                   <p className="mt-0.5 text-sm">
-                    {field.type === "url" && typeof value === "string" && value ? (
+                    {field.type === "url" && isSafeHttpUrl(value) ? (
                       <a href={value} className="text-accent-700 underline" target="_blank" rel="noreferrer">
                         {value}
                       </a>

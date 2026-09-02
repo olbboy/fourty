@@ -2,7 +2,7 @@ import { formatDate } from "@/lib/format";
 import type { Locale } from "@/lib/i18n";
 import type { CustomObjectFieldDef } from "@/lib/types";
 
-export { recordTitle } from "@/lib/custom-object-display";
+export { isSafeHttpUrl, recordTitle } from "@/lib/custom-object-display";
 
 export function formatFieldValue(
   field: CustomObjectFieldDef,

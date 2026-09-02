@@ -85,6 +85,9 @@ export async function POST(req: Request): Promise<Response> {
     return done(apiError("Expected { message } or { conversationId, decision:{ messageId, approve } }"), auth.workspaceId);
   }
   const requestedRecord = parseRecord(body);
+  if (requestedRecord === "partial") {
+    return done(apiError("Expected both entityType and entityId"), auth.workspaceId);
+  }
 
   // AI turn quota (RT-E) applies only to message turns — they always call the LLM.
   // A decision (confirm/reject) must never be blocked, else a pending write wedges
@@ -134,7 +137,13 @@ export async function POST(req: Request): Promise<Response> {
     }
     return g;
   });
-  if (binding && !recordContext) return done(apiError("Record not found", 404), ctx.workspaceId);
+  // A *new* thread that names a missing record 404s so the panel never chats
+  // ungrounded. An existing thread (message or confirm/reject) must still run:
+  // the binding is already on the row, and a 404 wedges the global drawer and
+  // any pending write (later messages 409).
+  if (binding && !recordContext && !input.conversationId) {
+    return done(apiError("Record not found", 404), ctx.workspaceId);
+  }
 
   const systemPrompt = buildSystemPrompt(localeFromRequest(req), new Date(), ground, recordContext);
   const stream = sseStream(() => runAgent({ ctx, ownerId, binding, systemPrompt, deps: { streamChat } }, input), {
@@ -194,15 +203,19 @@ export async function GET(req: Request): Promise<Response> {
 /**
  * The record a *new* thread is about. An id only — the caller's right to see it
  * is settled by `loadRecordContext` under their own workspace and role, never by
- * the fact that they were able to name it.
+ * the fact that they were able to name it. One half of the pair without the
+ * other is a client bug, not an unbound chat.
  */
-function parseRecord(body: unknown): { entityType: string; entityId: string } | null {
+function parseRecord(
+  body: unknown,
+): { entityType: string; entityId: string } | "partial" | null {
   if (!body || typeof body !== "object") return null;
   const b = body as Record<string, unknown>;
-  if (typeof b.entityType !== "string" || !b.entityType || typeof b.entityId !== "string" || !b.entityId) {
-    return null;
-  }
-  return { entityType: b.entityType, entityId: b.entityId };
+  const entityType = typeof b.entityType === "string" && b.entityType ? b.entityType : null;
+  const entityId = typeof b.entityId === "string" && b.entityId ? b.entityId : null;
+  if (!entityType && !entityId) return null;
+  if (!entityType || !entityId) return "partial";
+  return { entityType, entityId };
 }
 
 /** Discriminate the two payload shapes; returns null on anything malformed. */

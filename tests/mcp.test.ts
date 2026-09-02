@@ -102,6 +102,17 @@ describe("MCP server (handler + Postgres + RLS)", () => {
     expect(got.data.id).toBe(listed.data[0].id);
     const missing = await callTool(ctxA, "get_pipeline", { id: "no-such-pipeline" });
     expect(missing.isError).toBe(true);
+    const asB = await callTool(ctxB, "list_pipelines", {});
+    expect(asB.isError).toBe(false);
+    expect((asB.data as { id: string }[]).every((p) => p.id !== listed.data[0].id)).toBe(true);
+  });
+
+  it("get_report_stats returns the same shape as dashboard reports", async () => {
+    const stats = await callTool(ctxA, "get_report_stats", {});
+    expect(stats.isError).toBe(false);
+    expect(Array.isArray(stats.data.sourceBreakdown)).toBe(true);
+    expect(Array.isArray(stats.data.winLoss)).toBe(true);
+    expect(Array.isArray(stats.data.scoreBands)).toBe(true);
   });
 
   it("denies a viewer from create_contact (RBAC)", async () => {

@@ -9,7 +9,9 @@ const createInput = z.object({
 });
 
 export async function GET(req: Request) {
-  return withAuth(req, async () => {
+  return withAuth(req, async (auth) => {
+    const denied = authorize(auth, "pipelines", "read");
+    if (denied) return denied;
     return json({ pipelines: await listPipelinesWithStages() });
   });
 }
