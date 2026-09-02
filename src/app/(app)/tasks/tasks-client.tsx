@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { Task } from "@/lib/types";
-import { formatDate, fromDateInputValue } from "@/lib/format";
+import { formatDate, fromDateInputValue, toDateInputValue } from "@/lib/format";
 import { PageHeader, Modal, Field, PriorityChip, EmptyState, Spinner, LoadError } from "@/components/ui";
-import { IconPlus, IconTrash } from "@/components/icons";
+import { IconPlus, IconTrash, IconEdit } from "@/components/icons";
 import { SavedViewsBar, type SavedView } from "@/components/saved-views";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,7 +28,7 @@ export function TasksClient() {
   const [failed, setFailed] = useState(false);
   const [state, setState] = useState<"open" | "done" | "all">("open");
   const [activeView, setActiveView] = useState<string | null>(null);
-  const [showNew, setShowNew] = useState(false);
+  const [editor, setEditor] = useState<Task | "new" | null>(null);
 
   const [busy, setBusy] = useState(false);
 
@@ -81,24 +81,34 @@ export function TasksClient() {
     load();
   }
 
-  async function create(e: React.FormEvent<HTMLFormElement>) {
+  async function save(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!editor) return;
     setBusy(true);
     const f = new FormData(e.currentTarget);
     const ownerId = (f.get("ownerId") as string) || "";
-    await fetch("/api/tasks", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        title: (f.get("title") as string).trim(),
-        description: (f.get("description") as string)?.trim() || null,
-        priority: f.get("priority"),
-        dueDate: fromDateInputValue((f.get("dueDate") as string) ?? ""),
-        ownerId: ownerId || null,
-      }),
-    });
+    const body = {
+      title: (f.get("title") as string).trim(),
+      description: (f.get("description") as string)?.trim() || null,
+      priority: f.get("priority"),
+      dueDate: fromDateInputValue((f.get("dueDate") as string) ?? ""),
+      ownerId: ownerId || null,
+    };
+    if (editor === "new") {
+      await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } else {
+      await fetch(`/api/tasks/${editor.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    }
     setBusy(false);
-    setShowNew(false);
+    setEditor(null);
     load();
   }
 
@@ -115,7 +125,7 @@ export function TasksClient() {
             : undefined
         }
         actions={
-          <Button onClick={() => setShowNew(true)}>
+          <Button onClick={() => setEditor("new")}>
             <IconPlus width={15} height={15} /> {t("page.tasks.new")}
           </Button>
         }
@@ -171,7 +181,7 @@ export function TasksClient() {
                 type="checkbox"
                 checked={!!task.completedAt}
                 onChange={() => toggle(task)}
-                aria-label={`Mark "${task.title}" complete`}
+                aria-label={t("page.tasks.completeAria", { title: task.title })}
                 className="mt-1 h-4 w-4 accent-indigo-600"
               />
               <div className="min-w-0 flex-1">
@@ -199,6 +209,14 @@ export function TasksClient() {
                 </div>
               </div>
               <Button
+                onClick={() => setEditor(task)}
+                aria-label={t("page.tasks.editAria", { title: task.title })}
+                variant="ghost"
+                size="icon-sm"
+              >
+                <IconEdit width={15} height={15} />
+              </Button>
+              <Button
                 onClick={() => remove(task)}
                 aria-label={t("page.tasks.deleteAria")} variant="ghost" size="icon-sm" className="text-feedback-error">
                 <IconTrash width={15} height={15} />
@@ -208,28 +226,54 @@ export function TasksClient() {
         </Card>
       )}
 
-      <Modal title={t("page.tasks.newModal")} open={showNew} onClose={() => setShowNew(false)}>
-        <form onSubmit={create} className="space-y-4">
+      <Modal
+        title={editor && editor !== "new" ? t("page.tasks.editModal") : t("page.tasks.newModal")}
+        open={editor !== null}
+        onClose={() => setEditor(null)}
+      >
+        <form key={editor === "new" || !editor ? "new" : editor.id} onSubmit={save} className="space-y-4">
           <Field label={t("field.title")}>
-            <Input name="title" required autoFocus />
+            <Input
+              name="title"
+              required
+              autoFocus
+              defaultValue={editor && editor !== "new" ? editor.title : ""}
+            />
           </Field>
           <Field label={t("field.description")}>
-            <Textarea name="description" rows={2} className="resize-y" />
+            <Textarea
+              name="description"
+              rows={2}
+              className="resize-y"
+              defaultValue={editor && editor !== "new" ? (editor.description ?? "") : ""}
+            />
           </Field>
           <div className="grid grid-cols-2 gap-4">
             <Field label={t("field.priority")}>
-              <NativeSelect name="priority" defaultValue="medium" className="w-full">
+              <NativeSelect
+                name="priority"
+                defaultValue={editor && editor !== "new" ? editor.priority : "medium"}
+                className="w-full"
+              >
                 <option value="low">{t("priority.low")}</option>
                 <option value="medium">{t("priority.medium")}</option>
                 <option value="high">{t("priority.high")}</option>
               </NativeSelect>
             </Field>
             <Field label={t("field.dueDate")}>
-              <Input name="dueDate" type="date" />
+              <Input
+                name="dueDate"
+                type="date"
+                defaultValue={editor && editor !== "new" ? toDateInputValue(editor.dueDate) : ""}
+              />
             </Field>
           </div>
           <Field label={t("field.assignee")}>
-            <NativeSelect name="ownerId" defaultValue="" className="w-full">
+            <NativeSelect
+              name="ownerId"
+              defaultValue={editor && editor !== "new" ? (editor.ownerId ?? "") : ""}
+              className="w-full"
+            >
               <option value="">{t("common.unassigned")}</option>
               {assignees.map((a) => (
                 <option key={a.id} value={a.id}>
@@ -240,7 +284,7 @@ export function TasksClient() {
           </Field>
           <div className="flex justify-end">
             <Button type="submit" disabled={busy}>
-              {busy ? t("form.saving") : t("form.createTask")}
+              {busy ? t("form.saving") : editor === "new" ? t("form.createTask") : t("form.saveChanges")}
             </Button>
           </div>
         </form>

@@ -45,6 +45,7 @@ export function ContactsClient() {
     setActiveView(view?.id ?? null);
     const cfg = view?.config ?? {};
     setStatus(typeof cfg.filters?.status === "string" ? cfg.filters.status : "");
+    setQ(typeof cfg.filters?.q === "string" ? cfg.filters.q : "");
     setSort(cfg.sort ?? "updatedAt");
   }, []);
 
@@ -127,7 +128,13 @@ export function ContactsClient() {
       <SavedViewsBar
         entity="contacts"
         activeId={activeView}
-        current={{ filters: status ? { status } : {}, sort }}
+        current={{
+          filters: {
+            ...(status ? { status } : {}),
+            ...(q.trim() ? { q: q.trim() } : {}),
+          },
+          sort,
+        }}
         onApply={applyView}
       />
 

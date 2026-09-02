@@ -2,7 +2,7 @@ type Query {
   contacts(limit: Int, q: String, sort: String, status: String, companyId: String): [Contact!]!
   contact(id: ID!): Contact
   factSuggestions(entityType: String, entityId: ID, status: String, limit: Int): [RecordFact!]!
-  companies(limit: Int, q: String, industry: String): [Company!]!
+  companies(limit: Int, q: String, industry: String, sort: String): [Company!]!
   company(id: ID!): Company
   deals(limit: Int, q: String, stageId: String, pipelineId: String, companyId: String, contactId: String): [Deal!]!
   deal(id: ID!): Deal

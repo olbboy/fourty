@@ -707,7 +707,12 @@ const queryFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
   },
   companies: {
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Company))),
-    args: { limit: { type: GraphQLInt }, q: { type: GraphQLString }, industry: { type: GraphQLString } },
+    args: {
+      limit: { type: GraphQLInt },
+      q: { type: GraphQLString },
+      industry: { type: GraphQLString },
+      sort: { type: GraphQLString },
+    },
     resolve: toResolver(companiesList),
   },
   company: {

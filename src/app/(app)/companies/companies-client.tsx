@@ -11,6 +11,7 @@ import { SavedViewsBar, type SavedView } from "@/components/saved-views";
 import { CompanyForm } from "./company-form";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import {
@@ -31,6 +32,7 @@ export function CompaniesClient() {
   const [companies, setCompanies] = useState<Company[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [q, setQ] = useState("");
+  const [sort, setSort] = useState("updatedAt");
   const [activeView, setActiveView] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(searchParams.get("new") === "1");
 
@@ -38,12 +40,14 @@ export function CompaniesClient() {
     setActiveView(view?.id ?? null);
     const cfg = view?.config ?? {};
     setQ(typeof cfg.filters?.q === "string" ? cfg.filters.q : "");
+    setSort(cfg.sort ?? "updatedAt");
   }, []);
 
   const load = useCallback(async () => {
     setFailed(false);
     const params = new URLSearchParams();
     if (q) params.set("q", q);
+    if (sort) params.set("sort", sort);
     try {
       const res = await fetch(`/api/companies?${params}`);
       if (!res.ok) throw new Error("companies");
@@ -51,7 +55,7 @@ export function CompaniesClient() {
     } catch {
       setFailed(true);
     }
-  }, [q]);
+  }, [q, sort]);
 
   useEffect(() => {
     const t = setTimeout(load, q ? 150 : 0);
@@ -81,11 +85,11 @@ export function CompaniesClient() {
       <SavedViewsBar
         entity="companies"
         activeId={activeView}
-        current={{ filters: q.trim() ? { q: q.trim() } : {} }}
+        current={{ filters: q.trim() ? { q: q.trim() } : {}, sort }}
         onApply={applyView}
       />
 
-      <div className="mb-4">
+      <div className="mb-4 flex flex-wrap gap-2">
         {/* No visible label above the box, and a placeholder is a fallback name
             at best — say what it searches. */}
         <Input
@@ -95,7 +99,21 @@ export function CompaniesClient() {
             setActiveView(null);
           }}
           aria-label={t("page.companies.searchAria")}
-          placeholder={t("page.companies.searchPlaceholder")} className="max-w-xs" />
+          placeholder={t("page.companies.searchPlaceholder")}
+          className="max-w-xs"
+        />
+        <NativeSelect
+          value={sort}
+          onChange={(e) => {
+            setSort(e.target.value);
+            setActiveView(null);
+          }}
+          aria-label={t("page.companies.sortAria")}
+        >
+          <option value="updatedAt">{t("page.companies.sortUpdated")}</option>
+          <option value="name">{t("page.companies.sortName")}</option>
+          <option value="createdAt">{t("page.companies.sortNewest")}</option>
+        </NativeSelect>
       </div>
 
       {failed ? (
