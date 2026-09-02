@@ -33,8 +33,9 @@ denials return HTTP 403; unknown/other-workspace records return 404 (RLS).
 
 Single endpoint `POST /api/graphql` with `{ query, variables }`. Introspection is
 enabled. Typed queries for every object: `contacts`, `contact(id)`, `companies`,
-`deals`, `tasks`, `notes`, `activities`, `factSuggestions`, `customObjects`, `records(object)`,
-`record(object,id)`.
+`deals`, `tasks`, `notes`, `activities`, `factSuggestions`, `search`,
+`dashboardStats`, `reportStats`, `pipelines`, `pipeline(id)`, `stages`,
+`assignees`, `customObjects`, `records(object)`, `record(object,id)`.
 Mutations: `createContact`/`updateContact`/`deleteContact`,
 `createCompany`/`updateCompany`/`deleteCompany`,
 `createDeal`/`updateDeal`/`deleteDeal`,
@@ -80,5 +81,5 @@ imports companies, people, and opportunities from a Twenty workspace. Use
 ## Docs
 
 - README: overview, quickstart, configuration
-- PARITY.md: honest, cited Fourty-vs-Twenty capability matrix
+- README comparison table: honest Fourty-vs-Twenty capability matrix
 - docs/adr/: architecture decision records (tenancy/RLS, GraphQL, MCP, …)

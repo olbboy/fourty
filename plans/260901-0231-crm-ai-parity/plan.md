@@ -66,12 +66,12 @@ CSV import expansion; admin GraphQL/MCP (workflows, webhooks, members, audit, fi
 
 ## Success Criteria
 
-- [ ] Custom-object detail has Timeline \| Agent; thread binds `entityType=apiName`; missing/forbidden → 404
-- [ ] `{ reportStats { sourceBreakdown { source leads } } }` and MCP `get_report_stats` match REST `/api/stats/reports`
-- [ ] Prefix search (GraphQL/MCP) and infix palette include custom-object hits (`type` = apiName, cap 25, `%`/`_` empty)
-- [ ] GraphQL `pipelines` / `pipeline(id)` / `stages` and MCP list/get return the same rows as REST GET `/api/pipelines`
-- [ ] `/login` in `next dev`: no hydration console error and Next badge `data-error=false` after compile — or documented closed-as-non-issue
-- [ ] `npx tsc --noEmit` clean; focused vitest green; docs + catalog match shipped tools
+- [x] Custom-object detail has Timeline \| Agent; thread binds `entityType=apiName`; missing/forbidden → 404
+- [x] `{ reportStats { sourceBreakdown { source leads } } }` and MCP `get_report_stats` match REST `/api/stats/reports`
+- [x] Prefix search (GraphQL/MCP) and infix palette include custom-object hits (`type` = apiName, cap 25, `%`/`_` empty)
+- [x] GraphQL `pipelines` / `pipeline(id)` / `stages` and MCP list/get return the same rows as REST GET `/api/pipelines`
+- [x] `/login` in `next dev`: no hydration console error and Next badge `data-error=false` after compile — or documented closed-as-non-issue
+- [x] `npx tsc --noEmit` clean; focused vitest green; docs + catalog match shipped tools
 
 ## Dependencies
 

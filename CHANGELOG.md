@@ -31,6 +31,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is REST `/api/stats/dashboard` and MCP `get_dashboard_stats` as a typed query.
   Hidden amount fields stay null.
 
+### Changed
+
+- **List pages match the advertised search/sort/edit surface.** Deals search by
+  name. Companies sort by updated/name/created. Contact and deal saved views
+  keep the search box. Tasks can be edited, not only created or deleted.
+
 ### Fixed
 
 - **Custom-object search.** Prefix (GraphQL/MCP), ⌘K, and `GET /api/objects/{apiName}?q=`

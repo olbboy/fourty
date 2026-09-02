@@ -83,7 +83,7 @@ A background pass mines your own mailbox for job titles and company links. No AP
 <td>
 
 **🔌 APIs Everywhere**
-REST, typed GraphQL, a native MCP server (39 tools, stdio + HTTP), and signed webhooks — every object accessible from every surface.
+REST, typed GraphQL, a native MCP server (39 tools, stdio + HTTP), and signed webhooks — CRM records on every surface; admin (members, SSO, workflows) stays REST.
 
 </td>
 <td>
