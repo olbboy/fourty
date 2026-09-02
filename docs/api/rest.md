@@ -18,7 +18,7 @@ error shapes.
 | Activities (timeline) | `/api/activities` |
 | Pipelines | `/api/pipelines` (GET, POST), `/api/pipelines/{id}` (PATCH name; DELETE when empty and not the last) |
 | Stages | `/api/stages` (POST name, winProbability, color), `/api/stages/{id}` (PATCH name, winProbability, order, color; DELETE open stages with no deals) |
-| Search | `/api/search?q=…` (contacts + companies + deals) |
+| Search | `/api/search?q=…` (contacts + companies + deals + custom-object records) |
 | Dashboard stats | `/api/stats/dashboard` |
 | Reports | `/api/stats/reports` |
 | Custom fields | `/api/custom-fields` |
