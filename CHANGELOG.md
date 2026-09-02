@@ -33,6 +33,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Custom-object search.** Prefix (GraphQL/MCP), ⌘K, and `GET /api/objects/{apiName}?q=`
+  match field *string values*, not JSON keys. A prefix hit is no longer dropped
+  when newer infix rows fill the limit. `_` in a name is literal. `%` / `_`
+  alone still return nothing.
+
+- **Pipeline get-by-id.** GraphQL `pipeline(id)` and MCP `get_pipeline` look up
+  one row and do not seed a default pipeline on a miss. REST `GET /api/pipelines`
+  now checks `pipelines` read like GraphQL/MCP.
+
+- **Agent confirm after a deleted record.** An existing thread still accepts a
+  message or confirm/reject when the bound record is gone (a 404 wedged the
+  global drawer and pending writes). New threads that name a missing record
+  still 404. Half of `entityType` / `entityId` is 400, not an unbound chat.
+
+- **Custom-object URL fields.** Only `http:` / `https:` become links, so a
+  leftover `javascript:` value cannot run.
+
 - **GraphQL `Task.contact`, `Task.company`, `Task.deal`.** `{ tasks { contact { firstName } } }`
   (and company/deal) is the nested read MCP `get_task` already attached as neighbour
   ids. An unpinned task, or a pin of another kind, stays null.
