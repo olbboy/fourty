@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { IconX, IconZap, IconArrowRight } from "./icons";
+import { DialogFocusScope } from "./ui";
 import { useLocale } from "@/lib/i18n/provider";
 import { parseSseStream } from "@/lib/ai/sse-client";
 
@@ -140,9 +141,14 @@ export function AiChat({ enabled }: { enabled: boolean }) {
     if (open && !restored) {
       setRestored(true);
       void restore();
-      setTimeout(() => inputRef.current?.focus(), 30);
     }
   }, [open, restored, restore]);
+
+  useEffect(() => {
+    if (!open) return;
+    const focusTimer = window.setTimeout(() => inputRef.current?.focus(), 30);
+    return () => window.clearTimeout(focusTimer);
+  }, [open]);
 
   async function send() {
     const message = input.trim();
@@ -185,13 +191,15 @@ export function AiChat({ enabled }: { enabled: boolean }) {
 
       {open && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/30 backdrop-blur-sm" onClick={() => setOpen(false)}>
-          <div
+          <DialogFocusScope
+            open={open}
+            onClose={() => setOpen(false)}
             role="dialog"
             aria-modal="true"
             aria-label={L.title}
+            tabIndex={-1}
             className="flex h-full w-full max-w-md flex-col border-l border-line bg-surface shadow-2xl"
             onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => e.key === "Escape" && setOpen(false)}
           >
             <div className="flex items-center justify-between border-b border-line px-4 py-3">
               <div className="flex items-center gap-2 font-semibold">
@@ -237,7 +245,7 @@ export function AiChat({ enabled }: { enabled: boolean }) {
                 <IconArrowRight width={16} height={16} />
               </button>
             </form>
-          </div>
+          </DialogFocusScope>
         </div>
       )}
     </>

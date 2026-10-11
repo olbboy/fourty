@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Company, Contact, Deal, Pipeline } from "@/lib/types";
-import { Field } from "@/components/ui";
+import { Button, Field } from "@/components/ui";
 import { CustomFieldsInputs, useCustomFields } from "@/components/custom-fields";
 import { Select } from "@/components/select";
 import { SUPPORTED_CURRENCIES } from "@/lib/currency";
@@ -129,7 +129,7 @@ export function DealForm({
 
   return (
     <form onSubmit={onSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <Field label="Deal name" className="sm:col-span-2">
+      <Field label="Deal name" required className="sm:col-span-2">
         <input name="name" required defaultValue={deal?.name} className="input" />
       </Field>
       <Field label="Amount">
@@ -206,9 +206,9 @@ export function DealForm({
         </p>
       )}
       <div className="col-span-full flex justify-end">
-        <button type="submit" disabled={busy} className="btn-primary">
+        <Button type="submit" busy={busy}>
           {busy ? "Saving…" : deal ? "Save changes" : "Create deal"}
-        </button>
+        </Button>
       </div>
     </form>
   );

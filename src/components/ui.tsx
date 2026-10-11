@@ -1,8 +1,15 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { cloneElement, isValidElement, useEffect, useId, useRef } from "react";
 import { IconX } from "./icons";
 import { initials } from "@/lib/format";
+
+export { Button, IconButton } from "./button";
+export type { ButtonProps, ButtonSize, ButtonVariant, IconButtonProps } from "./button";
+export { AsyncError } from "./async-state";
+export type { AsyncErrorProps } from "./async-state";
+export { ContextToolbar } from "./context-toolbar";
+export type { ContextToolbarProps } from "./context-toolbar";
 
 const FOCUSABLE_SELECTOR = [
   'a[href]',
@@ -295,19 +302,62 @@ export function Field({
   label,
   children,
   className,
+  id,
+  hint,
+  description,
+  error,
+  required,
 }: {
-  label: string;
+  label: React.ReactNode;
   children: React.ReactNode;
   className?: string;
+  id?: string;
+  hint?: React.ReactNode;
+  description?: React.ReactNode;
+  error?: React.ReactNode;
+  required?: boolean;
 }) {
-  // Wrapping the control in <label> gives an implicit label association without
-  // threading an id through every field (a11y, Gate C5).
+  const generatedId = useId().replace(/:/g, "");
+  const child = isValidElement(children) ? children : null;
+  const childProps = (child?.props ?? {}) as {
+    id?: string;
+    required?: boolean;
+    [key: string]: unknown;
+  };
+  const hintContent = hint ?? description;
+  const hasError = error !== undefined && error !== null && error !== false && error !== "";
+  const controlId = id ?? childProps.id ?? (hintContent || hasError || required ? `field-${generatedId}` : undefined);
+  const hintId = hintContent && controlId ? `${controlId}-hint` : undefined;
+  const errorId = hasError && controlId ? `${controlId}-error` : undefined;
+  const describedBy = [childProps["aria-describedby"], hintId, errorId]
+    .filter((value): value is string => typeof value === "string" && value.length > 0)
+    .join(" ");
+  const control = child
+    ? cloneElement(child, {
+        ...(controlId ? { id: controlId } : {}),
+        ...(required !== undefined ? { required } : {}),
+        ...(describedBy ? { "aria-describedby": describedBy } : {}),
+        ...(hasError ? { "aria-invalid": true } : {}),
+      })
+    : children;
+
   return (
-    <label className={`block ${className ?? ""}`}>
+    <label htmlFor={controlId} className={`block ${className ?? ""}`}>
       <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-muted">
         {label}
+        {required ? <span aria-hidden="true"> *</span> : null}
       </span>
-      {children}
+      {control}
+      {hintContent && hintId ? (
+        <span id={hintId} className="mt-1 block text-xs text-ink-muted">
+          {hintContent}
+        </span>
+      ) : null}
+      {hasError && errorId ? (
+        <span id={errorId} role="alert" className="mt-1 block text-xs text-danger">
+          {error}
+        </span>
+      ) : null}
     </label>
   );
 }
@@ -383,10 +433,11 @@ export function EmptyState({
   );
 }
 
-export function Spinner() {
+export function Spinner({ label = "Loading" }: { label?: string }) {
   return (
-    <div className="flex justify-center py-10">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-line border-t-accent-600" />
+    <div role="status" aria-live="polite" aria-busy="true" aria-label={label} className="flex justify-center py-10">
+      <span className="sr-only">{label}</span>
+      <div aria-hidden="true" className="h-6 w-6 animate-spin rounded-full border-2 border-line border-t-accent-600" />
     </div>
   );
 }

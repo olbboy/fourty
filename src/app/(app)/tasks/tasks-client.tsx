@@ -1,10 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Task } from "@/lib/types";
 import { formatDate, fromDateInputValue } from "@/lib/format";
-import { PageHeader, Modal, Field, PriorityChip, EmptyState, Spinner } from "@/components/ui";
+import {
+  AsyncError,
+  EmptyState,
+  Field,
+  Modal,
+  PageHeader,
+  PriorityChip,
+  Spinner,
+} from "@/components/ui";
 import { IconPlus, IconTrash } from "@/components/icons";
 import { Select } from "@/components/select";
 
@@ -14,19 +22,82 @@ const ENTITY_PATH: Record<string, string> = {
   deal: "/deals/",
 };
 
+type TaskState = "open" | "done" | "all";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isTask(value: unknown): value is Task {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.id === "string" &&
+    typeof value.title === "string" &&
+    (value.description === null || typeof value.description === "string") &&
+    (value.dueDate === null || typeof value.dueDate === "number") &&
+    (value.completedAt === null || typeof value.completedAt === "number") &&
+    typeof value.priority === "string" &&
+    (value.ownerId === null || typeof value.ownerId === "string") &&
+    (value.entityType === null || typeof value.entityType === "string") &&
+    (value.entityId === null || typeof value.entityId === "string") &&
+    typeof value.createdAt === "number"
+  );
+}
+
+function isTaskResponse(value: unknown): value is { tasks: Task[] } {
+  return isRecord(value) && Array.isArray(value.tasks) && value.tasks.every(isTask);
+}
+
 export function TasksClient() {
   const [tasks, setTasks] = useState<Task[] | null>(null);
-  const [state, setState] = useState<"open" | "done" | "all">("open");
+  const [state, setState] = useState<TaskState>("open");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [busy, setBusy] = useState(false);
+  const stateRef = useRef<TaskState>(state);
+  const requestId = useRef(0);
+  const controller = useRef<AbortController | null>(null);
+  stateRef.current = state;
 
-  const load = useCallback(async () => {
-    const res = await fetch(`/api/tasks?state=${state}`);
-    if (res.ok) setTasks((await res.json()).tasks);
-  }, [state]);
+  const load = useCallback(async (requestedState = stateRef.current) => {
+    const currentRequest = requestId.current + 1;
+    requestId.current = currentRequest;
+    controller.current?.abort();
+    const nextController = new AbortController();
+    controller.current = nextController;
+    setLoading(true);
+    setError(null);
+    setTasks(null);
+
+    try {
+      const res = await fetch(`/api/tasks?state=${encodeURIComponent(requestedState)}`, {
+        signal: nextController.signal,
+      });
+      if (!res.ok) throw new Error("Tasks request failed");
+      const payload: unknown = await res.json();
+      if (!isTaskResponse(payload)) throw new Error("Tasks response was invalid");
+      if (requestId.current !== currentRequest) return;
+      setTasks(payload.tasks);
+    } catch {
+      if (nextController.signal.aborted || requestId.current !== currentRequest) return;
+      setError("Could not load tasks");
+    } finally {
+      if (requestId.current === currentRequest) {
+        controller.current = null;
+        setLoading(false);
+      }
+    }
+  }, []);
+
   useEffect(() => {
-    load();
-  }, [load]);
+    void load(state);
+    return () => {
+      requestId.current += 1;
+      controller.current?.abort();
+      controller.current = null;
+    };
+  }, [load, state]);
 
   async function toggle(t: Task) {
     await fetch(`/api/tasks/${t.id}`, {
@@ -34,12 +105,12 @@ export function TasksClient() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ completed: !t.completedAt }),
     });
-    load();
+    void load();
   }
 
   async function remove(t: Task) {
     await fetch(`/api/tasks/${t.id}`, { method: "DELETE" });
-    load();
+    void load();
   }
 
   async function create(e: React.FormEvent<HTMLFormElement>) {
@@ -58,7 +129,7 @@ export function TasksClient() {
     });
     setBusy(false);
     setShowNew(false);
-    load();
+    void load();
   }
 
   const overdue = (t: Task) => !t.completedAt && t.dueDate && t.dueDate < Date.now();
@@ -91,8 +162,20 @@ export function TasksClient() {
         ))}
       </div>
 
-      {!tasks ? (
-        <Spinner />
+      {loading ? (
+        <Spinner label="Loading tasks" />
+      ) : error ? (
+        <AsyncError
+          message={error}
+          hint="Check your connection and try again."
+          onRetry={() => void load()}
+        />
+      ) : !tasks ? (
+        <AsyncError
+          message="Could not load tasks"
+          hint="Check your connection and try again."
+          onRetry={() => void load()}
+        />
       ) : tasks.length === 0 ? (
         <EmptyState title="Nothing here" hint="Tasks you create — or workflows create for you — show up here." />
       ) : (

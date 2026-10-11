@@ -273,7 +273,7 @@ export function PipelineSettings({ canManagePipelines }: { canManagePipelines: b
             {t("settings.pipelines")}
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-ink-muted">{t("settings.pipelinesHint")}</p>
-          {!canManagePipelines && (
+          {!canManagePipelines && !loading && (
             <p className="mt-1 text-sm text-ink-muted" role="status">
               {t("settings.pipelinesReadOnly")}
             </p>
@@ -311,8 +311,8 @@ export function PipelineSettings({ canManagePipelines }: { canManagePipelines: b
       )}
 
       {loading && pipelines === null ? (
-        <div aria-busy="true" aria-label={t("common.loading")} role="status">
-          <Spinner />
+        <div aria-busy="true">
+          <Spinner label={t("common.loading")} />
         </div>
       ) : pipelines?.length === 0 ? (
         <EmptyState

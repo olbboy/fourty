@@ -9,6 +9,7 @@ import {
   IconCheckSquare,
   IconDashboard,
   IconLogout,
+  IconMenu,
   IconMoon,
   IconSearch,
   IconSettings,
@@ -19,6 +20,7 @@ import {
 } from "./icons";
 import { CommandPalette } from "./command-palette";
 import { AiChat } from "./ai-chat";
+import { Drawer } from "./ui";
 import { LocaleProvider } from "@/lib/i18n/provider";
 import { translator, type Locale, type MessageKey } from "@/lib/i18n";
 
@@ -48,7 +50,7 @@ function clampSidebarWidth(value: number): number {
   return Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, value));
 }
 
-function ThemeToggle() {
+function ThemeToggle({ mobile = false }: { mobile?: boolean }) {
   const [dark, setDark] = useState(false);
   useEffect(() => {
     setDark(document.documentElement.classList.contains("dark"));
@@ -62,7 +64,7 @@ function ThemeToggle() {
   return (
     <button
       onClick={toggle}
-      className="btn-ghost !px-2.5"
+      className={`btn-ghost !px-2.5${mobile ? " h-11 w-11" : ""}`}
       title="Toggle theme"
       aria-label="Toggle theme"
     >
@@ -85,11 +87,16 @@ export function AppShell({
   const pathname = usePathname();
   const router = useRouter();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT);
   const sidebarWidthRef = useRef(SIDEBAR_DEFAULT);
   const resizeRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
   const [isResizing, setIsResizing] = useState(false);
   const t = translator(locale);
+
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     const stored = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
@@ -293,17 +300,48 @@ export function AppShell({
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => setPaletteOpen(true)}
-            className="btn-ghost !px-2.5"
+            className="btn-ghost h-11 w-11 !px-2.5"
             aria-label="Search"
           >
             <IconSearch width={16} height={16} />
           </button>
-          <ThemeToggle />
-          <button onClick={logout} className="btn-ghost !px-2.5" aria-label="Sign out">
+          <ThemeToggle mobile />
+          <button
+            onClick={() => setMobileNavOpen(true)}
+            className="btn-ghost h-11 w-11 !px-2.5"
+            aria-label="Open navigation menu"
+          >
+            <IconMenu width={16} height={16} />
+          </button>
+          <button onClick={logout} className="btn-ghost h-11 w-11 !px-2.5" aria-label="Sign out">
             <IconLogout width={16} height={16} />
           </button>
         </div>
       </header>
+
+      <Drawer title="Navigation" open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} side="left">
+        <nav aria-label="Mobile navigation" className="space-y-0.5">
+          {NAV.map(({ href, key, icon: Icon }) => {
+            const active = pathname === href || pathname.startsWith(href + "/");
+            return (
+              <Link
+                key={href}
+                href={href}
+                onClick={() => setMobileNavOpen(false)}
+                aria-current={active ? "page" : undefined}
+                className={`flex min-h-11 items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                  active
+                    ? "bg-accent-600/10 text-accent-600 dark:text-accent-400"
+                    : "text-ink-muted hover:bg-surface-2 hover:text-ink"
+                }`}
+              >
+                <Icon width={17} height={17} />
+                {t(key)}
+              </Link>
+            );
+          })}
+        </nav>
+      </Drawer>
 
       {/* Mobile bottom nav */}
       <nav
@@ -317,7 +355,7 @@ export function AppShell({
               key={href}
               href={href}
               aria-current={active ? "page" : undefined}
-              className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium ${
+              className={`flex min-h-11 min-w-11 flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium ${
                 active ? "text-accent-600 dark:text-accent-400" : "text-ink-muted"
               }`}
             >

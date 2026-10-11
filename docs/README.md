@@ -64,6 +64,7 @@ One page per feature area. Each opens with what it is and why it matters, then h
 ## Architecture
 
 - **[Architecture overview](./architecture.md)** — the system, end to end.
+- **[UI design system](./design-system.md)** — semantic tokens, shared UI contracts, and accessibility rules for maintainers.
 - **[Decision records](./adr/)** — 16 ADRs covering tenancy/RLS, the queue, GraphQL, MCP, and more.
 
 ---

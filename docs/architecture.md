@@ -58,6 +58,8 @@ Every major choice is recorded as an [ADR](./adr/). The ones that shape the syst
   calls over heavy SDKs.
 - **Focused UI primitives.** Tailwind owns the visual language, while focused Radix primitives
   provide the shared Select and Dropdown behavior; product-specific surfaces stay local to Fourty.
+  The semantic tokens and interaction contracts are maintained in the
+  [UI design system](./design-system.md).
 - **Nothing is done until it's tested.** The test suite runs against a real Postgres in
   CI, including a migration-reversibility check and Playwright E2E smoke tests.
 

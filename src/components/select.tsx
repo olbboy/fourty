@@ -33,6 +33,14 @@ function joinClasses(...classes: Array<string | undefined>): string {
   return classes.filter(Boolean).join(" ");
 }
 
+function controlClasses(className?: string): string {
+  const utilities = className
+    ?.split(/\s+/)
+    .filter((classNameToken) => classNameToken && classNameToken !== "input")
+    .join(" ");
+  return joinClasses("select-trigger", utilities);
+}
+
 export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select(
   {
     options,
@@ -78,7 +86,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
         {...triggerProps}
         ref={forwardedRef}
         disabled={disabled}
-        className={joinClasses("select-trigger", className)}
+        className={controlClasses(className)}
       >
         <SelectPrimitive.Value placeholder={placeholder} />
         <SelectPrimitive.Icon className="select-icon" aria-hidden="true" />

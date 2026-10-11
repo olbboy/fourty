@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { formatCompact, formatMoney } from "@/lib/currency";
 import { formatDate } from "@/lib/format";
-import { Spinner, PriorityChip, ScoreBadge } from "@/components/ui";
+import { AsyncError, Spinner, PriorityChip, ScoreBadge } from "@/components/ui";
 import { MoneyBarChart, CountBarChart, FunnelChart } from "@/components/charts";
 
 type Stats = {
@@ -43,6 +43,43 @@ type Stats = {
   }[];
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isStats(value: unknown): value is Stats {
+  if (!isRecord(value) || !isRecord(value.kpis)) return false;
+
+  const numericKpis = [
+    "pipelineValue",
+    "weightedForecast",
+    "wonThisMonth",
+    "avgDealSize",
+    "openDeals",
+    "contacts",
+    "openTasks",
+    "overdueTasks",
+  ];
+  const kpis = value.kpis;
+  if (!numericKpis.every((key) => typeof kpis[key] === "number")) return false;
+  if (
+    !["winRate", "avgCycleDays"].every(
+      (key) => kpis[key] === null || typeof kpis[key] === "number",
+    )
+  ) {
+    return false;
+  }
+
+  return [
+    "funnel",
+    "revenueByMonth",
+    "activityByWeek",
+    "hotLeads",
+    "dueTasks",
+    "staleDeals",
+  ].every((key) => Array.isArray(value[key]));
+}
+
 function Kpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="card p-4">
@@ -55,14 +92,67 @@ function Kpi({ label, value, hint }: { label: string; value: string; hint?: stri
 
 export function DashboardClient() {
   const [stats, setStats] = useState<Stats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const requestId = useRef(0);
+  const controller = useRef<AbortController | null>(null);
 
-  useEffect(() => {
-    fetch("/api/stats/dashboard")
-      .then((r) => r.json())
-      .then(setStats);
+  const load = useCallback(async () => {
+    const currentRequest = requestId.current + 1;
+    requestId.current = currentRequest;
+    controller.current?.abort();
+    const nextController = new AbortController();
+    controller.current = nextController;
+    setLoading(true);
+    setError(null);
+    setStats(null);
+
+    try {
+      const response = await fetch("/api/stats/dashboard", { signal: nextController.signal });
+      if (!response.ok) throw new Error("Dashboard request failed");
+      const payload: unknown = await response.json();
+      if (!isStats(payload)) throw new Error("Dashboard response was invalid");
+      if (requestId.current !== currentRequest) return;
+      setStats(payload);
+    } catch {
+      if (nextController.signal.aborted || requestId.current !== currentRequest) return;
+      setError("Could not load dashboard");
+    } finally {
+      if (requestId.current === currentRequest) {
+        controller.current = null;
+        setLoading(false);
+      }
+    }
   }, []);
 
-  if (!stats) return <Spinner />;
+  useEffect(() => {
+    void load();
+    return () => {
+      requestId.current += 1;
+      controller.current?.abort();
+      controller.current = null;
+    };
+  }, [load]);
+
+  if (loading) return <Spinner label="Loading dashboard" />;
+  if (error) {
+    return (
+      <AsyncError
+        message={error}
+        hint="Check your connection and try again."
+        onRetry={() => void load()}
+      />
+    );
+  }
+  if (!stats) {
+    return (
+      <AsyncError
+        message="Could not load dashboard"
+        hint="Check your connection and try again."
+        onRetry={() => void load()}
+      />
+    );
+  }
   const { kpis } = stats;
 
   return (

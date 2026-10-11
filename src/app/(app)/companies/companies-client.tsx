@@ -3,7 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CompanyListQuery, CompanyRead, CompanySort, CompaniesListResponse } from "@/lib/types";
-import { PageHeader, EmptyState, Modal, Spinner } from "@/components/ui";
+import { ContextToolbar, PageHeader, EmptyState, Modal, Spinner } from "@/components/ui";
 import { IconDownload, IconPlus, IconSearch } from "@/components/icons";
 import { CompanyPreview } from "@/components/company-preview";
 import { SavedViewsBar, type SavedView, type ViewConfig } from "@/components/saved-views";
@@ -343,59 +343,66 @@ export function CompaniesClient({ workspaceKey = "" }: { workspaceKey?: string }
         }
       />
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <label className="relative min-w-[14rem] max-w-xl grow">
-          <span className="sr-only">{t("companies.searchLabel")}</span>
-          <IconSearch width={15} height={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
-          <input
-            value={qDraft}
-            onChange={(event) => scheduleSearch(event.target.value)}
-            placeholder={t("companies.searchPlaceholder")}
-            aria-label={t("companies.searchLabel")}
-            className="input w-full !pl-9"
-          />
-        </label>
-        <div className="hidden items-center gap-2 sm:flex">
-          <label className="flex items-center gap-2 text-sm text-ink-muted">
-            <span>{t("companies.industry")}</span>
-            <Select
-              value={query.industry}
-              aria-label={t("companies.industry")}
-              onValueChange={(value) => applyFilters({ industry: value })}
-              className="input h-9 min-w-36 py-1"
-              options={[
-                { value: "", label: t("companies.allIndustries") },
-                ...industries.map((industry) => ({ value: industry, label: industry })),
-              ]}
-            />
-          </label>
-          <label className="flex items-center gap-2 text-sm text-ink-muted">
-            <span>{t("companies.sort")}</span>
-            <Select
-              value={query.sort ?? "updatedAt_desc"}
-              aria-label={t("companies.sort")}
-              onValueChange={(value) => applyFilters({ sort: parseSort(value) })}
-              className="input h-9 min-w-44 py-1"
-              options={SORT_OPTIONS.map(({ value, label }) => ({ value, label: t(label) }))}
-            />
-          </label>
-        </div>
-        <div className="sm:hidden">
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={() => {
-              setMobileIndustry(query.industry);
-              setMobileSort(query.sort);
-              setMobileFiltersOpen(true);
-            }}
-          >
-            {t("companies.filters")}{hasFilters ? ` (${Number(Boolean(query.q)) + Number(Boolean(query.industry))})` : ""}
-          </button>
-        </div>
-      </div>
-
       <SavedViewsBar entity="companies" current={currentView} activeId={activeViewId} onApply={applySavedView} />
+
+      <ContextToolbar
+        className="mb-4"
+        search={
+          <label className="relative min-w-[14rem] max-w-xl grow">
+            <span className="sr-only">{t("companies.searchLabel")}</span>
+            <IconSearch width={15} height={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
+            <input
+              value={qDraft}
+              onChange={(event) => scheduleSearch(event.target.value)}
+              placeholder={t("companies.searchPlaceholder")}
+              aria-label={t("companies.searchLabel")}
+              className="input w-full !pl-9"
+            />
+          </label>
+        }
+        filters={
+          <>
+            <div className="hidden items-center gap-2 sm:flex">
+              <label className="flex items-center gap-2 text-sm text-ink-muted">
+                <span>{t("companies.industry")}</span>
+                <Select
+                  value={query.industry}
+                  aria-label={t("companies.industry")}
+                  onValueChange={(value) => applyFilters({ industry: value })}
+                  className="h-9 !w-36 py-1"
+                  options={[
+                    { value: "", label: t("companies.allIndustries") },
+                    ...industries.map((industry) => ({ value: industry, label: industry })),
+                  ]}
+                />
+              </label>
+              <label className="flex items-center gap-2 text-sm text-ink-muted">
+                <span>{t("companies.sort")}</span>
+                <Select
+                  value={query.sort ?? "updatedAt_desc"}
+                  aria-label={t("companies.sort")}
+                  onValueChange={(value) => applyFilters({ sort: parseSort(value) })}
+                  className="h-9 !w-44 py-1"
+                  options={SORT_OPTIONS.map(({ value, label }) => ({ value, label: t(label) }))}
+                />
+              </label>
+            </div>
+            <div className="sm:hidden">
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => {
+                  setMobileIndustry(query.industry);
+                  setMobileSort(query.sort);
+                  setMobileFiltersOpen(true);
+                }}
+              >
+                {t("companies.filters")}{hasFilters ? ` (${Number(Boolean(query.q)) + Number(Boolean(query.industry))})` : ""}
+              </button>
+            </div>
+          </>
+        }
+      />
 
       {error && (
         <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 text-sm">
@@ -488,7 +495,7 @@ export function CompaniesClient({ workspaceKey = "" }: { workspaceKey?: string }
               value={mobileIndustry}
               aria-label={t("companies.industry")}
               onValueChange={setMobileIndustry}
-              className="input w-full"
+              className="!w-full"
               options={[
                 { value: "", label: t("companies.allIndustries") },
                 ...industries.map((industry) => ({ value: industry, label: industry })),
@@ -501,7 +508,7 @@ export function CompaniesClient({ workspaceKey = "" }: { workspaceKey?: string }
               value={mobileSort ?? "updatedAt_desc"}
               aria-label={t("companies.sort")}
               onValueChange={(value) => setMobileSort(parseSort(value))}
-              className="input w-full"
+              className="!w-full"
               options={SORT_OPTIONS.map(({ value, label }) => ({ value, label: t(label) }))}
             />
           </label>

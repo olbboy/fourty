@@ -114,6 +114,12 @@ function LanguageSection() {
 
 const FIELD_TYPES = ["text", "number", "date", "select", "checkbox", "url"];
 
+const ENTITY_LABELS = {
+  contact: { plural: "Contacts", pluralLower: "contacts" },
+  company: { plural: "Companies", pluralLower: "companies" },
+  deal: { plural: "Deals", pluralLower: "deals" },
+} as const;
+
 function CustomFieldsSection() {
   const [entity, setEntity] = useState<"contact" | "company" | "deal">("contact");
   const [fields, setFields] = useState<CustomFieldDef[] | null>(null);
@@ -193,14 +199,16 @@ function CustomFieldsSection() {
                 : "border border-line text-ink-muted hover:border-accent-400"
             }`}
           >
-            {e}s
+            {ENTITY_LABELS[e].plural}
           </button>
         ))}
       </div>
       {!fields ? (
         <Spinner />
       ) : fields.length === 0 ? (
-        <p className="py-2 text-sm text-ink-muted">No custom fields for {entity}s yet.</p>
+        <p className="py-2 text-sm text-ink-muted">
+          No custom fields for {ENTITY_LABELS[entity].pluralLower} yet.
+        </p>
       ) : (
         <div className="divide-y divide-line/60">
           {fields.map((f) => (
@@ -472,7 +480,11 @@ function MembersSection() {
                     className="!w-auto !py-1 text-xs"
                     options={ROLES.map((r) => ({ value: r, label: r }))}
                   />
-                  <button onClick={() => remove(m)} className="btn-ghost !px-2 !text-red-400">
+                  <button
+                    onClick={() => remove(m)}
+                    className="btn-ghost !px-2 !text-red-400"
+                    aria-label={`Remove ${m.name}`}
+                  >
                     <IconTrash width={14} height={14} />
                   </button>
                 </>
