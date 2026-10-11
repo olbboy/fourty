@@ -15,7 +15,11 @@ import { createHash } from "node:crypto";
  * Runs on the dedicated `fourty_revtest` database (owner role) so it never
  * disturbs the migrator state of the shared test database.
  */
-const DSN = "postgresql://fourty:fourty@localhost:5432/fourty_revtest";
+const DSN = process.env.MIGRATION_TEST_DATABASE_URL ??
+  "postgresql://fourty:fourty@localhost:5432/fourty_revtest";
+if (new URL(DSN).pathname !== "/fourty_revtest") {
+  throw new Error("Migration reversibility requires the dedicated fourty_revtest database");
+}
 
 const UP = [
   "drizzle/0000_init.sql",

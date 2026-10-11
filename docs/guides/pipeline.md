@@ -15,7 +15,20 @@ On first boot Fourty creates a default **7-stage pipeline**. Each stage carries 
   `deal.lost` — which [workflows](./workflows.md) can react to.
 - **List view** — the same deals as a sortable table when you want density over drag.
 
-You can add, rename, reorder, and re-weight stages, and run multiple pipelines.
+You can run multiple pipelines and manage their names, default status, and stages
+from **Settings → Pipelines**. Stage reordering uses **Move up** and **Move down**
+controls, so the saved order is explicit and keyboard-accessible. Members can
+manage pipelines and stages alongside admins; viewers can read them but cannot
+change them.
+
+A pipeline cannot be deleted while it is the default, the only pipeline, or still
+referenced by a deal. A stage cannot be deleted while it is the only stage in its
+pipeline or still referenced by a deal. These conflicts are returned by the API
+instead of moving or deleting deals implicitly.
+
+You can change an open stage's win probability; Fourty recalculates the stored
+scores of deals in that stage immediately. To keep closed-state history
+consistent, change a stage's type only before deals reference it.
 
 ## The weighted forecast
 
@@ -48,6 +61,10 @@ curl -X PATCH -H "Authorization: Bearer frty_..." -H "Content-Type: application/
 
 Created and updated deals come back with a **health score** — see
 [Lead & deal scoring](./lead-scoring.md#deal-health).
+
+Pipeline and stage administration is available over REST as documented in
+[REST API → Pipelines and stages](../api/rest.md#pipelines-and-stages). The same
+member/viewer access boundary applies there.
 
 ## Related
 

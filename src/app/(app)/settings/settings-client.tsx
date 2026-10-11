@@ -6,9 +6,11 @@ import type { CustomFieldDef } from "@/lib/types";
 import { timeAgo } from "@/lib/format";
 import { useRouter } from "next/navigation";
 import { PageHeader, Modal, Field, Spinner } from "@/components/ui";
+import { Select } from "@/components/select";
 import { IconPlus, IconTrash, IconKey, IconUpload } from "@/components/icons";
 import { useLocale, useT } from "@/lib/i18n/provider";
 import { SUPPORTED_LOCALES, LOCALE_LABELS } from "@/lib/i18n";
+import { PipelineSettings } from "./pipeline-settings";
 
 type ApiKey = {
   id: string;
@@ -30,12 +32,13 @@ type Member = {
 
 const ROLES = ["admin", "member", "viewer"] as const;
 
-export function SettingsClient() {
+export function SettingsClient({ canManagePipelines }: { canManagePipelines: boolean }) {
   return (
     <div className="animate-fade-up space-y-6">
       <PageHeader title="Settings" subtitle="Team, custom fields, API access, and data tools." />
       <MembersSection />
       <LanguageSection />
+      <PipelineSettings canManagePipelines={canManagePipelines} />
       <CustomFieldsSection />
       <ApiKeysSection />
       <div className="card p-4">
@@ -97,19 +100,14 @@ function LanguageSection() {
       <label htmlFor="locale-select" className="sr-only">
         {t("settings.language")}
       </label>
-      <select
+      <Select
         id="locale-select"
         value={locale}
         disabled={saving}
-        onChange={(e) => change(e.target.value)}
-        className="input w-auto"
-      >
-        {SUPPORTED_LOCALES.map((l) => (
-          <option key={l} value={l}>
-            {LOCALE_LABELS[l]}
-          </option>
-        ))}
-      </select>
+        onValueChange={change}
+        className="w-auto"
+        options={SUPPORTED_LOCALES.map((l) => ({ value: l, label: LOCALE_LABELS[l] }))}
+      />
     </div>
   );
 }
@@ -231,13 +229,12 @@ function CustomFieldsSection() {
             <input name="key" className="input" placeholder="contract_tier" pattern="[a-z][a-z0-9_]*" />
           </Field>
           <Field label="Type">
-            <select name="type" value={type} onChange={(e) => setType(e.target.value)} className="input">
-              {FIELD_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
+            <Select
+              name="type"
+              value={type}
+              onValueChange={setType}
+              options={FIELD_TYPES.map((fieldType) => ({ value: fieldType, label: fieldType }))}
+            />
           </Field>
           {type === "select" && (
             <Field label="Options (comma separated)">
@@ -429,13 +426,13 @@ function MembersSection() {
           placeholder="teammate@company.com"
           type="email"
         />
-        <select value={role} onChange={(e) => setRole(e.target.value)} className="input max-w-[8rem]">
-          {ROLES.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
-        </select>
+        <Select
+          aria-label="Invite role"
+          value={role}
+          onValueChange={setRole}
+          className="max-w-[8rem]"
+          options={ROLES.map((r) => ({ value: r, label: r }))}
+        />
         <button onClick={sendInvite} disabled={!email.trim()} className="btn-primary">
           <IconPlus width={15} height={15} /> Invite
         </button>
@@ -468,17 +465,13 @@ function MembersSection() {
               </div>
               {!m.deactivatedAt && (
                 <>
-                  <select
+                  <Select
+                    aria-label={`Change role for ${m.name}`}
                     value={m.role}
-                    onChange={(e) => changeRole(m, e.target.value)}
-                    className="input !w-auto !py-1 text-xs"
-                  >
-                    {ROLES.map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
-                  </select>
+                    onValueChange={(next) => changeRole(m, next)}
+                    className="!w-auto !py-1 text-xs"
+                    options={ROLES.map((r) => ({ value: r, label: r }))}
+                  />
                   <button onClick={() => remove(m)} className="btn-ghost !px-2 !text-red-400">
                     <IconTrash width={14} height={14} />
                   </button>

@@ -38,6 +38,44 @@ export type Company = {
   updatedAt: number;
 };
 
+/** Read DTO returned by Companies list/detail routes after field redaction. */
+export type CompanyRead = Partial<Company>;
+
+export type CompanySort =
+  | "updatedAt_desc"
+  | "updatedAt_asc"
+  | "name_asc"
+  | "name_desc"
+  | "annualRevenue_desc"
+  | "annualRevenue_asc";
+
+export type CompanyListQuery = {
+  q: string;
+  industry: string;
+  sort: CompanySort | null;
+  offset: number;
+  limit: number;
+};
+
+export type CompanyExportScope = "selected" | "filtered" | "all";
+
+export type CompanyPage = {
+  offset: number;
+  limit: number;
+  total: number;
+  hasMore: boolean;
+};
+
+export type CompanyFacets = {
+  industries: string[];
+};
+
+export type CompaniesListResponse = {
+  companies: CompanyRead[];
+  page?: CompanyPage;
+  facets?: CompanyFacets;
+};
+
 export type Stage = {
   id: string;
   pipelineId: string;

@@ -8,6 +8,7 @@ import { timeAgo } from "@/lib/format";
 import { PageHeader, Modal, Field, StatusChip, ScoreBadge, EmptyState, Spinner } from "@/components/ui";
 import { IconPlus, IconDownload, IconUpload } from "@/components/icons";
 import { SavedViewsBar, type SavedView } from "@/components/saved-views";
+import { Select } from "@/components/select";
 import { ContactForm } from "./contact-form";
 
 export function ContactsClient() {
@@ -89,33 +90,35 @@ export function ContactsClient() {
           placeholder="Search name, email, title…"
           className="input max-w-xs"
         />
-        <select
+        <Select
           value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
+          onValueChange={(value) => {
+            setStatus(value);
             setActiveView(null);
           }}
           className="input w-auto"
-        >
-          <option value="">All statuses</option>
-          <option value="lead">Lead</option>
-          <option value="qualified">Qualified</option>
-          <option value="customer">Customer</option>
-          <option value="churned">Churned</option>
-        </select>
-        <select
+          options={[
+            { value: "", label: "All statuses" },
+            { value: "lead", label: "Lead" },
+            { value: "qualified", label: "Qualified" },
+            { value: "customer", label: "Customer" },
+            { value: "churned", label: "Churned" },
+          ]}
+        />
+        <Select
           value={sort}
-          onChange={(e) => {
-            setSort(e.target.value);
+          onValueChange={(value) => {
+            setSort(value);
             setActiveView(null);
           }}
           className="input w-auto"
-        >
-          <option value="updatedAt">Recently updated</option>
-          <option value="score">Highest score</option>
-          <option value="name">Name</option>
-          <option value="createdAt">Newest</option>
-        </select>
+          options={[
+            { value: "updatedAt", label: "Recently updated" },
+            { value: "score", label: "Highest score" },
+            { value: "name", label: "Name" },
+            { value: "createdAt", label: "Newest" },
+          ]}
+        />
       </div>
 
       {!contacts ? (

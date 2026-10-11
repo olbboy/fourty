@@ -20,9 +20,10 @@ Three principles shape every decision (and every [ADR](../adr/)):
 2. **Deterministic over magical.** Lead scoring, deal health, and forecasting are
    pure, tested functions you can read and tune in one file — not opaque model
    output. When a rule will do, Fourty uses a rule.
-3. **Legible and MIT.** The whole UI is ~40 small components on Tailwind — no
-   component library to fork a theme from. The licence is MIT: use it, fork it,
-   sell it, embed it. No open-core gotchas.
+3. **Legible and MIT.** The UI uses Tailwind with focused Radix primitives for
+   shared Select and Dropdown behavior, while product-specific surfaces stay
+   small and local. The licence is MIT: use it, fork it, sell it, embed it. No
+   open-core gotchas.
 
 ## How it compares
 

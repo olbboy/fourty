@@ -7,6 +7,7 @@ import { dispatchEvent } from "@/lib/workflows/engine";
 import { recomputeDealScore } from "@/lib/services/deal-score";
 import { dealPatch } from "@/lib/validators";
 import { loadFieldPolicy, redact, blockedWrites } from "@/lib/field-permissions";
+import { lockPipelineWorkspace } from "@/lib/pipelines";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -25,14 +26,17 @@ export async function PATCH(req: Request, { params }: Params) {
   const denied = authorize(auth, "deals", "update");
   if (denied) return denied;
   const { id } = await params;
-  const existing = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0];
-  if (!existing) return apiError("Deal not found", 404);
-
   const body = await parseBody(req, dealPatch);
   if (!body.ok) return body.response;
   const policy = await loadFieldPolicy(auth.role);
   const blocked = blockedWrites(policy, "deals", body.keys);
   if (blocked.length) return apiError(`Not permitted to set field(s): ${blocked.join(", ")}`, 403);
+  // A stage move must serialize with pipeline/stage membership changes before
+  // reading the deal. Ordinary field updates do not depend on that membership
+  // and should keep their shorter transaction path.
+  if (body.data.stageId !== undefined) await lockPipelineWorkspace(auth.workspaceId);
+  const existing = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0];
+  if (!existing) return apiError("Deal not found", 404);
   const { custom, stageId, pipelineId: _ignored, ...fields } = body.data;
   void _ignored; // deals cannot move between pipelines via PATCH
 

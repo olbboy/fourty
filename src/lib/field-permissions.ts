@@ -33,6 +33,13 @@ export async function loadFieldPolicy(role: string): Promise<FieldPolicy | null>
   return { rules };
 }
 
+/** Whether a field may be read, with `null` meaning an unrestricted admin. */
+export function canReadField(policy: FieldPolicy | null, object: string, field: string): boolean {
+  if (!policy) return true;
+  const rule = policy.rules.get(`${object}.${field}`);
+  return !rule || rule.read;
+}
+
 /** Remove fields the role may not read from a serialized record. */
 export function redact<T extends Record<string, unknown>>(
   policy: FieldPolicy | null,
@@ -42,8 +49,7 @@ export function redact<T extends Record<string, unknown>>(
   if (!policy) return row;
   const out = { ...row };
   for (const key of Object.keys(out)) {
-    const rule = policy.rules.get(`${object}.${key}`);
-    if (rule && !rule.read) delete out[key];
+    if (!canReadField(policy, object, key)) delete out[key];
   }
   return out;
 }

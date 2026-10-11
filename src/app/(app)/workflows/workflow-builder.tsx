@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Field } from "@/components/ui";
 import { IconPlus, IconTrash } from "@/components/icons";
+import { Select } from "@/components/select";
 import { EVENT_LABELS, type WorkflowEvent } from "@/lib/workflows/types";
 
 type Condition = { field: string; op: string; value?: string };
@@ -137,20 +138,15 @@ export function WorkflowBuilder({
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
           When…
         </p>
-        <select
+        <Select
           value={event}
-          onChange={(e) => {
-            setEvent(e.target.value as WorkflowEvent);
+          onValueChange={(value) => {
+            setEvent(value as WorkflowEvent);
             setConditions([]);
           }}
           className="input"
-        >
-          {Object.entries(EVENT_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
+          options={Object.entries(EVENT_LABELS).map(([value, label]) => ({ value, label }))}
+        />
       </div>
 
       <div>
@@ -171,28 +167,18 @@ export function WorkflowBuilder({
           )}
           {conditions.map((c, i) => (
             <div key={i} className="flex flex-wrap items-center gap-2">
-              <select
+              <Select
                 value={c.field}
-                onChange={(e) => setCondition(i, { field: e.target.value })}
+                onValueChange={(value) => setCondition(i, { field: value })}
                 className="input !w-auto"
-              >
-                {fields.map((f) => (
-                  <option key={f} value={f}>
-                    {f}
-                  </option>
-                ))}
-              </select>
-              <select
+                options={fields.map((f) => ({ value: f, label: f }))}
+              />
+              <Select
                 value={c.op}
-                onChange={(e) => setCondition(i, { op: e.target.value })}
+                onValueChange={(value) => setCondition(i, { op: value })}
                 className="input !w-auto"
-              >
-                {OPS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
+                options={OPS}
+              />
               {!["is_empty", "not_empty"].includes(c.op) && (
                 <input
                   value={c.value ?? ""}
@@ -227,10 +213,9 @@ export function WorkflowBuilder({
           {actions.map((a, i) => (
             <div key={i} className="rounded-lg border border-line p-3">
               <div className="mb-2 flex items-center justify-between">
-                <select
+                <Select
                   value={a.type}
-                  onChange={(e) => {
-                    const type = e.target.value;
+                  onValueChange={(type) => {
                     const blank: Record<string, Action> = {
                       create_task: { type, title: "", priority: "medium", dueInDays: 2 },
                       add_note: { type, body: "" },
@@ -242,13 +227,8 @@ export function WorkflowBuilder({
                     setActions((as) => as.map((x, idx) => (idx === i ? blank[type] : x)));
                   }}
                   className="input !w-auto"
-                >
-                  {ACTION_TYPES.map((t) => (
-                    <option key={t.value} value={t.value}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
+                  options={ACTION_TYPES}
+                />
                 <button
                   onClick={() => setActions((as) => as.filter((_, idx) => idx !== i))}
                   disabled={actions.length === 1}
@@ -266,15 +246,16 @@ export function WorkflowBuilder({
                     className="input sm:col-span-3"
                     placeholder='Task title — use {{firstName}}, {{name}}, etc.'
                   />
-                  <select
+                  <Select
                     value={(a.priority as string) ?? "medium"}
-                    onChange={(e) => setAction(i, { priority: e.target.value })}
+                    onValueChange={(value) => setAction(i, { priority: value })}
                     className="input"
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                  </select>
+                    options={[
+                      { value: "low", label: "Low" },
+                      { value: "medium", label: "Medium" },
+                      { value: "high", label: "High" },
+                    ]}
+                  />
                   <input
                     type="number"
                     min={0}
@@ -296,22 +277,17 @@ export function WorkflowBuilder({
               )}
               {a.type === "update_field" && (
                 <div className="flex flex-wrap gap-2">
-                  <select
+                  <Select
                     value={(a.field as string) ?? ""}
-                    onChange={(e) => setAction(i, { field: e.target.value })}
+                    onValueChange={(value) => setAction(i, { field: value })}
                     className="input !w-auto"
-                  >
-                    {(entity === "contact"
+                    options={(entity === "contact"
                       ? ["status", "source", "jobTitle", "city", "country"]
                       : entity === "company"
                         ? ["industry", "size", "city", "country"]
                         : ["currency"]
-                    ).map((f) => (
-                      <option key={f} value={f}>
-                        {f}
-                      </option>
-                    ))}
-                  </select>
+                    ).map((f) => ({ value: f, label: f }))}
+                  />
                   <input
                     value={(a.value as string) ?? ""}
                     onChange={(e) => setAction(i, { value: e.target.value })}

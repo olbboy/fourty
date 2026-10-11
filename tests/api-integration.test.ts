@@ -147,6 +147,47 @@ describe("REST API integration (real handlers + Postgres + RLS)", () => {
     expect(patchRes.status).toBe(400);
   });
 
+  it("does not wait on the pipeline lock for a metadata-only deal update", async () => {
+    const createRes = await dealRoutes.POST(
+      req("/api/deals", { method: "POST", body: JSON.stringify({ name: "Metadata lock test" }) }),
+    );
+    const { deal } = await createRes.json();
+    const { lockPipelineWorkspace } = await import("@/lib/pipelines");
+
+    let signalReady!: () => void;
+    let releaseLock!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      signalReady = resolve;
+    });
+    const release = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+    const holder = withWorkspace(ws, async () => {
+      await lockPipelineWorkspace(ws);
+      signalReady();
+      await release;
+    });
+    await ready;
+
+    try {
+      const update = dealIdRoutes.PATCH(
+        req(`/api/deals/${deal.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ name: "Metadata lock updated" }),
+        }),
+        { params: Promise.resolve({ id: deal.id }) },
+      );
+      const outcome = await Promise.race([
+        update.then((response) => response.status),
+        new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), 1000)),
+      ]);
+      expect(outcome).toBe(200);
+    } finally {
+      releaseLock();
+      await holder;
+    }
+  });
+
   it("returns 404 for a missing deal", async () => {
     const res = await dealIdRoutes.GET(req("/api/deals/nope"), {
       params: Promise.resolve({ id: "nope" }),

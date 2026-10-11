@@ -213,6 +213,40 @@ describe("MCP server (handler + Postgres + RLS)", () => {
     expect(moved.data.score).toBe(100); // won → certain
   });
 
+  it("does not wait on the pipeline lock for a metadata-only deal update", async () => {
+    const deal = await callTool(ctxA, "create_deal", { name: "MCP metadata lock test" });
+    expect(deal.isError).toBe(false);
+    const { withWorkspace } = await import("@/db");
+    const { lockPipelineWorkspace } = await import("@/lib/pipelines");
+
+    let signalReady!: () => void;
+    let releaseLock!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      signalReady = resolve;
+    });
+    const release = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+    const holder = withWorkspace(ctxA.workspaceId, async () => {
+      await lockPipelineWorkspace(ctxA.workspaceId);
+      signalReady();
+      await release;
+    });
+    await ready;
+
+    try {
+      const update = callTool(ctxA, "update_deal", { id: deal.data.id, name: "MCP metadata lock updated" });
+      const outcome = await Promise.race([
+        update.then((result) => result.isError ? "error" : "done"),
+        new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), 1000)),
+      ]);
+      expect(outcome).toBe("done");
+    } finally {
+      releaseLock();
+      await holder;
+    }
+  });
+
   it("create_task, create_note, list_tasks round-trip", async () => {
     const t = await callTool(ctxA, "create_task", { title: "Call Ada", priority: "high" });
     expect(t.isError).toBe(false);

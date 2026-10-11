@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { CustomFieldDef } from "@/lib/types";
 import { Field } from "./ui";
+import { Select } from "./select";
 
 export function useCustomFields(entity: "contact" | "company" | "deal") {
   const [defs, setDefs] = useState<CustomFieldDef[]>([]);
@@ -34,18 +35,12 @@ export function CustomFieldsInputs({
       {defs.map((def) => (
         <Field key={def.id} label={def.label}>
           {def.type === "select" ? (
-            <select
+            <Select
               className="input"
               value={String(values[def.key] ?? "")}
-              onChange={(e) => set(def.key, e.target.value || null)}
-            >
-              <option value="">—</option>
-              {def.options.map((o) => (
-                <option key={o} value={o}>
-                  {o}
-                </option>
-              ))}
-            </select>
+              onValueChange={(value) => set(def.key, value || null)}
+              options={[{ value: "", label: "—" }, ...def.options.map((o) => ({ value: o, label: o }))]}
+            />
           ) : def.type === "checkbox" ? (
             <input
               type="checkbox"

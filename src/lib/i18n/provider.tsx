@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext } from "react";
+import { createContext, useCallback, useContext } from "react";
 import { DEFAULT_LOCALE, t as translate, type Locale, type MessageKey } from "./index";
 
 /**
@@ -20,5 +20,8 @@ export function useLocale(): Locale {
 /** Bound translator for the active locale: `const t = useT(); t("nav.contacts")`. */
 export function useT() {
   const locale = useContext(LocaleContext);
-  return (key: MessageKey, vars?: Record<string, string | number>) => translate(locale, key, vars);
+  return useCallback(
+    (key: MessageKey, vars?: Record<string, string | number>) => translate(locale, key, vars),
+    [locale],
+  );
 }

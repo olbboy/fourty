@@ -35,6 +35,14 @@ See [Upgrading & migrations](../self-hosting/upgrading.md).
 | `npm run db:e2e:reset` | Reset the E2E database between runs. |
 | `npm run lint` | Lint with `next lint`. |
 
+Vitest uses `DATABASE_URL` for the application role and `MIGRATE_DATABASE_URL`
+for the owner role against the dedicated `fourty_test` database. For a separate
+Postgres host or port, also set `MIGRATION_TEST_DATABASE_URL` to an owner connection
+for `fourty_revtest`; the migration reversibility test resets that database and
+rejects other database names. Create the dedicated databases and back them up
+before running tests. Playwright uses `fourty_e2e` instead; set `CI=1` to require
+a fresh build, database reset, and server instead of reusing a running instance.
+
 ## Operations
 
 | Command | What it does |

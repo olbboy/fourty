@@ -6,6 +6,7 @@ import type { Task } from "@/lib/types";
 import { formatDate, fromDateInputValue } from "@/lib/format";
 import { PageHeader, Modal, Field, PriorityChip, EmptyState, Spinner } from "@/components/ui";
 import { IconPlus, IconTrash } from "@/components/icons";
+import { Select } from "@/components/select";
 
 const ENTITY_PATH: Record<string, string> = {
   contact: "/contacts/",
@@ -149,11 +150,16 @@ export function TasksClient() {
           </Field>
           <div className="grid grid-cols-2 gap-4">
             <Field label="Priority">
-              <select name="priority" defaultValue="medium" className="input">
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-              </select>
+              <Select
+                name="priority"
+                defaultValue="medium"
+                className="input"
+                options={[
+                  { value: "low", label: "Low" },
+                  { value: "medium", label: "Medium" },
+                  { value: "high", label: "High" },
+                ]}
+              />
             </Field>
             <Field label="Due date">
               <input name="dueDate" type="date" className="input" />

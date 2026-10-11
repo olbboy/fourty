@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   IconBuilding,
   IconChart,
@@ -35,8 +35,18 @@ const NAV: { href: string; key: MessageKey; icon: typeof IconDashboard }[] = [
 
 // Primary items for the mobile bottom bar
 const MOBILE_NAV = NAV.filter((n) =>
-  ["/dashboard", "/contacts", "/deals", "/tasks"].includes(n.href),
+  ["/dashboard", "/contacts", "/companies", "/deals", "/tasks"].includes(n.href),
 );
+
+const SIDEBAR_DEFAULT = 224;
+const SIDEBAR_MIN = 224;
+const SIDEBAR_MAX = 360;
+const SIDEBAR_STEP = 8;
+const SIDEBAR_STORAGE_KEY = "fourty-sidebar-width";
+
+function clampSidebarWidth(value: number): number {
+  return Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, value));
+}
 
 function ThemeToggle() {
   const [dark, setDark] = useState(false);
@@ -75,7 +85,25 @@ export function AppShell({
   const pathname = usePathname();
   const router = useRouter();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT);
+  const sidebarWidthRef = useRef(SIDEBAR_DEFAULT);
+  const resizeRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
+  const [isResizing, setIsResizing] = useState(false);
   const t = translator(locale);
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
+    if (stored === null) return;
+    const parsed = Number(stored);
+    if (!Number.isFinite(parsed)) {
+      window.localStorage.removeItem(SIDEBAR_STORAGE_KEY);
+      return;
+    }
+    const width = clampSidebarWidth(parsed);
+    sidebarWidthRef.current = width;
+    setSidebarWidth(width);
+    if (width !== parsed) window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(width));
+  }, []);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -94,9 +122,76 @@ export function AppShell({
     router.refresh();
   }
 
+  function updateSidebarWidth(value: number, persist = true): void {
+    const width = clampSidebarWidth(value);
+    sidebarWidthRef.current = width;
+    setSidebarWidth(width);
+    if (persist) window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(width));
+  }
+
+  function resetSidebarWidth(): void {
+    updateSidebarWidth(SIDEBAR_DEFAULT);
+  }
+
+  function onSidebarKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      updateSidebarWidth(sidebarWidthRef.current - SIDEBAR_STEP);
+    } else if (event.key === "ArrowRight") {
+      event.preventDefault();
+      updateSidebarWidth(sidebarWidthRef.current + SIDEBAR_STEP);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      updateSidebarWidth(SIDEBAR_MIN);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      updateSidebarWidth(SIDEBAR_MAX);
+    } else if (
+      event.key.toLowerCase() === "r" &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey
+    ) {
+      event.preventDefault();
+      resetSidebarWidth();
+    }
+  }
+
+  function onSidebarPointerDown(event: React.PointerEvent<HTMLDivElement>): void {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    resizeRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: sidebarWidthRef.current,
+    };
+    setIsResizing(true);
+  }
+
+  function onSidebarPointerMove(event: React.PointerEvent<HTMLDivElement>): void {
+    const resize = resizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId) return;
+    updateSidebarWidth(resize.startWidth + event.clientX - resize.startX, false);
+  }
+
+  function onSidebarPointerUp(event: React.PointerEvent<HTMLDivElement>): void {
+    const resize = resizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    resizeRef.current = null;
+    setIsResizing(false);
+    updateSidebarWidth(sidebarWidthRef.current);
+  }
+
   return (
     <LocaleProvider locale={locale}>
-    <div className="flex min-h-dvh">
+    <div
+      className="app-shell flex min-h-dvh"
+      style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
+    >
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-accent-600 focus:px-3 focus:py-2 focus:text-sm focus:text-white"
@@ -104,7 +199,7 @@ export function AppShell({
         Skip to content
       </a>
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-56 flex-col border-r border-line bg-surface md:flex">
+      <aside className="app-sidebar fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-line bg-surface md:flex">
         <div className="flex items-center gap-2.5 px-4 py-4">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-600 text-sm font-extrabold text-white">
             40
@@ -168,6 +263,23 @@ export function AppShell({
             </div>
           </div>
         </div>
+        <div
+          role="separator"
+          aria-label={t("a11y.sidebarResize")}
+          aria-orientation="vertical"
+          aria-valuemin={SIDEBAR_MIN}
+          aria-valuemax={SIDEBAR_MAX}
+          aria-valuenow={sidebarWidth}
+          aria-keyshortcuts="ArrowLeft ArrowRight Home End R"
+          tabIndex={0}
+          className={`sidebar-resize-handle${isResizing ? " is-resizing" : ""}`}
+          onKeyDown={onSidebarKeyDown}
+          onPointerDown={onSidebarPointerDown}
+          onPointerMove={onSidebarPointerMove}
+          onPointerUp={onSidebarPointerUp}
+          onPointerCancel={onSidebarPointerUp}
+          onDoubleClick={resetSidebarWidth}
+        />
       </aside>
 
       {/* Mobile top bar */}
@@ -216,7 +328,12 @@ export function AppShell({
         })}
       </nav>
 
-      <main id="main" className="min-w-0 flex-1 px-4 pb-24 pt-16 md:ml-56 md:px-8 md:pb-10 md:pt-8">
+      <main
+        id="main"
+        data-dialog-focus-fallback
+        tabIndex={-1}
+        className="app-main min-w-0 flex-1 px-4 pb-24 pt-16 md:px-8 md:pb-10 md:pt-8"
+      >
         {children}
       </main>
 

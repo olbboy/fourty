@@ -8,6 +8,7 @@ import { convert, formatCompact, formatMoney } from "@/lib/currency";
 import { timeAgo, formatDate } from "@/lib/format";
 import { PageHeader, Modal, EmptyState, Spinner } from "@/components/ui";
 import { IconPlus, IconKanban, IconList, IconDownload } from "@/components/icons";
+import { Select } from "@/components/select";
 import { DealForm } from "./deal-form";
 
 export function DealsClient() {
@@ -86,17 +87,12 @@ export function DealsClient() {
         actions={
           <>
             {pipelines.length > 1 && (
-              <select
+              <Select
                 value={pipelineId}
-                onChange={(e) => setPipelineId(e.target.value)}
+                onValueChange={setPipelineId}
                 className="input w-auto"
-              >
-                {pipelines.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
+                options={pipelines.map((p) => ({ value: p.id, label: p.name }))}
+              />
             )}
             <div className="flex rounded-lg border border-line">
               <button

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCsv, parseCsvObjects, toCsv } from "@/lib/csv";
+import { parseCsv, parseCsvObjects, toCsv, toSpreadsheetCsv } from "@/lib/csv";
 
 describe("parseCsv", () => {
   it("parses simple rows", () => {
@@ -52,5 +52,55 @@ describe("toCsv", () => {
     const parsed = parseCsv(csv);
     expect(parsed[1]).toEqual(["Doe, Jane", 'quote " here']);
     expect(parsed[2]).toEqual(["Bob", ""]);
+  });
+
+  it("keeps raw output unchanged for spreadsheet-looking strings", () => {
+    expect(toCsv(["value"], [["=1+1"]])).toBe("value\r\n=1+1\r\n");
+  });
+});
+
+describe("toSpreadsheetCsv", () => {
+  it("adds a BOM and neutralizes formula prefixes after leading whitespace", () => {
+    const values = [
+      "=1+1",
+      "+1",
+      "-1",
+      "@cmd",
+      "\t=1",
+      "\r=1",
+      "\n=1",
+      "＝1",
+      "＋1",
+      "－1",
+      "＠1",
+      "  =1",
+      "\u00a0+1",
+      'quote, "and"',
+    ];
+    const csv = toSpreadsheetCsv(["value"], values.map((value) => [value]));
+
+    expect(csv.startsWith("\uFEFF")).toBe(true);
+    expect(parseCsv(csv).slice(1).map((row) => row[0])).toEqual(
+      values.map((value) => (/^\s*[=+\-@＝＋－＠\t\r\n]/u.test(value) ? `'${value}` : value)),
+    );
+  });
+
+  it("keeps numbers numeric text, including negative values", () => {
+    const csv = toSpreadsheetCsv(["amount"], [[-12], [0], [12.5]]);
+    expect(parseCsv(csv)).toEqual([
+      ["amount"],
+      ["-12"],
+      ["0"],
+      ["12.5"],
+    ]);
+    expect(csv).not.toContain("'-12");
+  });
+
+  it("retains RFC quoting for safe values containing delimiters and newlines", () => {
+    const csv = toSpreadsheetCsv(["name", "note"], [["Doe, Jane", 'line one\nline "two"']]);
+    expect(parseCsv(csv)).toEqual([
+      ["name", "note"],
+      ["Doe, Jane", 'line one\nline "two"'],
+    ]);
   });
 });

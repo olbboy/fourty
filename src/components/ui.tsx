@@ -4,6 +4,175 @@ import { useEffect, useId, useRef } from "react";
 import { IconX } from "./icons";
 import { initials } from "@/lib/format";
 
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'area[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  'iframe',
+  'object',
+  'embed',
+  '[contenteditable="true"]',
+  '[tabindex]:not([tabindex="-1"])',
+].join(",");
+
+const dialogStack: HTMLElement[] = [];
+
+function isActuallyVisible(element: HTMLElement): boolean {
+  if (
+    element.hidden ||
+    element.getAttribute("aria-hidden") === "true" ||
+    element.getAttribute("aria-disabled") === "true"
+  ) {
+    return false;
+  }
+
+  const styles = window.getComputedStyle(element);
+  return (
+    styles.display !== "none" &&
+    styles.visibility !== "hidden" &&
+    element.getClientRects().length > 0
+  );
+}
+
+function isActuallyFocusable(element: HTMLElement): boolean {
+  return !element.hasAttribute("disabled") && isActuallyVisible(element) && element.tabIndex >= 0;
+}
+
+function focusableElements(container: HTMLElement): HTMLElement[] {
+  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(isActuallyFocusable);
+}
+
+function canRestoreFocus(element: HTMLElement | null): element is HTMLElement {
+  if (!element || element === document.body || element === document.documentElement) return false;
+  if (!element.isConnected || element.hasAttribute("disabled") || !isActuallyVisible(element)) return false;
+
+  // A modal surface is intentionally `tabIndex={-1}`: it must be focusable by
+  // script for nested-close restore, while its tabbable children still remain
+  // governed by `focusableElements` above.
+  const isLiveDialog =
+    dialogStack.includes(element) &&
+    element.getAttribute("role") === "dialog" &&
+    element.getAttribute("aria-modal") === "true";
+  return element.tabIndex >= 0 || element.hasAttribute("tabindex") || isLiveDialog;
+}
+
+function focusDialogFallback(): void {
+  const fallback = document.querySelector<HTMLElement>(
+    "[data-dialog-focus-fallback], main#main, [role=main], [data-list-container]",
+  );
+  if (!fallback) return;
+  if (!fallback.hasAttribute("tabindex")) fallback.setAttribute("tabindex", "-1");
+  fallback.focus();
+}
+
+function restoreFocus(trigger: HTMLElement | null): void {
+  if (canRestoreFocus(trigger)) {
+    trigger.focus();
+    return;
+  }
+  focusDialogFallback();
+}
+
+function useDialogFocusTrap(
+  dialogRef: React.RefObject<HTMLDivElement | null>,
+  open: boolean,
+  onClose: () => void,
+): void {
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    if (!open) return;
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogStack.push(dialog);
+    dialog.focus();
+
+    function onKeyDown(event: KeyboardEvent): void {
+      if (dialogStack[dialogStack.length - 1] !== dialog) return;
+      if (event.defaultPrevented) return;
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const focusable = focusableElements(dialog);
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const current = document.activeElement;
+      if (event.shiftKey) {
+        if (current === first || current === dialog || !dialog.contains(current)) {
+          event.preventDefault();
+          last.focus();
+        }
+      } else if (current === last || !dialog.contains(current)) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      const wasTop = dialogStack[dialogStack.length - 1] === dialog;
+      const index = dialogStack.lastIndexOf(dialog);
+      if (index >= 0) dialogStack.splice(index, 1);
+      if (!wasTop) return;
+
+      const remainingTop = dialogStack[dialogStack.length - 1] ?? null;
+      if (remainingTop) {
+        if (trigger && remainingTop.contains(trigger) && canRestoreFocus(trigger)) {
+          trigger.focus();
+        } else if (canRestoreFocus(remainingTop)) {
+          remainingTop.focus();
+        } else {
+          focusDialogFallback();
+        }
+        return;
+      }
+
+      restoreFocus(trigger);
+    };
+  }, [dialogRef, open]);
+}
+
+/**
+ * Shared focus scope for modal surfaces. It keeps a stack so nested dialogs only
+ * respond to Escape and Tab while they are the topmost surface.
+ */
+export function DialogFocusScope({
+  open,
+  onClose,
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement> & {
+  open: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocusTrap(dialogRef, open, onClose);
+  return (
+    <div ref={dialogRef} {...props}>
+      {children}
+    </div>
+  );
+}
+
 export function PageHeader({
   title,
   subtitle,
@@ -40,20 +209,7 @@ export function Modal({
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
 
-  useEffect(() => {
-    if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    // Move focus into the dialog on open; restore it to the trigger on close.
-    const previouslyFocused = document.activeElement as HTMLElement | null;
-    dialogRef.current?.focus();
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      previouslyFocused?.focus?.();
-    };
-  }, [open, onClose]);
+  useDialogFocusTrap(dialogRef, open, onClose);
 
   if (!open) return null;
   return (
@@ -71,6 +227,55 @@ export function Modal({
           wide ? "sm:max-w-2xl" : "sm:max-w-md"
         }`}
         onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h2 id={titleId} className="text-base font-semibold">
+            {title}
+          </h2>
+          <button onClick={onClose} className="btn-ghost !border-0 !px-2" aria-label="Close">
+            <IconX width={16} height={16} aria-hidden="true" />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+export function Drawer({
+  title,
+  open,
+  onClose,
+  children,
+  side = "right",
+}: {
+  title: string;
+  open: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+  side?: "left" | "right";
+}) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+
+  useDialogFocusTrap(dialogRef, open, onClose);
+
+  if (!open) return null;
+  return (
+    <div
+      className="dialog-backdrop fixed inset-0 z-40 flex bg-black/40 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className={`drawer-panel h-full w-full max-w-xl overflow-y-auto border-line bg-surface p-5 shadow-2xl outline-none ${
+          side === "left" ? "mr-auto border-r" : "ml-auto border-l"
+        }`}
+        onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 id={titleId} className="text-base font-semibold">

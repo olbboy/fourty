@@ -7,8 +7,8 @@ import { audit } from "@/lib/audit";
 import { dispatchEvent } from "@/lib/workflows/engine";
 import { recomputeDealScore } from "@/lib/services/deal-score";
 import { dealInput } from "@/lib/validators";
-import { ensureDefaultPipeline } from "@/db/seed";
 import { loadFieldPolicy, redact, blockedWrites } from "@/lib/field-permissions";
+import { ensureSelectedPipeline, lockPipelineWorkspace } from "@/lib/pipelines";
 
 export async function GET(req: Request) {
   return withAuth(req, async (auth) => {
@@ -49,7 +49,8 @@ export async function POST(req: Request) {
   const blocked = blockedWrites(policy, "deals", body.keys);
   if (blocked.length) return apiError(`Not permitted to set field(s): ${blocked.join(", ")}`, 403);
 
-  const pipelineId = body.data.pipelineId ?? (await ensureDefaultPipeline());
+  await lockPipelineWorkspace(auth.workspaceId);
+  const pipelineId = body.data.pipelineId ?? (await ensureSelectedPipeline());
   let stageId = body.data.stageId;
   if (!stageId) {
     const first = (await db

@@ -19,7 +19,7 @@ import {
 } from "@/lib/validators";
 import { computeDashboardStats } from "@/lib/services/stats";
 import { dispatchEvent } from "@/lib/workflows/engine";
-import { ensureDefaultPipeline } from "@/db/seed";
+import { ensureSelectedPipeline, lockPipelineWorkspace } from "@/lib/pipelines";
 import {
   listObjects,
   objectByApiName,
@@ -482,7 +482,8 @@ export const TOOLS: Tool[] = [
       const policy = await requireWritableFields(ctx, "deals", args);
       const parsed = dealInput.safeParse(args);
       if (!parsed.success) throw new ToolError(parsed.error.issues[0].message);
-      const pipelineId = parsed.data.pipelineId ?? (await ensureDefaultPipeline());
+      await lockPipelineWorkspace(ctx.workspaceId);
+      const pipelineId = parsed.data.pipelineId ?? (await ensureSelectedPipeline());
       let stageId = parsed.data.stageId;
       if (!stageId) {
         const first = (
@@ -549,6 +550,9 @@ export const TOOLS: Tool[] = [
       const policy = await requireWritableFields(ctx, "deals", rest);
       const parsed = dealPatch.safeParse(rest);
       if (!parsed.success) throw new ToolError(parsed.error.issues[0].message);
+      // Stage moves need the same membership lock as pipeline/stage writes;
+      // metadata-only deal updates do not read or change that membership.
+      if (parsed.data.stageId !== undefined) await lockPipelineWorkspace(ctx.workspaceId);
       const existing = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0];
       if (!existing) throw new ToolError("Deal not found");
       const { custom, stageId, pipelineId: _pipe, ...fields } = parsed.data;

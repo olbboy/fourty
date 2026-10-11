@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Contact, Company } from "@/lib/types";
 import { Field } from "@/components/ui";
 import { CustomFieldsInputs, useCustomFields } from "@/components/custom-fields";
+import { Select } from "@/components/select";
 
 export function ContactForm({
   contact,
@@ -69,32 +70,43 @@ export function ContactForm({
         <input name="jobTitle" defaultValue={contact?.jobTitle ?? ""} className="input" />
       </Field>
       <Field label="Company">
-        <select name="companyId" defaultValue={contact?.companyId ?? ""} className="input">
-          <option value="">—</option>
-          {companies.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        <Select
+          name="companyId"
+          defaultValue={contact?.companyId ?? ""}
+          className="input"
+          options={[
+            { value: "", label: "—" },
+            ...companies.map((c) => ({ value: c.id, label: c.name })),
+          ]}
+        />
       </Field>
       <Field label="Status">
-        <select name="status" defaultValue={contact?.status ?? "lead"} className="input">
-          <option value="lead">Lead</option>
-          <option value="qualified">Qualified</option>
-          <option value="customer">Customer</option>
-          <option value="churned">Churned</option>
-        </select>
+        <Select
+          name="status"
+          defaultValue={contact?.status ?? "lead"}
+          className="input"
+          options={[
+            { value: "lead", label: "Lead" },
+            { value: "qualified", label: "Qualified" },
+            { value: "customer", label: "Customer" },
+            { value: "churned", label: "Churned" },
+          ]}
+        />
       </Field>
       <Field label="Source">
-        <select name="source" defaultValue={contact?.source ?? ""} className="input">
-          <option value="">—</option>
-          <option value="website">Website</option>
-          <option value="referral">Referral</option>
-          <option value="outbound">Outbound</option>
-          <option value="event">Event</option>
-          <option value="other">Other</option>
-        </select>
+        <Select
+          name="source"
+          defaultValue={contact?.source ?? ""}
+          className="input"
+          options={[
+            { value: "", label: "—" },
+            { value: "website", label: "Website" },
+            { value: "referral", label: "Referral" },
+            { value: "outbound", label: "Outbound" },
+            { value: "event", label: "Event" },
+            { value: "other", label: "Other" },
+          ]}
+        />
       </Field>
       <Field label="LinkedIn">
         <input name="linkedin" defaultValue={contact?.linkedin ?? ""} className="input" />

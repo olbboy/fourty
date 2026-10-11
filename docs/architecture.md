@@ -8,7 +8,7 @@ and the decision records that explain every load-bearing choice.*
 ```
 src/
   app/            Next.js App Router — pages + REST API routes
-  components/     UI primitives, charts, panels (no component library)
+  components/     UI primitives, charts, panels; focused Radix primitives for shared controls
   db/             Drizzle (pg-core) schema, migrations, seed
   lib/
     scoring.ts      lead-score model (pure, tested)
@@ -56,7 +56,8 @@ Every major choice is recorded as an [ADR](./adr/). The ones that shape the syst
   governance applies across REST, GraphQL, and MCP.
 - **Dependency-light.** ~10 runtime dependencies. New capabilities lean on thin `fetch`
   calls over heavy SDKs.
-- **No component library.** ~40 small Tailwind components — nothing to fork a theme from.
+- **Focused UI primitives.** Tailwind owns the visual language, while focused Radix primitives
+  provide the shared Select and Dropdown behavior; product-specific surfaces stay local to Fourty.
 - **Nothing is done until it's tested.** The test suite runs against a real Postgres in
   CI, including a migration-reversibility check and Playwright E2E smoke tests.
 

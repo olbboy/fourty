@@ -13,7 +13,14 @@ board — one column per stage. You can use it as-is or reshape it in the next s
 ## 2. Rename and reorder stages
 
 In **Settings → Pipelines**, rename stages to match how your team actually sells (e.g.
-*Discovery → Demo → Proposal → Negotiation → Won/Lost*) and drag them into order.
+*Discovery → Demo → Proposal → Negotiation → Won/Lost*). Use **Move up** and
+**Move down** beside each stage to save the order. The editor also lets you create
+multiple pipelines, choose the default, and add, edit, or delete stages.
+
+Pipeline and stage writes require a member or admin role. Viewers can open the
+pipeline but cannot change it. The API rejects deleting the default or only
+pipeline, a pipeline referenced by a deal, the only stage, or a stage referenced
+by a deal.
 
 ## 3. Set a win probability per stage
 

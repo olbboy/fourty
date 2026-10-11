@@ -25,6 +25,11 @@
   --border: #e2e8f0;
   --text: #0f172a;
   --text-muted: #64748b;
+  --focus-ring: #6366f1;
+  --state-error: #dc2626;
+  --state-selected: #eef2ff;
+  --state-selected-text: #3730a3;
+  --state-panel: #ffffff;
 }
 
 .dark {
@@ -34,6 +39,11 @@
   --border: #263043;
   --text: #e5e9f0;
   --text-muted: #8b98ad;
+  --focus-ring: #a5b4fc;
+  --state-error: #fca5a5;
+  --state-selected: #252b50;
+  --state-selected-text: #e0e7ff;
+  --state-panel: #111827;
 }
 
 @theme inline {
@@ -51,14 +61,182 @@ body {
   color: var(--text);
 }
 
+.app-shell {
+  --sidebar-width: 224px;
+}
+
+.app-sidebar {
+  width: var(--sidebar-width);
+}
+
+.app-main {
+  margin-left: 0;
+}
+
+.sidebar-resize-handle {
+  position: absolute;
+  inset-block: 0;
+  right: -6px;
+  z-index: 40;
+  width: 12px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.sidebar-resize-handle::after {
+  position: absolute;
+  inset-block: 0;
+  left: 5px;
+  width: 2px;
+  content: "";
+  background: transparent;
+  transition: background-color 0.15s ease;
+}
+
+.sidebar-resize-handle:hover::after,
+.sidebar-resize-handle:focus-visible::after,
+.sidebar-resize-handle.is-resizing::after {
+  background: var(--focus-ring);
+}
+
+.dialog-backdrop {
+  overscroll-behavior: contain;
+}
+
+.drawer-panel {
+  background: var(--state-panel);
+}
+
+.cmdk-group-label {
+  color: var(--text-muted);
+}
+
+.cmdk-option[aria-selected="true"] {
+  background: var(--state-selected);
+  color: var(--state-selected-text);
+}
+
+.cmdk-badge {
+  @apply shrink-0 rounded-full border border-line px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-muted;
+}
+
+.state-error {
+  color: var(--state-error);
+}
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+@media (min-width: 48rem) {
+  .app-main {
+    margin-left: var(--sidebar-width);
+  }
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
 }
 
-/* Base form controls — consistent everywhere without a component lib */
+/* Base form controls shared by native inputs and the focused Radix primitives. */
 .input {
   @apply w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink outline-none transition focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 placeholder:text-ink-muted/60;
+}
+
+.select-trigger {
+  min-width: 0;
+  max-width: 100%;
+  @apply inline-flex w-full items-center justify-between gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-left text-sm text-ink outline-none transition hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+.select-trigger > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.select-trigger[data-placeholder] {
+  color: var(--text-muted);
+}
+
+.select-icon {
+  @apply shrink-0 text-xs text-ink-muted transition-transform;
+}
+
+.select-trigger[data-state="open"] .select-icon {
+  transform: rotate(180deg);
+}
+
+.select-content {
+  z-index: 60;
+  --select-content-width: var(--radix-select-trigger-width, 12rem);
+  width: min(var(--select-content-width), calc(100vw - 1rem));
+  min-width: min(var(--select-content-width), calc(100vw - 1rem));
+  max-width: calc(100vw - 1rem);
+  max-height: min(20rem, var(--radix-select-content-available-height));
+  transform-origin: var(--radix-select-content-transform-origin);
+  @apply overflow-hidden rounded-lg border border-line bg-surface p-1 text-ink shadow-xl;
+}
+
+.select-viewport {
+  min-width: 0;
+  max-width: 100%;
+  @apply min-w-full;
+}
+
+.select-item {
+  min-width: 0;
+  max-width: 100%;
+  @apply relative flex cursor-default select-none items-center rounded-md px-2 py-1.5 pr-8 text-sm outline-none;
+}
+
+.select-item > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.select-item[data-highlighted] {
+  @apply bg-surface-2;
+}
+
+.select-item[data-disabled] {
+  @apply pointer-events-none opacity-50;
+}
+
+.select-item-indicator {
+  @apply absolute right-2 text-accent-600 dark:text-accent-400;
+}
+
+.dropdown-content {
+  z-index: 60;
+  min-width: 11rem;
+  transform-origin: var(--radix-dropdown-menu-content-transform-origin);
+  @apply overflow-hidden rounded-lg border border-line bg-surface p-1 text-ink shadow-xl;
+}
+
+.dropdown-item {
+  @apply relative flex cursor-default select-none items-center rounded-md px-3 py-2 text-left text-sm outline-none;
+}
+
+.dropdown-item[data-highlighted] {
+  @apply bg-surface-2;
+}
+
+.dropdown-item[data-disabled] {
+  @apply pointer-events-none opacity-50;
+}
+
+.dropdown-label {
+  @apply px-3 py-2 text-xs font-semibold uppercase tracking-wide text-ink-muted;
+}
+
+.dropdown-separator {
+  @apply my-1 h-px bg-line;
 }
 
 .btn-primary,
@@ -117,4 +295,15 @@ body {
 
 .animate-fade-up {
   animation: fade-up 0.18s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }

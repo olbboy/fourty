@@ -36,6 +36,31 @@ error shapes.
 All support the same JSON shapes the UI uses. Standard verbs: `GET` / `POST` /
 `PATCH` / `DELETE`.
 
+### Pipelines and stages
+
+Pipeline reads are available to all workspace roles. Admins and members can also
+create, update, and delete pipeline and stage records; viewers receive the normal
+`403` response for these writes. Every request is scoped to the authenticated
+workspace.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/pipelines` | List pipelines with their ordered stages. |
+| `POST` | `/api/pipelines` | Create a pipeline with the default stage set. |
+| `PATCH` | `/api/pipelines/:id` | Rename a pipeline or make it the default. |
+| `DELETE` | `/api/pipelines/:id` | Delete a pipeline when it is not the default, last, or referenced by a deal. |
+| `POST` | `/api/pipelines/:id/stages` | Add a stage to a pipeline. |
+| `PATCH` | `/api/pipelines/:id/stages` | Reorder stages by submitting the complete ordered `stageIds` list. |
+| `PATCH` | `/api/pipelines/:id/stages/:stageId` | Update a stage's name, type, color, or win probability. |
+| `DELETE` | `/api/pipelines/:id/stages/:stageId` | Delete a stage when it is not the last stage or referenced by a deal. |
+
+A workspace can have one default pipeline: setting a new default clears the
+previous one, while clearing the current default is rejected. A stage reorder
+must include every stage exactly once; terminal stage types keep their canonical
+win probabilities. Changing a stage type is rejected while deals reference that
+stage. Changing an open stage's probability recalculates the stored score of its
+deals in the same transaction.
+
 ## Examples
 
 ```bash
