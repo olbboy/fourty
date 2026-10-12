@@ -1,8 +1,11 @@
 name: CI
 
 on:
+  # Feature branches are checked by their pull request; running on every push to
+  # them as well doubled each PR's Actions minutes, which a private repository pays
+  # for. Pushes to main (merges) still get their own run.
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
 
 jobs:
