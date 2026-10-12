@@ -69,15 +69,16 @@ test.describe("responsive shell and data surfaces", () => {
     await page.setViewportSize(MOBILE_VIEWPORT);
     await page.goto("/dashboard");
 
-    const trigger = page.getByRole("button", { name: /more|menu/i }).first();
+    const trigger = page.locator('[data-slot="sidebar-trigger"]:visible').first();
+    await expect(trigger).toHaveAccessibleName(/toggle sidebar/i);
     await expect(trigger).toBeVisible();
     await trigger.click();
 
-    const menu = page.getByRole("dialog", { name: /navigation|menu/i });
-    await expect(menu).toBeVisible();
-    await expect(menu.getByRole("link", { name: /^Reports$/i })).toBeVisible();
-    await expect(menu.getByRole("link", { name: /^Workflows$/i })).toBeVisible();
-    const settings = menu.getByRole("link", { name: /^Settings$/i });
+    const sidebar = page.locator('[data-slot="sidebar"][data-mobile="true"]');
+    await expect(sidebar).toBeVisible();
+    await expect(sidebar.getByRole("link", { name: /^Reports$/i })).toBeVisible();
+    await expect(sidebar.getByRole("link", { name: /^Workflows$/i })).toBeVisible();
+    const settings = sidebar.getByRole("link", { name: /^Settings$/i });
     await expect(settings).toBeVisible();
     await settings.click();
     await expect(page).toHaveURL(/\/settings$/);
@@ -129,6 +130,21 @@ test.describe("record-list interaction contracts", () => {
     expect(Math.max(...topEdges) - Math.min(...topEdges)).toBeLessThanOrEqual(8);
     expect(boxes[1]?.width).toBeLessThanOrEqual(260);
     expect(boxes[2]?.width).toBeLessThanOrEqual(260);
+  });
+
+  test("Base UI select portals its options and restores focus on Escape", async ({ page }) => {
+    await page.goto("/companies");
+    const industry = page.getByRole("combobox", { name: /industry/i }).first();
+    await expect(industry).toBeVisible();
+    await industry.click();
+
+    const listbox = page.getByRole("listbox").last();
+    await expect(listbox).toBeVisible();
+    expect(await listbox.evaluate((node) => node.closest("main#main"))).toBeNull();
+
+    await page.keyboard.press("Escape");
+    await expect(listbox).toBeHidden();
+    await expect(industry).toBeFocused();
   });
 
   test("the first Contact is a focusable link and Enter follows it", async ({ page }) => {
@@ -253,7 +269,7 @@ test.describe("preview and settings semantics", () => {
     expect(member).toBeDefined();
 
     await page.goto("/settings");
-    const membersCard = page.locator("div.card").filter({
+    const membersCard = page.locator("[data-slot=card]").filter({
       has: page.getByRole("heading", { name: "Team members", exact: true }),
     });
     await expect(
@@ -262,10 +278,12 @@ test.describe("preview and settings semantics", () => {
       }),
     ).toBeVisible();
 
-    const customFieldsCard = page.locator("div.card").filter({
+    const customFieldsCard = page.locator("[data-slot=card]").filter({
       has: page.getByRole("heading", { name: "Custom fields", exact: true }),
     });
-    await expect(customFieldsCard.getByRole("button", { name: "Companies", exact: true })).toBeVisible();
+    const companies = customFieldsCard.getByRole("button", { name: "Companies", exact: true });
+    await expect(companies).toBeVisible();
+    await companies.click();
     await expect(customFieldsCard.getByText("Companys", { exact: true })).toHaveCount(0);
   });
 });

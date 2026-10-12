@@ -3,7 +3,8 @@ import { and, eq } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { withAuth, authorize, json, apiError, parseBody } from "@/lib/api";
 import { audit } from "@/lib/audit";
-import { fieldById } from "@/lib/custom-objects";
+import { fieldById, fieldsOf, firstInvalidRecord } from "@/lib/custom-objects";
+import { fieldChangeInvalidMessage, patchedFieldDefs } from "@/lib/field-def-guard";
 
 type Params = { params: Promise<{ id: string; fieldId: string }> };
 
@@ -20,10 +21,29 @@ export async function PATCH(req: Request, { params }: Params) {
     const denied = authorize(auth, "custom-objects", "update");
     if (denied) return denied;
     const { id, fieldId } = await params;
-    if (!(await fieldById(id, fieldId))) return apiError("Field not found", 404);
+    const field = await fieldById(id, fieldId);
+    if (!field) return apiError("Field not found", 404);
     const body = await parseBody(req, patch);
     if (!body.ok) return body.response;
     const { options, order, required, ...rest } = body.data;
+
+    // Changing how a field validates (its type, select options, or required flag)
+    // must not leave existing records invalid — including a `javascript:` value
+    // stranded in a text field being retyped to `url`. Refuse the change when any
+    // stored record would break, rather than mutating data silently; the caller
+    // fixes the offending records first.
+    if (body.data.type !== undefined || options !== undefined || required !== undefined) {
+      const nextDefs = patchedFieldDefs(await fieldsOf(id), field.key, {
+        type: body.data.type,
+        options,
+        required,
+      });
+      const invalid = await firstInvalidRecord(id, nextDefs);
+      if (invalid) {
+        return json({ error: fieldChangeInvalidMessage(invalid) }, { status: 409 });
+      }
+    }
+
     await db
       .update(tables.customObjectFields)
       .set({

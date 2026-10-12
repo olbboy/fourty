@@ -9,9 +9,9 @@ export type Contact = {
   jobTitle: string | null;
   companyId: string | null;
   ownerId: string | null;
-  status: string;
+  status?: string;
   source: string | null;
-  score: number;
+  score?: number;
   linkedin: string | null;
   city: string | null;
   country: string | null;
@@ -96,8 +96,8 @@ export type Pipeline = {
 export type Deal = {
   id: string;
   name: string;
-  amount: number;
-  currency: string;
+  amount?: number;
+  currency?: string;
   pipelineId: string;
   stageId: string;
   companyId: string | null;
@@ -106,6 +106,7 @@ export type Deal = {
   expectedCloseDate: number | null;
   closedAt: number | null;
   stageEnteredAt: number;
+  score?: number;
   custom: Record<string, unknown>;
   createdAt: number;
   updatedAt: number;
@@ -152,4 +153,33 @@ export type CustomFieldDef = {
   options: string[];
   required: number;
   order: number;
+};
+
+/** A no-code object type (Settings → Custom objects). */
+export type CustomObjectDef = {
+  id: string;
+  apiName: string;
+  nameSingular: string;
+  namePlural: string;
+  icon: string;
+  description: string | null;
+  createdAt: number;
+};
+
+export type CustomObjectFieldDef = {
+  id: string;
+  objectId: string;
+  key: string;
+  label: string;
+  type: string;
+  options: string[];
+  required: number;
+  order: number;
+};
+
+export type CustomRecord = {
+  id: string;
+  createdAt: number;
+  updatedAt: number;
+  data: Record<string, unknown>;
 };

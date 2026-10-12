@@ -1,7 +1,27 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, sql, type SQL } from "drizzle-orm";
 import { db, tables } from "@/db";
+import { audit } from "./audit";
+import { logActivity } from "./activity";
 import { newId } from "./id";
 import { validateRecord, type FieldDef } from "./records";
+export { recordTitle } from "./custom-object-display";
+
+/** Escape `\`, `%`, and `_` so a user term cannot become a LIKE wildcard. */
+export function escapeLikeLiteral(term: string): string {
+  return term.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
+/**
+ * Top-level JSON *string* values only — not keys, numbers, dates, or bools.
+ * Dates are millis; matching them as text would make `1` a near-match-all.
+ */
+export function customRecordStringIlike(pattern: string): SQL {
+  return sql`exists (
+    select 1 from jsonb_each(${tables.customRecords.data}::jsonb) as kv
+    where jsonb_typeof(kv.value) = 'string'
+      and kv.value #>> '{}' ilike ${pattern}
+  )`;
+}
 
 /**
  * Shared access helpers for custom objects (Gate C1). Must run inside a
@@ -71,6 +91,32 @@ export async function fieldById(objectId: string, fieldId: string) {
   )[0];
 }
 
+/**
+ * The first validation error among an object's existing records under a
+ * prospective field set, or null when every record still validates.
+ *
+ * Used to refuse a field-definition change (a retype, changed select options, or
+ * a newly-required field) that would leave stored records invalid — including a
+ * `javascript:` string left behind in a text field being retyped to `url`.
+ * Writes are validated one record at a time (validateRecord runs on write), so
+ * without this a definition change would silently keep stale or unsafe values
+ * until each record's next edit.
+ */
+export async function firstInvalidRecord(
+  objectId: string,
+  defs: FieldDef[],
+): Promise<string | null> {
+  const rows = await db
+    .select({ data: tables.customRecords.data })
+    .from(tables.customRecords)
+    .where(eq(tables.customRecords.objectId, objectId));
+  for (const row of rows) {
+    const check = validateRecord(defs, JSON.parse(row.data) as Record<string, unknown>);
+    if (!check.ok) return check.error;
+  }
+  return null;
+}
+
 // ── Record CRUD (shared by REST routes, GraphQL, MCP) ───────────────────────
 
 export type RecordRow = { id: string; createdAt: number; updatedAt: number; data: Record<string, unknown> };
@@ -79,14 +125,41 @@ function shape(row: typeof tables.customRecords.$inferSelect): RecordRow {
   return { id: row.id, createdAt: row.createdAt, updatedAt: row.updatedAt, data: JSON.parse(row.data) };
 }
 
-export async function listRecords(objectId: string, limit = 200): Promise<RecordRow[]> {
+export type ListRecordsOpts = { limit?: number; q?: string; sort?: string };
+
+const LIST_DEFAULT = 200;
+const LIST_MAX = 500;
+/** Field keys are identifiers, not expressions — reject anything that isn't. */
+const FIELD_SORT = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
+
+export async function listRecords(objectId: string, opts: ListRecordsOpts = {}): Promise<RecordRow[]> {
+  const where: SQL[] = [eq(tables.customRecords.objectId, objectId)];
+  const term = opts.q?.trim();
+  if (term && term.replace(/[%_]/g, "")) {
+    where.push(customRecordStringIlike(`%${escapeLikeLiteral(term)}%`));
+  }
+
   const rows = await db
     .select()
     .from(tables.customRecords)
-    .where(eq(tables.customRecords.objectId, objectId))
-    .orderBy(desc(tables.customRecords.updatedAt))
-    .limit(Math.min(limit, 500));
+    .where(and(...where))
+    .orderBy(await orderFor(objectId, opts.sort))
+    .limit(Math.min(Number(opts.limit) || LIST_DEFAULT, LIST_MAX));
   return rows.map(shape);
+}
+
+async function orderFor(objectId: string, sort: string | undefined): Promise<SQL> {
+  if (sort === "createdAt") return desc(tables.customRecords.createdAt);
+  if (!sort || sort === "updatedAt" || !FIELD_SORT.test(sort)) {
+    return desc(tables.customRecords.updatedAt);
+  }
+  const field = (await fieldsOf(objectId)).find((f) => f.key === sort);
+  if (!field) return desc(tables.customRecords.updatedAt);
+  // Parameterised `->>` so a field key cannot become an expression.
+  if (field.type === "number" || field.type === "date") {
+    return sql`NULLIF(${tables.customRecords.data}::jsonb ->> ${sort}, '')::numeric`;
+  }
+  return sql`${tables.customRecords.data}::jsonb ->> ${sort}`;
 }
 
 export async function getRecord(objectId: string, id: string): Promise<RecordRow | undefined> {
@@ -102,7 +175,21 @@ export async function getRecord(objectId: string, id: string): Promise<RecordRow
 
 export type RecordWrite = { ok: true; record: RecordRow } | { ok: false; error: string };
 
-export async function createRecord(objectId: string, input: Record<string, unknown>): Promise<RecordWrite> {
+/**
+ * Who wrote, and how. Required so REST / GraphQL / MCP cannot skip the
+ * timeline or audit that belongs on every custom-record mutation.
+ */
+export type RecordWriteCtx = {
+  apiName: string;
+  actorId?: string | null;
+  meta?: Record<string, unknown>;
+};
+
+export async function createRecord(
+  objectId: string,
+  input: Record<string, unknown>,
+  ctx: RecordWriteCtx,
+): Promise<RecordWrite> {
   const validated = validateRecord(await fieldsOf(objectId), input);
   if (!validated.ok) return validated;
   const now = Date.now();
@@ -114,6 +201,12 @@ export async function createRecord(objectId: string, input: Record<string, unkno
     createdAt: now,
     updatedAt: now,
   });
+  await logActivity({ type: "created", entityType: ctx.apiName, entityId: id, actorId: ctx.actorId });
+  await audit(ctx.actorId, "record.created", {
+    objectType: ctx.apiName,
+    objectId: id,
+    meta: ctx.meta,
+  });
   return { ok: true, record: { id, createdAt: now, updatedAt: now, data: validated.data } };
 }
 
@@ -121,6 +214,7 @@ export async function updateRecord(
   objectId: string,
   id: string,
   input: Record<string, unknown>,
+  ctx: RecordWriteCtx,
 ): Promise<RecordWrite | undefined> {
   const existing = await getRecord(objectId, id);
   if (!existing) return undefined;
@@ -133,12 +227,34 @@ export async function updateRecord(
     .update(tables.customRecords)
     .set({ data: JSON.stringify(validated.data), updatedAt: now })
     .where(eq(tables.customRecords.id, id));
+  await logActivity({ type: "updated", entityType: ctx.apiName, entityId: id, actorId: ctx.actorId });
+  await audit(ctx.actorId, "record.updated", {
+    objectType: ctx.apiName,
+    objectId: id,
+    meta: ctx.meta,
+  });
   return { ok: true, record: { id, createdAt: existing.createdAt, updatedAt: now, data: validated.data } };
 }
 
-export async function deleteRecord(objectId: string, id: string): Promise<boolean> {
+export async function deleteRecord(objectId: string, id: string, ctx: RecordWriteCtx): Promise<boolean> {
   const existing = await getRecord(objectId, id);
   if (!existing) return false;
   await db.delete(tables.customRecords).where(eq(tables.customRecords.id, id));
+  // notes and activities point at the record through a polymorphic key, so
+  // the database cannot cascade this for us.
+  await db
+    .delete(tables.notes)
+    .where(and(eq(tables.notes.entityType, ctx.apiName), eq(tables.notes.entityId, id)));
+  await db
+    .delete(tables.tasks)
+    .where(and(eq(tables.tasks.entityType, ctx.apiName), eq(tables.tasks.entityId, id)));
+  await db
+    .delete(tables.activities)
+    .where(and(eq(tables.activities.entityType, ctx.apiName), eq(tables.activities.entityId, id)));
+  await audit(ctx.actorId, "record.deleted", {
+    objectType: ctx.apiName,
+    objectId: id,
+    meta: ctx.meta,
+  });
   return true;
 }

@@ -112,6 +112,13 @@ export async function seedRestrictedFixture(): Promise<FixtureIdentity> {
     const userId = user.rows[0]?.id;
     if (!userId) throw new Error("Restricted E2E fixture could not create the viewer");
 
+    // Login activates the first membership returned for the user. Remove stale
+    // memberships so rerunning the fixture always selects this restricted workspace.
+    await client.query(
+      `DELETE FROM workspace_members
+        WHERE user_id = $1 AND workspace_id <> $2`,
+      [userId, workspaceId],
+    );
     await client.query(
       `INSERT INTO workspace_members (id, workspace_id, user_id, role, deactivated_at, created_at)
        VALUES ($1, $2, $3, 'viewer', NULL, $4)
@@ -209,6 +216,11 @@ export async function seedRestrictedFixture(): Promise<FixtureIdentity> {
     );
     const idHiddenUserId = idHiddenUser.rows[0]?.id;
     if (!idHiddenUserId) throw new Error("Restricted E2E fixture could not create id-hidden viewer");
+    await client.query(
+      `DELETE FROM workspace_members
+        WHERE user_id = $1 AND workspace_id <> $2`,
+      [idHiddenUserId, ID_HIDDEN_WORKSPACE_ID],
+    );
     await client.query(
       `INSERT INTO workspace_members (id, workspace_id, user_id, role, deactivated_at, created_at)
        VALUES ($1, $2, $3, 'viewer', NULL, $4)

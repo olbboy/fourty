@@ -6,6 +6,31 @@ import { db, tables, withWorkspace, withContext } from "@/db";
 import { getSessionUser, roleInWorkspace, sha256, type SessionUser } from "./auth";
 import { can, type Action } from "./permissions";
 import { apiRateLimit, type RateLimitResult } from "./ratelimit";
+
+/**
+ * The public origin of a request, for building absolute URLs (emailed links,
+ * OAuth redirect URIs).
+ *
+ * `new URL(req.url).origin` is NOT that behind a proxy: Next reconstructs
+ * req.url from its own bind address, so a Fourty behind cloudflared or nginx
+ * mints links pointing at `https://localhost:3000` — an invite mail with a
+ * dead link was how this surfaced. The proxy carries the truth in headers:
+ * x-forwarded-host/-proto when set, else Host (which every proxy forwards and
+ * every direct client sends).
+ *
+ * Trusting these headers is sound for Fourty's deployment shapes: behind a
+ * proxy they are proxy-controlled, and exposed directly the Host header is
+ * what TLS/routing already validated. A spoofed Host only ever changes the
+ * link in mail the spoofer requested for an address they typed.
+ */
+export function requestOrigin(req: Request): string {
+  const url = new URL(req.url);
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? url.host;
+  const proto =
+    req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() ??
+    url.protocol.replace(":", "");
+  return `${proto}://${host}`;
+}
 import { recordHttp, normalizeRoute } from "./metrics";
 import { log } from "./logger";
 
@@ -122,6 +147,29 @@ export async function withAuth(
   req: Request,
   handler: (auth: AuthOk) => Promise<Response> | Response,
 ): Promise<Response> {
+  return authenticated(req, (auth) => withWorkspace(auth.workspaceId, async () => handler(auth)));
+}
+
+/**
+ * `withAuth` without the transaction, for a handler that makes a network call.
+ *
+ * Everything else is identical — authentication, rate limit, metrics, access
+ * log. What changes is that the handler is responsible for its own
+ * `withWorkspace()` calls, so a provider round-trip does not sit inside one
+ * (the mistake ADR-015 refused for LLM streaming). Use it only where that is
+ * true; every ordinary data route wants `withAuth`.
+ */
+export async function withAuthOutsideTransaction(
+  req: Request,
+  handler: (auth: AuthOk) => Promise<Response> | Response,
+): Promise<Response> {
+  return authenticated(req, (auth) => handler(auth));
+}
+
+async function authenticated(
+  req: Request,
+  run: (auth: AuthOk) => Promise<Response> | Response,
+): Promise<Response> {
   const startedAt = performance.now();
   const requestId = randomUUID();
   const route = normalizeRoute(new URL(req.url).pathname);
@@ -147,8 +195,8 @@ export async function withAuth(
     return finish(res, auth.workspaceId);
   }
 
-  const response = await withContext({ requestId, workspaceId: auth.workspaceId }, () =>
-    withWorkspace(auth.workspaceId, async () => handler(auth)),
+  const response = await withContext({ requestId, workspaceId: auth.workspaceId }, async () =>
+    run(auth),
   );
   setRateLimitHeaders(response, rl);
   return finish(response, auth.workspaceId);

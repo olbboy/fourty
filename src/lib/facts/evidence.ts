@@ -1,0 +1,152 @@
+/**
+ * Evidence scoring (ADR-018). A pure module: no database, no clock, no I/O — the
+ * same discipline lead scoring already ships, applied to writes.
+ *
+ * The rule this exists to enforce: **nobody may assert a confidence.** A caller
+ * reports what it observed, as a closed enum, and the weights here price it. A
+ * model asked to grade its own certainty will do so, and will be wrong in the
+ * direction that makes it look useful; a confidently wrong fact about a customer
+ * is worse than a blank field, because nobody can tell it is wrong.
+ *
+ * The weights are a judgement pinned by tests, not a measurement. Changing one
+ * is a decision with a test diff, not a tuning knob — and raising a weight to
+ * make a demo auto-apply is the specific move this file exists to make visible.
+ */
+
+export type EvidenceKindSpec = {
+  weight: number;
+  /**
+   * A primary source identifies *this person*, so it may carry a fact alone.
+   * Supporting evidence may combine to PROBABLE; it may never reach VERIFIED
+   * without one.
+   */
+  primary: boolean;
+  /** One line a rep can read. Rendered in the suggestion tooltip. */
+  label: string;
+};
+
+export const EVIDENCE_KINDS = {
+  // Primary — each identifies this person.
+  "profile.email-match": { weight: 0.95, primary: true, label: "a reply from their own address" },
+  "crm.thread-reply": { weight: 0.85, primary: true, label: "they replied in this thread" },
+  "crm.signature-block": { weight: 0.8, primary: true, label: "their email signature" },
+  "crm.meeting-attendance": { weight: 0.7, primary: true, label: "they attended a meeting" },
+
+  // Supporting — consistent with the claim, but identifies nobody on its own.
+  "web.cited-claim": { weight: 0.4, primary: false, label: "a cited page says so" },
+  "handle.name-form": { weight: 0.35, primary: false, label: "the handle matches their name" },
+  "search.cites-profile": { weight: 0.35, primary: false, label: "a search result cites their profile" },
+  "employer-only": { weight: 0.2, primary: false, label: "the employer matches" },
+
+  /**
+   * A contradiction does not reduce the score a little — it holds the fact
+   * entirely (see CONTRADICTION_CAP). A profile saying one employer while a mail
+   * header says another is not 60% true; it is unresolved, and a human should
+   * see it as such. Weight 0 so it contributes nothing to the product either.
+   */
+  contradiction: { weight: 0, primary: false, label: "another source disagrees" },
+
+  /**
+   * Reserved for a later vendor capability: the enum ships with them, no tool
+   * emits them. Deliberately **not** primary — an unshipped source must not be
+   * able to auto-apply anything, and whichever capability ships them decides
+   * their weight with its own tests.
+   */
+  "linkedin.employer-and-name": { weight: 0.6, primary: false, label: "a LinkedIn profile" },
+  "github.account-identity": { weight: 0.55, primary: false, label: "a GitHub account" },
+} as const satisfies Record<string, EvidenceKindSpec>;
+
+export type EvidenceKind = keyof typeof EVIDENCE_KINDS;
+
+export const EVIDENCE_KIND_NAMES = Object.keys(EVIDENCE_KINDS) as EvidenceKind[];
+
+export function isEvidenceKind(value: unknown): value is EvidenceKind {
+  return typeof value === "string" && value in EVIDENCE_KINDS;
+}
+
+/** One observation. No score, no confidence — those are not accepted parameters. */
+export type Evidence = {
+  kind: EvidenceKind;
+  /** What was actually seen, in words a rep can read. It is the rationale. */
+  detail: string;
+  sourceUrl?: string;
+};
+
+export type Band = "VERIFIED" | "PROBABLE" | "POSSIBLE";
+
+/** Floors. Below POSSIBLE nothing is stored at all. */
+export const BAND_FLOORS = { VERIFIED: 0.85, PROBABLE: 0.55, POSSIBLE: 0.3 } as const;
+
+/** No amount of agreeing evidence makes a derived fact certain. */
+export const SCORE_CEILING = 0.99;
+
+/** A contradiction holds the fact below the proposal floor, not just lower. */
+export const CONTRADICTION_CAP = 0.45;
+
+/**
+ * One entry per **independent** source. Two facts on one page are one
+ * observation: splitting a single page into two entries double-counts it into
+ * false certainty, which is precisely the arithmetic this design prevents.
+ *
+ * The identity of a source is its URL where there is one, and its detail text
+ * otherwise — so two signature blocks from two different emails stay two
+ * observations, while the same page cited twice collapses to one.
+ */
+export function dedupeEvidence(evidence: Evidence[]): Evidence[] {
+  const seen = new Set<string>();
+  return evidence.filter((e) => {
+    // JSON.stringify rather than a delimiter: no separator character can
+    // appear inside a kind or a URL and merge two sources into one.
+    const key = JSON.stringify([e.kind, e.sourceUrl ?? e.detail]);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/**
+ * Combine independent observations: `1 − Π(1 − wᵢ)`, capped. Order-independent
+ * by construction — multiplication commutes, and that is worth a test because a
+ * scorer whose answer depends on insertion order is not a scorer.
+ */
+export function scoreEvidence(evidence: Evidence[]): number {
+  const entries = dedupeEvidence(evidence);
+  if (entries.length === 0) return 0;
+  const remainder = entries.reduce((acc, e) => acc * (1 - EVIDENCE_KINDS[e.kind].weight), 1);
+  const combined = Math.min(1 - remainder, SCORE_CEILING);
+  const contradicted = entries.some((e) => e.kind === "contradiction");
+  return round(contradicted ? Math.min(combined, CONTRADICTION_CAP) : combined);
+}
+
+/** True when at least one observation identifies the person on its own. */
+export function hasPrimarySource(evidence: Evidence[]): boolean {
+  return evidence.some((e) => EVIDENCE_KINDS[e.kind].primary);
+}
+
+/**
+ * The band, which is behaviour rather than a label: VERIFIED is the only one
+ * anything may act on unwatched, and it needs a primary source as well as a
+ * score. Supporting evidence that adds up to 0.9 lands at PROBABLE — a proposal
+ * for a human, which is a correct outcome, not a failure.
+ */
+export function bandFor(score: number, hasPrimary: boolean): Band | null {
+  if (score >= BAND_FLOORS.VERIFIED && hasPrimary) return "VERIFIED";
+  if (score >= BAND_FLOORS.PROBABLE) return "PROBABLE";
+  if (score >= BAND_FLOORS.POSSIBLE) return "POSSIBLE";
+  return null;
+}
+
+export type Assessment = { score: number; band: Band | null; hasPrimary: boolean; evidence: Evidence[] };
+
+/** Score, primary-source check and band in one pass over the observations. */
+export function assess(evidence: Evidence[]): Assessment {
+  const entries = dedupeEvidence(evidence);
+  const score = scoreEvidence(entries);
+  const hasPrimary = hasPrimarySource(entries);
+  return { score, band: bandFor(score, hasPrimary), hasPrimary, evidence: entries };
+}
+
+/** Two decimals — a stored score is read by humans, not compared for equality. */
+function round(n: number): number {
+  return Math.round(n * 100) / 100;
+}

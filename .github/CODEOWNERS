@@ -1,0 +1,20 @@
+# Default owners for everything in the repo
+*       @olbboy
+
+# Core source code
+/src/                   @olbboy
+/packages/              @olbboy
+
+# Database & migrations
+/drizzle/               @olbboy
+/src/db/                @olbboy
+
+# Documentation
+/docs/                  @olbboy
+*.md                    @olbboy
+
+# CI/CD & infrastructure
+/.github/               @olbboy
+/docker/                @olbboy
+docker-compose.yml      @olbboy
+Dockerfile              @olbboy

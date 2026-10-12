@@ -1,0 +1,13 @@
+-- 0017 — repoint the stages.color default at the warm neutral.
+--
+-- The column default was the old indigo accent (#6366f1), a leftover from the
+-- palette the app shipped before the brand existed in code. Two things are
+-- wrong with it now: indigo is not in the palette at all, and a colour-less new
+-- stage should not arrive wearing an accent — the accent belongs to the primary
+-- action, and a pipeline where every custom stage shouts has no hierarchy left.
+--
+-- The replacement is the neutral the design system gives an unassigned stage
+-- (--stage-lead resolved to sRGB). It is a DEFAULT change only: existing rows
+-- keep whatever colour their workspace chose, because there is no way to tell a
+-- row that took the old default from one a person deliberately set to it.
+ALTER TABLE "stages" ALTER COLUMN "color" SET DEFAULT '#a89f99';

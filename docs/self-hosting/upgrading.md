@@ -16,6 +16,19 @@ npm run build && npm start
 With Docker Compose, `docker compose up --build` re-runs the migration step
 automatically before starting the app.
 
+> [!IMPORTANT]
+> **New in this release: connected mailboxes pull by themselves.** The worker now
+> drains an agent work ledger, and a connected Gmail / Microsoft / ICS account is
+> fetched every `AGENT_MAIL_PULL_MINUTES` (default 15) instead of only when
+> someone presses **Sync now**. Settings → Mailboxes shows when each account is
+> next due.
+>
+> This is background network traffic that did not happen before, so: it only
+> happens where a **worker process is running** (a source install without
+> `npm run worker` is unchanged), it only touches mailboxes someone connected,
+> and `AGENT_TICK_SECONDS=0` turns the whole agent off while leaving every manual
+> path working.
+
 ## How migrations work
 
 Fourty uses **drizzle-kit** versioned migrations ([ADR-002](../adr/002-orm-and-migrations.md)),

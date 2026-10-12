@@ -1,10 +1,21 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import Link from "next/link";
 import type { CompanyRead } from "@/lib/types";
 import { formatCompact } from "@/lib/currency";
 import { timeAgo } from "@/lib/format";
 import { useT } from "@/lib/i18n/provider";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 type CompaniesTableProps = {
   companies: CompanyRead[];
@@ -15,7 +26,9 @@ type CompaniesTableProps = {
 };
 
 function displayName(company: CompanyRead, fallback: string): string {
-  return typeof company.name === "string" && company.name.trim() ? company.name : fallback;
+  return typeof company.name === "string" && company.name.trim()
+    ? company.name
+    : fallback;
 }
 
 function displayText(value: string | null | undefined): string {
@@ -30,108 +43,142 @@ export function CompaniesTable({
   onPreview,
 }: CompaniesTableProps) {
   const t = useT();
-  const headerRef = useRef<HTMLInputElement>(null);
-  const readableIds = companies.flatMap((company) => (typeof company.id === "string" && company.id ? [company.id] : []));
+  const readableIds = companies.flatMap((company) =>
+    typeof company.id === "string" && company.id ? [company.id] : [],
+  );
   const selectedOnPage = readableIds.filter((id) => selectedIds.has(id));
-  const allSelected = readableIds.length > 0 && selectedOnPage.length === readableIds.length;
+  const allSelected =
+    readableIds.length > 0 && selectedOnPage.length === readableIds.length;
   const someSelected = selectedOnPage.length > 0 && !allSelected;
-
-  useEffect(() => {
-    if (headerRef.current) headerRef.current.indeterminate = someSelected;
-  }, [someSelected]);
 
   return (
     <div>
-      <p id="companies-table-scroll-hint" className="mb-2 text-xs text-ink-muted sm:hidden">
+      <p
+        id="companies-table-scroll-hint"
+        className="mb-2 text-xs text-ink-muted sm:hidden"
+      >
         {t("companies.tableScrollHint")}
       </p>
-      <div className="card overflow-x-auto">
-        <table className="w-full min-w-[760px]" aria-describedby="companies-table-scroll-hint">
-          <thead className="border-b border-line">
-            <tr>
-              <th className="th w-10">
-                <input
-                  ref={headerRef}
-                  type="checkbox"
+      <Card size="flush">
+        <Table
+          className="min-w-[760px]"
+          aria-describedby="companies-table-scroll-hint"
+        >
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10">
+                <Checkbox
                   checked={allSelected}
+                  indeterminate={someSelected}
                   disabled={readableIds.length === 0}
-                  onChange={(event) => onToggleAll(event.target.checked)}
+                  onCheckedChange={onToggleAll}
                   aria-label={t("companies.selectAll")}
                 />
-              </th>
-              <th className="th">{t("companies.name")}</th>
-              <th className="th">{t("companies.industry")}</th>
-              <th className="th">{t("companies.size")}</th>
-              <th className="th hidden lg:table-cell">{t("companies.location")}</th>
-              <th className="th text-right">{t("companies.revenue")}</th>
-              <th className="th">{t("companies.updated")}</th>
-              <th className="th">{t("companies.actions")}</th>
-            </tr>
-          </thead>
-          <tbody>
+              </TableHead>
+              <TableHead>{t("companies.name")}</TableHead>
+              <TableHead>{t("companies.industry")}</TableHead>
+              <TableHead>{t("companies.size")}</TableHead>
+              <TableHead className="hidden lg:table-cell">
+                {t("companies.location")}
+              </TableHead>
+              <TableHead className="text-right">
+                {t("companies.revenue")}
+              </TableHead>
+              <TableHead>{t("companies.updated")}</TableHead>
+              <TableHead>{t("companies.actions")}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {companies.map((company, index) => {
-              const id = typeof company.id === "string" && company.id ? company.id : null;
+              const id =
+                typeof company.id === "string" && company.id
+                  ? company.id
+                  : null;
               const name = displayName(company, t("companies.unknownName"));
               const isSelected = id ? selectedIds.has(id) : false;
-              const revenue = typeof company.annualRevenue === "number" ? formatCompact(company.annualRevenue, "USD") : "—";
-              const updated = typeof company.updatedAt === "number" ? timeAgo(company.updatedAt) : "—";
+              const revenue =
+                typeof company.annualRevenue === "number"
+                  ? formatCompact(company.annualRevenue, "USD")
+                  : "—";
+              const updated =
+                typeof company.updatedAt === "number"
+                  ? timeAgo(company.updatedAt)
+                  : "—";
               return (
-                <tr
+                <TableRow
                   key={id ?? `company-row-${index}`}
                   data-company-id={id ?? undefined}
                   data-selected={isSelected ? "true" : undefined}
-                  className={`border-b border-line/60 transition last:border-0 ${
-                    isSelected ? "bg-accent-500/10 hover:bg-accent-500/15" : "hover:bg-surface-2"
-                  }`}
+                  className={
+                    isSelected
+                      ? "bg-accent-500/10 hover:bg-accent-500/15"
+                      : "hover:bg-surface-2"
+                  }
                 >
-                  <td className="td">
+                  <TableCell>
                     {id ? (
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={isSelected}
-                        onChange={(event) => onToggle(id, event.target.checked)}
+                        onCheckedChange={(checked) => onToggle(id, checked)}
                         aria-label={t("companies.selectCompany", { name })}
                       />
                     ) : null}
-                  </td>
-                  <td className="td font-medium">
+                  </TableCell>
+                  <TableCell className="font-medium">
                     {id ? (
-                      <a href={`/companies/${encodeURIComponent(id)}`} className="underline-offset-2 hover:underline">
+                      <Link
+                        href={`/companies/${encodeURIComponent(id)}`}
+                        className="underline-offset-2 hover:underline"
+                      >
                         {name}
-                      </a>
+                      </Link>
                     ) : (
                       name
                     )}
-                    {typeof company.domain === "string" && company.domain.trim() ? (
-                      <span className="block text-xs font-normal text-ink-muted">{company.domain}</span>
+                    {typeof company.domain === "string" &&
+                    company.domain.trim() ? (
+                      <span className="block text-xs font-normal text-ink-muted">
+                        {company.domain}
+                      </span>
                     ) : null}
-                  </td>
-                  <td className="td text-ink-muted">{displayText(company.industry)}</td>
-                  <td className="td text-ink-muted">{displayText(company.size)}</td>
-                  <td className="td hidden text-ink-muted lg:table-cell">
-                    {[company.city, company.country].filter((value): value is string => Boolean(value?.trim())).join(", ") || "—"}
-                  </td>
-                  <td className="td text-right tabular-nums text-ink-muted">{revenue}</td>
-                  <td className="td text-ink-muted">{updated}</td>
-                  <td className="td">
+                  </TableCell>
+                  <TableCell className="text-ink-muted">
+                    {displayText(company.industry)}
+                  </TableCell>
+                  <TableCell className="text-ink-muted">
+                    {displayText(company.size)}
+                  </TableCell>
+                  <TableCell className="hidden text-ink-muted lg:table-cell">
+                    {[company.city, company.country]
+                      .filter((value): value is string =>
+                        Boolean(value?.trim()),
+                      )
+                      .join(", ") || "—"}
+                  </TableCell>
+                  <TableCell className="text-right text-ink-muted">
+                    {revenue}
+                  </TableCell>
+                  <TableCell className="text-ink-muted">{updated}</TableCell>
+                  <TableCell>
                     {id ? (
-                      <button
+                      <Button
                         type="button"
-                        className="btn-ghost !px-2 !py-1 text-xs"
+                        variant="ghost"
+                        size="xs"
                         aria-label={`${t("companies.preview")} ${name}`}
                         data-preview-trigger-id={id}
                         onClick={() => onPreview(id)}
                       >
                         {t("companies.preview")}
-                      </button>
+                      </Button>
                     ) : null}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
-      </div>
+          </TableBody>
+        </Table>
+      </Card>
     </div>
   );
 }

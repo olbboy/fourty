@@ -210,16 +210,22 @@ test.describe("Companies journeys", () => {
     expect(previewUrl.searchParams.get("q")).toBe(beforePreview.searchParams.get("q"));
     const dialog = page.getByRole("dialog", { name: /preview|E2E Pagination 55/i });
     await expect(dialog).toBeVisible();
-    await expect(row.getByRole("checkbox")).toBeChecked();
+    await expect(
+      page.locator(`[data-company-id="${id}"] [data-slot="checkbox"]`),
+    ).toHaveAttribute("aria-checked", "true");
     expect(
       await page.evaluate(() => Boolean(document.activeElement?.closest('[role="dialog"]'))),
     ).toBe(true);
 
     for (let i = 0; i < 5; i += 1) {
       await page.keyboard.press("Tab");
-      expect(
-        await page.evaluate(() => Boolean(document.activeElement?.closest('[role="dialog"]'))),
-      ).toBe(true);
+      await expect
+        .poll(() =>
+          page.evaluate(() =>
+            Boolean(document.activeElement?.closest('[role="dialog"]')),
+          ),
+        )
+        .toBe(true);
     }
 
     const fullDetail = dialog.getByRole("link", { name: /full detail|View full details/i });
@@ -359,33 +365,48 @@ test.describe("Companies journeys", () => {
     expect(paddingLeft).toBeGreaterThanOrEqual(36);
   });
 
-  test("clamps sidebar keyboard resize and keeps main layout aligned", async ({ page }) => {
+  test("toggles the icon sidebar with its trigger and rail and persists the cookie", async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
+    await page.context().clearCookies({ name: "sidebar_state" });
     await page.goto("/companies");
     await waitForCompanies(page);
 
-    const separator = page.getByRole("separator", { name: /sidebar/i });
-    await expect(separator).toBeVisible();
-    const aside = page.locator("aside");
-    const main = page.locator("main#main");
-    await separator.focus();
-    await separator.press("End");
-    await expect.poll(() => aside.evaluate((node) => getComputedStyle(node).width)).toBe("360px");
-    await expect.poll(() => main.evaluate((node) => getComputedStyle(node).marginLeft)).toBe("360px");
-    await separator.press("Home");
-    await expect.poll(() => aside.evaluate((node) => getComputedStyle(node).width)).toBe("224px");
-    await separator.press("ArrowRight");
-    await expect.poll(() => aside.evaluate((node) => getComputedStyle(node).width)).toBe("232px");
+    const sidebar = page.locator('[data-slot="sidebar"][data-state]');
+    const trigger = page.locator('[data-sidebar="trigger"]').first();
+    const rail = page.locator('[data-sidebar="rail"]');
+    await expect(sidebar).toHaveAttribute("data-state", "expanded");
+    await expect(trigger).toBeVisible();
+    await expect(rail).toBeVisible();
 
-    const storedWidth = await page.evaluate(() => {
-      const entry = Object.entries(localStorage).find(([key]) => /sidebar.*width|sidebarWidth/i.test(key));
-      return entry?.[1] ?? null;
-    });
-    expect(storedWidth).toBe("232");
-    const preferenceKeys = await page.evaluate(() =>
-      Object.keys(localStorage).filter((key) => /sidebar/i.test(key)),
-    );
-    expect(preferenceKeys).toHaveLength(1);
+    await trigger.click();
+    await expect(sidebar).toHaveAttribute("data-state", "collapsed");
+    await expect
+      .poll(async () => {
+        const cookie = (await page.context().cookies()).find(
+          (candidate) => candidate.name === "sidebar_state",
+        );
+        return cookie?.value ?? null;
+      })
+      .toBe("false");
+
+    await rail.click();
+    await expect(sidebar).toHaveAttribute("data-state", "expanded");
+    await expect
+      .poll(async () => {
+        const cookie = (await page.context().cookies()).find(
+          (candidate) => candidate.name === "sidebar_state",
+        );
+        return cookie?.value ?? null;
+      })
+      .toBe("true");
+
+    await trigger.click();
+    await expect(sidebar).toHaveAttribute("data-state", "collapsed");
+    await page.reload();
+    await waitForCompanies(page);
+    await expect(sidebar).toHaveAttribute("data-state", "collapsed");
   });
 
   test("wraps Shift+Tab from the first preview control to the last", async ({ page }) => {
@@ -427,12 +448,15 @@ test.describe("Companies journeys", () => {
 
     const row = companyRow(page, "E2E Pagination 55");
     await expect(row).toBeVisible();
-    const checkbox = row.getByRole("checkbox");
+    const id = await selectedRowId(row);
+    const checkbox = page.locator(
+      `[data-company-id="${id}"] [data-slot="checkbox"]`,
+    );
     await checkbox.check();
     await row.getByRole("button", { name: /Preview/i }).click();
 
     await expect(page.getByRole("dialog", { name: /preview/i })).toBeVisible();
-    await expect(checkbox).toBeChecked();
+    await expect(checkbox).toHaveAttribute("aria-checked", "true");
     await expect(page.getByText(/1 selected/i)).toBeVisible();
     await expect.poll(() => listRequests).toBe(baselineRequests);
     await page.unroute("**/api/companies**");
@@ -553,7 +577,13 @@ test.describe("Companies journeys", () => {
     await page.keyboard.press("Escape");
     await expect(palette).toBeHidden();
     await expect(preview).toBeVisible();
-    await expect(preview).toBeFocused();
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          Boolean(document.activeElement?.closest('[role="dialog"]')),
+        ),
+      )
+      .toBe(true);
   });
 
   test("keeps nested palette focus when browser Back closes its preview underneath", async ({ page }) => {
@@ -576,16 +606,9 @@ test.describe("Companies journeys", () => {
 
     await page.keyboard.press("Escape");
     await expect(palette).toBeHidden();
-    expect(
-      await page.evaluate(() => {
-        const active = document.activeElement;
-        return (
-          active instanceof HTMLElement &&
-          active.isConnected &&
-          Boolean(active.closest("main#main"))
-        );
-      }),
-    ).toBe(true);
+    await expect(
+      page.locator("[data-command-palette-trigger]:visible").first(),
+    ).toBeFocused();
   });
 
   test("restores the preview from browser Forward after Back returns to the list", async ({ page }) => {
@@ -609,108 +632,45 @@ test.describe("Companies journeys", () => {
     await expect.poll(() => new URL(page.url()).searchParams.get("preview")).toBe(id);
   });
 
-  test("keeps browser reload shortcuts from resetting sidebar, while plain r resets it", async ({
+  test("toggles the icon sidebar with Meta/Ctrl+B and leaves reload unprevented", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
+    await page.context().clearCookies({ name: "sidebar_state" });
     await page.goto("/companies");
     await waitForCompanies(page);
 
-    const separator = page.getByRole("separator", { name: /sidebar/i });
-    const aside = page.locator("aside");
-    await separator.focus();
-    await separator.press("End");
-    await expect.poll(() => aside.evaluate((node) => getComputedStyle(node).width)).toBe("360px");
-
+    const sidebar = page.locator('[data-slot="sidebar"][data-state]');
     await page.evaluate(() => {
-      const keyEvents: Array<{ key: string; defaultPrevented: boolean }> = [];
-      const target = window as typeof window & {
-        __e2eSidebarKeyEvents?: Array<{ key: string; defaultPrevented: boolean }>;
-      };
-      target.__e2eSidebarKeyEvents = keyEvents;
       window.addEventListener("keydown", (event) => {
         if (event.key.toLowerCase() === "r") {
-          keyEvents.push({ key: event.key, defaultPrevented: event.defaultPrevented });
+          sessionStorage.setItem(
+            "__e2eSidebarReloadPrevented",
+            String(event.defaultPrevented),
+          );
         }
       });
+      sessionStorage.removeItem("__e2eSidebarReloadPrevented");
     });
     const modifier = process.platform === "darwin" ? "Meta" : "Control";
+    await page.keyboard.press(`${modifier}+KeyB`);
+    await expect(sidebar).toHaveAttribute("data-state", "collapsed");
+    await expect
+      .poll(async () => {
+        const cookie = (await page.context().cookies()).find(
+          (candidate) => candidate.name === "sidebar_state",
+        );
+        return cookie?.value ?? null;
+      })
+      .toBe("false");
+
+    await page.keyboard.press(`${modifier}+KeyB`);
+    await expect(sidebar).toHaveAttribute("data-state", "expanded");
+
     await page.keyboard.press(`${modifier}+KeyR`);
     await expect
-      .poll(() =>
-        page.evaluate(
-          () =>
-            (window as typeof window & {
-              __e2eSidebarKeyEvents?: Array<{ key: string; defaultPrevented: boolean }>;
-            }).__e2eSidebarKeyEvents?.at(-1)?.defaultPrevented ?? null,
-        ),
-      )
-      .toBe(false);
-    await expect.poll(() => aside.evaluate((node) => getComputedStyle(node).width)).toBe("360px");
-    await expect(separator).toHaveAttribute("aria-valuenow", "360");
-
-    await separator.focus();
-    await page.keyboard.press("r");
-    await expect
-      .poll(() =>
-        page.evaluate(
-          () =>
-            (window as typeof window & {
-              __e2eSidebarKeyEvents?: Array<{ key: string; defaultPrevented: boolean }>;
-            }).__e2eSidebarKeyEvents?.at(-1)?.defaultPrevented ?? null,
-        ),
-      )
-      .toBe(true);
-    await expect.poll(() => aside.evaluate((node) => getComputedStyle(node).width)).toBe("224px");
-    await expect(separator).toHaveAttribute("aria-valuenow", "224");
-  });
-
-  test("resizes the sidebar with the pointer, restores clamped preferences, and removes malformed values", async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto("/companies");
-    await waitForCompanies(page);
-
-    const separator = page.getByRole("separator", { name: /sidebar/i });
-    const aside = page.locator("aside");
-    const main = page.locator("main#main");
-    await expect(separator).toBeVisible();
-    const handle = await separator.boundingBox();
-    if (!handle) throw new Error("Sidebar resize handle must have a layout box");
-
-    const y = handle.y + Math.min(120, handle.height / 2);
-    await page.mouse.move(handle.x + handle.width / 2, y);
-    await page.mouse.down();
-    await page.mouse.move(handle.x + handle.width / 2 + 64, y);
-    await page.mouse.up();
-    await expect.poll(() => aside.evaluate((node) => getComputedStyle(node).width)).toBe("288px");
-    await expect.poll(() => main.evaluate((node) => getComputedStyle(node).marginLeft)).toBe("288px");
-    await expect(separator).toHaveAttribute("aria-valuenow", "288");
-
-    await page.reload();
-    await waitForCompanies(page);
-    await expect.poll(() => aside.evaluate((node) => getComputedStyle(node).width)).toBe("288px");
-    await expect(separator).toHaveAttribute("aria-valuenow", "288");
-
-    await page.evaluate(() => localStorage.setItem("fourty-sidebar-width", "999"));
-    await page.reload();
-    await waitForCompanies(page);
-    await expect.poll(() => aside.evaluate((node) => getComputedStyle(node).width)).toBe("360px");
-    await expect.poll(() => page.evaluate(() => localStorage.getItem("fourty-sidebar-width"))).toBe(
-      "360",
-    );
-
-    await page.evaluate(() => localStorage.setItem("fourty-sidebar-width", "malformed"));
-    await page.reload();
-    await waitForCompanies(page);
-    await expect.poll(() => aside.evaluate((node) => getComputedStyle(node).width)).toBe("224px");
-    await expect.poll(() => page.evaluate(() => localStorage.getItem("fourty-sidebar-width"))).toBeNull();
-
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.reload();
-    await waitForCompanies(page);
-    await expect.poll(() => main.evaluate((node) => getComputedStyle(node).marginLeft)).toBe("0px");
+      .poll(() => page.evaluate(() => sessionStorage.getItem("__e2eSidebarReloadPrevented")))
+      .toBe("false");
   });
 
   test("shows no-data separately from no-results in an empty workspace", async ({ browser, baseURL }) => {

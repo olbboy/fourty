@@ -14,6 +14,10 @@ The importer is built to handle messy real-world files:
   updates rather than duplicates.
 - **Company auto-linking** — a `company` column links to an existing company by name,
   or creates one if it doesn't exist.
+- **Custom fields** — a column whose header is a contact custom-field key (or its
+  label) writes that field. Invalid values (a `javascript:` URL, a bad date) are
+  skipped; the rest of the row still imports. A new row missing a required custom
+  field is skipped, matching REST create.
 
 The parser is a dependency-free RFC-4180 implementation (`src/lib/csv.ts`), so quoted
 fields, embedded commas, and newlines are handled correctly.
@@ -30,9 +34,10 @@ curl -H "Authorization: Bearer frty_..." \
 Exports require both `export/read` and read permission for the requested object.
 Sessions and API keys are scoped to their current workspace. A permitted viewer
 can export, but [field permissions](../adr/011-field-level-permissions.md) remove
-hidden columns from both headers and rows. Each entity has an explicit column
-allowlist in the [export route](../../src/app/api/export/[entity]/route.ts);
-exports do not include every field available in the UI or custom fields.
+hidden columns from both headers and rows. Each entity has an explicit built-in
+column allowlist in the [export route](../../src/app/api/export/[entity]/route.ts).
+Current custom fields are added by their stable key when the `custom` field is
+readable.
 
 ### Companies export scopes
 

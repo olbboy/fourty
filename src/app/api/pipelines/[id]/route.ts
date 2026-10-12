@@ -2,7 +2,12 @@ import { eq } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { withAuth, authorize, json, apiError, parseBody } from "@/lib/api";
 import { audit } from "@/lib/audit";
-import { loadPipeline, loadPipelineWithStages, lockPipelineWorkspace, pipelinePatch } from "@/lib/pipelines";
+import {
+  loadPipeline,
+  loadPipelineWithStages,
+  lockPipelineWorkspace,
+  pipelinePatch,
+} from "@/lib/services/pipelines";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -24,7 +29,10 @@ export async function PATCH(req: Request, { params }: Params) {
       const pipelines = await db.select().from(tables.pipelines);
       for (const pipeline of pipelines) {
         if (pipeline.id !== id && pipeline.isDefault === 1) {
-          await db.update(tables.pipelines).set({ isDefault: 0 }).where(eq(tables.pipelines.id, pipeline.id));
+          await db
+            .update(tables.pipelines)
+            .set({ isDefault: 0 })
+            .where(eq(tables.pipelines.id, pipeline.id));
         }
       }
     }
@@ -32,7 +40,9 @@ export async function PATCH(req: Request, { params }: Params) {
       .update(tables.pipelines)
       .set({
         ...(body.data.name !== undefined ? { name: body.data.name } : {}),
-        ...(body.data.isDefault !== undefined ? { isDefault: body.data.isDefault ? 1 : 0 } : {}),
+        ...(body.data.isDefault !== undefined
+          ? { isDefault: body.data.isDefault ? 1 : 0 }
+          : {}),
       })
       .where(eq(tables.pipelines.id, id));
     await audit(auth.user?.id, "pipeline.updated", {
@@ -54,18 +64,28 @@ export async function DELETE(req: Request, { params }: Params) {
     await lockPipelineWorkspace(auth.workspaceId);
     const existing = await loadPipeline(id);
     if (!existing) return apiError("Pipeline not found", 404);
-    if (existing.isDefault === 1) return apiError("Cannot delete the default pipeline", 409);
+    if (existing.isDefault === 1)
+      return apiError("Cannot delete the default pipeline", 409);
 
     const pipelines = await db.select().from(tables.pipelines);
-    if (pipelines.length <= 1) return apiError("Cannot delete the last pipeline", 409);
+    if (pipelines.length <= 1)
+      return apiError("Cannot delete the last pipeline", 409);
     const inUse = (
-      await db.select({ id: tables.deals.id }).from(tables.deals).where(eq(tables.deals.pipelineId, id)).limit(1)
+      await db
+        .select({ id: tables.deals.id })
+        .from(tables.deals)
+        .where(eq(tables.deals.pipelineId, id))
+        .limit(1)
     )[0];
-    if (inUse) return apiError("Cannot delete a pipeline referenced by deals", 409);
+    if (inUse)
+      return apiError("Move deals out of this pipeline first; pipeline is referenced by deals", 409);
 
     await db.delete(tables.stages).where(eq(tables.stages.pipelineId, id));
     await db.delete(tables.pipelines).where(eq(tables.pipelines.id, id));
-    await audit(auth.user?.id, "pipeline.deleted", { objectType: "pipeline", objectId: id });
+    await audit(auth.user?.id, "pipeline.deleted", {
+      objectType: "pipeline",
+      objectId: id,
+    });
     return json({ ok: true });
   });
 }

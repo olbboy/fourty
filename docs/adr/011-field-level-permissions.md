@@ -27,7 +27,9 @@ the response serializer.
   write. `parseBody` returns those keys for REST; GraphQL/MCP read them off the raw
   input.
 - Management API `/api/field-permissions` is **admin-only**; a fully-permissive
-  rule is stored as *no rule* (deleted).
+  rule is stored as *no rule* (deleted). The signed-in role reads its own
+  effective hide/freeze lists at `GET /api/field-permissions/me` so forms omit
+  blocked keys instead of sending defaults.
 
 ## Consequences
 - A redacted field is **absent** from the JSON (not null) — the UI already renders

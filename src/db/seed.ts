@@ -8,26 +8,34 @@ import { db, tables } from "./index";
 import { newId } from "@/lib/id";
 import { logActivity } from "@/lib/activity";
 import { recomputeContactScore } from "@/lib/services/contact-score";
+import { recomputeDealScore } from "@/lib/services/deal-score";
 
+/**
+ * Stage dot colours, in the design system's warm-repitched palette.
+ *
+ * These are data, not CSS: a stage row carries its own colour so a workspace can
+ * rename and recolour its pipeline. The seed therefore hardcodes the sRGB values
+ * the design system's `--stage-*` tokens resolve to, rather than referencing
+ * them. Lead is a warm neutral (the cool slate it used to be was the one value
+ * that visibly did not belong once the palette went warm), and the ladder keeps
+ * seven distinguishable hues so the kanban never collapses two stages into one
+ * colour.
+ */
 export const DEFAULT_STAGES = [
-  { name: "Lead", winProbability: 10, type: "open", color: "#94a3b8" },
-  { name: "Qualified", winProbability: 25, type: "open", color: "#60a5fa" },
-  { name: "Demo", winProbability: 45, type: "open", color: "#a78bfa" },
-  { name: "Proposal", winProbability: 65, type: "open", color: "#fbbf24" },
-  { name: "Negotiation", winProbability: 85, type: "open", color: "#fb923c" },
-  { name: "Won", winProbability: 100, type: "won", color: "#34d399" },
-  { name: "Lost", winProbability: 0, type: "lost", color: "#f87171" },
+  { name: "Lead", winProbability: 10, type: "open", color: "#a89f99" },
+  { name: "Qualified", winProbability: 25, type: "open", color: "#51a2ff" },
+  { name: "Demo", winProbability: 45, type: "open", color: "#a684ff" },
+  { name: "Proposal", winProbability: 65, type: "open", color: "#ffb900" },
+  { name: "Negotiation", winProbability: 85, type: "open", color: "#ff8b33" },
+  { name: "Won", winProbability: 100, type: "won", color: "#00d492" },
+  { name: "Lost", winProbability: 0, type: "lost", color: "#ff6467" },
 ] as const;
 
-/** Create the default sales pipeline if none exists. Returns pipeline id. */
-export async function ensureDefaultPipeline(): Promise<string> {
-  const existing = (await db.select().from(tables.pipelines).limit(1))[0];
-  if (existing) return existing.id;
+/** Insert a pipeline with the default 7-stage ladder. Returns pipeline id. */
+export async function createPipelineWithDefaultStages(name: string, isDefault = 0): Promise<string> {
   const pipelineId = newId();
   const now = Date.now();
-  await db
-    .insert(tables.pipelines)
-    .values({ id: pipelineId, name: "Sales Pipeline", isDefault: 1, createdAt: now });
+  await db.insert(tables.pipelines).values({ id: pipelineId, name, isDefault, createdAt: now });
   for (let i = 0; i < DEFAULT_STAGES.length; i++) {
     const s = DEFAULT_STAGES[i];
     await db.insert(tables.stages).values({
@@ -41,6 +49,13 @@ export async function ensureDefaultPipeline(): Promise<string> {
     });
   }
   return pipelineId;
+}
+
+/** Create the default sales pipeline if none exists. Returns pipeline id. */
+export async function ensureDefaultPipeline(): Promise<string> {
+  const rows = await db.select().from(tables.pipelines);
+  if (rows.length) return rows.find((p) => p.isDefault === 1)?.id ?? rows[0].id;
+  return createPipelineWithDefaultStages("Sales Pipeline", 1);
 }
 
 function daysAgo(n: number): number {
@@ -140,6 +155,7 @@ export async function seedDemoData(): Promise<void> {
     });
   }
 
+  const dealIds: string[] = [];
   const dealSpecs = [
     { name: "Acme — Assembly line retrofit", amount: 145000, currency: "USD", stage: "Negotiation", companyIdx: 0, contactIdx: 0, closeIn: 12 },
     { name: "Helios — Enterprise rollout", amount: 320000, currency: "EUR", stage: "Won", companyIdx: 3, contactIdx: 1, closeIn: -20 },
@@ -153,6 +169,7 @@ export async function seedDemoData(): Promise<void> {
   for (const d of dealSpecs) {
     const stage = stageByName.get(d.stage)!;
     const id = newId();
+    dealIds.push(id);
     const created = daysAgo(20 + Math.floor(Math.random() * 60));
     const closed = stage.type !== "open" ? daysAgo(Math.abs(d.closeIn)) : null;
     await db.insert(tables.deals).values({
@@ -220,6 +237,7 @@ export async function seedDemoData(): Promise<void> {
   });
 
   for (const id of contactIds) await recomputeContactScore(id);
+  for (const id of dealIds) await recomputeDealScore(id);
   console.log(
     `Seeded ${companyIds.length} companies, ${contactIds.length} contacts, ${dealSpecs.length} deals, ${taskSpecs.length} tasks, 2 workflows.`,
   );

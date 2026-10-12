@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { withAuth, authorize, json, apiError, parseBody } from "@/lib/api";
-import { audit } from "@/lib/audit";
 import { objectByApiName, getRecord, updateRecord, deleteRecord } from "@/lib/custom-objects";
 
 type Params = { params: Promise<{ object: string; id: string }> };
@@ -27,10 +26,12 @@ export async function PATCH(req: Request, { params }: Params) {
     if (!object) return apiError("Object not found", 404);
     const body = await parseBody(req, patch);
     if (!body.ok) return body.response;
-    const result = await updateRecord(object.id, id, body.data.data);
+    const result = await updateRecord(object.id, id, body.data.data, {
+      apiName: object.apiName,
+      actorId: auth.user?.id,
+    });
     if (result === undefined) return apiError("Record not found", 404);
     if (!result.ok) return apiError(result.error, 400);
-    await audit(auth.user?.id, "record.updated", { objectType: object.apiName, objectId: id });
     return json({ record: result.record });
   });
 }
@@ -42,8 +43,9 @@ export async function DELETE(req: Request, { params }: Params) {
     const { object: apiName, id } = await params;
     const object = await objectByApiName(apiName);
     if (!object) return apiError("Object not found", 404);
-    if (!(await deleteRecord(object.id, id))) return apiError("Record not found", 404);
-    await audit(auth.user?.id, "record.deleted", { objectType: object.apiName, objectId: id });
+    if (!(await deleteRecord(object.id, id, { apiName: object.apiName, actorId: auth.user?.id }))) {
+      return apiError("Record not found", 404);
+    }
     return json({ ok: true });
   });
 }

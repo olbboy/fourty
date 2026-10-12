@@ -1,9 +1,14 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { withAuth, authorize, json, apiError, parseBody } from "@/lib/api";
 import { audit } from "@/lib/audit";
-import { loadPipeline, lockPipelineWorkspace, stageInput, stageReorder, resolveStageValues } from "@/lib/pipelines";
-import { newId } from "@/lib/id";
+import {
+  createOpenStage,
+  loadPipeline,
+  lockPipelineWorkspace,
+  stageInput,
+  stageReorder,
+} from "@/lib/services/pipelines";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -18,29 +23,13 @@ export async function POST(req: Request, { params }: Params) {
     const pipeline = await loadPipeline(pipelineId);
     if (!pipeline) return apiError("Pipeline not found", 404);
 
-    const resolved = resolveStageValues(body.data);
-    if (resolved.error) return apiError(resolved.error);
-    const last = (
-      await db
-        .select({ order: tables.stages.order })
-        .from(tables.stages)
-        .where(eq(tables.stages.pipelineId, pipelineId))
-        .orderBy(desc(tables.stages.order))
-        .limit(1)
-    )[0];
-    const stageId = newId();
-    await db.insert(tables.stages).values({
-      id: stageId,
+    const stage = await createOpenStage({
       pipelineId,
       name: body.data.name,
-      order: (last?.order ?? -1) + 1,
-      winProbability: resolved.winProbability,
-      type: resolved.type,
-      color: body.data.color ?? "#6366f1",
+      winProbability: body.data.winProbability,
+      color: body.data.color,
     });
-    await audit(auth.user?.id, "stage.created", { objectType: "stage", objectId: stageId, meta: { pipelineId } });
-    const stage = (await db.select().from(tables.stages).where(eq(tables.stages.id, stageId)).limit(1))[0];
-    if (!stage) return apiError("Stage not found after creation", 500);
+    await audit(auth.user?.id, "stage.created", { objectType: "stage", objectId: stage.id, meta: { pipelineId } });
     return json({ stage }, { status: 201 });
   });
 }

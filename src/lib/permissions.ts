@@ -9,7 +9,8 @@
  * truth for `authorize()` in src/lib/api.ts.
  */
 
-export type Role = "admin" | "member" | "viewer";
+export const ROLES = ["admin", "member", "viewer"] as const;
+export type Role = (typeof ROLES)[number];
 export type Action = "read" | "create" | "update" | "delete";
 
 // CRM objects: members read+write, viewers read-only. Names match the API route
@@ -26,6 +27,13 @@ export const CRM_OBJECTS = [
   "custom-objects",
   "objects",
   "sync",
+  // Suggestions from the evidence ledger (ADR-018). A CRM object, not an
+  // administration one: a member settles what a background pass found about a
+  // record they own, and a viewer may read the reasoning without acting on it.
+  "facts",
+  // What the background agent has queued about a record, and why. A read-only
+  // surface today: work is booked by connecting a mailbox, not by asking.
+  "agent-tasks",
   "saved-views",
   "pipelines",
   "stages",

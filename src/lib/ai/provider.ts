@@ -2,8 +2,10 @@
  * BYO OpenAI-compatible LLM client for the in-app AI agent. Hand-rolled `fetch`
  * — no SDK, no new runtime dependency. One request shape (`/chat/completions`,
  * `stream: true`) covers OpenAI / Groq / OpenRouter and, best-effort, local
- * Ollama / LM Studio. AI is optional: an unset `AI_API_KEY` disables the whole
- * feature (route + UI), so `docker compose up` is unchanged.
+ * Ollama / LM Studio. AI is optional: no key disables the whole feature
+ * (route + UI), so `docker compose up` is unchanged. `AI_API_KEY` is the
+ * primary key; `GLM_API_KEY` / `ZAI_API_KEY` are aliases for Zhipu's
+ * OpenAI-compatible GLM endpoint.
  *
  * `streamChat` is a standalone exported function (not a class/singleton) so the
  * agent receives it by injection and tests never stub global `fetch` at the
@@ -12,18 +14,43 @@
 
 // ── Config (read at call time so tests can tune env) ─────────────────────────
 
+const OPENAI_DEFAULT_BASE = "https://api.openai.com/v1";
+const GLM_DEFAULT_BASE = "https://open.bigmodel.cn/api/paas/v4";
+const GLM_DEFAULT_MODEL = "glm-4.5-flash";
+
+function trimEnv(name: string): string {
+  return (process.env[name] ?? "").trim();
+}
+
+/** Zhipu GLM keys — same Bearer token as `AI_API_KEY` on an OpenAI-compatible `/v4`. */
+function glmApiKey(): string {
+  return trimEnv("GLM_API_KEY") || trimEnv("ZAI_API_KEY");
+}
+
+function aiApiKey(): string {
+  return trimEnv("AI_API_KEY") || glmApiKey();
+}
+
 /** AI is enabled only when a key is present. Gates the route + UI. */
 export function isAiEnabled(): boolean {
-  return !!process.env.AI_API_KEY;
+  return !!aiApiKey();
 }
 
 function config() {
+  const glmOnly = !trimEnv("AI_API_KEY") && !!glmApiKey();
+  const baseUrl = (trimEnv("AI_BASE_URL") || (glmOnly ? GLM_DEFAULT_BASE : OPENAI_DEFAULT_BASE)).replace(
+    /\/+$/,
+    "",
+  );
   return {
-    baseUrl: (process.env.AI_BASE_URL ?? "https://api.openai.com/v1").replace(/\/+$/, ""),
-    apiKey: process.env.AI_API_KEY ?? "",
-    model: process.env.AI_MODEL ?? "gpt-4o-mini",
+    baseUrl,
+    apiKey: aiApiKey(),
+    model: trimEnv("AI_MODEL") || (glmOnly ? GLM_DEFAULT_MODEL : "gpt-4o-mini"),
     // max_tokens is mandatory — an uncapped completion is unbounded spend.
     maxTokens: Number(process.env.AI_MAX_TOKENS ?? 1024),
+    // GLM-4.5+ thinking defaults on and writes to reasoning_content. OpenAI
+    // rejects the field, so it is GLM-host only.
+    glmWire: glmOnly || /bigmodel\.cn|api\.z\.ai/.test(baseUrl),
   };
 }
 
@@ -82,7 +109,7 @@ export class ProviderError extends Error {
 export async function* streamChat(
   args: StreamChatArgs,
 ): AsyncGenerator<StreamEvent, void, unknown> {
-  const { baseUrl, apiKey, model, maxTokens } = config();
+  const { baseUrl, apiKey, model, maxTokens, glmWire } = config();
   const res = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
@@ -92,6 +119,9 @@ export async function* streamChat(
       ...(args.tools?.length ? { tools: args.tools, tool_choice: "auto" } : {}),
       stream: true,
       max_tokens: maxTokens, // RT-E — never send an uncapped completion.
+      // Disable chain-of-thought so max_tokens is spent on the spoken answer
+      // (and tool calls), not on reasoning_content the UI never shows.
+      ...(glmWire ? { thinking: { type: "disabled" } } : {}),
     }),
   });
   if (!res.ok || !res.body) {
@@ -130,6 +160,7 @@ async function* parseCompletionStream(
         choices?: {
           delta?: {
             content?: string;
+            reasoning_content?: string;
             tool_calls?: {
               index?: number;
               id?: string;

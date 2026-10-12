@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { createElement, type ComponentType } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -32,42 +32,48 @@ describe("semantic design tokens", () => {
   const dark = customProperties(cssBlock(css, ".dark"));
 
   it.each([
-    "--danger",
-    "--success",
-    "--warning",
-    "--info",
-    "--surface-raised",
-    "--surface-hover",
-    "--border-strong",
+    "--bg",
+    "--surface",
+    "--surface-2",
+    "--border",
+    "--text",
+    "--text-muted",
   ])("defines %s in both light and dark themes", (token) => {
     expect(light.has(token), `${token} is missing from :root`).toBe(true);
     expect(dark.has(token), `${token} is missing from .dark`).toBe(true);
   });
 
-  it("exposes semantic colors to utilities", () => {
+  it("bridges the app palette into Base UI's shadcn utility vocabulary", () => {
     const theme = cssBlock(css, "@theme inline");
     for (const token of [
-      "danger",
-      "success",
-      "warning",
-      "info",
-      "surface-raised",
-      "surface-hover",
-      "line-strong",
+      "bg",
+      "surface",
+      "surface-2",
+      "line",
+      "ink",
+      "ink-muted",
+      "background",
+      "foreground",
+      "primary",
+      "primary-foreground",
+      "border",
+      "ring",
     ]) {
       expect(theme).toMatch(new RegExp(`--color-${token}\\s*:`));
     }
   });
 
-  it("provides reusable elevation, radius, and motion values", () => {
+  it("provides reusable radius and motion values", () => {
     for (const token of [
-      "--shadow-raised",
-      "--radius-control",
-      "--radius-surface",
+      "--radius",
       "--duration-fast",
-      "--ease-standard",
+      "--duration-base",
+      "--duration-enter",
+      "--ease-out",
+      "--ease-out-expo",
+      "--ease-in-out",
     ]) {
-      expect(light.has(token), `${token} is missing from :root`).toBe(true);
+      expect(css, `${token} is missing from globals.css`).toMatch(new RegExp(`${token}\\s*:`));
     }
   });
 
@@ -76,10 +82,9 @@ describe("semantic design tokens", () => {
     expect(coarsePointer, "Missing coarse-pointer minimum target rule").not.toBeNull();
     expect(Number(coarsePointer?.[1])).toBeGreaterThanOrEqual(44);
 
-    const reducedMotion = css.match(
-      /@media\s*\(prefers-reduced-motion\s*:\s*reduce\)\s*\{([\s\S]*?)\n\s*\}/i,
-    )?.[1];
-    expect(reducedMotion).toBeTruthy();
+    const reducedMotionStart = css.indexOf("@media (prefers-reduced-motion: reduce)");
+    expect(reducedMotionStart, "Missing reduced-motion rule").toBeGreaterThanOrEqual(0);
+    const reducedMotion = css.slice(reducedMotionStart);
     expect(reducedMotion).toMatch(/animation-duration\s*:/);
     expect(reducedMotion).toMatch(/transition-duration\s*:/);
     expect(reducedMotion).toMatch(/scroll-behavior\s*:\s*auto/);
@@ -87,29 +92,35 @@ describe("semantic design tokens", () => {
 });
 
 describe("shared UI render contracts", () => {
-  it("Button defaults to type=button and applies variant and size", async () => {
+  it("Base UI Button defaults to type=button and applies variant and size", async () => {
     const ui = (await import("@/components/ui")) as Record<string, unknown>;
     const defaultButton = render(ui.Button, {}, "Save");
-    const dangerButton = render(ui.Button, { variant: "danger" }, "Delete");
-    const compactButton = render(ui.Button, { size: "compact" }, "Compact");
+    const destructiveButton = render(ui.Button, { variant: "destructive" }, "Delete");
+    const compactButton = render(ui.Button, { size: "sm" }, "Compact");
 
     expect(defaultButton).toContain('type="button"');
-    expect(dangerButton).not.toBe(render(ui.Button, {}, "Delete"));
-    expect(compactButton).not.toBe(render(ui.Button, {}, "Compact"));
+    expect(defaultButton).toContain('data-slot="button"');
+    expect(destructiveButton).toContain("text-feedback-error");
+    expect(compactButton).toContain("h-8");
   });
 
-  it("Button announces busy state and cannot be activated", async () => {
+  it("Button uses Base UI's disabled contract for unavailable actions", async () => {
     const ui = (await import("@/components/ui")) as Record<string, unknown>;
-    const html = render(ui.Button, { busy: true }, "Save");
-    expect(html).toContain("disabled");
-    expect(html).toContain('aria-busy="true"');
+    const html = render(ui.Button, { disabled: true }, "Save");
+    expect(html).toMatch(/\bdisabled(?:="")?/);
+    expect(html).not.toContain('busy="true"');
   });
 
-  it("IconButton keeps its accessible label and safe default type", async () => {
+  it("icon-sized Buttons keep their accessible name and safe default type", async () => {
     const ui = (await import("@/components/ui")) as Record<string, unknown>;
-    const html = render(ui.IconButton, { "aria-label": "Delete Ada Lovelace" }, "×");
+    const html = render(
+      ui.Button,
+      { size: "icon", "aria-label": "Delete Ada Lovelace" },
+      "×",
+    );
     expect(html).toContain('type="button"');
     expect(html).toContain('aria-label="Delete Ada Lovelace"');
+    expect(html).toContain("size-9");
   });
 
   it("Field associates label, hint, and alerting error with its control", async () => {
@@ -151,12 +162,66 @@ describe("shared UI render contracts", () => {
     expect(spinner).toContain('role="status"');
     expect(spinner).toContain("Loading contacts");
   });
+
+  it("LoadError announces both full and compact failures", async () => {
+    const ui = (await import("@/components/ui")) as Record<string, unknown>;
+    const full = render(ui.LoadError, { onRetry: () => {} });
+    const compact = render(ui.LoadError, { compact: true, onRetry: () => {} });
+
+    expect(full).toContain('role="alert"');
+    expect(compact).toContain('role="alert"');
+  });
+
+  it("ContextToolbar keeps page-owned slots behind one labelled toolbar", async () => {
+    const ui = (await import("@/components/ui")) as Record<string, unknown>;
+    const html = render(
+      ui.ContextToolbar,
+      {
+        search: createElement("input", { "aria-label": "Search" }),
+        filters: createElement("button", { type: "button" }, "Filter"),
+        meta: "12 results",
+      },
+    );
+
+    expect(html).toContain('role="toolbar"');
+    expect(html).toContain('aria-label="Context toolbar"');
+    expect(html).toContain('aria-label="Search"');
+    expect(html).toContain("Filter");
+    expect(html).toContain("12 results");
+  });
+
+  it("keeps one Base UI primitive layer without legacy entrypoints", () => {
+    for (const relativePath of [
+      "src/components/button.tsx",
+      "src/components/select.tsx",
+      "src/components/dropdown-menu.tsx",
+      "src/components/async-state.tsx",
+      "src/components/context-toolbar.tsx",
+    ]) {
+      expect(
+        existsSync(path.resolve(__dirname, "..", relativePath)),
+        `${relativePath} must not reintroduce a parallel primitive entrypoint`,
+      ).toBe(false);
+    }
+
+    expect(source("package.json")).not.toContain("@radix-ui/react-");
+  });
 });
 
 describe("shared dialog behavior", () => {
-  it("AI chat uses DialogFocusScope instead of a private focus boundary", () => {
+  it("lets Base UI choose the first tabbable modal target", () => {
+    const ui = source("src/components/ui.tsx");
+    const modal = ui.slice(ui.indexOf("export function Modal"), ui.indexOf("/**\n * Compatibility wrapper"));
+
+    expect(modal).toContain("<DialogContent");
+    expect(modal).not.toContain("requestAnimationFrame");
+    expect(modal).not.toContain("contentRef.current?.focus");
+  });
+
+  it("AI chat delegates portal and focus behavior to the shared Base UI Sheet", () => {
     const aiChat = source("src/components/ai-chat.tsx");
-    expect(aiChat).toMatch(/import[\s\S]*DialogFocusScope[\s\S]*from\s+["']\.\/ui["']/);
-    expect(aiChat).toMatch(/<DialogFocusScope\b/);
+    expect(aiChat).toMatch(/Sheet[\s\S]*from\s+["']@\/components\/ui\/sheet["']/);
+    expect(aiChat).toContain("<Sheet ");
+    expect(aiChat).toContain("<SheetContent");
   });
 });

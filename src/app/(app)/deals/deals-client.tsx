@@ -3,13 +3,45 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Company, Contact, Deal, Pipeline, Stage } from "@/lib/types";
-import { convert, formatCompact, formatMoney } from "@/lib/currency";
-import { timeAgo, formatDate } from "@/lib/format";
-import { AsyncError, ContextToolbar, EmptyState, Modal, PageHeader, Spinner } from "@/components/ui";
-import { IconPlus, IconKanban, IconList, IconDownload } from "@/components/icons";
-import { Select } from "@/components/select";
+import type { Company, Contact, Deal, Pipeline } from "@/lib/types";
+import { formatCompact, formatMoney, sumUsd } from "@/lib/currency";
+import { timeAgo, formatDate, displayName } from "@/lib/format";
+import { washedChip } from "@/lib/contrast-color";
+import {
+  PageHeader,
+  Modal,
+  EmptyState,
+  Spinner,
+  LoadError,
+  StageDot,
+  HealthBadge,
+} from "@/components/ui";
+import {
+  IconPlus,
+  IconKanban,
+  IconList,
+  IconDownload,
+} from "@/components/icons";
+import { SavedViewsBar, type SavedView } from "@/components/saved-views";
 import { DealForm } from "./deal-form";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import { withViewTransition } from "@/lib/view-transition";
+import { canEditField } from "@/lib/field-access";
+import { pipelineBoard } from "@/lib/deals-board";
+import { useFieldAccess } from "@/hooks/use-field-access";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { useLocale, useT } from "@/lib/i18n/provider";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -20,12 +52,17 @@ function isDealsResponse(value: unknown): value is { deals: Deal[] } {
     isRecord(value) &&
     Array.isArray(value.deals) &&
     value.deals.every(
-      (deal) => isRecord(deal) && typeof deal.id === "string" && typeof deal.name === "string",
+      (deal) =>
+        isRecord(deal) &&
+        typeof deal.id === "string" &&
+        typeof deal.name === "string",
     )
   );
 }
 
-function isPipelinesResponse(value: unknown): value is { pipelines: Pipeline[] } {
+function isPipelinesResponse(
+  value: unknown,
+): value is { pipelines: Pipeline[] } {
   return (
     isRecord(value) &&
     Array.isArray(value.pipelines) &&
@@ -40,24 +77,47 @@ function isPipelinesResponse(value: unknown): value is { pipelines: Pipeline[] }
 }
 
 export function DealsClient() {
+  const t = useT();
+  const locale = useLocale();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const access = useFieldAccess("deals");
+  const canMoveStage = canEditField(access, "stageId");
   const [deals, setDeals] = useState<Deal[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [lookupsFailed, setLookupsFailed] = useState(false);
+  const [lookupsLoading, setLookupsLoading] = useState(true);
+  const [lookupRetry, setLookupRetry] = useState(0);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [pipelineId, setPipelineId] = useState<string>("");
+  const [q, setQ] = useState("");
   const [view, setView] = useState<"kanban" | "list">("kanban");
+  const [activeView, setActiveView] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(searchParams.get("new") === "1");
   const [dragId, setDragId] = useState<string | null>(null);
   const [overStage, setOverStage] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [pipelinesLoading, setPipelinesLoading] = useState(true);
-  const [pipelineError, setPipelineError] = useState<string | null>(null);
-  const requestRef = useRef<{ controller: AbortController; generation: number } | null>(null);
+  const requestRef = useRef<{
+    controller: AbortController;
+    generation: number;
+  } | null>(null);
   const generationRef = useRef(0);
-  const pipelineRequestRef = useRef<{ controller: AbortController; generation: number } | null>(null);
-  const pipelineGenerationRef = useRef(0);
+  const lookupRequestRef = useRef<{
+    controller: AbortController;
+    generation: number;
+  } | null>(null);
+  const lookupGenerationRef = useRef(0);
+
+  const applyView = useCallback((saved: SavedView | null) => {
+    setActiveView(saved?.id ?? null);
+    const cfg = saved?.config ?? {};
+    if (typeof cfg.filters?.pipelineId === "string")
+      setPipelineId(cfg.filters.pipelineId);
+    setQ(typeof cfg.filters?.q === "string" ? cfg.filters.q : "");
+    const nextView = cfg.filters?.view;
+    if (nextView === "list" || nextView === "kanban") setView(nextView);
+  }, []);
 
   const load = useCallback(async (): Promise<void> => {
     const generation = generationRef.current + 1;
@@ -65,241 +125,355 @@ export function DealsClient() {
     requestRef.current?.controller.abort();
     const controller = new AbortController();
     requestRef.current = { controller, generation };
-    setLoadError(null);
+    setFailed(false);
+    setDeals(null);
+
+    const params = new URLSearchParams();
+    if (q.trim()) params.set("q", q.trim());
+    const query = params.toString();
 
     try {
-      const res = await fetch("/api/deals", { signal: controller.signal });
-      if (!res.ok) throw new Error(`Deals request failed with ${res.status}`);
-      const body: unknown = await res.json();
-      if (!isDealsResponse(body)) throw new Error("Deals response was invalid");
-      if (generation !== generationRef.current || controller.signal.aborted) return;
-      setDeals(body.deals);
-      setLoadError(null);
-    } catch (error) {
-      if (controller.signal.aborted || generation !== generationRef.current) return;
-      setLoadError(error instanceof Error ? error.message : "Unable to load deals");
+      const response = await fetch(
+        query ? `/api/deals?${query}` : "/api/deals",
+        {
+          signal: controller.signal,
+        },
+      );
+      if (!response.ok)
+        throw new Error(`Deals request failed with ${response.status}`);
+      const payload: unknown = await response.json();
+      if (!isDealsResponse(payload))
+        throw new Error("Deals response was invalid");
+      if (generation !== generationRef.current || controller.signal.aborted)
+        return;
+      setDeals(payload.deals);
+      setFailed(false);
+    } catch {
+      if (controller.signal.aborted || generation !== generationRef.current)
+        return;
+      setFailed(true);
     } finally {
-      if (requestRef.current?.generation === generation) requestRef.current = null;
+      if (requestRef.current?.generation === generation)
+        requestRef.current = null;
     }
-  }, []);
+  }, [q]);
 
-  const loadPipelines = useCallback(async (): Promise<void> => {
-    const generation = pipelineGenerationRef.current + 1;
-    pipelineGenerationRef.current = generation;
-    pipelineRequestRef.current?.controller.abort();
+  const loadLookups = useCallback(async (): Promise<void> => {
+    const generation = lookupGenerationRef.current + 1;
+    lookupGenerationRef.current = generation;
+    lookupRequestRef.current?.controller.abort();
     const controller = new AbortController();
-    pipelineRequestRef.current = { controller, generation };
-    setPipelinesLoading(true);
-    setPipelineError(null);
+    lookupRequestRef.current = { controller, generation };
+    setLookupsLoading(true);
+    setLookupsFailed(false);
 
     try {
-      const response = await fetch("/api/pipelines", { signal: controller.signal });
-      if (!response.ok) throw new Error(`Pipelines request failed with ${response.status}`);
-      const body: unknown = await response.json();
-      if (!isPipelinesResponse(body) || body.pipelines.length === 0) {
+      const [p, co, ct] = await Promise.all(
+        ["/api/pipelines", "/api/companies", "/api/contacts"].map((url) =>
+          fetch(url, { signal: controller.signal }),
+        ),
+      );
+      if (!p.ok || !co.ok || !ct.ok) throw new Error("Lookups request failed");
+      const [pipelinePayload, companyPayload, contactPayload] =
+        await Promise.all(
+          [p, co, ct].map((response) => response.json() as Promise<unknown>),
+        );
+      if (
+        !isPipelinesResponse(pipelinePayload) ||
+        pipelinePayload.pipelines.length === 0
+      ) {
         throw new Error("No sales pipeline is available");
       }
-      if (generation !== pipelineGenerationRef.current || controller.signal.aborted) return;
-      setPipelines(body.pipelines);
+      if (
+        generation !== lookupGenerationRef.current ||
+        controller.signal.aborted
+      )
+        return;
+
+      const pipelineList = pipelinePayload.pipelines;
+      const companyList =
+        isRecord(companyPayload) && Array.isArray(companyPayload.companies)
+          ? (companyPayload.companies as Company[])
+          : [];
+      const contactList =
+        isRecord(contactPayload) && Array.isArray(contactPayload.contacts)
+          ? (contactPayload.contacts as Contact[])
+          : [];
+      setPipelines(pipelineList);
       setPipelineId((current) => {
-        if (body.pipelines.some((pipeline) => pipeline.id === current)) return current;
-        return (body.pipelines.find((pipeline) => pipeline.isDefault === 1) ?? body.pipelines[0]).id;
+        if (pipelineList.some((pipeline) => pipeline.id === current))
+          return current;
+        return (
+          pipelineList.find((pipeline) => pipeline.isDefault === 1) ??
+          pipelineList[0]
+        ).id;
       });
-    } catch (error) {
-      if (controller.signal.aborted || generation !== pipelineGenerationRef.current) return;
-      setPipelineError(error instanceof Error ? error.message : "Unable to load pipelines");
+      setCompanies(companyList);
+      setContacts(contactList);
+      setLookupsFailed(false);
+    } catch {
+      if (
+        controller.signal.aborted ||
+        generation !== lookupGenerationRef.current
+      )
+        return;
+      setPipelines([]);
+      setCompanies([]);
+      setContacts([]);
+      setLookupsFailed(true);
     } finally {
-      if (pipelineRequestRef.current?.generation === generation) {
-        pipelineRequestRef.current = null;
-        setPipelinesLoading(false);
+      if (lookupRequestRef.current?.generation === generation) {
+        lookupRequestRef.current = null;
+        setLookupsLoading(false);
       }
     }
   }, []);
 
   useEffect(() => {
-    void load();
-    void loadPipelines();
-    fetch("/api/companies")
-      .then((r) => r.json())
-      .then((d) => setCompanies(d.companies ?? []));
-    fetch("/api/contacts")
-      .then((r) => r.json())
-      .then((d) => setContacts(d.contacts ?? []));
-  }, [load, loadPipelines]);
+    generationRef.current += 1;
+    requestRef.current?.controller.abort();
+    requestRef.current = null;
+    const timer = setTimeout(() => void load(), q.trim() ? 150 : 0);
+    return () => clearTimeout(timer);
+  }, [load, q]);
+
+  useEffect(() => {
+    void loadLookups();
+    return () => {
+      lookupGenerationRef.current += 1;
+      lookupRequestRef.current?.controller.abort();
+      lookupRequestRef.current = null;
+    };
+  }, [loadLookups, lookupRetry]);
 
   useEffect(
     () => () => {
       generationRef.current += 1;
       requestRef.current?.controller.abort();
-      pipelineGenerationRef.current += 1;
-      pipelineRequestRef.current?.controller.abort();
+      requestRef.current = null;
     },
     [],
   );
 
-  const pipeline = pipelines.find((p) => p.id === pipelineId);
-  const pipelineDeals = useMemo(
-    () => (deals ?? []).filter((d) => d.pipelineId === pipelineId),
-    [deals, pipelineId],
+  const pipeline = pipelines.find((candidate) => candidate.id === pipelineId);
+  const board = useMemo(
+    () => pipelineBoard(deals ?? [], pipelineId, pipeline?.stages ?? []),
+    [deals, pipelineId, pipeline],
   );
+  const pipelineDeals = board.deals;
 
-  const companyName = (id: string | null) => companies.find((c) => c.id === id)?.name;
+  const companyName = (id: string | null): string | undefined =>
+    companies.find((company) => company.id === id)?.name;
 
-  async function moveDeal(dealId: string, stageId: string) {
-    // optimistic update
+  async function moveDeal(dealId: string, stageId: string): Promise<void> {
+    if (!canMoveStage) return;
     const previousDeals = deals;
-    setDeals((prev) =>
-      prev ? prev.map((d) => (d.id === dealId ? { ...d, stageId } : d)) : prev,
-    );
+    withViewTransition(() => {
+      setDeals((current) =>
+        current
+          ? current.map((deal) =>
+              deal.id === dealId ? { ...deal, stageId } : deal,
+            )
+          : current,
+      );
+      setDragId(null);
+    });
+
     try {
-      const res = await fetch(`/api/deals/${dealId}`, {
+      const response = await fetch(`/api/deals/${dealId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ stageId }),
       });
-      if (!res.ok) {
-        setDeals(previousDeals);
-        void load();
-      }
+      if (!response.ok) throw new Error("Deal move failed");
     } catch {
       setDeals(previousDeals);
       void load();
     }
   }
 
-  function stageTotals(stage: Stage) {
-    const inStage = pipelineDeals.filter((d) => d.stageId === stage.id);
-    const totalUsd = inStage.reduce((sum, d) => sum + convert(d.amount, d.currency, "USD"), 0);
-    return { count: inStage.length, totalUsd };
-  }
+  const hideAmounts = pipelineDeals.some((deal) => deal.amount == null);
+  const pipelineTotal = hideAmounts ? null : sumUsd(pipelineDeals);
 
   return (
     <div className="animate-fade-up">
       <PageHeader
-        title="Deals"
+        title={t("nav.deals")}
         subtitle={
           pipelineDeals.length
-            ? `${pipelineDeals.length} deals · ${formatCompact(
-                pipelineDeals.reduce((s, d) => s + convert(d.amount, d.currency, "USD"), 0),
-                "USD",
-              )} total`
+            ? pipelineTotal != null
+              ? t("page.deals.countTotal", {
+                  count: pipelineDeals.length,
+                  total: formatCompact(pipelineTotal, "USD"),
+                })
+              : t("page.deals.count", { count: pipelineDeals.length })
             : undefined
-        }
-      />
-
-      <ContextToolbar
-        className="mb-4"
-        filters={
-          pipelines.length > 1 ? (
-            <Select
-              aria-label="Select pipeline"
-              value={pipelineId}
-              onValueChange={setPipelineId}
-              className="min-h-11 !w-full sm:!w-[13rem] sm:min-h-0 md:!w-[15rem]"
-              options={pipelines.map((p) => ({ value: p.id, label: p.name }))}
-            />
-          ) : undefined
-        }
-        view={
-          <div className="flex rounded-lg border border-line" role="group" aria-label="Deal view">
-            <button
-              type="button"
-              onClick={() => setView("kanban")}
-              className={`min-h-11 min-w-11 rounded-l-lg px-2.5 py-2 sm:min-h-0 ${view === "kanban" ? "bg-accent-600/10 text-accent-600" : "text-ink-muted"}`}
-              aria-label="Kanban view"
-              aria-pressed={view === "kanban"}
-            >
-              <IconKanban width={16} height={16} aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setView("list")}
-              className={`min-h-11 min-w-11 rounded-r-lg px-2.5 py-2 sm:min-h-0 ${view === "list" ? "bg-accent-600/10 text-accent-600" : "text-ink-muted"}`}
-              aria-label="List view"
-              aria-pressed={view === "list"}
-            >
-              <IconList width={16} height={16} aria-hidden="true" />
-            </button>
-          </div>
         }
         actions={
           <>
-            <a href="/api/export/deals" className="btn-ghost min-h-11 sm:min-h-0">
-              <IconDownload width={15} height={15} />
-              <span className="hidden sm:inline">Export</span>
+            {pipelines.length > 1 && board.filterByPipeline && (
+              <NativeSelect
+                value={pipelineId}
+                onChange={(event) => {
+                  setPipelineId(event.target.value);
+                  setActiveView(null);
+                }}
+                aria-label={t("page.deals.pipelineAria")}
+              >
+                {pipelines.map((candidate) => (
+                  <option key={candidate.id} value={candidate.id}>
+                    {candidate.name}
+                  </option>
+                ))}
+              </NativeSelect>
+            )}
+            <div className="flex rounded-lg border border-line">
+              <button
+                type="button"
+                onClick={() => {
+                  setView("kanban");
+                  setActiveView(null);
+                }}
+                className={`px-2.5 py-2 ${view === "kanban" ? "bg-accent-600/10 text-accent-700" : "text-ink-muted"} rounded-l-lg`}
+                aria-label={t("page.deals.kanban")}
+                aria-pressed={view === "kanban"}
+              >
+                <IconKanban width={16} height={16} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setView("list");
+                  setActiveView(null);
+                }}
+                className={`px-2.5 py-2 ${view === "list" ? "bg-accent-600/10 text-accent-700" : "text-ink-muted"} rounded-r-lg`}
+                aria-label={t("page.deals.list")}
+                aria-pressed={view === "list"}
+              >
+                <IconList width={16} height={16} aria-hidden="true" />
+              </button>
+            </div>
+            <a
+              href="/api/export/deals"
+              className={cn(buttonVariants({ variant: "outline" }))}
+            >
+              <IconDownload width={15} height={15} aria-hidden="true" />
+              <span className="hidden sm:inline">{t("action.export")}</span>
             </a>
-            <button onClick={() => setShowNew(true)} className="btn-primary min-h-11 sm:min-h-0">
-              <IconPlus width={15} height={15} />
-              <span className="hidden sm:inline">New deal</span>
-              <span className="sm:hidden">New</span>
-            </button>
+            <Button
+              onClick={() => setShowNew(true)}
+              disabled={lookupsFailed || lookupsLoading}
+            >
+              <IconPlus width={15} height={15} aria-hidden="true" />
+              <span className="hidden sm:inline">{t("page.deals.new")}</span>
+              <span className="sm:hidden">{t("action.new")}</span>
+            </Button>
           </>
         }
       />
 
-      {loadError || pipelineError ? (
-        <AsyncError
-          message={pipelineError ? "We couldn't load sales pipelines." : "We couldn't load deals."}
-          hint="Check your connection and try again."
+      <SavedViewsBar
+        entity="deals"
+        activeId={activeView}
+        current={{
+          filters: {
+            ...(pipelineId ? { pipelineId } : {}),
+            ...(q.trim() ? { q: q.trim() } : {}),
+            view,
+          },
+        }}
+        onApply={applyView}
+      />
+
+      <div className="mb-4">
+        <Input
+          value={q}
+          onChange={(event) => {
+            setQ(event.target.value);
+            setActiveView(null);
+          }}
+          aria-label={t("page.deals.searchAria")}
+          placeholder={t("page.deals.searchPlaceholder")}
+          className="max-w-xs"
+        />
+      </div>
+
+      {failed ? (
+        <LoadError
           onRetry={() => {
-            if (loadError) void load();
-            if (pipelineError) void loadPipelines();
+            setDeals(null);
+            void load();
           }}
         />
-      ) : !deals || pipelinesLoading ? (
+      ) : lookupsFailed ? (
+        <LoadError onRetry={() => setLookupRetry((n) => n + 1)} />
+      ) : lookupsLoading || !deals ? (
         <Spinner label="Loading deals" />
       ) : !pipeline ? (
-        <AsyncError
-          message="No sales pipeline is available."
-          hint="Retry after a workspace administrator creates a pipeline."
-          onRetry={() => void loadPipelines()}
+        <EmptyState
+          title="No sales pipeline is available"
+          hint="Ask a workspace administrator to create a pipeline before adding deals."
         />
       ) : pipelineDeals.length === 0 ? (
         <EmptyState
-          title="No deals in this pipeline"
-          hint="Create your first deal and drag it through the stages as it progresses."
+          title={t("page.deals.empty")}
+          hint={t("page.deals.emptyHint")}
           action={
-            <button onClick={() => setShowNew(true)} className="btn-primary">
-              <IconPlus width={15} height={15} /> New deal
-            </button>
+            <Button onClick={() => setShowNew(true)}>
+              <IconPlus width={15} height={15} aria-hidden="true" />{" "}
+              {t("page.deals.new")}
+            </Button>
           }
         />
       ) : view === "kanban" ? (
         <div className="-mx-4 overflow-x-auto px-4 pb-4 md:-mx-8 md:px-8">
           <div className="flex min-w-max gap-3">
-            {pipeline.stages.map((stage) => {
-              const { count, totalUsd } = stageTotals(stage);
-              const inStage = pipelineDeals.filter((d) => d.stageId === stage.id);
+            {board.columns.map((column) => {
+              const stage = column.stage;
+              const inStage = column.deals;
+              const totalUsd = hideAmounts ? null : (sumUsd(inStage) ?? 0);
+              const canDrop = canMoveStage && stage != null;
               return (
                 <div
-                  key={stage.id}
+                  key={stage?.id ?? "unplaced"}
                   data-testid="stage-column"
-                  data-stage-id={stage.id}
-                  onDragOver={(e) => {
-                    e.preventDefault();
+                  {...(stage
+                    ? { "data-stage-id": stage.id }
+                    : { "data-unplaced": "true" })}
+                  onDragOver={(event) => {
+                    if (!canDrop) return;
+                    event.preventDefault();
                     setOverStage(stage.id);
                   }}
-                  onDragLeave={() => setOverStage((s) => (s === stage.id ? null : s))}
-                  onDrop={(e) => {
-                    e.preventDefault();
+                  onDragLeave={() =>
+                    setOverStage((current) =>
+                      current === stage?.id ? null : current,
+                    )
+                  }
+                  onDrop={(event) => {
+                    event.preventDefault();
                     setOverStage(null);
-                    if (dragId) moveDeal(dragId, stage.id);
+                    if (canDrop && dragId) void moveDeal(dragId, stage.id);
                     setDragId(null);
                   }}
                   className={`w-64 shrink-0 rounded-xl border p-2 transition ${
-                    overStage === stage.id
+                    stage && overStage === stage.id
                       ? "border-accent-500 bg-accent-600/5"
                       : "border-line bg-surface-2/50"
                   }`}
                 >
                   <div className="mb-2 flex items-center justify-between px-1.5 pt-1">
                     <div className="flex items-center gap-1.5">
-                      <span
-                        className="h-2 w-2 rounded-full"
-                        style={{ background: stage.color }}
-                      />
-                      <span className="text-sm font-semibold">{stage.name}</span>
-                      <span className="text-xs text-ink-muted">{count}</span>
+                      {stage && <StageDot color={stage.color} />}
+                      <span className="text-sm font-semibold">
+                        {stage?.name ??
+                          (board.groupByStage
+                            ? t("common.unassigned")
+                            : t("nav.deals"))}
+                      </span>
+                      <span className="text-xs text-ink-muted">
+                        {inStage.length}
+                      </span>
                     </div>
                     <span
                       data-testid="stage-total"
@@ -310,49 +484,59 @@ export function DealsClient() {
                   </div>
                   <div className="space-y-2">
                     {inStage.map((deal) => (
-                      <div
+                      <Card
+                        size="flush"
                         key={deal.id}
                         data-testid="deal-card"
                         data-deal-id={deal.id}
-                        draggable
-                        onDragStart={() => setDragId(deal.id)}
+                        draggable={canMoveStage}
+                        onDragStart={
+                          canMoveStage ? () => setDragId(deal.id) : undefined
+                        }
                         onDragEnd={() => setDragId(null)}
-                        onClick={(event) => {
-                          if (
-                            event.target instanceof Element &&
-                            event.target.closest("a,button,input,select,textarea,[role='button']")
-                          ) {
-                            return;
-                          }
-                          router.push(`/deals/${deal.id}`);
-                        }}
-                        className={`card cursor-grab p-3 shadow-sm transition hover:border-accent-400 active:cursor-grabbing ${
-                          dragId === deal.id ? "opacity-40" : ""
-                        }`}
+                        onClick={() => router.push(`/deals/${deal.id}`)}
+                        style={{ viewTransitionName: `deal-${deal.id}` }}
+                        className={`p-3 transition-colors hover:border-accent-400 ${
+                          canMoveStage
+                            ? "cursor-grab active:cursor-grabbing"
+                            : "cursor-pointer"
+                        } ${dragId === deal.id ? "opacity-40" : ""}`}
                       >
                         <p className="text-sm font-medium leading-snug">
-                          <Link href={`/deals/${deal.id}`} className="underline-offset-2 hover:underline">
-                            {deal.name}
+                          <Link
+                            href={`/deals/${deal.id}`}
+                            onClick={(event) => event.stopPropagation()}
+                            className="text-accent-700 hover:underline dark:text-accent-400"
+                          >
+                            {displayName(deal.name)}
                           </Link>
                         </p>
-                        <p className="mt-1 text-sm font-semibold text-accent-600 dark:text-accent-400">
+                        <p className="mt-1 text-sm font-semibold text-accent-700 dark:text-accent-400">
                           {formatMoney(deal.amount, deal.currency)}
                         </p>
+                        {deal.score != null && (
+                          <div className="mt-1.5">
+                            <HealthBadge score={deal.score} />
+                          </div>
+                        )}
                         <div className="mt-1.5 flex items-center justify-between text-xs text-ink-muted">
-                          <span className="truncate">{companyName(deal.companyId) ?? ""}</span>
+                          <span className="truncate">
+                            {companyName(deal.companyId) ?? ""}
+                          </span>
                           {deal.expectedCloseDate && (
                             <span
                               className={
-                                stage.type === "open" && deal.expectedCloseDate < Date.now()
-                                  ? "font-medium text-red-500"
+                                stage?.type === "open" &&
+                                deal.expectedCloseDate < Date.now()
+                                  ? "font-medium text-feedback-error"
                                   : ""
                               }
                             >
-                              {formatDate(deal.expectedCloseDate)}
+                              {formatDate(deal.expectedCloseDate, locale)}
                             </span>
                           )}
                         </div>
-                      </div>
+                      </Card>
                     ))}
                   </div>
                 </div>
@@ -361,65 +545,89 @@ export function DealsClient() {
           </div>
         </div>
       ) : (
-        <div className="card overflow-x-auto">
-          <table className="w-full min-w-[720px]">
-            <thead className="border-b border-line">
-              <tr>
-                <th className="th">Deal</th>
-                <th className="th">Amount</th>
-                <th className="th">Stage</th>
-                <th className="th">Company</th>
-                <th className="th">Close date</th>
-                <th className="th">Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pipelineDeals.map((d) => {
-                const stage = pipeline.stages.find((s) => s.id === d.stageId);
+        <Card size="flush">
+          <Table className="min-w-[720px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("col.deal")}</TableHead>
+                <TableHead>{t("col.amount")}</TableHead>
+                <TableHead>{t("col.health")}</TableHead>
+                <TableHead>{t("col.stage")}</TableHead>
+                <TableHead>{t("col.company")}</TableHead>
+                <TableHead>{t("col.closeDate")}</TableHead>
+                <TableHead>{t("col.updated")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {pipelineDeals.map((deal) => {
+                const stage = pipeline.stages.find(
+                  (candidate) => candidate.id === deal.stageId,
+                );
+                const chip = stage && washedChip(stage.color);
                 return (
-                  <tr
-                    key={d.id}
-                    onClick={(event) => {
-                      if (
-                        event.target instanceof Element &&
-                        event.target.closest("a,button,input,select,textarea,[role='button']")
-                      ) {
-                        return;
-                      }
-                      router.push(`/deals/${d.id}`);
-                    }}
-                    className="cursor-pointer border-b border-line/60 transition last:border-0 hover:bg-surface-2"
+                  <TableRow
+                    key={deal.id}
+                    onClick={() => router.push(`/deals/${deal.id}`)}
+                    className="cursor-pointer transition hover:bg-surface-2"
                   >
-                    <td className="td font-medium">
-                      <Link href={`/deals/${d.id}`} className="underline-offset-2 hover:underline">
-                        {d.name}
+                    <TableCell className="font-medium">
+                      <Link
+                        href={`/deals/${deal.id}`}
+                        onClick={(event) => event.stopPropagation()}
+                        className="text-accent-700 hover:underline dark:text-accent-400"
+                      >
+                        {displayName(deal.name)}
                       </Link>
-                    </td>
-                    <td className="td">{formatMoney(d.amount, d.currency)}</td>
-                    <td className="td">
-                      {stage && (
+                    </TableCell>
+                    <TableCell>
+                      {formatMoney(deal.amount, deal.currency)}
+                    </TableCell>
+                    <TableCell>
+                      <HealthBadge score={deal.score} />
+                    </TableCell>
+                    <TableCell>
+                      {stage && chip && (
                         <span
-                          className="chip"
-                          style={{ background: `${stage.color}20`, color: stage.color }}
+                          className="chip data-ink"
+                          style={
+                            {
+                              background: chip.background,
+                              "--data-ink-light": chip.light,
+                              "--data-ink-dark": chip.dark,
+                            } as React.CSSProperties
+                          }
                         >
                           {stage.name}
                         </span>
                       )}
-                    </td>
-                    <td className="td text-ink-muted">{companyName(d.companyId) ?? "—"}</td>
-                    <td className="td text-ink-muted">{formatDate(d.expectedCloseDate)}</td>
-                    <td className="td text-ink-muted">{timeAgo(d.updatedAt)}</td>
-                  </tr>
+                    </TableCell>
+                    <TableCell className="text-ink-muted">
+                      {companyName(deal.companyId) ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-ink-muted">
+                      {formatDate(deal.expectedCloseDate, locale)}
+                    </TableCell>
+                    <TableCell className="text-ink-muted">
+                      {timeAgo(deal.updatedAt, locale)}
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </Card>
       )}
 
-      <Modal title="New deal" open={showNew} onClose={() => setShowNew(false)} wide>
+      <Modal
+        title={t("page.deals.newModal")}
+        open={showNew}
+        onClose={() => setShowNew(false)}
+        wide
+      >
         <DealForm
+          key={pipelineId || "new"}
           pipelines={pipelines}
+          defaultPipelineId={pipelineId}
           companies={companies}
           contacts={contacts}
           onSaved={() => {
@@ -428,12 +636,17 @@ export function DealsClient() {
           }}
         />
       </Modal>
-      {view === "kanban" && (
+      {view === "kanban" && board.groupByStage && (
         <>
-          <p className="mt-2 text-xs text-ink-muted md:hidden">Swipe horizontally to see more stages.</p>
-          <p className="mt-2 hidden text-xs text-ink-muted md:block">
-            Drag cards between stages — totals and win-probability forecasts update instantly.
+          <p className="mt-2 text-xs text-ink-muted md:hidden">
+            Swipe horizontally to see more stages.
           </p>
+          {canMoveStage && (
+            <p className="mt-2 hidden text-xs text-ink-muted md:block">
+              Drag cards between stages — totals and win-probability forecasts
+              update instantly.
+            </p>
+          )}
         </>
       )}
     </div>

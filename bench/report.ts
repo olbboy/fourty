@@ -1,7 +1,7 @@
 /**
  * Benchmark report generator (Gate B5). Reads bench/results/*.json (produced by
  * run.sh: seed summaries, k6 scenario records, docker-stats snapshots) and
- * (re)writes BENCHMARK.md at the repo root. Numbers come ONLY from these files —
+ * (re)writes docs/benchmarks.md. Numbers come ONLY from these files —
  * a product with no results renders "—" (not measured), never a fabricated value.
  */
 import { readFileSync, writeFileSync, readdirSync, existsSync } from "node:fs";
@@ -285,5 +285,5 @@ if (!hasTwenty) {
   }
 }
 
-writeFileSync(path.join(ROOT, "BENCHMARK.md"), out.join("\n") + "\n");
-process.stdout.write(`BENCHMARK.md written (${sizes.length} dataset size(s)).\n`);
+writeFileSync(path.join(ROOT, "docs", "benchmarks.md"), out.join("\n") + "\n");
+process.stdout.write(`docs/benchmarks.md written (${sizes.length} dataset size(s)).\n`);

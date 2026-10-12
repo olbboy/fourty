@@ -93,6 +93,22 @@ async function mockDealFormApi(
     await route.continue();
   });
 
+  await page.route("**/api/field-permissions/me", async (route: Route) => {
+    const request = route.request();
+    if (new URL(request.url()).pathname === "/api/field-permissions/me" && request.method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          hidden: { deals: [] },
+          blockedWrites: { deals: [] },
+        }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+
   await page.route("**/api/deals**", async (route: Route) => {
     const request = route.request();
     if (new URL(request.url()).pathname === "/api/deals" && request.method() === "GET") {
@@ -163,10 +179,6 @@ async function mockDealFormApi(
   };
 }
 
-async function chooseOption(page: Page, name: string): Promise<void> {
-  await page.getByRole("listbox").getByRole("option", { name, exact: true }).click();
-}
-
 test("new deal resets its stage when the pipeline changes", async ({ page }) => {
   const api = await mockDealFormApi(page);
 
@@ -176,16 +188,14 @@ test("new deal resets its stage when the pipeline changes", async ({ page }) => 
 
   const stage = dialog.getByRole("combobox", { name: "Stage" });
   const pipeline = dialog.getByRole("combobox", { name: "Pipeline" });
-  await expect(pipeline).toContainText("Enterprise");
-  await expect(stage).toContainText("Discovery");
+  await expect(pipeline).toHaveValue("pipeline-enterprise");
+  await expect(stage).toHaveValue("enterprise-discovery");
 
-  await stage.click();
-  await chooseOption(page, "Proposal");
-  await expect(stage).toContainText("Proposal");
+  await stage.selectOption("enterprise-proposal");
+  await expect(stage).toHaveValue("enterprise-proposal");
 
-  await pipeline.click();
-  await chooseOption(page, "Sales");
-  await expect(stage).toContainText("Qualified");
+  await pipeline.selectOption("pipeline-sales");
+  await expect(stage).toHaveValue("sales-qualified");
 
   await dialog.getByRole("textbox", { name: "Deal name" }).fill("Enterprise expansion");
   await dialog.getByRole("button", { name: "Create deal" }).click();
@@ -199,13 +209,32 @@ test("new deal resets its stage when the pipeline changes", async ({ page }) => 
   expect(submittedPipeline?.stages.some((stage) => stage.id === submitted?.stageId)).toBe(true);
 });
 
+test("new deal requires a name before submitting", async ({ page }) => {
+  const api = await mockDealFormApi(page);
+
+  await page.goto("/deals?new=1");
+  const dialog = page.getByRole("dialog", { name: "New deal" });
+  await expect(dialog).toBeVisible();
+
+  const name = dialog.getByRole("textbox", { name: "Deal name" });
+  await dialog.getByRole("button", { name: "Create deal" }).click();
+
+  expect(await name.evaluate((element) => (element as HTMLInputElement).validity.valid)).toBe(false);
+  expect(api.getPostCount()).toBe(0);
+
+  await name.fill("Validated deal");
+  await dialog.getByRole("button", { name: "Create deal" }).click();
+  await expect.poll(() => api.getPostCount()).toBe(1);
+  await expect(dialog).toBeHidden();
+});
+
 test("new deal submits only once for duplicate same-tick requestSubmit calls", async ({ page }) => {
   const api = await mockDealFormApi(page);
 
   await page.goto("/deals?new=1");
   const dialog = page.getByRole("dialog", { name: "New deal" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole("combobox", { name: "Pipeline" })).toContainText("Enterprise");
+  await expect(dialog.getByRole("combobox", { name: "Pipeline" })).toHaveValue("pipeline-enterprise");
   await dialog.getByRole("textbox", { name: "Deal name" }).fill("Duplicate guard");
 
   await dialog.locator("form").evaluate((form) => {
@@ -224,7 +253,7 @@ test("new deal can retry a network failure without losing entered values", async
   await page.goto("/deals?new=1");
   const dialog = page.getByRole("dialog", { name: "New deal" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole("combobox", { name: "Pipeline" })).toContainText("Enterprise");
+  await expect(dialog.getByRole("combobox", { name: "Pipeline" })).toHaveValue("pipeline-enterprise");
 
   const name = dialog.getByRole("textbox", { name: "Deal name" });
   const amount = dialog.getByRole("spinbutton", { name: "Amount" });
@@ -232,7 +261,7 @@ test("new deal can retry a network failure without losing entered values", async
   await amount.fill("12500");
   await dialog.getByRole("button", { name: "Create deal" }).click();
 
-  await expect(dialog.getByRole("alert")).toContainText("try again");
+  await expect(dialog.getByRole("alert")).toContainText("Failed to save");
   await expect(name).toHaveValue("Retryable deal");
   await expect(amount).toHaveValue("12500");
   await expect(dialog.getByRole("button", { name: "Create deal" })).toBeEnabled();

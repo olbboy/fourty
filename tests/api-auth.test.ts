@@ -6,11 +6,12 @@ import { resetDb, createWorkspace } from "./pg-setup";
 /**
  * Authorization enforcement on the public REST surface.
  *
- * Fourty has no multi-tenancy (a single global dataset — see PARITY.md), so the
- * strongest isolation guarantee it CAN make is: the API rejects every request
- * that is not backed by a valid, non-revoked credential. These tests lock that
- * in against regressions — both dynamically (invalid/revoked keys are refused)
- * and statically (no route file may forget to call `authenticate()`).
+ * Fourty is multi-tenant with Postgres RLS. The strongest isolation guarantee it
+ * makes is: the API rejects every request that is not backed by a valid,
+ * non-revoked credential, and RLS confines queries to the caller's workspace.
+ * These tests lock that in against regressions — both dynamically
+ * (invalid/revoked keys are refused) and statically (no route file may forget
+ * to call `authenticate()`).
  */
 describe("API-key auth enforcement", () => {
   const GOOD = "frty_valid_key";
@@ -79,6 +80,12 @@ describe("static guard: every API route authenticates", () => {
     // redirected to the IdP and back; auth comes from the verified ID token.
     "auth/sso/[id]/start",
     "auth/sso/[id]/callback",
+    // Forgot-password runs before sign-in by definition. Neither leaks account
+    // existence (identical 200 either way; one generic error for every bad
+    // token), both are IP-rate-limited, and the reset itself is authorized by
+    // the one-time emailed token, invites-style.
+    "auth/forgot",
+    "auth/reset",
     "health", // liveness probe — pings DB only, exposes no data
     "metrics", // Prometheus scrape — aggregate counters only, no PII (Gate B4)
   ]);
@@ -104,12 +111,18 @@ describe("static guard: every API route authenticates", () => {
     // A data route must go through withAuth() (which authenticates AND enters the
     // workspace RLS transaction). Bare authenticate()/getSessionUser() is allowed
     // for routes that don't touch tenant data or predate a workspace (accept).
+    // toRouteHandler() is withAuth() plus the action kernel — a route built from
+    // it cannot skip authentication, because it never writes the handler itself.
+    // withAuthOutsideTransaction() authenticates identically and leaves the
+    // transaction to the handler, for the routes that call a provider.
     const missing: string[] = [];
     for (const { rel, file } of files) {
       if (PUBLIC_ROUTES.has(rel)) continue;
       const src = readFileSync(file, "utf8");
       if (
         !src.includes("withAuth(") &&
+        !src.includes("withAuthOutsideTransaction(") &&
+        !src.includes("toRouteHandler(") &&
         !src.includes("authenticate(") &&
         !src.includes("getSessionUser(")
       )
@@ -129,6 +142,10 @@ describe("static guard: every API route authenticates", () => {
       "auth/login",
       "auth/logout",
       "auth/setup",
+      // Like members/accept: authorized by a one-time emailed token, not a
+      // workspace role — the caller has no session to hold a role in yet.
+      "auth/forgot",
+      "auth/reset",
       "members/accept",
       "graphql",
       // MCP HTTP transport: RBAC enforced per-tool via can()/requireRole inside
@@ -150,8 +167,13 @@ describe("static guard: every API route authenticates", () => {
     for (const { rel, file } of files) {
       if (EXEMPT.has(rel)) continue;
       const src = readFileSync(file, "utf8");
-      const mutates = /export async function (POST|PATCH|DELETE)\b/.test(src);
-      if (mutates && !src.includes("authorize(")) missing.push(rel);
+      // Matches a handler however it is exported: written out as a function, or
+      // bound from toRouteHandler(). Missing the second form would let every
+      // route built on the kernel slip past this check unnoticed.
+      const mutates = /export (async function|const) (POST|PATCH|DELETE)\b/.test(src);
+      // An action declares the object and verb it needs, and the kernel refuses
+      // the call before running it — the same can() predicate authorize() wraps.
+      if (mutates && !src.includes("authorize(") && !src.includes("toRouteHandler(")) missing.push(rel);
     }
     expect(missing, `mutating routes missing authorize(): ${missing.join(", ")}`).toEqual([]);
   });

@@ -1,29 +1,53 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { CustomFieldDef } from "@/lib/types";
-import { Field } from "./ui";
-import { Select } from "./select";
+import { Field, LoadError } from "./ui";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Input } from "@/components/ui/input";
 
 export function useCustomFields(entity: "contact" | "company" | "deal") {
   const [defs, setDefs] = useState<CustomFieldDef[]>([]);
+  const [failed, setFailed] = useState(false);
+  const [retry, setRetry] = useState(0);
+  const reload = useCallback(() => setRetry((n) => n + 1), []);
+
   useEffect(() => {
+    let cancelled = false;
+    setFailed(false);
     fetch(`/api/custom-fields?entity=${entity}`)
-      .then((r) => (r.ok ? r.json() : { fields: [] }))
-      .then((d) => setDefs(d.fields ?? []));
-  }, [entity]);
-  return defs;
+      .then(async (r) => {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json();
+      })
+      .then((d) => {
+        if (!cancelled) setDefs(Array.isArray(d.fields) ? d.fields : []);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [entity, retry]);
+
+  return { defs, failed, retry: reload };
 }
 
 export function CustomFieldsInputs({
   defs,
   values,
   onChange,
+  failed,
+  onRetry,
 }: {
   defs: CustomFieldDef[];
   values: Record<string, unknown>;
   onChange: (values: Record<string, unknown>) => void;
+  failed?: boolean;
+  onRetry?: () => void;
 }) {
+  if (failed && onRetry) return <LoadError compact onRetry={onRetry} />;
   if (defs.length === 0) return null;
 
   function set(key: string, value: unknown) {
@@ -35,12 +59,18 @@ export function CustomFieldsInputs({
       {defs.map((def) => (
         <Field key={def.id} label={def.label}>
           {def.type === "select" ? (
-            <Select
-              className="input"
+            <NativeSelect
               value={String(values[def.key] ?? "")}
-              onValueChange={(value) => set(def.key, value || null)}
-              options={[{ value: "", label: "—" }, ...def.options.map((o) => ({ value: o, label: o }))]}
-            />
+              onChange={(e) => set(def.key, e.target.value || null)}
+              className="w-full"
+            >
+              <option value="">—</option>
+              {def.options.map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
+            </NativeSelect>
           ) : def.type === "checkbox" ? (
             <input
               type="checkbox"
@@ -49,8 +79,7 @@ export function CustomFieldsInputs({
               onChange={(e) => set(def.key, e.target.checked)}
             />
           ) : (
-            <input
-              className="input"
+            <Input
               type={def.type === "number" ? "number" : def.type === "date" ? "date" : "text"}
               value={String(values[def.key] ?? "")}
               onChange={(e) =>
@@ -75,10 +104,15 @@ export function CustomFieldsInputs({
 export function CustomFieldsDisplay({
   defs,
   values,
+  failed,
+  onRetry,
 }: {
   defs: CustomFieldDef[];
   values: Record<string, unknown>;
+  failed?: boolean;
+  onRetry?: () => void;
 }) {
+  if (failed && onRetry) return <LoadError compact onRetry={onRetry} />;
   if (defs.length === 0) return null;
   return (
     <>

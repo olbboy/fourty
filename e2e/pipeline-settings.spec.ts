@@ -1,4 +1,4 @@
-import { test, expect, type Page, type Route } from "@playwright/test";
+import { test, expect, type Locator, type Page, type Route } from "@playwright/test";
 import { RESTRICTED_STORAGE_STATE } from "./helpers/restricted-session";
 
 type TestStage = {
@@ -159,16 +159,20 @@ async function mockPipelineApi(
       if (method === "POST") {
         const body = (request.postDataJSON() ?? {}) as Partial<TestStage> & { name: string };
         const current = pipelines[pipelineIndex];
+        const firstTerminal = current.stages.findIndex((stage) => stage.type === "won" || stage.type === "lost");
+        const insertAt = firstTerminal < 0 ? current.stages.length : firstTerminal;
         const stage: TestStage = {
           id: `stage-created-${nextStage++}`,
           pipelineId,
           name: body.name,
-          order: current.stages.length,
+          order: insertAt,
           winProbability: body.winProbability ?? 50,
-          type: body.type ?? "open",
-          color: body.color ?? "#6366f1",
+          type: "open",
+          color: body.color ?? "#a89f99",
         };
-        const next = { ...current, stages: [...current.stages, stage] };
+        const stages = [...current.stages];
+        stages.splice(insertAt, 0, stage);
+        const next = { ...current, stages: stages.map((currentStage, order) => ({ ...currentStage, order })) };
         pipelines = pipelines.map((pipeline, index) => (index === pipelineIndex ? next : pipeline));
         await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ stage }) });
         return;
@@ -226,6 +230,20 @@ async function mockPipelineApi(
   return { getCount: () => getCount, createCount: () => createCount, reorderCount: () => reorderCount };
 }
 
+async function confirmDeletion(page: Page, control: Locator, action = "Delete"): Promise<void> {
+  await control.click();
+  const confirmation = page.getByRole("dialog");
+  await expect(confirmation).toBeVisible();
+  await confirmation.getByRole("button", { name: action, exact: true }).click();
+  await expect(confirmation).toBeHidden();
+}
+
+function pipelineButton(card: Locator, name: string): Locator {
+  return card
+    .locator('div[aria-label="Pipelines"]')
+    .getByRole("button", { name: new RegExp(`^${name}(?: Default)?$`) });
+}
+
 test.describe("Pipeline settings", () => {
   test("loads, creates, edits, and deletes pipelines and stages", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -234,24 +252,24 @@ test.describe("Pipeline settings", () => {
 
     const card = page.getByRole("region", { name: "Pipelines" });
     await expect(card).toBeVisible();
-    await expect(card.getByRole("button", { name: "Sales" })).toBeVisible();
+    const pipelineList = card.locator('div[aria-label="Pipelines"]');
+    await expect(pipelineButton(card, "Sales")).toBeVisible();
     await expect(card.getByText("Qualified", { exact: true })).toBeVisible();
 
     await card.getByRole("button", { name: "New pipeline" }).click();
     const createDialog = page.getByRole("dialog", { name: "New pipeline" });
     await createDialog.getByLabel("Pipeline name").fill("Partner");
     await createDialog.getByRole("button", { name: "Create pipeline" }).click();
-    await expect(card.getByRole("button", { name: "Partner" })).toBeVisible();
+    await expect(pipelineButton(card, "Partner")).toBeVisible();
 
-    await card.getByRole("button", { name: "Partner" }).click();
+    await pipelineButton(card, "Partner").click();
     await card.getByRole("button", { name: "Rename pipeline" }).click();
     const renameDialog = page.getByRole("dialog", { name: "Rename pipeline" });
     await renameDialog.getByLabel("Pipeline name").fill("Partners");
     await renameDialog.getByRole("button", { name: "Save" }).click();
-    await expect(card.getByRole("button", { name: "Partners" })).toBeVisible();
+    await expect(pipelineButton(card, "Partners")).toBeVisible();
 
     await card.getByRole("button", { name: "Set as default" }).click();
-    const pipelineList = card.locator('div[aria-label="Pipelines"]');
     const partnersButton = pipelineList.getByRole("button", { name: /^Partners/ });
     await expect(partnersButton).toHaveAttribute("aria-pressed", "true");
     await expect(partnersButton).toContainText("Default");
@@ -259,30 +277,29 @@ test.describe("Pipeline settings", () => {
     await card.getByRole("button", { name: "Add stage" }).click();
     const stageDialog = page.getByRole("dialog", { name: "Add stage" });
     await stageDialog.getByLabel("Stage name").fill("Negotiation");
-    const stageType = stageDialog.getByRole("combobox", { name: "Type" });
-    await stageType.click();
-    await page.getByRole("listbox").getByRole("option", { name: "Won" }).click();
-    await expect(stageType).toContainText("Won");
+    await expect(stageDialog.getByRole("combobox", { name: "Type" })).toHaveCount(0);
     await stageDialog.getByRole("button", { name: "Add stage" }).click();
     await expect(card.getByText("Negotiation", { exact: true })).toBeVisible();
-    await expect(card.getByRole("listitem", { name: "Negotiation" })).toContainText("Won");
+    await expect(card.getByRole("listitem", { name: "Negotiation" })).toContainText("Open");
 
     const negotiation = card.getByRole("listitem", { name: /Negotiation/ });
     await negotiation.getByRole("button", { name: "Edit stage Negotiation" }).click();
     const editStageDialog = page.getByRole("dialog", { name: /Edit stage/ });
     await editStageDialog.getByLabel("Stage name").fill("Negotiation ready");
+    await expect(editStageDialog.getByRole("combobox", { name: "Type" })).toHaveCount(0);
     await editStageDialog.getByRole("button", { name: "Save" }).click();
     await expect(card.getByText("Negotiation ready", { exact: true })).toBeVisible();
 
-    page.once("dialog", (dialog) => dialog.accept());
-    await card.getByRole("button", { name: "Delete stage Negotiation ready" }).click();
+    await confirmDeletion(
+      page,
+      card.getByRole("button", { name: "Delete stage Negotiation ready" }),
+    );
     await expect(card.getByText("Negotiation ready", { exact: true })).toHaveCount(0);
 
-    await pipelineList.getByRole("button", { name: /^Sales/ }).click();
+    await pipelineButton(card, "Sales").click();
     await card.getByRole("button", { name: "Set as default" }).click();
     await partnersButton.click();
-    page.once("dialog", (dialog) => dialog.accept());
-    await card.getByRole("button", { name: "Delete", exact: true }).click();
+    await confirmDeletion(page, card.getByRole("button", { name: "Delete pipeline Partners" }));
     await expect(pipelineList.getByRole("button", { name: /^Partners/ })).toHaveCount(0);
   });
 
@@ -293,10 +310,10 @@ test.describe("Pipeline settings", () => {
     const card = page.getByRole("region", { name: "Pipelines" });
     await expect(card.getByRole("alert")).toContainText("Pipeline service unavailable");
     await card.getByRole("button", { name: "Retry" }).click();
-    await expect(card.getByRole("button", { name: "Sales" })).toBeVisible();
+    await expect(pipelineButton(card, "Sales")).toBeVisible();
     expect(api.getCount()).toBe(2);
 
-    const sales = card.getByRole("button", { name: "Sales" });
+    const sales = pipelineButton(card, "Sales");
     await sales.click();
     const qualified = card.getByRole("listitem", { name: /Qualified/ });
     await qualified.getByRole("button", { name: "Move Qualified down" }).click();
@@ -331,7 +348,7 @@ test.describe("Pipeline settings", () => {
     await expect(card.getByRole("alert")).toContainText("Pipeline service unavailable");
     await expect(card.getByRole("button", { name: "Retry" })).toBeVisible();
     await card.getByRole("button", { name: "Retry" }).click();
-    await expect(card.getByRole("button", { name: "Partner" })).toBeVisible();
+    await expect(pipelineButton(card, "Partner")).toBeVisible();
     expect(api.getCount()).toBe(3);
   });
 
@@ -354,7 +371,7 @@ test.describe("Pipeline settings", () => {
     expect(api.createCount()).toBe(1);
 
     await dialog.getByRole("button", { name: "Create pipeline" }).click();
-    await expect(card.getByRole("button", { name: "Partner" })).toBeVisible();
+    await expect(pipelineButton(card, "Partner")).toBeVisible();
     expect(api.createCount()).toBe(2);
   });
 
@@ -419,7 +436,7 @@ test.describe("Pipeline settings", () => {
     await expect(pipelineSelect).toBeFocused();
   });
 
-  test("keeps a select Escape inside its modal and constrains long mobile options", async ({ page }) => {
+  test("constrains long mobile options and keeps stage type read-only", async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 720 });
     await mockPipelineApi(page, { longPipelineName: true });
     await page.goto("/settings");
@@ -439,14 +456,8 @@ test.describe("Pipeline settings", () => {
     const dialog = page.getByRole("dialog", { name: "Add stage" });
     const stageName = dialog.getByLabel("Stage name");
     await stageName.fill("Evaluation");
-    const stageType = dialog.getByRole("combobox", { name: "Type" });
-    await stageType.click();
-    await expect(listbox).toBeVisible();
-    await page.keyboard.press("Escape");
-
-    await expect(listbox).toBeHidden();
+    await expect(dialog.getByRole("combobox", { name: "Type" })).toHaveCount(0);
     await expect(dialog).toBeVisible();
     await expect(stageName).toHaveValue("Evaluation");
-    await expect(stageType).toBeFocused();
   });
 });

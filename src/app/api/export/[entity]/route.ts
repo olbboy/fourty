@@ -1,7 +1,8 @@
 import { asc, inArray } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { withAuth, authorize, apiError } from "@/lib/api";
+import { withAuth, apiError, authorize } from "@/lib/api";
 import { toSpreadsheetCsv, type CsvCell } from "@/lib/csv";
+import { customFieldDefsOf, parseCustomBlob, type CustomEntity } from "@/lib/custom-fields";
 import {
   companyOrderBy,
   companyQueryPolicy,
@@ -9,60 +10,64 @@ import {
   normalizeCompanyQuery,
   parseSelectedCompanyIds,
 } from "@/lib/company-query";
-import { canReadField, loadFieldPolicy, type FieldPolicy } from "@/lib/field-permissions";
+import { canReadField, loadFieldPolicy, redact, type FieldPolicy } from "@/lib/field-permissions";
 
 type ExportEntity = "contacts" | "companies" | "deals";
 type ExportScope = "all" | "filtered" | "selected";
+type HeaderFields = Record<string, string>;
 
-type Column<Row> = {
-  header: string;
-  field: string;
-  value: (row: Row, stages?: Map<string, string>) => CsvCell;
-};
+/** Keep derived CSV names tied to the stored field used by field permissions. */
+function readableHeaders(
+  policy: FieldPolicy | null,
+  object: string,
+  headers: string[],
+  fields: HeaderFields = {},
+): string[] {
+  const sample = Object.fromEntries(headers.map((header) => [fields[header] ?? header, true]));
+  const kept = redact(policy, object, sample);
+  return headers.filter((header) => (fields[header] ?? header) in kept);
+}
 
-const CONTACT_COLUMNS: Column<typeof tables.contacts.$inferSelect>[] = [
-  { header: "firstName", field: "firstName", value: (row) => row.firstName },
-  { header: "lastName", field: "lastName", value: (row) => row.lastName },
-  { header: "email", field: "email", value: (row) => row.email },
-  { header: "phone", field: "phone", value: (row) => row.phone },
-  { header: "jobTitle", field: "jobTitle", value: (row) => row.jobTitle },
-  { header: "status", field: "status", value: (row) => row.status },
-  { header: "source", field: "source", value: (row) => row.source },
-  { header: "score", field: "score", value: (row) => row.score },
-  { header: "linkedin", field: "linkedin", value: (row) => row.linkedin },
-  { header: "city", field: "city", value: (row) => row.city },
-  { header: "country", field: "country", value: (row) => row.country },
-];
+function project(
+  headers: string[],
+  visible: string[],
+  values: CsvCell[],
+): CsvCell[] {
+  const byName = Object.fromEntries(headers.map((header, index) => [header, values[index]]));
+  return visible.map((header) => byName[header]);
+}
 
-const COMPANY_COLUMNS: Column<typeof tables.companies.$inferSelect>[] = [
-  { header: "name", field: "name", value: (row) => row.name },
-  { header: "domain", field: "domain", value: (row) => row.domain },
-  { header: "industry", field: "industry", value: (row) => row.industry },
-  { header: "size", field: "size", value: (row) => row.size },
-  { header: "website", field: "website", value: (row) => row.website },
-  { header: "city", field: "city", value: (row) => row.city },
-  { header: "country", field: "country", value: (row) => row.country },
-  { header: "annualRevenue", field: "annualRevenue", value: (row) => row.annualRevenue },
-];
+function customCsvCell(type: string, value: unknown): string | number {
+  if (value === undefined || value === null || value === "") return "";
+  if (type === "date") {
+    const n = typeof value === "number" ? value : Date.parse(String(value));
+    return Number.isFinite(n) ? new Date(n).toISOString().slice(0, 10) : "";
+  }
+  if (type === "checkbox") return value === true || value === "true" || value === 1 || value === "1" ? "true" : "false";
+  if (type === "number") {
+    const n = typeof value === "number" ? value : Number(value);
+    return Number.isFinite(n) ? n : "";
+  }
+  return String(value);
+}
 
-const DEAL_COLUMNS: Column<typeof tables.deals.$inferSelect>[] = [
-  { header: "name", field: "name", value: (row) => row.name },
-  { header: "amount", field: "amount", value: (row) => row.amount },
-  { header: "currency", field: "currency", value: (row) => row.currency },
-  // `stage` is derived from stageId; both names are honored for policy rules so
-  // a workspace cannot hide one representation and still receive the other.
-  { header: "stage", field: "stageId", value: (row, stages) => stages?.get(row.stageId) ?? "" },
-  {
-    header: "expectedCloseDate",
-    field: "expectedCloseDate",
-    value: (row) => (row.expectedCloseDate ? new Date(row.expectedCloseDate).toISOString().slice(0, 10) : ""),
-  },
-  {
-    header: "closedAt",
-    field: "closedAt",
-    value: (row) => (row.closedAt ? new Date(row.closedAt).toISOString().slice(0, 10) : ""),
-  },
-];
+/** Append current custom-field definitions while keeping the stored blob private. */
+async function customCsvExtra(
+  entity: CustomEntity,
+  object: string,
+  policy: FieldPolicy | null,
+  reserved: string[],
+): Promise<{ headers: string[]; cells: (blob: string) => (string | number)[] }> {
+  if (!canReadField(policy, object, "custom")) return { headers: [], cells: () => [] };
+  const defs = (await customFieldDefsOf(entity)).filter((definition) => !reserved.includes(definition.key));
+  return {
+    headers: defs.map((definition) => definition.key),
+    cells: (blob) => {
+      const data = parseCustomBlob(blob);
+      return defs.map((definition) => customCsvCell(definition.type, data[definition.key]));
+    },
+  };
+}
 
 function isExportEntity(entity: string): entity is ExportEntity {
   return entity === "contacts" || entity === "companies" || entity === "deals";
@@ -72,34 +77,13 @@ function isExportScope(scope: string): scope is ExportScope {
   return scope === "all" || scope === "filtered" || scope === "selected";
 }
 
-function readableColumns<Row>(policy: FieldPolicy | null, object: string, columns: Column<Row>[]): Column<Row>[] {
-  return columns.filter((column) => {
-    if (!canReadField(policy, object, column.field)) return false;
-    return column.field !== "stageId" || canReadField(policy, object, "stage");
-  });
-}
-
-function serializeColumns<Row>(
-  policy: FieldPolicy | null,
-  object: string,
-  columns: Column<Row>[],
-  rows: Row[],
-  stages?: Map<string, string>,
-): string {
-  const readable = readableColumns(policy, object, columns);
-  return toSpreadsheetCsv(
-    readable.map((column) => column.header),
-    rows.map((row) => readable.map((column) => column.value(row, stages))),
-  );
-}
-
 export async function GET(req: Request, { params }: { params: Promise<{ entity: string }> }) {
   return withAuth(req, async (auth) => {
     const { entity } = await params;
     if (!isExportEntity(entity)) return apiError("Unknown entity", 404);
 
-    // Export is governed by two independent gates: the export surface itself and
-    // the concrete CRM object. Keep both calls visible at this boundary.
+    // Keep the export-surface and concrete-object gates independent. Both are
+    // part of the public authorization contract for this endpoint.
     const exportDenied = authorize(auth, "export", "read");
     if (exportDenied) return exportDenied;
     const entityDenied = authorize(auth, entity, "read");
@@ -124,25 +108,69 @@ export async function GET(req: Request, { params }: { params: Promise<{ entity: 
 
     try {
       const policy = await loadFieldPolicy(auth.role);
-      // A selected export uses caller-supplied IDs as a lookup key. If the
-      // caller cannot read `id`, accepting that scope would let a known ID
-      // reveal other readable fields. All-scope export remains valid because
-      // it does not expose or accept IDs.
+      // Selected ids are caller-supplied lookup keys. Requiring id visibility
+      // prevents a hidden id from becoming a row-existence oracle.
       if (scope === "selected" && !canReadField(policy, "companies", "id")) {
         return apiError("Forbidden: company selection is not readable", 403);
       }
+
       let csv: string;
-      if (entity === "companies") {
-        // Export is unpaginated by contract. Ignore list pagination copied into
-        // an export URL so offset/limit cannot silently alter its scope.
+      if (entity === "contacts") {
+        const headers = [
+          "firstName",
+          "lastName",
+          "email",
+          "phone",
+          "jobTitle",
+          "company",
+          "status",
+          "source",
+          "score",
+          "linkedin",
+          "city",
+          "country",
+        ];
+        const extra = await customCsvExtra("contact", "contacts", policy, headers);
+        const allHeaders = [...headers, ...extra.headers];
+        // Import accepts a company name, while permissions remain keyed by
+        // companyId because that is the value stored on the contact row.
+        const visible = readableHeaders(policy, "contacts", allHeaders, { company: "companyId" });
+        const [rows, companies] = await Promise.all([
+          db.select().from(tables.contacts),
+          db.select({ id: tables.companies.id, name: tables.companies.name }).from(tables.companies),
+        ]);
+        const companyById = new Map(companies.map((company) => [company.id, company.name]));
+        csv = toSpreadsheetCsv(
+          visible,
+          rows.map((row) =>
+            project(allHeaders, visible, [
+              row.firstName,
+              row.lastName,
+              row.email,
+              row.phone,
+              row.jobTitle,
+              row.companyId ? (companyById.get(row.companyId) ?? "") : "",
+              row.status,
+              row.source,
+              row.score,
+              row.linkedin,
+              row.city,
+              row.country,
+              ...extra.cells(row.custom),
+            ]),
+          ),
+        );
+      } else if (entity === "companies") {
+        // Export is deliberately unpaged. Strip list pagination copied into an
+        // export URL while retaining filters, sort and field-policy checks.
         const exportQueryParams = new URLSearchParams(searchParams);
         exportQueryParams.delete("offset");
         exportQueryParams.delete("limit");
         const normalized = normalizeCompanyQuery(exportQueryParams);
         if (!normalized.ok) return apiError(normalized.message, 400);
 
-        // `all` deliberately ignores q/industry, while still using the shared
-        // sort/policy path so a hidden default sort falls back to id order.
+        // scope=all ignores q/industry; filtered and selected still validate
+        // the complete query so hidden filters cannot become an oracle.
         const query = scope === "all"
           ? { ...normalized.value, q: undefined, industry: undefined }
           : normalized.value;
@@ -159,17 +187,90 @@ export async function GET(req: Request, { params }: { params: Promise<{ entity: 
           .from(tables.companies)
           .where(where)
           .orderBy(...companyOrderBy(queryPolicy.effectiveSort));
-        csv = serializeColumns(policy, "companies", COMPANY_COLUMNS, rows);
-      } else if (entity === "contacts") {
-        const rows = await db.select().from(tables.contacts).orderBy(asc(tables.contacts.id));
-        csv = serializeColumns(policy, "contacts", CONTACT_COLUMNS, rows);
+
+        const headers = [
+          "name",
+          "domain",
+          "industry",
+          "size",
+          "website",
+          "linkedin",
+          "city",
+          "country",
+          "annualRevenue",
+        ];
+        const extra = await customCsvExtra("company", "companies", policy, headers);
+        const allHeaders = [...headers, ...extra.headers];
+        const visible = readableHeaders(policy, "companies", allHeaders);
+        csv = toSpreadsheetCsv(
+          visible,
+          rows.map((row) =>
+            project(allHeaders, visible, [
+              row.name,
+              row.domain,
+              row.industry,
+              row.size,
+              row.website,
+              row.linkedin,
+              row.city,
+              row.country,
+              row.annualRevenue,
+              ...extra.cells(row.custom),
+            ]),
+          ),
+        );
       } else {
-        const stagesNeeded = canReadField(policy, "deals", "stageId") && canReadField(policy, "deals", "stage");
-        const stages = stagesNeeded
-          ? new Map((await db.select().from(tables.stages)).map((stage) => [stage.id, stage.name]))
-          : undefined;
-        const rows = await db.select().from(tables.deals).orderBy(asc(tables.deals.id));
-        csv = serializeColumns(policy, "deals", DEAL_COLUMNS, rows, stages);
+        const headers = [
+          "name",
+          "amount",
+          "currency",
+          "pipeline",
+          "stage",
+          "company",
+          "contact",
+          "score",
+          "expectedCloseDate",
+          "closedAt",
+        ];
+        const extra = await customCsvExtra("deal", "deals", policy, headers);
+        const allHeaders = [...headers, ...extra.headers];
+        const visible = readableHeaders(policy, "deals", allHeaders, {
+          pipeline: "pipelineId",
+          stage: "stageId",
+          company: "companyId",
+          contact: "contactId",
+        });
+        const [rows, pipelines, stages, companies, contacts] = await Promise.all([
+          db.select().from(tables.deals),
+          db.select({ id: tables.pipelines.id, name: tables.pipelines.name }).from(tables.pipelines),
+          db.select({ id: tables.stages.id, name: tables.stages.name }).from(tables.stages),
+          db.select({ id: tables.companies.id, name: tables.companies.name }).from(tables.companies),
+          db.select({ id: tables.contacts.id, firstName: tables.contacts.firstName, lastName: tables.contacts.lastName }).from(tables.contacts),
+        ]);
+        const pipelineById = new Map(pipelines.map((pipeline) => [pipeline.id, pipeline.name]));
+        const stageById = new Map(stages.map((stage) => [stage.id, stage.name]));
+        const companyById = new Map(companies.map((company) => [company.id, company.name]));
+        const contactById = new Map(
+          contacts.map((contact) => [contact.id, [contact.firstName, contact.lastName].filter(Boolean).join(" ").trim()]),
+        );
+        csv = toSpreadsheetCsv(
+          visible,
+          rows.map((row) =>
+            project(allHeaders, visible, [
+              row.name,
+              row.amount,
+              row.currency,
+              pipelineById.get(row.pipelineId) ?? "",
+              stageById.get(row.stageId) ?? "",
+              row.companyId ? (companyById.get(row.companyId) ?? "") : "",
+              row.contactId ? (contactById.get(row.contactId) ?? "") : "",
+              row.score,
+              row.expectedCloseDate ? new Date(row.expectedCloseDate).toISOString().slice(0, 10) : "",
+              row.closedAt ? new Date(row.closedAt).toISOString().slice(0, 10) : "",
+              ...extra.cells(row.custom),
+            ]),
+          ),
+        );
       }
 
       return new Response(csv, {
@@ -179,8 +280,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ entity: 
         },
       });
     } catch {
-      // A failed validation/auth/query path must remain JSON, never a CSV that
-      // looks like a successful download.
+      // Validation, authorization and query failures stay JSON instead of
+      // being mistaken for a successful CSV download.
       return apiError("Export failed", 500);
     }
   });

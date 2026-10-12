@@ -2,7 +2,14 @@ import { and, asc, eq } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { withAuth, authorize, json, apiError, parseBody } from "@/lib/api";
 import { audit } from "@/lib/audit";
-import { loadPipeline, lockPipelineWorkspace, resolveStageValues, stagePatch } from "@/lib/pipelines";
+import {
+  loadPipeline,
+  lockPipelineWorkspace,
+  resolveStageValues,
+  stageDeletionConflict,
+  stagePatch,
+  type StageType,
+} from "@/lib/services/pipelines";
 import { recomputeDealScores } from "@/lib/services/deal-score";
 
 type Params = { params: Promise<{ id: string; stageId: string }> };
@@ -24,23 +31,25 @@ export async function PATCH(req: Request, { params }: Params) {
     const { id: pipelineId, stageId } = await params;
     const body = await parseBody(req, stagePatch);
     if (!body.ok) return body.response;
+    if (body.data.type !== undefined) {
+      return apiError("Stage type cannot be changed");
+    }
     await lockPipelineWorkspace(auth.workspaceId);
     const pipeline = await loadPipeline(pipelineId);
     if (!pipeline) return apiError("Pipeline not found", 404);
     const existing = await loadStage(pipelineId, stageId);
     if (!existing) return apiError("Stage not found", 404);
     const resolved = resolveStageValues(
-      { type: body.data.type, winProbability: body.data.winProbability },
-      { type: existing.type as "open" | "won" | "lost", winProbability: existing.winProbability },
+      { winProbability: body.data.winProbability },
+      { type: existing.type as StageType, winProbability: existing.winProbability },
     );
     if (resolved.error) return apiError(resolved.error);
-    const typeChanged = body.data.type !== undefined && body.data.type !== existing.type;
     const probabilityChanged = resolved.winProbability !== existing.winProbability;
-    // Lock affected deals before the type/probability precondition and keep
-    // those row locks through the stage update and score recomputation. Deal
-    // metadata updates intentionally do not take the workspace advisory lock;
-    // this row lock makes either operation observe the other's committed state.
-    const dealIds = probabilityChanged || typeChanged
+    // Lock affected deals before the probability update and keep those row
+    // locks through the stage update and score recomputation. Deal metadata
+    // updates intentionally do not take the workspace advisory lock; this row
+    // lock makes either operation observe the other's committed state.
+    const dealIds = probabilityChanged
       ? (
           await db
             .select({ id: tables.deals.id })
@@ -49,10 +58,6 @@ export async function PATCH(req: Request, { params }: Params) {
             .for("update", { of: tables.deals })
         ).map((deal) => deal.id)
       : [];
-    if (typeChanged && dealIds.length > 0) {
-      return apiError("Cannot change a stage type while deals reference it", 409);
-    }
-
     await db
       .update(tables.stages)
       .set({
@@ -87,10 +92,12 @@ export async function DELETE(req: Request, { params }: Params) {
     const existing = await loadStage(pipelineId, stageId);
     if (!existing) return apiError("Stage not found", 404);
     const stages = await db
-      .select({ id: tables.stages.id })
+      .select({ id: tables.stages.id, type: tables.stages.type })
       .from(tables.stages)
       .where(eq(tables.stages.pipelineId, pipelineId));
-    if (stages.length <= 1) return apiError("Cannot delete the last stage", 409);
+    const openStageCount = stages.filter((stage) => stage.type === "open").length;
+    const conflict = stageDeletionConflict(existing.type as StageType, openStageCount);
+    if (conflict) return apiError(conflict, 409);
     const inUse = (
       await db
         .select({ id: tables.deals.id })

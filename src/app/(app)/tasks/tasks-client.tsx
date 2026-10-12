@@ -3,26 +3,30 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Task } from "@/lib/types";
-import { formatDate, fromDateInputValue } from "@/lib/format";
+import { formatDate, fromDateInputValue, toDateInputValue } from "@/lib/format";
 import {
-  AsyncError,
-  EmptyState,
-  Field,
-  Modal,
   PageHeader,
+  Modal,
+  Field,
   PriorityChip,
+  EmptyState,
   Spinner,
+  LoadError,
 } from "@/components/ui";
-import { IconPlus, IconTrash } from "@/components/icons";
-import { Select } from "@/components/select";
+import { IconPlus, IconTrash, IconEdit } from "@/components/icons";
+import { SavedViewsBar, type SavedView } from "@/components/saved-views";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
+import { useLocale, useT } from "@/lib/i18n/provider";
 
 const ENTITY_PATH: Record<string, string> = {
   contact: "/contacts/",
   company: "/companies/",
   deal: "/deals/",
 };
-
-type TaskState = "open" | "done" | "all";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -45,213 +49,426 @@ function isTask(value: unknown): value is Task {
 }
 
 function isTaskResponse(value: unknown): value is { tasks: Task[] } {
-  return isRecord(value) && Array.isArray(value.tasks) && value.tasks.every(isTask);
+  return (
+    isRecord(value) && Array.isArray(value.tasks) && value.tasks.every(isTask)
+  );
 }
 
 export function TasksClient() {
+  const t = useT();
+  const locale = useLocale();
   const [tasks, setTasks] = useState<Task[] | null>(null);
-  const [state, setState] = useState<TaskState>("open");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showNew, setShowNew] = useState(false);
+  const [assignees, setAssignees] = useState<{ id: string; name: string }[]>(
+    [],
+  );
+  const [failed, setFailed] = useState(false);
+  const [state, setState] = useState<"open" | "done" | "all">("open");
+  const [activeView, setActiveView] = useState<string | null>(null);
+  const [editor, setEditor] = useState<Task | "new" | null>(null);
   const [busy, setBusy] = useState(false);
-  const stateRef = useRef<TaskState>(state);
-  const requestId = useRef(0);
-  const controller = useRef<AbortController | null>(null);
-  stateRef.current = state;
+  const [formError, setFormError] = useState<string | null>(null);
+  const requestRef = useRef<{
+    controller: AbortController;
+    generation: number;
+  } | null>(null);
+  const generationRef = useRef(0);
+  const submittingRef = useRef(false);
 
-  const load = useCallback(async (requestedState = stateRef.current) => {
-    const currentRequest = requestId.current + 1;
-    requestId.current = currentRequest;
-    controller.current?.abort();
-    const nextController = new AbortController();
-    controller.current = nextController;
-    setLoading(true);
-    setError(null);
+  const applyView = useCallback((view: SavedView | null) => {
+    setActiveView(view?.id ?? null);
+    const next = view?.config?.filters?.state;
+    if (next === "open" || next === "done" || next === "all") setState(next);
+    else if (!view) setState("open");
+  }, []);
+
+  const load = useCallback(async (): Promise<void> => {
+    const generation = generationRef.current + 1;
+    generationRef.current = generation;
+    requestRef.current?.controller.abort();
+    const controller = new AbortController();
+    requestRef.current = { controller, generation };
+    setFailed(false);
     setTasks(null);
 
     try {
-      const res = await fetch(`/api/tasks?state=${encodeURIComponent(requestedState)}`, {
-        signal: nextController.signal,
-      });
-      if (!res.ok) throw new Error("Tasks request failed");
-      const payload: unknown = await res.json();
-      if (!isTaskResponse(payload)) throw new Error("Tasks response was invalid");
-      if (requestId.current !== currentRequest) return;
+      const response = await fetch(
+        `/api/tasks?state=${encodeURIComponent(state)}`,
+        {
+          signal: controller.signal,
+        },
+      );
+      if (!response.ok)
+        throw new Error(`Tasks request failed with ${response.status}`);
+      const payload: unknown = await response.json();
+      if (!isTaskResponse(payload))
+        throw new Error("Tasks response was invalid");
+      if (generation !== generationRef.current || controller.signal.aborted)
+        return;
       setTasks(payload.tasks);
+      setFailed(false);
     } catch {
-      if (nextController.signal.aborted || requestId.current !== currentRequest) return;
-      setError("Could not load tasks");
+      if (controller.signal.aborted || generation !== generationRef.current)
+        return;
+      setFailed(true);
     } finally {
-      if (requestId.current === currentRequest) {
-        controller.current = null;
-        setLoading(false);
-      }
+      if (requestRef.current?.generation === generation)
+        requestRef.current = null;
     }
-  }, []);
+  }, [state]);
 
   useEffect(() => {
-    void load(state);
+    void load();
     return () => {
-      requestId.current += 1;
-      controller.current?.abort();
-      controller.current = null;
+      generationRef.current += 1;
+      requestRef.current?.controller.abort();
+      requestRef.current = null;
     };
-  }, [load, state]);
+  }, [load]);
 
-  async function toggle(t: Task) {
-    await fetch(`/api/tasks/${t.id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ completed: !t.completedAt }),
-    });
-    void load();
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/tasks/assignees", { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Assignees request failed");
+        return (await response.json()) as unknown;
+      })
+      .then((payload) => {
+        if (!isRecord(payload) || !Array.isArray(payload.assignees)) return;
+        setAssignees(payload.assignees as { id: string; name: string }[]);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setAssignees([]);
+      });
+    return () => controller.abort();
+  }, []);
+
+  async function toggle(task: Task): Promise<void> {
+    try {
+      const response = await fetch(`/api/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ completed: !task.completedAt }),
+      });
+      if (!response.ok) throw new Error("Task update failed");
+      void load();
+    } catch {
+      setFailed(true);
+    }
   }
 
-  async function remove(t: Task) {
-    await fetch(`/api/tasks/${t.id}`, { method: "DELETE" });
-    void load();
+  async function remove(task: Task): Promise<void> {
+    try {
+      const response = await fetch(`/api/tasks/${task.id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error("Task deletion failed");
+      void load();
+    } catch {
+      setFailed(true);
+    }
   }
 
-  async function create(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function save(event: React.FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!editor || submittingRef.current) return;
+
+    submittingRef.current = true;
     setBusy(true);
-    const f = new FormData(e.currentTarget);
-    await fetch("/api/tasks", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        title: (f.get("title") as string).trim(),
-        description: (f.get("description") as string)?.trim() || null,
-        priority: f.get("priority"),
-        dueDate: fromDateInputValue((f.get("dueDate") as string) ?? ""),
-      }),
-    });
-    setBusy(false);
-    setShowNew(false);
-    void load();
+    setFormError(null);
+    const currentEditor = editor;
+
+    try {
+      const form = new FormData(event.currentTarget);
+      const titleValue = form.get("title");
+      const descriptionValue = form.get("description");
+      const ownerValue = form.get("ownerId");
+      const body = {
+        title: typeof titleValue === "string" ? titleValue.trim() : "",
+        description:
+          typeof descriptionValue === "string"
+            ? descriptionValue.trim() || null
+            : null,
+        priority: form.get("priority"),
+        dueDate: fromDateInputValue(
+          typeof form.get("dueDate") === "string"
+            ? String(form.get("dueDate"))
+            : "",
+        ),
+        ownerId:
+          typeof ownerValue === "string" && ownerValue ? ownerValue : null,
+      };
+      const response = await fetch(
+        currentEditor === "new"
+          ? "/api/tasks"
+          : `/api/tasks/${currentEditor.id}`,
+        {
+          method: currentEditor === "new" ? "POST" : "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        },
+      );
+      if (!response.ok) {
+        const payload: unknown = await response.json().catch(() => null);
+        const message =
+          isRecord(payload) && typeof payload.error === "string"
+            ? payload.error
+            : t("form.failedSave");
+        setFormError(message);
+        return;
+      }
+      setEditor(null);
+      void load();
+    } catch {
+      setFormError(t("form.failedSave"));
+    } finally {
+      submittingRef.current = false;
+      setBusy(false);
+    }
   }
 
-  const overdue = (t: Task) => !t.completedAt && t.dueDate && t.dueDate < Date.now();
+  function openEditor(next: Task | "new"): void {
+    setFormError(null);
+    setEditor(next);
+  }
+
+  const overdue = (task: Task): boolean =>
+    !task.completedAt && task.dueDate != null && task.dueDate < Date.now();
+  const ownerName = (id: string | null): string | undefined =>
+    assignees.find((assignee) => assignee.id === id)?.name;
 
   return (
     <div className="animate-fade-up">
       <PageHeader
-        title="Tasks"
-        subtitle={tasks ? `${tasks.filter((t) => !t.completedAt).length} open` : undefined}
+        title={t("nav.tasks")}
+        subtitle={
+          tasks
+            ? t("page.tasks.count", {
+                count: tasks.filter((task) => !task.completedAt).length,
+              })
+            : undefined
+        }
         actions={
-          <button onClick={() => setShowNew(true)} className="btn-primary">
-            <IconPlus width={15} height={15} /> New task
-          </button>
+          <Button onClick={() => openEditor("new")}>
+            <IconPlus width={15} height={15} aria-hidden="true" />{" "}
+            {t("page.tasks.new")}
+          </Button>
         }
       />
 
+      <SavedViewsBar
+        entity="tasks"
+        activeId={activeView}
+        current={{ filters: { state } }}
+        onApply={applyView}
+      />
+
       <div className="mb-4 flex gap-1.5">
-        {(["open", "done", "all"] as const).map((s) => (
-          <button
-            key={s}
-            onClick={() => setState(s)}
-            className={`chip cursor-pointer !px-3 !py-1.5 capitalize transition ${
-              state === s
-                ? "bg-accent-600 text-white"
-                : "border border-line text-ink-muted hover:border-accent-400"
-            }`}
+        {(["open", "done", "all"] as const).map((filter) => (
+          <Button
+            key={filter}
+            type="button"
+            onClick={() => {
+              setState(filter);
+              setActiveView(null);
+            }}
+            aria-label={t("page.tasks.filterAria", {
+              state:
+                filter === "open"
+                  ? t("page.tasks.open")
+                  : filter === "done"
+                    ? t("page.tasks.done")
+                    : t("common.all"),
+            })}
+            size="sm"
+            variant={state === filter ? "default" : "outline"}
+            className={`rounded-4xl text-xs ${state === filter ? "" : "text-ink-muted hover:border-accent-400"}`}
           >
-            {s}
-          </button>
+            {filter === "open"
+              ? t("page.tasks.open")
+              : filter === "done"
+                ? t("page.tasks.done")
+                : t("common.all")}
+          </Button>
         ))}
       </div>
 
-      {loading ? (
-        <Spinner label="Loading tasks" />
-      ) : error ? (
-        <AsyncError
-          message={error}
-          hint="Check your connection and try again."
-          onRetry={() => void load()}
+      {failed ? (
+        <LoadError
+          onRetry={() => {
+            setTasks(null);
+            void load();
+          }}
         />
       ) : !tasks ? (
-        <AsyncError
-          message="Could not load tasks"
-          hint="Check your connection and try again."
-          onRetry={() => void load()}
-        />
+        <Spinner label="Loading tasks" />
       ) : tasks.length === 0 ? (
-        <EmptyState title="Nothing here" hint="Tasks you create — or workflows create for you — show up here." />
+        <EmptyState
+          title={t("page.tasks.empty")}
+          hint={t("page.tasks.emptyHint")}
+        />
       ) : (
-        <div className="card divide-y divide-line/60">
-          {tasks.map((t) => (
-            <div key={t.id} className="flex items-start gap-3 px-4 py-3">
+        <Card size="flush" className="divide-y divide-line/60">
+          {tasks.map((task) => (
+            <div key={task.id} className="flex items-start gap-3 px-4 py-3">
               <input
                 type="checkbox"
-                checked={!!t.completedAt}
-                onChange={() => toggle(t)}
+                checked={!!task.completedAt}
+                onChange={() => void toggle(task)}
+                aria-label={t("page.tasks.completeAria", { title: task.title })}
                 className="mt-1 h-4 w-4 accent-indigo-600"
               />
               <div className="min-w-0 flex-1">
-                <p className={`text-sm font-medium ${t.completedAt ? "text-ink-muted line-through" : ""}`}>
-                  {t.title}
+                <p
+                  className={`text-sm font-medium ${task.completedAt ? "text-ink-muted line-through" : ""}`}
+                >
+                  {task.title}
                 </p>
-                {t.description && <p className="mt-0.5 text-sm text-ink-muted">{t.description}</p>}
+                {task.description && (
+                  <p className="mt-0.5 text-sm text-ink-muted">
+                    {task.description}
+                  </p>
+                )}
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
-                  <PriorityChip priority={t.priority} />
-                  {t.dueDate && (
-                    <span className={overdue(t) ? "font-semibold text-red-500" : ""}>
-                      {overdue(t) ? "Overdue · " : "Due "}
-                      {formatDate(t.dueDate)}
+                  <PriorityChip priority={task.priority} />
+                  {task.dueDate && (
+                    <span
+                      className={
+                        overdue(task) ? "font-semibold text-feedback-error" : ""
+                      }
+                    >
+                      {overdue(task)
+                        ? t("page.tasks.overduePrefix")
+                        : t("page.tasks.duePrefix")}
+                      {formatDate(task.dueDate, locale)}
                     </span>
                   )}
-                  {t.entityType && t.entityId && (
+                  <span>
+                    {ownerName(task.ownerId) ?? t("common.unassigned")}
+                  </span>
+                  {task.entityType && task.entityId && (
                     <Link
-                      href={`${ENTITY_PATH[t.entityType]}${t.entityId}`}
-                      className="text-accent-600 hover:underline dark:text-accent-400"
+                      href={`${ENTITY_PATH[task.entityType] ?? `/objects/${task.entityType}/`}${task.entityId}`}
+                      className="text-accent-700 hover:underline dark:text-accent-400"
                     >
-                      View {t.entityType} →
+                      {t("page.tasks.viewEntity", { entity: task.entityType })}
                     </Link>
                   )}
                 </div>
               </div>
-              <button
-                onClick={() => remove(t)}
-                className="btn-ghost !border-0 !px-2 !text-red-400"
-                aria-label="Delete task"
+              <Button
+                type="button"
+                onClick={() => openEditor(task)}
+                aria-label={t("page.tasks.editAria", { title: task.title })}
+                variant="ghost"
+                size="icon-sm"
               >
-                <IconTrash width={15} height={15} />
-              </button>
+                <IconEdit width={15} height={15} aria-hidden="true" />
+              </Button>
+              <Button
+                type="button"
+                onClick={() => void remove(task)}
+                aria-label={t("page.tasks.deleteAria")}
+                variant="ghost"
+                size="icon-sm"
+                className="text-feedback-error"
+              >
+                <IconTrash width={15} height={15} aria-hidden="true" />
+              </Button>
             </div>
           ))}
-        </div>
+        </Card>
       )}
 
-      <Modal title="New task" open={showNew} onClose={() => setShowNew(false)}>
-        <form onSubmit={create} className="space-y-4">
-          <Field label="Title">
-            <input name="title" required className="input" autoFocus />
+      <Modal
+        title={
+          editor && editor !== "new"
+            ? t("page.tasks.editModal")
+            : t("page.tasks.newModal")
+        }
+        open={editor !== null}
+        onClose={() => {
+          setFormError(null);
+          setEditor(null);
+        }}
+      >
+        <form
+          key={editor === "new" || !editor ? "new" : editor.id}
+          onSubmit={save}
+          className="space-y-4"
+        >
+          <Field label={t("field.title")}>
+            <Input
+              name="title"
+              required
+              autoFocus
+              defaultValue={editor && editor !== "new" ? editor.title : ""}
+            />
           </Field>
-          <Field label="Description">
-            <textarea name="description" rows={2} className="input resize-y" />
+          <Field label={t("field.description")}>
+            <Textarea
+              name="description"
+              rows={2}
+              className="resize-y"
+              defaultValue={
+                editor && editor !== "new" ? (editor.description ?? "") : ""
+              }
+            />
           </Field>
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Priority">
-              <Select
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label={t("field.priority")}>
+              <NativeSelect
                 name="priority"
-                defaultValue="medium"
-                className="input"
-                options={[
-                  { value: "low", label: "Low" },
-                  { value: "medium", label: "Medium" },
-                  { value: "high", label: "High" },
-                ]}
+                defaultValue={
+                  editor && editor !== "new" ? editor.priority : "medium"
+                }
+                className="w-full"
+              >
+                <option value="low">{t("priority.low")}</option>
+                <option value="medium">{t("priority.medium")}</option>
+                <option value="high">{t("priority.high")}</option>
+              </NativeSelect>
+            </Field>
+            <Field label={t("field.dueDate")}>
+              <Input
+                name="dueDate"
+                type="date"
+                defaultValue={
+                  editor && editor !== "new"
+                    ? toDateInputValue(editor.dueDate)
+                    : ""
+                }
               />
             </Field>
-            <Field label="Due date">
-              <input name="dueDate" type="date" className="input" />
-            </Field>
           </div>
+          <Field label={t("field.assignee")}>
+            <NativeSelect
+              name="ownerId"
+              defaultValue={
+                editor && editor !== "new" ? (editor.ownerId ?? "") : ""
+              }
+              className="w-full"
+            >
+              <option value="">{t("common.unassigned")}</option>
+              {assignees.map((assignee) => (
+                <option key={assignee.id} value={assignee.id}>
+                  {assignee.name}
+                </option>
+              ))}
+            </NativeSelect>
+          </Field>
+          {formError && (
+            <p role="alert" className="text-sm text-feedback-error">
+              {formError}
+            </p>
+          )}
           <div className="flex justify-end">
-            <button type="submit" disabled={busy} className="btn-primary">
-              {busy ? "Saving…" : "Create task"}
-            </button>
+            <Button type="submit" disabled={busy}>
+              {busy
+                ? t("form.saving")
+                : editor === "new"
+                  ? t("form.createTask")
+                  : t("form.saveChanges")}
+            </Button>
           </div>
         </form>
       </Modal>

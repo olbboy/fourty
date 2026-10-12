@@ -2,78 +2,47 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
-import {
-  IconBuilding,
-  IconChart,
-  IconCheckSquare,
-  IconDashboard,
-  IconLogout,
-  IconMenu,
-  IconMoon,
-  IconSearch,
-  IconSettings,
-  IconSun,
-  IconTarget,
-  IconUsers,
-  IconZap,
-} from "./icons";
+import { useEffect, useState } from "react";
+import { LogOut, Moon, Search, Sun } from "lucide-react";
+
+import { AppSidebar, isActivePath, NAV } from "./app-sidebar";
 import { CommandPalette } from "./command-palette";
 import { AiChat } from "./ai-chat";
-import { Drawer } from "./ui";
-import { LocaleProvider } from "@/lib/i18n/provider";
-import { translator, type Locale, type MessageKey } from "@/lib/i18n";
+import { AiEnabledProvider } from "./ai-enabled";
+import { ThemeProvider, useTheme } from "./theme-provider";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
+import { LocaleProvider, useT } from "@/lib/i18n/provider";
+import { translator, type Locale } from "@/lib/i18n";
 
-const NAV: { href: string; key: MessageKey; icon: typeof IconDashboard }[] = [
-  { href: "/dashboard", key: "nav.dashboard", icon: IconDashboard },
-  { href: "/contacts", key: "nav.contacts", icon: IconUsers },
-  { href: "/companies", key: "nav.companies", icon: IconBuilding },
-  { href: "/deals", key: "nav.deals", icon: IconTarget },
-  { href: "/tasks", key: "nav.tasks", icon: IconCheckSquare },
-  { href: "/reports", key: "nav.reports", icon: IconChart },
-  { href: "/workflows", key: "nav.workflows", icon: IconZap },
-  { href: "/settings", key: "nav.settings", icon: IconSettings },
-];
-
-// Primary items for the mobile bottom bar
+// Primary items for the mobile bottom bar. The rest of the nav stays reachable
+// on mobile through the sidebar sheet behind the top-bar trigger.
 const MOBILE_NAV = NAV.filter((n) =>
   ["/dashboard", "/contacts", "/companies", "/deals", "/tasks"].includes(n.href),
 );
 
-const SIDEBAR_DEFAULT = 224;
-const SIDEBAR_MIN = 224;
-const SIDEBAR_MAX = 360;
-const SIDEBAR_STEP = 8;
-const SIDEBAR_STORAGE_KEY = "fourty-sidebar-width";
-
-function clampSidebarWidth(value: number): number {
-  return Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, value));
-}
-
-function ThemeToggle({ mobile = false }: { mobile?: boolean }) {
-  const [dark, setDark] = useState(false);
-  useEffect(() => {
-    setDark(document.documentElement.classList.contains("dark"));
-  }, []);
-  function toggle() {
-    const next = !dark;
-    setDark(next);
-    document.documentElement.classList.toggle("dark", next);
-    localStorage.setItem("fourty-theme", next ? "dark" : "light");
-  }
+function ThemeToggle() {
+  const { dark, toggle } = useTheme();
+  const t = useT();
   return (
-    <button
+    <Button
+      variant="ghost"
+      size="icon"
+      className="size-11"
       onClick={toggle}
-      className={`btn-ghost !px-2.5${mobile ? " h-11 w-11" : ""}`}
-      title="Toggle theme"
-      aria-label="Toggle theme"
+      aria-label={t("shell.toggleTheme")}
     >
-      {dark ? <IconSun /> : <IconMoon />}
-    </button>
+      {dark ? <Sun /> : <Moon />}
+    </Button>
   );
 }
 
-export function AppShell({
+function AppShellInner({
   user,
   locale,
   aiEnabled,
@@ -87,30 +56,7 @@ export function AppShell({
   const pathname = usePathname();
   const router = useRouter();
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT);
-  const sidebarWidthRef = useRef(SIDEBAR_DEFAULT);
-  const resizeRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
-  const [isResizing, setIsResizing] = useState(false);
   const t = translator(locale);
-
-  useEffect(() => {
-    setMobileNavOpen(false);
-  }, [pathname]);
-
-  useEffect(() => {
-    const stored = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
-    if (stored === null) return;
-    const parsed = Number(stored);
-    if (!Number.isFinite(parsed)) {
-      window.localStorage.removeItem(SIDEBAR_STORAGE_KEY);
-      return;
-    }
-    const width = clampSidebarWidth(parsed);
-    sidebarWidthRef.current = width;
-    setSidebarWidth(width);
-    if (width !== parsed) window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(width));
-  }, []);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -129,234 +75,94 @@ export function AppShell({
     router.refresh();
   }
 
-  function updateSidebarWidth(value: number, persist = true): void {
-    const width = clampSidebarWidth(value);
-    sidebarWidthRef.current = width;
-    setSidebarWidth(width);
-    if (persist) window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(width));
-  }
-
-  function resetSidebarWidth(): void {
-    updateSidebarWidth(SIDEBAR_DEFAULT);
-  }
-
-  function onSidebarKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
-    if (event.key === "ArrowLeft") {
-      event.preventDefault();
-      updateSidebarWidth(sidebarWidthRef.current - SIDEBAR_STEP);
-    } else if (event.key === "ArrowRight") {
-      event.preventDefault();
-      updateSidebarWidth(sidebarWidthRef.current + SIDEBAR_STEP);
-    } else if (event.key === "Home") {
-      event.preventDefault();
-      updateSidebarWidth(SIDEBAR_MIN);
-    } else if (event.key === "End") {
-      event.preventDefault();
-      updateSidebarWidth(SIDEBAR_MAX);
-    } else if (
-      event.key.toLowerCase() === "r" &&
-      !event.ctrlKey &&
-      !event.metaKey &&
-      !event.altKey
-    ) {
-      event.preventDefault();
-      resetSidebarWidth();
-    }
-  }
-
-  function onSidebarPointerDown(event: React.PointerEvent<HTMLDivElement>): void {
-    if (event.button !== 0) return;
-    event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    resizeRef.current = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startWidth: sidebarWidthRef.current,
-    };
-    setIsResizing(true);
-  }
-
-  function onSidebarPointerMove(event: React.PointerEvent<HTMLDivElement>): void {
-    const resize = resizeRef.current;
-    if (!resize || resize.pointerId !== event.pointerId) return;
-    updateSidebarWidth(resize.startWidth + event.clientX - resize.startX, false);
-  }
-
-  function onSidebarPointerUp(event: React.PointerEvent<HTMLDivElement>): void {
-    const resize = resizeRef.current;
-    if (!resize || resize.pointerId !== event.pointerId) return;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-    resizeRef.current = null;
-    setIsResizing(false);
-    updateSidebarWidth(sidebarWidthRef.current);
-  }
+  const current = NAV.find((n) => isActivePath(pathname, n.href));
 
   return (
-    <LocaleProvider locale={locale}>
-    <div
-      className="app-shell flex min-h-dvh"
-      style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
-    >
+    <>
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-accent-600 focus:px-3 focus:py-2 focus:text-sm focus:text-white"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:text-primary-foreground"
       >
-        Skip to content
+        {t("shell.skipToContent")}
       </a>
-      {/* Desktop sidebar */}
-      <aside className="app-sidebar fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-line bg-surface md:flex">
-        <div className="flex items-center gap-2.5 px-4 py-4">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-600 text-sm font-extrabold text-white">
-            40
+
+      <AppSidebar
+        user={user}
+        locale={locale}
+        onSearch={() => setPaletteOpen(true)}
+        onSignOut={logout}
+      />
+
+      <SidebarInset className="min-w-0">
+        {/* Desktop header — collapse trigger plus where you are. */}
+        <header className="sticky top-0 z-20 hidden h-14 shrink-0 items-center gap-2 border-b border-line bg-surface px-4 md:flex">
+          <SidebarTrigger className="-ml-1" />
+          <Separator
+            orientation="vertical"
+            className="mr-2 data-[orientation=vertical]:h-4"
+          />
+          <span className="text-sm font-medium">
+            {current ? t(current.key) : "Fourty"}
+          </span>
+        </header>
+
+        {/* Mobile top bar */}
+        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-line bg-surface px-4 py-2.5 md:hidden">
+          <div className="flex items-center gap-2">
+            <SidebarTrigger className="-ml-1 size-11" />
+            <span className="font-bold">
+              {current ? t(current.key) : "Fourty"}
+            </span>
           </div>
-          <span className="text-lg font-bold tracking-tight">Fourty</span>
-        </div>
-        <button
-          onClick={() => setPaletteOpen(true)}
-          className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm text-ink-muted transition hover:border-accent-400"
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-11"
+              onClick={() => setPaletteOpen(true)}
+              aria-label={t("action.search")}
+              data-command-palette-trigger
+            >
+              <Search />
+            </Button>
+            <ThemeToggle />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-11"
+              onClick={logout}
+              aria-label={t("shell.signOut")}
+            >
+              <LogOut />
+            </Button>
+          </div>
+        </header>
+
+        <main
+          id="main"
+          tabIndex={-1}
+          className="min-w-0 flex-1 px-4 pb-24 pt-4 md:px-8 md:pb-10 md:pt-6"
         >
-          <IconSearch width={15} height={15} />
-          <span>Search…</span>
-          <kbd className="ml-auto rounded border border-line bg-surface px-1.5 text-[10px] font-semibold">
-            ⌘K
-          </kbd>
-        </button>
-        <nav aria-label="Main" className="flex-1 space-y-0.5 overflow-y-auto px-3 py-2">
-          {NAV.map(({ href, key, icon: Icon }) => {
-            const active = pathname === href || pathname.startsWith(href + "/");
-            return (
-              <Link
-                key={href}
-                href={href}
-                aria-current={active ? "page" : undefined}
-                className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                  active
-                    ? "bg-accent-600/10 text-accent-600 dark:text-accent-400"
-                    : "text-ink-muted hover:bg-surface-2 hover:text-ink"
-                }`}
-              >
-                <Icon width={17} height={17} />
-                {t(key)}
-              </Link>
-            );
-          })}
-        </nav>
-        <div className="border-t border-line p-3">
-          <div className="flex items-center gap-2.5 px-1">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-600/15 text-xs font-bold text-accent-600 dark:text-accent-400">
-              {user.name
-                .split(/\s+/)
-                .map((s) => s[0])
-                .slice(0, 2)
-                .join("")
-                .toUpperCase()}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{user.name}</p>
-              <p className="truncate text-xs text-ink-muted">{user.email}</p>
-            </div>
-            <div className="flex items-center gap-1">
-              <ThemeToggle />
-              <button
-                onClick={logout}
-                className="btn-ghost !px-2.5"
-                title="Sign out"
-                aria-label="Sign out"
-              >
-                <IconLogout width={16} height={16} />
-              </button>
-            </div>
-          </div>
-        </div>
-        <div
-          role="separator"
-          aria-label={t("a11y.sidebarResize")}
-          aria-orientation="vertical"
-          aria-valuemin={SIDEBAR_MIN}
-          aria-valuemax={SIDEBAR_MAX}
-          aria-valuenow={sidebarWidth}
-          aria-keyshortcuts="ArrowLeft ArrowRight Home End R"
-          tabIndex={0}
-          className={`sidebar-resize-handle${isResizing ? " is-resizing" : ""}`}
-          onKeyDown={onSidebarKeyDown}
-          onPointerDown={onSidebarPointerDown}
-          onPointerMove={onSidebarPointerMove}
-          onPointerUp={onSidebarPointerUp}
-          onPointerCancel={onSidebarPointerUp}
-          onDoubleClick={resetSidebarWidth}
-        />
-      </aside>
-
-      {/* Mobile top bar */}
-      <header className="fixed inset-x-0 top-0 z-30 flex items-center justify-between border-b border-line bg-surface px-4 py-2.5 md:hidden">
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-accent-600 text-xs font-extrabold text-white">
-            40
-          </div>
-          <span className="font-bold">Fourty</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => setPaletteOpen(true)}
-            className="btn-ghost h-11 w-11 !px-2.5"
-            aria-label="Search"
-          >
-            <IconSearch width={16} height={16} />
-          </button>
-          <ThemeToggle mobile />
-          <button
-            onClick={() => setMobileNavOpen(true)}
-            className="btn-ghost h-11 w-11 !px-2.5"
-            aria-label="Open navigation menu"
-          >
-            <IconMenu width={16} height={16} />
-          </button>
-          <button onClick={logout} className="btn-ghost h-11 w-11 !px-2.5" aria-label="Sign out">
-            <IconLogout width={16} height={16} />
-          </button>
-        </div>
-      </header>
-
-      <Drawer title="Navigation" open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} side="left">
-        <nav aria-label="Mobile navigation" className="space-y-0.5">
-          {NAV.map(({ href, key, icon: Icon }) => {
-            const active = pathname === href || pathname.startsWith(href + "/");
-            return (
-              <Link
-                key={href}
-                href={href}
-                onClick={() => setMobileNavOpen(false)}
-                aria-current={active ? "page" : undefined}
-                className={`flex min-h-11 items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                  active
-                    ? "bg-accent-600/10 text-accent-600 dark:text-accent-400"
-                    : "text-ink-muted hover:bg-surface-2 hover:text-ink"
-                }`}
-              >
-                <Icon width={17} height={17} />
-                {t(key)}
-              </Link>
-            );
-          })}
-        </nav>
-      </Drawer>
+          <AiEnabledProvider enabled={aiEnabled}>{children}</AiEnabledProvider>
+        </main>
+      </SidebarInset>
 
       {/* Mobile bottom nav */}
       <nav
-        aria-label="Primary"
+        aria-label={t("shell.primaryNav")}
         className="fixed inset-x-0 bottom-0 z-30 flex border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] md:hidden"
       >
         {MOBILE_NAV.map(({ href, key, icon: Icon }) => {
-          const active = pathname === href || pathname.startsWith(href + "/");
+          const active = isActivePath(pathname, href);
           return (
             <Link
               key={href}
               href={href}
               aria-current={active ? "page" : undefined}
               className={`flex min-h-11 min-w-11 flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium ${
-                active ? "text-accent-600 dark:text-accent-400" : "text-ink-muted"
+                active
+                  ? "text-accent-700 dark:text-accent-400"
+                  : "text-ink-muted"
               }`}
             >
               <Icon width={19} height={19} />
@@ -366,18 +172,38 @@ export function AppShell({
         })}
       </nav>
 
-      <main
-        id="main"
-        data-dialog-focus-fallback
-        tabIndex={-1}
-        className="app-main min-w-0 flex-1 px-4 pb-24 pt-16 md:px-8 md:pb-10 md:pt-8"
-      >
-        {children}
-      </main>
-
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+      />
       <AiChat enabled={aiEnabled} />
-    </div>
+    </>
+  );
+}
+
+export function AppShell({
+  user,
+  locale,
+  aiEnabled,
+  defaultSidebarOpen,
+  children,
+}: {
+  user: { name: string; email: string };
+  locale: Locale;
+  aiEnabled: boolean;
+  /** Read from the sidebar_state cookie on the server so the rail doesn't flash. */
+  defaultSidebarOpen: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <LocaleProvider locale={locale}>
+      <ThemeProvider>
+        <SidebarProvider defaultOpen={defaultSidebarOpen}>
+          <AppShellInner user={user} locale={locale} aiEnabled={aiEnabled}>
+            {children}
+          </AppShellInner>
+        </SidebarProvider>
+      </ThemeProvider>
     </LocaleProvider>
   );
 }

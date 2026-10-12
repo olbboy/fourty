@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 import { tables } from "@/db";
+import { escapeLikeLiteral } from "@/lib/custom-objects";
 import { canReadField, type FieldPolicy } from "@/lib/field-permissions";
 
 /** Sorts accepted by both the Companies list and filtered export. */
@@ -142,7 +143,7 @@ export function companyWhere(
 ): SQL | undefined {
   const clauses: SQL[] = [];
   if (query.q) {
-    const pattern = `%${query.q.replace(/[%_]/g, "")}%`;
+    const pattern = `%${escapeLikeLiteral(query.q)}%`;
     const predicates = searchFields.map((field) => searchPredicate(field, pattern));
     // Keep this fail-closed if a caller accidentally skips policy validation.
     clauses.push(predicates.length ? or(...predicates)! : sql`false`);

@@ -66,6 +66,42 @@ export function routeClass(req: Request): RouteClass {
   return req.method === "GET" || req.method === "HEAD" ? "read" : "write";
 }
 
+/**
+ * Brute-force budget for `POST /api/auth/login`. Separate from the whole-API
+ * limiter: login is unauthenticated, so it keys on IP alone. Defaults stay
+ * tight (10 / 15 min); e2e raises them because one CI IP runs every spec,
+ * and a Playwright retry of a 2FA sign-in would otherwise 429 the rest.
+ */
+export function loginBudget(): { limit: number; windowMs: number } {
+  return {
+    limit: Number(process.env.RATELIMIT_LOGIN ?? 10),
+    windowMs: Number(process.env.RATELIMIT_LOGIN_WINDOW_MS ?? 15 * 60 * 1000),
+  };
+}
+
+/**
+ * `POST /api/auth/forgot` sends mail, so the default is tighter than login
+ * (5 / 15 min). Same env-at-call-time shape so e2e can raise it: one CI IP
+ * otherwise burns the window across retries of the reset specs.
+ */
+export function forgotBudget(): { limit: number; windowMs: number } {
+  return {
+    limit: Number(process.env.RATELIMIT_FORGOT ?? 5),
+    windowMs: Number(process.env.RATELIMIT_FORGOT_WINDOW_MS ?? 15 * 60 * 1000),
+  };
+}
+
+/**
+ * `POST /api/auth/reset` is guessing at tokens, not sending mail. Login's
+ * 10 / 15 min fits; e2e raises it for the same one-IP reason as login.
+ */
+export function resetBudget(): { limit: number; windowMs: number } {
+  return {
+    limit: Number(process.env.RATELIMIT_RESET ?? 10),
+    windowMs: Number(process.env.RATELIMIT_RESET_WINDOW_MS ?? 15 * 60 * 1000),
+  };
+}
+
 /** Per-class budget, overridable via env (read at call time so tests can tune it). */
 function budgetFor(cls: RouteClass): { limit: number; windowMs: number } {
   const windowMs = Number(process.env.RATELIMIT_WINDOW_MS ?? 60_000);

@@ -47,6 +47,10 @@ Every major choice is recorded as an [ADR](./adr/). The ones that shape the syst
 - **Hand-rolled MCP server**, no SDK ([ADR-010](./adr/010-mcp-server.md)).
 - **AI-native strategy** — be the substrate for AI, not a Twenty clone
   ([ADR-016](./adr/016-ai-native-strategy.md)).
+- **One definition per operation, served by every API** — an action declares its
+  permission object, input schema and side effects once, and REST, GraphQL and MCP
+  are thin adapters over it. Contacts, companies, deals, tasks, and notes (create)
+  work this way today ([ADR-017](./adr/017-action-registry.md)).
 
 ## Design principles in the code
 
@@ -67,4 +71,4 @@ Every major choice is recorded as an [ADR](./adr/). The ones that shape the syst
 
 - **[Decision records (ADRs) →](./adr/)** — the full, cited rationale for each choice.
 - **[Self-hosting →](./self-hosting/)** — run the system described here.
-- **[Benchmarks →](../BENCHMARK.md)** — how it performs against Twenty.
+- **[Benchmarks →](./benchmarks.md)** — how it performs against Twenty.

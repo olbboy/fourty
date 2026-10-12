@@ -1,0 +1,19 @@
+import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
+/**
+ * Custom objects "appear in the sidebar" (guides/custom-objects.md). A failed
+ * GET used to become `{ objects: [] }`, which the nav renders as nothing — the
+ * same as a workspace that has defined no objects.
+ */
+describe("sidebar custom objects", () => {
+  const src = readFileSync(path.resolve(__dirname, "../src/components/app-sidebar.tsx"), "utf8");
+
+  it("does not swallow a failed GET as an empty object list", () => {
+    expect(src).not.toMatch(/r\.ok \? r\.json\(\) : \{ objects: \[\] \}/);
+    expect(src).toContain("if (!r.ok) throw");
+    expect(src).toContain("setFailed");
+    expect(src).toContain('t("action.retry")');
+  });
+});

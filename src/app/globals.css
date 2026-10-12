@@ -1,436 +1,344 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "./shadcn-tailwind.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --color-accent-50: #eef2ff;
-  --color-accent-100: #e0e7ff;
-  --color-accent-200: #c7d2fe;
-  --color-accent-300: #a5b4fc;
-  --color-accent-400: #818cf8;
-  --color-accent-500: #6366f1;
-  --color-accent-600: #4f46e5;
-  --color-accent-700: #4338ca;
-  --color-accent-800: #3730a3;
-  --color-accent-900: #312e81;
+  /* The accent ramp is built on the brand mark's own orange: step 500 is the
+     O in the logo (#fb631a), read off brand/logo-master.svg and converted to
+     oklch. The steps around it are the working range — 600 for hover, 700 for
+     accent-coloured TEXT, 50 for the single wash. Declared in oklch so
+     lightening a step is one number. */
+  --color-accent-50: oklch(0.98 0.016 73.684);
+  --color-accent-100: oklch(0.954 0.038 75.164);
+  --color-accent-200: oklch(0.901 0.076 70.697);
+  --color-accent-300: oklch(0.837 0.128 66.29);
+  --color-accent-400: oklch(0.757 0.174 52);
+  --color-accent-500: oklch(0.687 0.2 41.27);
+  --color-accent-600: oklch(0.616 0.196 40);
+  --color-accent-700: oklch(0.553 0.195 38.402);
+  --color-accent-800: oklch(0.47 0.157 37.304);
+  --color-accent-900: oklch(0.408 0.123 38.172);
 
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
     Arial, sans-serif;
+  /* The display role, for brand and editorial surfaces. It resolves to Inter:
+     the lockup is drawn artwork whose own typeface has nothing to do with the
+     product's, so there is no face for a second family to echo. The role name
+     stays because it says WHERE something belongs — point it at a real display
+     face here if the brand ever gets one, and nothing downstream changes. */
+  --font-display: var(--font-sans);
 }
 
+/*
+ * Two token layers, one source of truth.
+ *
+ * Layer 1 (below) is Fourty's own palette — the names the app has always used.
+ * Layer 2 is shadcn's semantic vocabulary (--background, --primary, --sidebar-*),
+ * declared purely as aliases of layer 1. shadcn components hardcode those
+ * semantic names, so aliasing is what lets a stock `shadcn add` land in this
+ * codebase already wearing the Fourty brand instead of shadcn's neutral gray.
+ *
+ * Change a colour in layer 1 and both layers follow. Never assign a raw colour
+ * in layer 2.
+ */
 :root {
-  --bg: #f8fafc;
-  --surface: #ffffff;
-  --surface-2: #f1f5f9;
-  --surface-raised: #ffffff;
-  --surface-hover: #f8fafc;
-  --border: #e2e8f0;
-  --border-strong: #cbd5e1;
-  --text: #0f172a;
-  --text-muted: #64748b;
-  --focus-ring: #6366f1;
-  --danger: #b91c1c;
-  --success: #047857;
-  --warning: #b45309;
-  --info: #0369a1;
-  --state-error: #dc2626;
-  --state-selected: #eef2ff;
-  --state-selected-text: #3730a3;
-  --state-panel: #ffffff;
-  --shadow-raised: 0 12px 32px rgb(15 23 42 / 0.08);
-  --radius-control: 0.625rem;
-  --radius-surface: 0.875rem;
-  --duration-fast: 140ms;
-  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  /* The brand mark itself. */
+  --brand-orange: var(--color-accent-500); /* #fb631a — the O in the mark */
+  --brand-ink: #231f20; /* the artwork's own letterform colour */
+
+  /* Neutrals are warm stone, not cool slate: genuinely tinted at chroma
+     .004–.016 on the brand's own warm axis (~58deg). A neutral that shares a
+     hue family with the accent is what makes one saturated colour look chosen
+     rather than dropped in. The page ground sits a hair off white so a white
+     card lifts off it without needing a shadow; --surface stays pure white. */
+  --bg: oklch(0.988 0.004 62);
+  --surface: oklch(1 0 0);
+  --surface-2: oklch(0.968 0.006 60);
+  --border: oklch(0.918 0.008 60);
+  --text: oklch(0.16 0.008 55);
+  --text-muted: oklch(0.52 0.016 58);
+
+  /* shadcn semantics → Fourty palette */
+  --background: var(--bg);
+  --foreground: var(--text);
+  --card: var(--surface);
+  --card-foreground: var(--text);
+  --popover: var(--surface);
+  --popover-foreground: var(--text);
+  --primary: var(--color-accent-500);
+  /* Ink, not white. On the mark's orange, white reaches only 3.04:1 while the
+     artwork's own ink reaches 5.36 — and ink-on-orange is the pairing the logo
+     already makes. The rule that follows: --primary is for FILLS. Anything
+     drawn in the accent that is not a fill — link text, an accent icon, the
+     spinner ring — uses --color-accent-700 (5.22:1 on white), because the flat
+     orange itself clears only 3.04:1 there. */
+  --primary-foreground: var(--brand-ink);
+  --secondary: var(--surface-2);
+  --secondary-foreground: var(--text);
+  --muted: var(--surface-2);
+  --muted-foreground: var(--text-muted);
+  /* shadcn's --accent is a hover/raised *surface*, unrelated to the orange
+     --color-accent-* brand ramp in @theme. Both names ship; they don't collide
+     because Tailwind emits `bg-accent` vs `bg-accent-600`. */
+  --accent: var(--surface-2);
+  --accent-foreground: var(--text);
+  --destructive: oklch(0.577 0.245 27.325);
+  --input: var(--border);
+  /* Focus is a shape cue, so the ring is a warm neutral — the orange stays
+     reserved for the primary action. */
+  --ring: oklch(0.709 0.014 58);
+  --radius: 0.625rem;
+
+  /* Chart series are a VALUE ladder, not a hue palette: five warm neutrals told
+     apart by lightness, so a chart never competes with the one orange on the
+     page. Three named series exist for when the data itself carries meaning —
+     charts.tsx genuinely plots won against lost, and painting those the same
+     grey would throw away the point of the chart. */
+  --chart-1: oklch(0.869 0.008 58);
+  --chart-2: oklch(0.552 0.016 58);
+  --chart-3: oklch(0.444 0.014 62);
+  --chart-4: oklch(0.374 0.012 60);
+  --chart-5: oklch(0.268 0.01 45);
+  --chart-accent: var(--color-accent-500);
+  --chart-positive: oklch(0.596 0.145 163.225);
+  --chart-negative: oklch(0.577 0.245 27.325);
+
+
+  /* Record semantics — status, score band, priority.
+     A chip is a 10% wash of its own colour with that colour as the text on top.
+     The wash lifts the ground toward the text, so the foreground is NOT the
+     base colour: each value below was generated against its own composited
+     wash, in each theme, with a margin over 4.5:1. tests/semantic-tokens.test.ts
+     re-measures them, because a colour that misses by a tenth still looks fine.
+     Never hand-edit one of these in isolation — regenerate the pair. */
+  --status-lead: #746a64;
+  --status-lead-wash: color-mix(in srgb, #7a7069 10%, transparent);
+  --status-qualified: #235edf;
+  --status-qualified-wash: color-mix(in srgb, #2563eb 10%, transparent);
+  --status-customer: #007c53;
+  --status-customer-wash: color-mix(in srgb, #009966 10%, transparent);
+  --status-churned: #cc242c;
+  --status-churned-wash: color-mix(in srgb, #fb2c36 10%, transparent);
+  --score-hot: #d1000a;
+  --score-hot-wash: color-mix(in srgb, #e7000b 10%, transparent);
+  --score-warm: #a65300;
+  --score-warm-wash: color-mix(in srgb, #e17100 10%, transparent);
+  --score-cold: #006caa;
+  --score-cold-wash: color-mix(in srgb, #0084d1 10%, transparent);
+  --priority-high: #cc242c;
+  --priority-high-wash: color-mix(in srgb, #fb2c36 10%, transparent);
+  --priority-medium: #a65300;
+  --priority-medium-wash: color-mix(in srgb, #e17100 10%, transparent);
+  --priority-low: #746a64;
+  --priority-low-wash: color-mix(in srgb, #7a7069 10%, transparent);
+
+  /* Feedback semantics — the outcome of something the user or the system just
+     did: a banner, a status pill, an inline result. Same construction as the
+     record semantics above (10% wash, saturated text, measured per theme) and
+     the same test covers them.
+
+     These deliberately carry their own names even where a value matches a
+     record token today. A task's priority and an SSO warning are different
+     meanings, and one has to be free to move without dragging the other.
+
+     --destructive stays what shadcn means by it: a FILL and border colour. It
+     clears 4.13:1 as text on white, which is under AA, so red *text* uses
+     --feedback-error instead. */
+  --feedback-ok: #007c53;
+  --feedback-ok-wash: color-mix(in srgb, #009966 10%, transparent);
+  --feedback-warn: #a65300;
+  --feedback-warn-wash: color-mix(in srgb, #e17100 10%, transparent);
+  --feedback-error: #d1000a;
+  --feedback-error-wash: color-mix(in srgb, #e7000b 10%, transparent);
+
+  /* The rail sits one step off white so it reads as chrome. */
+  --sidebar: oklch(0.978 0.005 60);
+  --sidebar-foreground: var(--text);
+  --sidebar-primary: var(--color-accent-500);
+  --sidebar-primary-foreground: var(--brand-ink);
+  --sidebar-accent: var(--surface-2);
+  --sidebar-accent-foreground: var(--text);
+  --sidebar-border: var(--border);
+  --sidebar-ring: oklch(0.709 0.014 58);
 }
 
 .dark {
-  --bg: #0b0f1a;
-  --surface: #111827;
-  --surface-2: #1a2234;
-  --surface-raised: #172033;
-  --surface-hover: #1c2940;
-  --border: #263043;
-  --border-strong: #40506a;
-  --text: #e5e9f0;
-  --text-muted: #8b98ad;
-  --focus-ring: #a5b4fc;
-  --danger: #fca5a5;
-  --success: #6ee7b7;
-  --warning: #fcd34d;
-  --info: #7dd3fc;
-  --state-error: #fca5a5;
-  --state-selected: #252b50;
-  --state-selected-text: #e0e7ff;
-  --state-panel: #111827;
-  --shadow-raised: 0 18px 44px rgb(0 0 0 / 0.32);
-  --radius-control: 0.625rem;
-  --radius-surface: 0.875rem;
-  --duration-fast: 140ms;
-  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --bg: oklch(0.16 0.008 55);
+  --surface: oklch(0.216 0.009 56);
+  --surface-2: oklch(0.268 0.011 48);
+  --border: oklch(1 0 0 / 10%);
+  --text: oklch(0.985 0.003 70);
+  --text-muted: oklch(0.709 0.014 58);
+
+  /* Only the values that need to diverge in dark; the rest inherit the
+     aliases above, which already point at the overridden palette. */
+  --primary: var(--color-accent-500);
+  --primary-foreground: var(--brand-ink);
+  --secondary: oklch(0.274 0.01 56);
+  --secondary-foreground: var(--text);
+  --destructive: oklch(0.704 0.191 22.216);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.552 0.016 58);
+
+  --chart-1: oklch(0.869 0.008 58);
+  --chart-positive: oklch(0.765 0.177 163.223);
+  --chart-negative: oklch(0.704 0.191 22.216);
+
+  /* Same semantics, re-measured against the dark surface. */
+  --status-lead: #97908a;
+  --status-qualified: #5586ef;
+  --status-customer: #14a172;
+  --status-churned: #fb4c55;
+  --score-hot: #ef575e;
+  --score-warm: #e17100;
+  --score-cold: #2797d8;
+  --priority-high: #fb4c55;
+  --priority-medium: #e17100;
+  --priority-low: #97908a;
+
+  --feedback-ok: #14a172;
+  --feedback-warn: #e17100;
+  --feedback-error: #ef575e;
+
+  --sidebar: oklch(0.216 0.009 56);
+  /* One step lighter than the light-mode fill: on a dark rail the 500 orange
+     is heavier than it needs to be. */
+  --sidebar-primary: var(--color-accent-400);
+  --sidebar-ring: oklch(0.552 0.016 58);
 }
 
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
-  --color-surface-raised: var(--surface-raised);
-  --color-surface-hover: var(--surface-hover);
   --color-line: var(--border);
-  --color-line-strong: var(--border-strong);
   --color-ink: var(--text);
   --color-ink-muted: var(--text-muted);
-  --color-danger: var(--danger);
-  --color-success: var(--success);
-  --color-warning: var(--warning);
-  --color-info: var(--info);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+
+  /* Record semantics as utilities: `text-status-lead` + `bg-status-lead-wash`.
+     One name per meaning — the token flips in dark, so no `dark:` variant. */
+  --color-status-lead: var(--status-lead);
+  --color-status-lead-wash: var(--status-lead-wash);
+  --color-status-qualified: var(--status-qualified);
+  --color-status-qualified-wash: var(--status-qualified-wash);
+  --color-status-customer: var(--status-customer);
+  --color-status-customer-wash: var(--status-customer-wash);
+  --color-status-churned: var(--status-churned);
+  --color-status-churned-wash: var(--status-churned-wash);
+  --color-score-hot: var(--score-hot);
+  --color-score-hot-wash: var(--score-hot-wash);
+  --color-score-warm: var(--score-warm);
+  --color-score-warm-wash: var(--score-warm-wash);
+  --color-score-cold: var(--score-cold);
+  --color-score-cold-wash: var(--score-cold-wash);
+  --color-priority-high: var(--priority-high);
+  --color-priority-high-wash: var(--priority-high-wash);
+  --color-priority-medium: var(--priority-medium);
+  --color-priority-medium-wash: var(--priority-medium-wash);
+  --color-priority-low: var(--priority-low);
+  --color-priority-low-wash: var(--priority-low-wash);
+  --color-feedback-ok: var(--feedback-ok);
+  --color-feedback-ok-wash: var(--feedback-ok-wash);
+  --color-feedback-warn: var(--feedback-warn);
+  --color-feedback-warn-wash: var(--feedback-warn-wash);
+  --color-feedback-error: var(--feedback-error);
+  --color-feedback-error-wash: var(--feedback-error-wash);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-html,
-body {
-  background: var(--bg);
-  color: var(--text);
-}
-
-.app-shell {
-  --sidebar-width: 224px;
-}
-
-.app-sidebar {
-  width: var(--sidebar-width);
-}
-
-.app-main {
-  margin-left: 0;
-}
-
-.sidebar-resize-handle {
-  position: absolute;
-  inset-block: 0;
-  right: -6px;
-  z-index: 40;
-  width: 12px;
-  cursor: col-resize;
-  touch-action: none;
-}
-
-.sidebar-resize-handle::after {
-  position: absolute;
-  inset-block: 0;
-  left: 5px;
-  width: 2px;
-  content: "";
-  background: transparent;
-  transition: background-color 0.15s ease;
-}
-
-.sidebar-resize-handle:hover::after,
-.sidebar-resize-handle:focus-visible::after,
-.sidebar-resize-handle.is-resizing::after {
-  background: var(--focus-ring);
-}
-
-.dialog-backdrop {
-  overscroll-behavior: contain;
-}
-
-.drawer-panel {
-  background: var(--state-panel);
-}
-
-.cmdk-group-label {
-  color: var(--text-muted);
-}
-
-.cmdk-option[aria-selected="true"] {
-  background: var(--state-selected);
-  color: var(--state-selected-text);
-}
-
-.cmdk-badge {
-  @apply shrink-0 rounded-full border border-line px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-muted;
-}
-
-.state-error {
-  color: var(--state-error);
-}
-
-:where(a, button, input, select, textarea, [tabindex]):focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-
-@media (min-width: 48rem) {
-  .app-main {
-    margin-left: var(--sidebar-width);
-  }
-}
+/* Page background/foreground come from the @layer base rule at the bottom,
+   which resolves to the same palette through --background / --foreground. */
 
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
 }
 
-/* Base form controls shared by native inputs and the focused Radix primitives. */
-.input {
-  min-block-size: 2.5rem;
-  border-radius: var(--radius-control);
-  border: 1px solid var(--border);
-  background: var(--surface-raised);
-  color: var(--text);
-  transition:
-    border-color var(--duration-fast) var(--ease-standard),
-    box-shadow var(--duration-fast) var(--ease-standard),
-    background-color var(--duration-fast) var(--ease-standard);
-  @apply w-full px-3 py-2 text-sm outline-none focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 placeholder:text-ink-muted/60;
-}
-
-.select-trigger {
-  min-width: 0;
-  max-width: 100%;
-  min-block-size: 2.5rem;
-  border-radius: var(--radius-control);
-  border: 1px solid var(--border);
-  background: var(--surface-raised);
-  color: var(--text);
-  transition:
-    border-color var(--duration-fast) var(--ease-standard),
-    box-shadow var(--duration-fast) var(--ease-standard),
-    background-color var(--duration-fast) var(--ease-standard);
-  @apply inline-flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm outline-none hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50;
-}
-
-.select-trigger > span:first-child {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.select-trigger[data-placeholder] {
-  color: var(--text-muted);
-}
-
-.select-icon {
-  @apply shrink-0 text-xs text-ink-muted transition-transform;
-}
-
-.select-trigger[data-state="open"] .select-icon {
-  transform: rotate(180deg);
-}
-
-.select-content {
-  z-index: 60;
-  --select-content-width: var(--radix-select-trigger-width, 12rem);
-  width: min(var(--select-content-width), calc(100vw - 1rem));
-  min-width: min(var(--select-content-width), calc(100vw - 1rem));
-  max-width: calc(100vw - 1rem);
-  max-height: min(20rem, var(--radix-select-content-available-height));
-  transform-origin: var(--radix-select-content-transform-origin);
-  @apply overflow-hidden rounded-lg border border-line bg-surface p-1 text-ink shadow-xl;
-}
-
-.select-viewport {
-  min-width: 0;
-  max-width: 100%;
-  @apply min-w-full;
-}
-
-.select-item {
-  min-width: 0;
-  max-width: 100%;
-  @apply relative flex cursor-default select-none items-center rounded-md px-2 py-1.5 pr-8 text-sm outline-none;
-}
-
-.select-item > span:first-child {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.select-item[data-highlighted] {
-  @apply bg-surface-hover;
-}
-
-.select-item[data-disabled] {
-  @apply pointer-events-none opacity-50;
-}
-
-.select-item-indicator {
-  @apply absolute right-2 text-accent-600 dark:text-accent-400;
-}
-
-.dropdown-content {
-  z-index: 60;
-  min-width: 11rem;
-  transform-origin: var(--radix-dropdown-menu-content-transform-origin);
-  border-radius: var(--radius-control);
-  border: 1px solid var(--border);
-  background: var(--surface-raised);
-  color: var(--text);
-  box-shadow: var(--shadow-raised);
-  @apply overflow-hidden p-1;
-}
-
-.dropdown-item {
-  min-block-size: 2.5rem;
-  @apply relative flex cursor-default select-none items-center rounded-md px-3 py-2 text-left text-sm outline-none;
-}
-
-.dropdown-item[data-highlighted] {
-  @apply bg-surface-hover;
-}
-
-.dropdown-item[data-disabled] {
-  @apply pointer-events-none opacity-50;
-}
-
-.dropdown-label {
-  @apply px-3 py-2 text-xs font-semibold uppercase tracking-wide text-ink-muted;
-}
-
-.dropdown-separator {
-  @apply my-1 h-px bg-line;
-}
-
-.btn-primary,
-.btn-ghost,
-.btn-danger {
-  min-block-size: 2.5rem;
-  border-radius: var(--radius-control);
-  transition:
-    background-color var(--duration-fast) var(--ease-standard),
-    border-color var(--duration-fast) var(--ease-standard),
-    color var(--duration-fast) var(--ease-standard),
-    box-shadow var(--duration-fast) var(--ease-standard);
-  @apply inline-flex cursor-pointer items-center justify-center gap-1.5 px-3.5 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50;
-}
-
-.btn-primary {
-  @apply bg-accent-600 text-white hover:bg-accent-700 active:bg-accent-800;
-}
-
-.btn-ghost {
-  @apply border border-line bg-surface-raised text-ink hover:bg-surface-hover;
-}
-
-.btn-danger {
-  background: var(--danger);
-  color: var(--surface-raised);
-  @apply hover:brightness-95;
-}
-
-.card {
-  border-radius: var(--radius-surface);
-  border: 1px solid var(--border);
-  background: var(--surface-raised);
-  box-shadow: var(--shadow-raised);
-}
-
-/* Shared surface recipes are intentionally small so cards, panels, and alerts
-   can share the same visual boundary without introducing a wrapper hierarchy. */
-.surface {
-  border-radius: var(--radius-surface);
-  border: 1px solid var(--border);
-  background: var(--surface-raised);
-  box-shadow: var(--shadow-raised);
-}
-
-.surface-subtle {
-  background: var(--surface);
-  box-shadow: none;
-}
-
-.surface-danger {
-  border-color: color-mix(in srgb, var(--danger) 38%, var(--border));
-  background: color-mix(in srgb, var(--danger) 8%, var(--surface-raised));
-}
-
-.surface-compact {
-  border-radius: var(--radius-control);
-}
-
-.ui-button-compact {
-  min-block-size: 2rem;
-  padding-block: 0.375rem;
-  padding-inline: 0.75rem;
-}
-
-.ui-icon-button {
-  min-block-size: 2.5rem;
-  min-inline-size: 2.5rem;
-  padding: 0;
-}
-
-.ui-icon-button.ui-button-compact {
-  min-block-size: 2rem;
-  min-inline-size: 2rem;
-}
-
-.context-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-width: 0;
-  flex-wrap: wrap;
-}
-
-.context-toolbar-search {
-  min-width: min(16rem, 100%);
-  flex: 1 1 16rem;
-}
-
-.context-toolbar-filters,
-.context-toolbar-view,
-.context-toolbar-actions,
-.context-toolbar-meta {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-width: 0;
-}
-
-.context-toolbar-meta {
-  color: var(--text-muted);
-  font-size: 0.75rem;
-}
-
-@media (max-width: 47.999rem) {
-  .context-toolbar {
-    align-items: stretch;
-  }
-
-  .context-toolbar-search {
-    flex-basis: 100%;
-  }
-
-  .context-toolbar-filters,
-  .context-toolbar-view,
-  .context-toolbar-actions {
-    flex-wrap: wrap;
+/* Coarse pointers need comfortable targets for the shared primitives. Keep
+   this on the Base UI data slots so the sizing follows the component API. */
+@media (pointer: coarse) {
+  :where(
+    [data-slot="button"],
+    [data-slot="sidebar-menu-button"],
+    [data-slot="sidebar-trigger"],
+    [data-slot="command-item"],
+    [data-slot="dropdown-menu-trigger"],
+    [data-slot="dropdown-menu-item"],
+    [data-slot="select-trigger"]
+  ) {
+    min-block-size: 44px;
   }
 }
 
+/* The wash pill behind StatusChip, ScoreBadge and PriorityChip. Those three are
+   the product's badge API and are what call sites reach for; this rule is their
+   shared shape, not a second `<Badge>`. Anything interactive is a Button. */
 .chip {
   @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium;
 }
 
-/* Interactive pill (saved-views bar, quick filters). */
-.chip-btn {
-  @apply inline-flex items-center gap-1 rounded-full border border-line bg-surface px-2.5 py-1 text-xs font-medium text-ink transition hover:bg-surface-2;
+/* Text painted in a colour that comes from the database (a pipeline stage) needs
+   a different value per theme, and the theme is a class on <html> — something an
+   inline style written on the server cannot read. So the caller supplies both
+   inks as custom properties and CSS picks. */
+.data-ink {
+  color: var(--data-ink-light);
 }
 
-.chip-active {
-  @apply border-accent-500 bg-accent-50 text-accent-700;
+.dark .data-ink {
+  color: var(--data-ink-dark);
 }
 
-.th {
-  @apply px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-ink-muted;
-}
-
-.td {
-  @apply px-3 py-2.5 text-sm;
+/* Motion is short, functional, and opacity-plus-4px. Nothing bounces, nothing
+   springs, nothing scales up on hover. */
+:root {
+  --duration-fast: 120ms;
+  --duration-base: 150ms;
+  --duration-enter: 180ms;
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  /* Exponential ease-out: things arrive fast and settle. Use it for anything
+     that enters or expands; --ease-out stays for small state changes. */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @keyframes fade-up {
@@ -445,31 +353,65 @@ body {
 }
 
 .animate-fade-up {
-  animation: fade-up var(--duration-fast) var(--ease-standard);
+  animation: fade-up var(--duration-enter) var(--ease-out-expo);
 }
 
-@media (pointer: coarse) {
-  :where(
-      .ui-button,
-      .ui-icon-button,
-      .btn-primary,
-      .btn-ghost,
-      .btn-danger,
-      .select-trigger,
-      .dropdown-item,
-      .chip-btn
-    ) {
-    min-block-size: 44px;
-  }
+/* A deal card crossing the Kanban board is a reposition — something already on
+   screen moving from A to B — so it accelerates and decelerates rather than
+   arriving. Only elements that claim a `view-transition-name` are lifted out
+   and morphed; the rest of the page cross-fades as one, which is what carries
+   the stage totals to their new numbers. No media query is needed here:
+   `withViewTransition` declines to start a transition at all under reduced
+   motion, so these rules never get the chance to run. */
+::view-transition-group(*) {
+  animation-duration: var(--duration-enter);
+  animation-timing-function: var(--ease-in-out);
 }
 
+/* Reduced motion needs an alternative, not just a cancellation: the entrance
+   still resolves, it just arrives without travelling. */
 @media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 1ms;
+    --duration-base: 1ms;
+    --duration-enter: 1ms;
+  }
+
+  .animate-fade-up {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
+    animation-duration: 1ms !important;
     animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
     scroll-behavior: auto !important;
-    transition-duration: 0.01ms !important;
+  }
+
+  /* The loading spinner is the one thing the blanket rule above must not
+     freeze. It is not decoration: it is the only signal that a pending request
+     is still pending, and a stopped spinner reads as a stuck app — the same
+     mistake as showing no indicator at all. It keeps turning, slower, and at
+     16px it is far too small to be a vestibular trigger. The attribute selector
+     outweighs `*`, so this wins wherever it lands in the file. */
+  [data-slot="spinner"] {
+    animation-duration: 1.6s !important;
+    animation-iteration-count: infinite !important;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
   }
 }

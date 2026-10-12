@@ -1,0 +1,322 @@
+import { describe, expect, it } from "vitest";
+import { z } from "zod";
+import * as validators from "@/lib/validators";
+import * as actionSchemas from "@/lib/actions/schemas";
+import { toJsonSchema } from "@/lib/actions/json-schema";
+import { TOOLS } from "@/mcp/tools";
+
+/**
+ * The converter turns the zod schemas that already validate every write into
+ * the JSON Schema that MCP clients read. Those clients depend on the current
+ * hand-written `inputSchema` blocks in src/mcp/tools.ts, so those are the
+ * ground truth for compatibility: a field required today stays required, and an
+ * enum keeps exactly its current values.
+ *
+ * The generated schemas are allowed to be *wider* — the hand-written ones omit
+ * several fields zod already accepts (see the documented list below). Widening
+ * keeps every call that works today working. Narrowing would not, and is
+ * asserted against.
+ */
+describe("zod → JSON Schema", () => {
+  const SCHEMAS: [string, z.ZodTypeAny][] = Object.entries(validators)
+    .filter(([, v]) => v instanceof z.ZodType)
+    .map(([name, v]) => [name, v as z.ZodTypeAny]);
+
+  it("covers every schema in validators.ts", () => {
+    // Guards the sweep below: if validators.ts is emptied or renamed, the
+    // per-schema test would vacuously pass.
+    expect(SCHEMAS.length).toBeGreaterThanOrEqual(10);
+  });
+
+  it.each(SCHEMAS)("converts %s without falling outside the supported subset", (_name, schema) => {
+    const out = toJsonSchema(schema) as Record<string, unknown>;
+    expect(out.type).toBe("object");
+    expect(out.properties).toBeTypeOf("object");
+  });
+
+  // ── field constraints ─────────────────────────────────────────────────────
+
+  it("carries string length bounds across", () => {
+    const out = toJsonSchema(validators.contactInput) as { properties: Record<string, Record<string, unknown>> };
+    expect(out.properties.firstName).toMatchObject({ type: "string", minLength: 1, maxLength: 120 });
+  });
+
+  it("expresses .length() as an exact bound", () => {
+    const out = toJsonSchema(validators.dealInput) as { properties: Record<string, Record<string, unknown>> };
+    expect(out.properties.currency).toMatchObject({ type: "string", minLength: 3, maxLength: 3 });
+  });
+
+  it("marks an email string with its format", () => {
+    const out = toJsonSchema(validators.contactInput) as { properties: Record<string, Record<string, unknown>> };
+    expect(out.properties.email).toMatchObject({ format: "email" });
+  });
+
+  it("carries number bounds across", () => {
+    const out = toJsonSchema(validators.dealInput) as { properties: Record<string, Record<string, unknown>> };
+    expect(out.properties.amount).toMatchObject({ type: "number", minimum: 0 });
+  });
+
+  it("keeps a nullable field usable as its base type", () => {
+    const out = toJsonSchema(validators.contactInput) as { properties: Record<string, Record<string, unknown>> };
+    expect(out.properties.phone.type).toEqual(["string", "null"]);
+  });
+
+  it("treats a record as a free-form object", () => {
+    const out = toJsonSchema(validators.contactInput) as { properties: Record<string, Record<string, unknown>> };
+    expect(out.properties.custom).toMatchObject({ type: "object", additionalProperties: true });
+  });
+
+  // ── required ──────────────────────────────────────────────────────────────
+
+  it("requires only the fields with neither a default nor .optional()", () => {
+    expect((toJsonSchema(validators.contactInput) as { required: string[] }).required).toEqual(["firstName"]);
+    expect((toJsonSchema(validators.companyInput) as { required: string[] }).required).toEqual(["name"]);
+    expect((toJsonSchema(validators.noteInput) as { required: string[] }).required.sort()).toEqual([
+      "body",
+      "entityId",
+      "entityType",
+    ]);
+  });
+
+  it("requires nothing after .partial()", () => {
+    expect((toJsonSchema(validators.contactPatch) as { required?: string[] }).required ?? []).toEqual([]);
+  });
+
+  it("carries fields added by .extend() through", () => {
+    const out = toJsonSchema(validators.taskPatch) as {
+      required?: string[];
+      properties: Record<string, Record<string, unknown>>;
+    };
+    expect(out.properties.completed).toMatchObject({ type: "boolean" });
+    expect(out.properties.title).toBeDefined();
+    expect(out.required ?? []).toEqual([]);
+  });
+
+  // ── compatibility with what MCP clients already see ───────────────────────
+
+/**
+ * The MCP tool schemas exactly as they were published before any tool was
+ * generated from a zod schema. Frozen here on purpose: this is what existing
+ * clients were told to send, so it is the only honest baseline for "did the
+ * generated schema stay compatible". Reading it back out of `TOOLS` would be
+ * self-referential once a tool is generated, and would assert nothing.
+ */
+const PUBLISHED: Record<string, { properties: Record<string, { type?: string; enum?: string[] }>; required?: string[] }> = {
+  create_contact: {
+    properties: {
+      firstName: { type: "string" },
+      lastName: { type: "string" },
+      email: { type: "string" },
+      phone: { type: "string" },
+      jobTitle: { type: "string" },
+      companyId: { type: "string" },
+      status: { type: "string", enum: ["lead", "qualified", "customer", "churned"] },
+    },
+    required: ["firstName"],
+  },
+  create_company: {
+    properties: { name: { type: "string" }, domain: { type: "string" }, industry: { type: "string" } },
+    required: ["name"],
+  },
+  create_task: {
+    properties: {
+      title: { type: "string" },
+      description: { type: "string" },
+      dueDate: { type: "number" },
+      priority: { type: "string", enum: ["low", "medium", "high"] },
+      entityType: { type: "string" },
+      entityId: { type: "string" },
+    },
+    required: ["title"],
+  },
+  create_note: {
+    properties: {
+      body: { type: "string" },
+      entityType: { type: "string" },
+      entityId: { type: "string" },
+    },
+    required: ["body", "entityType", "entityId"],
+  },
+  update_contact: {
+    properties: {
+      id: { type: "string" },
+      firstName: { type: "string" },
+      lastName: { type: "string" },
+      email: { type: "string" },
+      phone: { type: "string" },
+      jobTitle: { type: "string" },
+      companyId: { type: "string" },
+      status: { type: "string", enum: ["lead", "qualified", "customer", "churned"] },
+      source: { type: "string" },
+    },
+    required: ["id"],
+  },
+  update_company: {
+    properties: {
+      id: { type: "string" },
+      name: { type: "string" },
+      domain: { type: "string" },
+      industry: { type: "string" },
+      size: { type: "string" },
+    },
+    required: ["id"],
+  },
+  list_contacts: { properties: { query: { type: "string" }, limit: { type: "number" } } },
+  delete_contact: { properties: { id: { type: "string" }, confirm: { type: "boolean" } }, required: ["id"] },
+};
+
+  /** Hand-written MCP tool schema → the zod schema that action would use. */
+  const PAIRS: { tool: string; schema: z.ZodTypeAny; addsId?: boolean }[] = [
+    { tool: "create_contact", schema: validators.contactInput },
+    { tool: "create_company", schema: validators.companyInput },
+    { tool: "create_task", schema: validators.taskInput },
+    { tool: "create_note", schema: validators.noteInput },
+    { tool: "update_contact", schema: validators.contactPatch, addsId: true },
+    { tool: "update_company", schema: validators.companyPatch, addsId: true },
+  ];
+
+  it.each(PAIRS)("keeps $tool's required fields required", ({ tool, schema, addsId }) => {
+    const hand = PUBLISHED[tool];
+    const generated = toJsonSchema(schema) as { required?: string[] };
+    // `id` is an argument of the operation, not a field of the record; the
+    // action schemas add it separately (src/lib/actions/schemas.ts).
+    const expected = (hand.required ?? []).filter((f) => !(addsId && f === "id"));
+    for (const field of expected) {
+      expect(generated.required ?? []).toContain(field);
+    }
+  });
+
+  it.each(PAIRS)("keeps $tool's enum values identical", ({ tool, schema }) => {
+    const hand = PUBLISHED[tool];
+    const generated = toJsonSchema(schema) as { properties: Record<string, { enum?: string[] }> };
+    for (const [field, spec] of Object.entries(hand.properties ?? {})) {
+      if (!spec.enum) continue;
+      expect(generated.properties[field]?.enum).toEqual(spec.enum);
+    }
+  });
+
+  it("only ever widens the accepted input, never narrows it", () => {
+    // Every property a client can send today must still be described.
+    for (const { tool, schema, addsId } of PAIRS) {
+      const hand = PUBLISHED[tool];
+      const generated = toJsonSchema(schema) as { properties: Record<string, unknown> };
+      for (const field of Object.keys(hand.properties ?? {})) {
+        if (addsId && field === "id") continue;
+        expect(Object.keys(generated.properties)).toContain(field);
+      }
+    }
+  });
+
+  it("exposes fields zod already accepted but the hand-written schema omitted", () => {
+    // Deliberate widening, recorded so it is a decision rather than a surprise:
+    // these are accepted by contactInput today but absent from create_contact's
+    // advertised schema, so agents never knew they could send them.
+    const generated = toJsonSchema(validators.contactInput) as { properties: Record<string, unknown> };
+    const hand = PUBLISHED.create_contact;
+    const added = Object.keys(generated.properties).filter((f) => !(f in hand.properties));
+    expect(added.sort()).toEqual(["city", "country", "custom", "linkedin", "source"]);
+  });
+
+  it("still advertises every argument clients were already sending", () => {
+    // The end of the chain: whatever a tool is built from now, `tools/list` must
+    // not have dropped an argument or changed an enum out from under a client.
+    for (const [name, published] of Object.entries(PUBLISHED)) {
+      const live = TOOLS.find((t) => t.name === name);
+      if (!live) continue; // tool not present in this build — covered elsewhere
+      const properties = (live.inputSchema as { properties: Record<string, { enum?: string[] }> }).properties;
+      for (const [field, spec] of Object.entries(published.properties)) {
+        expect(Object.keys(properties), `${name}.${field}`).toContain(field);
+        if (spec.enum) expect(properties[field].enum, `${name}.${field}`).toEqual(spec.enum);
+      }
+      const required = (live.inputSchema as { required?: string[] }).required ?? [];
+      for (const field of published.required ?? []) {
+        expect(required, `${name}.${field} required`).toContain(field);
+      }
+    }
+  });
+
+  // ── the operation schemas the kernel owns ─────────────────────────────────
+
+  it("converts the list/get/delete schemas too", () => {
+    const list = toJsonSchema(actionSchemas.listContactsInput) as {
+      required?: string[];
+      properties: Record<string, Record<string, unknown>>;
+    };
+    // Everything about a list is optional — it has usable defaults.
+    expect(list.required ?? []).toEqual([]);
+    expect(Object.keys(list.properties).sort()).toEqual(["companyId", "limit", "q", "sort", "status"]);
+    // `limit` and `sort` carry no bounds or enum on purpose: the REST list
+    // clamps an oversized limit and ignores an unknown sort rather than
+    // rejecting either, and validating them here would turn calls that work
+    // today into errors.
+    expect(list.properties.limit).toEqual({ type: "number" });
+    expect(list.properties.sort).toEqual({ type: "string" });
+
+    const byId = toJsonSchema(actionSchemas.byIdInput) as { required: string[] };
+    expect(byId.required).toEqual(["id"]);
+
+    const del = toJsonSchema(actionSchemas.deleteInput) as {
+      required: string[];
+      properties: Record<string, Record<string, unknown>>;
+    };
+    expect(del.required).toEqual(["id"]);
+    // `confirm` has a default, so it is never required of the caller.
+    expect(del.properties.confirm).toMatchObject({ type: "boolean" });
+  });
+
+  it("keeps list filters usable as query strings", () => {
+    // Query parameters arrive as text; the schema has to accept "5" for limit.
+    expect(actionSchemas.listContactsInput.parse({ limit: "5" }).limit).toBe(5);
+    expect(actionSchemas.listContactsInput.parse({}).limit).toBeUndefined();
+    // A limit that is not a number is ignored, not refused — a list request
+    // with a junk parameter has always still returned contacts.
+    expect(actionSchemas.listContactsInput.parse({ limit: "abc" }).limit).toBeUndefined();
+    // `null` reads as 0, which the list treats as "no limit given" — the same
+    // answer, reached the same way it always was.
+    expect(actionSchemas.listContactsInput.parse({ limit: null }).limit).toBe(0);
+  });
+
+  it("deletes unless told otherwise, which is what every surface but MCP wants", () => {
+    expect(actionSchemas.deleteInput.parse({ id: "x" }).confirm).toBe(true);
+    expect(actionSchemas.deleteInput.parse({ id: "x", confirm: false }).confirm).toBe(false);
+  });
+
+  // ── arrays, added with the evidence ledger ────────────────────────────────
+
+  it("describes an array of objects, so an agent knows what an entry looks like", () => {
+    const schema = toJsonSchema(
+      z.object({
+        evidence: z
+          .array(z.object({ kind: z.enum(["a", "b"]), detail: z.string().max(500) }))
+          .min(1),
+      }),
+    ) as { properties: { evidence: Record<string, unknown> } };
+    const evidence = schema.properties.evidence;
+    expect(evidence.type).toBe("array");
+    expect(evidence.minItems).toBe(1);
+    expect(evidence.items).toMatchObject({
+      type: "object",
+      properties: { kind: { type: "string", enum: ["a", "b"] }, detail: { type: "string", maxLength: 500 } },
+    });
+  });
+
+  it("describes a url string as a uri, which is what a client reads", () => {
+    const schema = toJsonSchema(z.object({ sourceUrl: z.string().url().optional() })) as {
+      properties: { sourceUrl: Record<string, unknown> };
+      required: string[];
+    };
+    expect(schema.properties.sourceUrl).toMatchObject({ type: "string", format: "uri" });
+    expect(schema.required).not.toContain("sourceUrl");
+  });
+
+  // ── the subset is a fence, not a suggestion ───────────────────────────────
+
+  it("refuses a construct outside the supported subset instead of guessing", () => {
+    expect(() => toJsonSchema(z.object({ when: z.date() }))).toThrow(/ZodDate/);
+    expect(() => toJsonSchema(z.object({ either: z.union([z.string(), z.number()]) }))).toThrow(/ZodUnion/);
+  });
+
+  it("refuses a non-object schema at the top level", () => {
+    expect(() => toJsonSchema(z.string())).toThrow(/object/i);
+  });
+});

@@ -29,6 +29,20 @@ pg-boss manages its own `pgboss` schema, so it connects as the owner role
 | `QUEUE_DATABASE_URL` | falls back to `MIGRATE_DATABASE_URL` | Connection for the job queue (owner role). |
 | `QUEUE_DRIVER` | `pgboss` (prod), `inline` (tests) | `pgboss` = durable, needs a running worker. `inline` = run jobs in-request, single-process only. |
 
+### Background agent
+
+The worker also drains the **agent work ledger** (`agent_tasks`): a table of what
+the background agent intends to do about a record, when, and why. Connected
+mailboxes are pulled from here, so no cron is involved — the row is the schedule.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `AGENT_TICK_SECONDS` | `60` | How often the worker asks each workspace to look at its queue. `0` disables the agent entirely. |
+| `AGENT_MAIL_PULL_MINUTES` | `15` | How long after its last sync a connected mailbox is pulled again. |
+| `AGENT_LEASE_MS` | `300000` | How long a claimed task is held before another worker may take it. A killed worker's tasks come back when the lease expires. |
+| `AGENT_DIRECT_BATCH` | `60` | Deterministic tasks claimed per tick (parse, fetch, derive — no model). |
+| `AGENT_SESSION_BATCH` | `12` | Model-backed tasks claimed per tick. Never scheduled at all without an AI provider. |
+
 ## Observability
 
 | Variable | Default | Purpose |
@@ -47,6 +61,12 @@ per-instance — front them with a shared gateway limiter.
 | `RATELIMIT_READ` | `600` | Read requests per window. |
 | `RATELIMIT_WRITE` | `300` | Write requests per window. |
 | `RATELIMIT_BULK` | `60` | Bulk (import/export) requests per window. |
+| `RATELIMIT_LOGIN` | `10` | Login attempts per IP per auth window. |
+| `RATELIMIT_LOGIN_WINDOW_MS` | `900000` | Auth-login window length (ms). Default 15 minutes. |
+| `RATELIMIT_FORGOT` | `5` | Password-reset email requests per IP per auth window. |
+| `RATELIMIT_FORGOT_WINDOW_MS` | `900000` | Forgot-password window length (ms). Default 15 minutes. |
+| `RATELIMIT_RESET` | `10` | Password-reset redemptions per IP per auth window. |
+| `RATELIMIT_RESET_WINDOW_MS` | `900000` | Reset-token window length (ms). Default 15 minutes. |
 
 ## HTTP
 
@@ -75,16 +95,76 @@ unset to keep a provider disabled (ICS + push ingestion still work). See
 | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | Gmail mailbox OAuth. |
 | `MICROSOFT_OAUTH_CLIENT_ID` / `MICROSOFT_OAUTH_CLIENT_SECRET` | Microsoft Graph mailbox OAuth. |
 
+Once the instance credentials are set, individual mailboxes are added and connected
+from **Settings → Mailboxes & calendars**, which also runs a pull on demand, pauses a
+mailbox, and disconnects one.
+
+## Outbound email
+
+Fourty sends two kinds of message: the member invite and the forgot-password link. **Disabled until a transport is
+configured** — SMTP below, or Resend over HTTPS if your host blocks SMTP. With it off,
+**Settings → Team
+members** shows the accept link for an admin to pass along by hand, which is the only
+behaviour that existed before. Set them and inviting a teammate emails them the link
+instead; the panel still shows it, in case the mail doesn't arrive.
+
+| Variable | Purpose |
+|---|---|
+| `SMTP_HOST` | Mail server hostname. All three of host/user/password are required. |
+| `SMTP_PORT` | Default `465`. |
+| `SMTP_USER` | Usually the full address of the sending mailbox. |
+| `SMTP_PASSWORD` | Password or app-specific password for that mailbox. |
+| `SMTP_SECURE` | `1` for implicit TLS, `0` for STARTTLS. Inferred from the port; set it only when a server disagrees with its own port number. |
+| `MAIL_FROM` | `From:` header. Defaults to `SMTP_USER`; many servers reject an address they don't own. |
+
+Both the app and the worker need these: the worker drains the `mail.send` queue and
+does the sending, while the app reads them only to decide whether an invite can be
+emailed. Sends are queued, so a mail server that is down gets retried with backoff
+rather than failing the invite — the invite itself is committed either way.
+
+Prefer the mailbox that already sends for your domain. Its SPF and DKIM records
+already cover it, so nothing about the domain's DNS changes; a separate mail provider
+means updating SPF before anything you send is trusted.
+
+| Provider | Host and port | Password to use |
+|---|---|---|
+| Lark Mail | `smtp.larksuite.com:465` | A *dedicated password* from the Lark **desktop** app: avatar → Settings → Email → Third-party email client login → Set Up Now. An admin has to allow third-party email clients first, and mailing-list addresses can't sign in this way. |
+| Google Workspace | `smtp.gmail.com:465` | An App Password (account needs 2FA). |
+| Microsoft 365 | `smtp-mail.outlook.com:587` | Account or app password. |
+
+### If your host blocks outbound SMTP
+
+DigitalOcean blocks ports 25, 465 and 587 by default, and several other providers do
+the same. SMTP then times out however it is configured, and no local firewall rule
+undoes it — the filter sits upstream of the machine. Confirm it by trying an SMTP port
+against any provider from the host; if every one times out while `443` elsewhere
+works, that is the block.
+
+Two ways out: ask the provider to lift it, or send over HTTPS.
+
+| Variable | Purpose |
+|---|---|
+| `RESEND_API_KEY` | Sends through [Resend](https://resend.com) over port 443. |
+| `MAIL_FROM` | **Required** with Resend — unlike SMTP there is no account address to fall back on, and a key without a From leaves mail disabled. |
+
+SMTP wins when both are configured. Resend needs a verified sending domain: add it in
+the Resend dashboard, then create the MX, SPF and DKIM records it shows. Verifying the
+`send.` subdomain Resend suggests leaves your **root** domain's SPF untouched, so mail
+you already send is unaffected — but `MAIL_FROM` then has to be `@send.yourdomain.com`
+to match. Verifying the apex instead means merging Resend into the existing root SPF
+record, since a domain may only publish one.
+
 ## AI assistant
 
 The optional in-app chat ([ADR-015](../adr/015-ai-agent-chat.md)). **Disabled entirely
-when `AI_API_KEY` is unset** — route and UI both hidden. See
+when no key is set** — route and UI both hidden. See
 [AI assistant](../guides/ai-assistant.md).
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `AI_API_KEY` | unset | OpenAI-compatible key. **Unset = AI chat disabled.** |
-| `AI_BASE_URL` | `https://api.openai.com/v1` | OpenAI-compatible endpoint (OpenAI, Groq, OpenRouter, local `…/v1`). |
+| `AI_API_KEY` | unset | OpenAI-compatible key. **Unset (and no GLM/ZAI key) = AI chat disabled.** |
+| `GLM_API_KEY` / `ZAI_API_KEY` | unset | Zhipu GLM aliases. Used only when `AI_API_KEY` is empty; default host `https://open.bigmodel.cn/api/paas/v4`, model `glm-4.5-flash`. Chat sends `thinking: disabled` on that host so the token cap is spent on the reply, not hidden reasoning. |
+| `AI_BASE_URL` | `https://api.openai.com/v1` | OpenAI-compatible endpoint (OpenAI, Groq, OpenRouter, GLM, local `…/v1`). |
 | `AI_MODEL` | `gpt-4o-mini` | Model id sent to the endpoint. |
 | `AI_MAX_TOKENS` | `1024` | Cap per completion — the primary cost guardrail. |
 | `AI_RATELIMIT_PER_HOUR` | `60` | Chat turns per user per hour (every role); `429` when exceeded. |

@@ -15,20 +15,29 @@ On first boot Fourty creates a default **7-stage pipeline**. Each stage carries 
   `deal.lost` — which [workflows](./workflows.md) can react to.
 - **List view** — the same deals as a sortable table when you want density over drag.
 
-You can run multiple pipelines and manage their names, default status, and stages
-from **Settings → Pipelines**. Stage reordering uses **Move up** and **Move down**
-controls, so the saved order is explicit and keyboard-accessible. Members can
-manage pipelines and stages alongside admins; viewers can read them but cannot
-change them.
+Rename, reorder, recolour, add extra **open** stages, and set each stage's **win
+probability** from **Settings → Pipelines**. The kanban dots use that colour. New
+stages land before Won/Lost so the board keeps closed columns at the end (pick a
+colour when adding, or keep the warm-neutral default). Type (open/won/lost) is
+not editable, so won/lost workflows keep their meaning. Open stages with no deals can be deleted; Won/Lost
+cannot, and a pipeline keeps at least one open stage. Those weights drive the
+forecast and deal health. **Add pipeline** from the same Settings panel creates
+another 7-stage board; rename it there, or delete it once no deals remain. A
+workspace keeps at least one pipeline. The Deals page switches when more than
+one exists. The default pipeline is created on first boot.
+
+Stage reordering uses **Move up** and **Move down** controls, so the saved order is
+explicit and keyboard-accessible. Members can manage pipelines and stages alongside
+admins; viewers can read them but cannot change them.
 
 A pipeline cannot be deleted while it is the default, the only pipeline, or still
-referenced by a deal. A stage cannot be deleted while it is the only stage in its
-pipeline or still referenced by a deal. These conflicts are returned by the API
-instead of moving or deleting deals implicitly.
+referenced by a deal. A stage with deals cannot be deleted, and the Settings editor
+keeps Won/Lost stages and at least one open stage in each pipeline. These conflicts
+are returned by the API instead of moving or deleting deals implicitly.
 
 You can change an open stage's win probability; Fourty recalculates the stored
-scores of deals in that stage immediately. To keep closed-state history
-consistent, change a stage's type only before deals reference it.
+scores of deals in that stage immediately. The API keeps closed-state history
+consistent by rejecting stage-type changes.
 
 ## The weighted forecast
 

@@ -117,6 +117,21 @@ export const sessions = pgTable("sessions", {
   createdAt: millis("created_at").notNull(),
 });
 
+// Forgot-password tokens. Identity plane like users/sessions — a reset happens
+// before sign-in, so there is no workspace to scope it to and no RLS. Only the
+// sha256 of the token is stored (same treatment as invites and sessions); the
+// raw value exists in the email link and nowhere else. Single-use via usedAt,
+// and issuing a new token deletes the user's unused ones, so exactly one link
+// works at a time.
+export const passwordResets = pgTable("password_resets", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  tokenHash: text("token_hash").notNull().unique(),
+  expiresAt: millis("expires_at").notNull(),
+  usedAt: millis("used_at"),
+  createdAt: millis("created_at").notNull(),
+});
+
 // SSO / OIDC (Gate D4, ADR-014). An sso_connections row is an instance-level
 // OIDC provider an admin registers (issuer + client credentials). OIDC login
 // runs before a workspace is selected, so — like users/sessions — these tables
@@ -224,7 +239,10 @@ export const stages = pgTable(
     order: integer("sort_order").notNull().default(0),
     winProbability: integer("win_probability").notNull().default(50),
     type: text("type").notNull().default("open"), // open | won | lost
-    color: text("color").notNull().default("#6366f1"),
+    // A stage created without a colour has no meaning assigned yet, so the
+    // default is the palette's warm neutral — never the brand accent, which is
+    // reserved for the primary action and would make every new stage shout.
+    color: text("color").notNull().default("#a89f99"),
   },
   (t) => [index("stages_ws_pipeline_idx").on(t.workspaceId, t.pipelineId)],
 );
@@ -403,6 +421,80 @@ export const workflowRuns = pgTable(
 
 // API keys belong to one workspace. Looked up by hash during auth (before a
 // workspace context exists), so this table is app-scoped, not RLS-enforced.
+// Agent work ledger (Phase 2 of the agentic upgrade). One row per unit of
+// background work, with the reason a human reads, when it is due, and what came
+// of it. pg-boss stays the transport; this table is the *intent* — a job payload
+// is opaque, is deleted on completion, and cannot be joined to a contact.
+//
+// `budget` is how many attempts this task may spend and `attempts` how many it
+// has. An attempt is counted at claim time, not at completion, so a task that
+// kills its worker every time still runs out and retires visibly.
+export const agentTasks = pgTable(
+  "agent_tasks",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    // Null for a workspace-wide sweep, which is about no single record.
+    entityType: text("entity_type"),
+    entityId: text("entity_id"),
+    kind: text("kind").notNull(),
+    reason: text("reason").notNull(), // shown to the user, verbatim
+    lane: text("lane").notNull().default("direct"), // direct | session
+    priority: integer("priority").notNull().default(0),
+    budget: integer("budget").notNull().default(3),
+    attempts: integer("attempts").notNull().default(0),
+    dueAt: millis("due_at").notNull(),
+    leasedUntil: millis("leased_until"),
+    startedAt: millis("started_at"),
+    finishedAt: millis("finished_at"),
+    outcome: text("outcome"),
+    createdAt: millis("created_at").notNull(),
+  },
+  (t) => [
+    index("agent_tasks_due_idx").on(t.workspaceId, t.dueAt, t.leasedUntil),
+    index("agent_tasks_entity_idx").on(t.workspaceId, t.entityType, t.entityId),
+  ],
+);
+
+// Evidence ledger (ADR-018). One row per observed claim about a field of a
+// record: what was observed, what it scored, which band that puts it in, and
+// what happened to it. Polymorphic (`entity_type`/`entity_id`) like tasks/notes/
+// activities, so companies and later custom objects cost no second table.
+//
+// `previous_value` is what the column held when a fact was APPLIED — kept
+// because Revert has to restore it, and deriving it from the superseded row is
+// wrong the moment a human edited in between.
+//
+// `decided_by` is how ownership stays derivable without an `is_human_edited`
+// column: a fact applied by the research pass has none, a fact a person accepted
+// carries theirs, and a field whose value matches neither is human-owned.
+export const recordFacts = pgTable(
+  "record_facts",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    entityType: text("entity_type").notNull(), // contact | company
+    entityId: text("entity_id").notNull(),
+    field: text("field").notNull(), // job_title | company_id | linkedin | cf:<id>
+    value: text("value").notNull(),
+    previousValue: text("previous_value"),
+    score: doublePrecision("score").notNull(),
+    band: text("band").notNull(), // VERIFIED | PROBABLE | POSSIBLE
+    evidence: text("evidence").notNull().default("[]"), // the observations, as given
+    method: text("method").notNull().default("research"), // research | ai | agent:<id>
+    sourceUrl: text("source_url"),
+    status: text("status").notNull().default("PROPOSED"), // PROPOSED | APPLIED | DISMISSED | SUPERSEDED
+    decidedBy: text("decided_by"),
+    decidedAt: millis("decided_at"),
+    observedAt: millis("observed_at").notNull(),
+    supersededAt: millis("superseded_at"),
+  },
+  (t) => [
+    index("record_facts_target_idx").on(t.workspaceId, t.entityType, t.entityId, t.field, t.status),
+    index("record_facts_inbox_idx").on(t.workspaceId, t.status, t.observedAt),
+  ],
+);
+
 export const apiKeys = pgTable("api_keys", {
   id: text("id").primaryKey(),
   workspaceId: workspaceId(),
@@ -489,6 +581,14 @@ export const emailMessages = pgTable(
     toAddrs: text("to_addrs").notNull().default("[]"),
     subject: text("subject"),
     snippet: text("snippet"),
+    // What the sender's signature block said, extracted while the body was
+    // still in memory at ingest (Phase 3). Fourty stores no body, so these four
+    // columns plus the snippet are all that survives a message. `signatureRaw`
+    // is the block quoted back to a rep as the rationale for a fact.
+    signatureTitle: text("signature_title"),
+    signatureEmployer: text("signature_employer"),
+    signaturePhone: text("signature_phone"),
+    signatureRaw: text("signature_raw"),
     contactId: text("contact_id"),
     sentAt: millis("sent_at"),
     createdAt: millis("created_at").notNull(),
@@ -551,10 +651,24 @@ export const aiConversations = pgTable(
     workspaceId: workspaceId(),
     userId: text("user_id"),
     title: text("title"),
+    // The record this conversation is about (Phase 4), or null for the global
+    // chat drawer, which is about no single record. Written server-side from a
+    // record the caller could read — never from a client-supplied id.
+    entityType: text("entity_type"),
+    entityId: text("entity_id"),
     createdAt: millis("created_at").notNull(),
     updatedAt: millis("updated_at").notNull(),
   },
-  (t) => [index("ai_conversations_ws_updated_idx").on(t.workspaceId, t.updatedAt)],
+  (t) => [
+    index("ai_conversations_ws_updated_idx").on(t.workspaceId, t.updatedAt),
+    index("ai_conversations_record_idx").on(
+      t.workspaceId,
+      t.entityType,
+      t.entityId,
+      t.userId,
+      t.updatedAt,
+    ),
+  ],
 );
 
 // One turn of a thread. `tool_calls`/`tool_call_id` carry the provider round-trip

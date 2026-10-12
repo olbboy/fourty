@@ -35,7 +35,7 @@ Three principles shape every decision (and every [ADR](../adr/)):
 | Lead scoring | ✅ Automatic, zero-config | ❌ ("coming soon") | Einstein ($$) |
 | Workflow automation | ✅ Visual builder, durable queue | ✅ | Flow ($$) |
 | REST **and** GraphQL | ✅ Both | GraphQL-first | ✅ |
-| MCP server (AI agents) | ✅ Self-host, 20 tools, stdio + HTTP | ✅ (Cloud/OAuth) | ❌ |
+| MCP server (AI agents) | ✅ Self-host, 39 tools, stdio + HTTP | ✅ (Cloud/OAuth) | ❌ |
 | Licence | **MIT** | AGPL-3.0 | Proprietary |
 
 > [!NOTE]
@@ -43,7 +43,7 @@ Three principles shape every decision (and every [ADR](../adr/)):
 > team — not full enterprise-platform parity. Twenty 2.0 still leads on **SAML**, an
 > **apps/SDK platform**, and **calendar-over-OAuth** (Fourty ships mail OAuth;
 > calendar is via ICS feeds). For the honest, cited matrix — strengths and gaps
-> both — see **[PARITY.md](../../PARITY.md)**.
+> both — see the [comparison table](../../README.md#%EF%B8%8F-how-it-compares) in the README.
 
 ## Where Fourty deliberately stops
 

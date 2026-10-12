@@ -4,21 +4,33 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Contact, Company } from "@/lib/types";
-import { timeAgo } from "@/lib/format";
+import { timeAgo, displayName } from "@/lib/format";
 import {
-  AsyncError,
-  ContextToolbar,
-  EmptyState,
-  Modal,
   PageHeader,
-  ScoreBadge,
-  Spinner,
+  Modal,
   StatusChip,
+  ScoreBadge,
+  EmptyState,
+  Spinner,
+  LoadError,
 } from "@/components/ui";
 import { IconPlus, IconDownload, IconUpload } from "@/components/icons";
 import { SavedViewsBar, type SavedView } from "@/components/saved-views";
-import { Select } from "@/components/select";
 import { ContactForm } from "./contact-form";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { useLocale, useT } from "@/lib/i18n/provider";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -39,24 +51,33 @@ function isContactsResponse(value: unknown): value is { contacts: Contact[] } {
 }
 
 export function ContactsClient() {
+  const t = useT();
+  const locale = useLocale();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [contacts, setContacts] = useState<Contact[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [lookupsFailed, setLookupsFailed] = useState(false);
+  const [lookupRetry, setLookupRetry] = useState(0);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
   const [sort, setSort] = useState("updatedAt");
   const [activeView, setActiveView] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(searchParams.get("new") === "1");
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const requestRef = useRef<{ controller: AbortController; generation: number } | null>(null);
+  const requestRef = useRef<{
+    controller: AbortController;
+    generation: number;
+  } | null>(null);
   const generationRef = useRef(0);
 
-  // Apply a saved view's config (or reset to defaults when cleared).
   const applyView = useCallback((view: SavedView | null) => {
     setActiveView(view?.id ?? null);
     const cfg = view?.config ?? {};
-    setStatus(typeof cfg.filters?.status === "string" ? cfg.filters.status : "");
+    setStatus(
+      typeof cfg.filters?.status === "string" ? cfg.filters.status : "",
+    );
+    setQ(typeof cfg.filters?.q === "string" ? cfg.filters.q : "");
     setSort(cfg.sort ?? "updatedAt");
   }, []);
 
@@ -66,7 +87,7 @@ export function ContactsClient() {
     requestRef.current?.controller.abort();
     const controller = new AbortController();
     requestRef.current = { controller, generation };
-    setLoadError(null);
+    setFailed(false);
 
     const params = new URLSearchParams();
     if (q) params.set("q", q);
@@ -74,25 +95,31 @@ export function ContactsClient() {
     params.set("sort", sort);
 
     try {
-      const res = await fetch(`/api/contacts?${params}`, { signal: controller.signal });
-      if (!res.ok) throw new Error(`Contacts request failed with ${res.status}`);
+      const res = await fetch(`/api/contacts?${params}`, {
+        signal: controller.signal,
+      });
+      if (!res.ok)
+        throw new Error(`Contacts request failed with ${res.status}`);
       const body: unknown = await res.json();
-      if (!isContactsResponse(body)) throw new Error("Contacts response was invalid");
-      if (generation !== generationRef.current || controller.signal.aborted) return;
+      if (!isContactsResponse(body))
+        throw new Error("Contacts response was invalid");
+      if (generation !== generationRef.current || controller.signal.aborted)
+        return;
       setContacts(body.contacts);
-      setLoadError(null);
-    } catch (error) {
-      if (controller.signal.aborted || generation !== generationRef.current) return;
-      setLoadError(error instanceof Error ? error.message : "Unable to load contacts");
+    } catch {
+      if (controller.signal.aborted || generation !== generationRef.current)
+        return;
+      setFailed(true);
     } finally {
-      if (requestRef.current?.generation === generation) requestRef.current = null;
+      if (requestRef.current?.generation === generation)
+        requestRef.current = null;
     }
   }, [q, status, sort]);
 
   useEffect(() => {
-    const t = setTimeout(load, q ? 150 : 0);
+    const timer = setTimeout(() => void load(), q ? 150 : 0);
     return () => {
-      clearTimeout(t);
+      clearTimeout(timer);
       requestRef.current?.controller.abort();
     };
   }, [load, q]);
@@ -106,33 +133,73 @@ export function ContactsClient() {
   );
 
   useEffect(() => {
+    let cancelled = false;
+    setLookupsFailed(false);
     fetch("/api/companies")
-      .then((r) => r.json())
-      .then((d) => setCompanies(d.companies ?? []));
-  }, []);
+      .then(async (r) => {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json();
+      })
+      .then((d) => {
+        if (cancelled) return;
+        setCompanies(Array.isArray(d.companies) ? d.companies : []);
+        setLookupsFailed(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setCompanies([]);
+        setLookupsFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [lookupRetry]);
 
-  const companyName = (id: string | null) => companies.find((c) => c.id === id)?.name ?? "—";
+  const companyName = (id: string | null) =>
+    companies.find((c) => c.id === id)?.name ?? "—";
 
   return (
     <div className="animate-fade-up">
       <PageHeader
-        title="Contacts"
-        subtitle={contacts ? `${contacts.length} people` : undefined}
+        title={t("nav.contacts")}
+        subtitle={
+          contacts
+            ? t("page.contacts.count", { count: contacts.length })
+            : undefined
+        }
         actions={
           <>
-            <a href="/api/export/contacts" className="btn-ghost min-h-11 sm:min-h-0" title="Export CSV">
+            <a
+              href="/api/export/contacts"
+              title={t("page.contacts.exportTitle")}
+              className={cn(
+                buttonVariants({ variant: "outline" }),
+                "min-h-11 sm:min-h-0",
+              )}
+            >
               <IconDownload width={15} height={15} />
-              <span className="hidden sm:inline">Export</span>
+              <span className="hidden sm:inline">{t("action.export")}</span>
             </a>
-            <Link href="/settings/import" className="btn-ghost min-h-11 sm:min-h-0" title="Import CSV">
+            <Link
+              href="/settings/import"
+              title={t("page.contacts.importTitle")}
+              className={cn(
+                buttonVariants({ variant: "outline" }),
+                "min-h-11 sm:min-h-0",
+              )}
+            >
               <IconUpload width={15} height={15} />
-              <span className="hidden sm:inline">Import</span>
+              <span className="hidden sm:inline">{t("action.import")}</span>
             </Link>
-            <button onClick={() => setShowNew(true)} className="btn-primary min-h-11 sm:min-h-0">
+            <Button
+              onClick={() => setShowNew(true)}
+              disabled={lookupsFailed}
+              className="min-h-11 sm:min-h-0"
+            >
               <IconPlus width={15} height={15} />
-              <span className="hidden sm:inline">New contact</span>
-              <span className="sm:hidden">New</span>
-            </button>
+              <span className="hidden sm:inline">{t("page.contacts.new")}</span>
+              <span className="sm:hidden">{t("action.new")}</span>
+            </Button>
           </>
         }
       />
@@ -140,136 +207,156 @@ export function ContactsClient() {
       <SavedViewsBar
         entity="contacts"
         activeId={activeView}
-        current={{ filters: status ? { status } : {}, sort }}
+        current={{
+          filters: {
+            ...(status ? { status } : {}),
+            ...(q.trim() ? { q: q.trim() } : {}),
+          },
+          sort,
+        }}
         onApply={applyView}
       />
 
-      <ContextToolbar
-        className="mb-4"
-        search={
-          <input
-            type="text"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search name, email, title…"
-            aria-label="Search contacts"
-            className="input min-h-11 w-full sm:min-h-0 md:max-w-sm"
-          />
-        }
-        filters={
-          <>
-            <Select
-              aria-label="Filter by status"
-              value={status}
-              onValueChange={(value) => {
-                setStatus(value);
-                setActiveView(null);
-              }}
-              className="min-h-11 !w-full sm:!w-[11rem] sm:min-h-0 md:!w-[12rem]"
-              options={[
-                { value: "", label: "All statuses" },
-                { value: "lead", label: "Lead" },
-                { value: "qualified", label: "Qualified" },
-                { value: "customer", label: "Customer" },
-                { value: "churned", label: "Churned" },
-              ]}
-            />
-            <Select
-              aria-label="Sort contacts"
-              value={sort}
-              onValueChange={(value) => {
-                setSort(value);
-                setActiveView(null);
-              }}
-              className="min-h-11 !w-full sm:!w-[12rem] sm:min-h-0 md:!w-[13rem]"
-              options={[
-                { value: "updatedAt", label: "Recently updated" },
-                { value: "score", label: "Highest score" },
-                { value: "name", label: "Name" },
-                { value: "createdAt", label: "Newest" },
-              ]}
-            />
-          </>
-        }
-      />
+      <div className="mb-4 flex flex-wrap gap-2">
+        <Input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          aria-label={t("page.contacts.searchAria")}
+          placeholder={t("page.contacts.searchPlaceholder")}
+          className="min-h-11 max-w-xs sm:min-h-0"
+        />
+        <NativeSelect
+          value={status}
+          onChange={(e) => {
+            setStatus(e.target.value);
+            setActiveView(null);
+          }}
+          aria-label={t("page.contacts.filterStatus")}
+          className="min-h-11 sm:min-h-0"
+        >
+          <option value="">{t("page.contacts.allStatuses")}</option>
+          <option value="lead">{t("status.lead")}</option>
+          <option value="qualified">{t("status.qualified")}</option>
+          <option value="customer">{t("status.customer")}</option>
+          <option value="churned">{t("status.churned")}</option>
+        </NativeSelect>
+        <NativeSelect
+          value={sort}
+          onChange={(e) => {
+            setSort(e.target.value);
+            setActiveView(null);
+          }}
+          aria-label={t("page.contacts.sortAria")}
+          className="min-h-11 sm:min-h-0"
+        >
+          <option value="updatedAt">{t("page.contacts.sortUpdated")}</option>
+          <option value="score">{t("page.contacts.sortScore")}</option>
+          <option value="name">{t("page.contacts.sortName")}</option>
+          <option value="createdAt">{t("page.contacts.sortNewest")}</option>
+        </NativeSelect>
+      </div>
 
-      {loadError ? (
-        <AsyncError
-          message="We couldn't load contacts."
-          hint="Check your connection and try again."
-          onRetry={() => void load()}
+      {lookupsFailed && (
+        <LoadError compact onRetry={() => setLookupRetry((n) => n + 1)} />
+      )}
+
+      {failed ? (
+        <LoadError
+          onRetry={() => {
+            setContacts(null);
+            void load();
+          }}
         />
       ) : !contacts ? (
-        <Spinner label="Loading contacts" />
+        <Spinner />
       ) : contacts.length === 0 ? (
         <EmptyState
-          title="No contacts yet"
-          hint="Add your first contact or import a CSV to get going."
+          title={t("page.contacts.empty")}
+          hint={t("page.contacts.emptyHint")}
           action={
-            <button onClick={() => setShowNew(true)} className="btn-primary min-h-11 sm:min-h-0">
-              <IconPlus width={15} height={15} /> New contact
-            </button>
+            <Button onClick={() => setShowNew(true)} disabled={lookupsFailed}>
+              <IconPlus width={15} height={15} /> {t("page.contacts.new")}
+            </Button>
           }
         />
       ) : (
-        <div className="card overflow-x-auto">
-          <table className="w-full min-w-[720px]">
-            <thead className="border-b border-line">
-              <tr>
-                <th className="th">Name</th>
-                <th className="th">Company</th>
-                <th className="th">Status</th>
-                <th className="th">Score</th>
-                <th className="th hidden lg:table-cell">Email</th>
-                <th className="th">Last activity</th>
-              </tr>
-            </thead>
-            <tbody>
+        <Card size="flush">
+          <Table className="min-w-[720px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("col.name")}</TableHead>
+                <TableHead>{t("col.company")}</TableHead>
+                <TableHead>{t("col.status")}</TableHead>
+                <TableHead>{t("col.score")}</TableHead>
+                <TableHead className="hidden lg:table-cell">
+                  {t("col.email")}
+                </TableHead>
+                <TableHead>{t("col.lastActivity")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {contacts.map((c) => (
-                <tr
+                <TableRow
                   key={c.id}
                   onClick={(event) => {
                     if (
                       event.target instanceof Element &&
-                      event.target.closest("a,button,input,select,textarea,[role='button']")
+                      event.target.closest(
+                        "a,button,input,select,textarea,[role='button']",
+                      )
                     ) {
                       return;
                     }
                     router.push(`/contacts/${c.id}`);
                   }}
-                  className="cursor-pointer border-b border-line/60 transition last:border-0 hover:bg-surface-2"
+                  className="cursor-pointer hover:bg-surface-2"
                 >
-                  <td className="td font-medium">
+                  <TableCell className="font-medium">
                     <Link
                       href={`/contacts/${c.id}`}
                       className="underline-offset-2 hover:underline"
                     >
-                      {c.firstName} {c.lastName}
+                      {displayName(c.firstName, c.lastName)}
                     </Link>
                     {c.jobTitle && (
-                      <span className="block text-xs font-normal text-ink-muted">{c.jobTitle}</span>
+                      <span className="block text-xs font-normal text-ink-muted">
+                        {c.jobTitle}
+                      </span>
                     )}
-                  </td>
-                  <td className="td text-ink-muted">{companyName(c.companyId)}</td>
-                  <td className="td">
+                  </TableCell>
+                  <TableCell className="text-ink-muted">
+                    {companyName(c.companyId)}
+                  </TableCell>
+                  <TableCell>
                     <StatusChip status={c.status} />
-                  </td>
-                  <td className="td">
+                  </TableCell>
+                  <TableCell>
                     <ScoreBadge score={c.score} />
-                  </td>
-                  <td className="td hidden text-ink-muted lg:table-cell">{c.email ?? "—"}</td>
-                  <td className="td text-ink-muted">{timeAgo(c.lastActivityAt)}</td>
-                </tr>
+                  </TableCell>
+                  <TableCell className="hidden text-ink-muted lg:table-cell">
+                    {c.email ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-ink-muted">
+                    {timeAgo(c.lastActivityAt, locale)}
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </Card>
       )}
       {contacts && contacts.length > 0 && (
-        <p className="mt-2 text-xs text-ink-muted sm:hidden">Swipe horizontally to see more contact fields.</p>
+        <p className="mt-2 text-xs text-ink-muted sm:hidden">
+          Swipe horizontally to see more contact fields.
+        </p>
       )}
 
-      <Modal title="New contact" open={showNew} onClose={() => setShowNew(false)} wide>
+      <Modal
+        title={t("page.contacts.newModal")}
+        open={showNew}
+        onClose={() => setShowNew(false)}
+        wide
+      >
         <ContactForm
           companies={companies}
           onSaved={() => {

@@ -2,21 +2,43 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CompanyListQuery, CompanyRead, CompanySort, CompaniesListResponse } from "@/lib/types";
-import { ContextToolbar, PageHeader, EmptyState, Modal, Spinner } from "@/components/ui";
+import type {
+  CompanyListQuery,
+  CompanyRead,
+  CompanySort,
+  CompaniesListResponse,
+} from "@/lib/types";
+import { EmptyState, Modal, PageHeader, Spinner } from "@/components/ui";
 import { IconDownload, IconPlus, IconSearch } from "@/components/icons";
 import { CompanyPreview } from "@/components/company-preview";
-import { SavedViewsBar, type SavedView, type ViewConfig } from "@/components/saved-views";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/dropdown-menu";
-import { Select } from "@/components/select";
-import { useT } from "@/lib/i18n/provider";
-import type { MessageKey } from "@/lib/i18n";
+import {
+  SavedViewsBar,
+  type SavedView,
+  type ViewConfig,
+} from "@/components/saved-views";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   buildCompanyExportUrl,
   companyListQueryKey,
   parseCompanyListQuery,
   toCompanyApiParams,
 } from "@/lib/company-list-query";
+import { useT } from "@/lib/i18n/provider";
+import type { MessageKey } from "@/lib/i18n";
 import { CompaniesTable } from "./companies-table";
 import { CompanyForm } from "./company-form";
 
@@ -29,34 +51,53 @@ const SORT_OPTIONS: Array<{ value: CompanySort; label: MessageKey }> = [
   { value: "annualRevenue_asc", label: "companies.sortRevenueAsc" },
 ];
 
-const SORT_VALUES = new Set<CompanySort>(SORT_OPTIONS.map(({ value }) => value));
+const SORT_VALUES = new Set<CompanySort>(
+  SORT_OPTIONS.map(({ value }) => value),
+);
+const ALL_INDUSTRIES = "__all__";
 
 function parseSort(value: unknown): CompanySort | null {
-  return typeof value === "string" && SORT_VALUES.has(value as CompanySort) ? (value as CompanySort) : null;
+  return typeof value === "string" && SORT_VALUES.has(value as CompanySort)
+    ? (value as CompanySort)
+    : null;
 }
 
 function errorMessage(body: unknown): string {
-  if (typeof body === "object" && body !== null && "error" in body && typeof body.error === "string") {
+  if (
+    typeof body === "object" &&
+    body !== null &&
+    "error" in body &&
+    typeof body.error === "string"
+  ) {
     return body.error;
   }
   return "Request failed";
 }
 
 function responsePage(data: CompaniesListResponse, query: CompanyListQuery) {
-  return data.page ?? {
-    offset: query.offset,
-    limit: query.limit,
-    total: data.companies.length,
-    hasMore: false,
-  };
+  return (
+    data.page ?? {
+      offset: query.offset,
+      limit: query.limit,
+      total: data.companies.length,
+      hasMore: false,
+    }
+  );
 }
 
-export function CompaniesClient({ workspaceKey = "" }: { workspaceKey?: string }) {
+export function CompaniesClient({
+  workspaceKey = "",
+}: {
+  workspaceKey?: string;
+}) {
   const t = useT();
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const query = useMemo(() => parseCompanyListQuery(searchParams), [searchParams]);
+  const query = useMemo(
+    () => parseCompanyListQuery(searchParams),
+    [searchParams],
+  );
   const apiQuery = useMemo(
     () => toCompanyApiParams(query).toString(),
     [query.q, query.industry, query.sort, query.offset, query.limit],
@@ -81,7 +122,6 @@ export function CompaniesClient({ workspaceKey = "" }: { workspaceKey?: string }
   const requestGeneration = useRef(0);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousListKey = useRef(listKey);
-  const previousPreviewId = useRef<string | null>(previewId);
 
   const updateUrl = useCallback(
     (patch: Partial<CompanyListQuery>, mode: "push" | "replace" = "push") => {
@@ -99,11 +139,13 @@ export function CompaniesClient({ workspaceKey = "" }: { workspaceKey?: string }
         else next.delete("sort");
       }
       if ("offset" in patch) {
-        if (patch.offset && patch.offset > 0) next.set("offset", String(patch.offset));
+        if (patch.offset && patch.offset > 0)
+          next.set("offset", String(patch.offset));
         else next.delete("offset");
       }
       if ("limit" in patch) next.set("limit", String(patch.limit));
-      if (["q", "industry", "sort", "offset"].some((key) => key in patch)) next.delete("preview");
+      if (["q", "industry", "sort", "offset"].some((key) => key in patch))
+        next.delete("preview");
       const target = `${pathname}${next.toString() ? `?${next.toString()}` : ""}`;
       if (mode === "replace") router.replace(target, { scroll: false });
       else router.push(target, { scroll: false });
@@ -131,29 +173,6 @@ export function CompaniesClient({ workspaceKey = "" }: { workspaceKey?: string }
   }, [pathname, previewId, router, searchParams]);
 
   useEffect(() => {
-    const closedPreviewId = previousPreviewId.current && !previewId ? previousPreviewId.current : null;
-    previousPreviewId.current = previewId;
-    if (!closedPreviewId) return;
-
-    // A full-detail navigation can remount the list before the drawer closes,
-    // so the shared focus scope may no longer have the original button node.
-    // Restore only to a currently rendered readable-id trigger; otherwise the
-    // Drawer scope keeps its safe main/list fallback for deep links and redacted rows.
-    const frame = window.requestAnimationFrame(() => {
-      const hasVisibleModal = [...document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')].some((dialog) => {
-        if (dialog.hidden || dialog.getAttribute("aria-hidden") === "true") return false;
-        const style = window.getComputedStyle(dialog);
-        return style.display !== "none" && style.visibility !== "hidden" && dialog.getClientRects().length > 0;
-      });
-      if (hasVisibleModal) return;
-      const trigger = [...document.querySelectorAll<HTMLButtonElement>("[data-preview-trigger-id]")]
-        .find((candidate) => candidate.dataset.previewTriggerId === closedPreviewId);
-      if (trigger?.isConnected) trigger.focus();
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [previewId]);
-
-  useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = null;
     setQDraft(query.q);
@@ -175,12 +194,15 @@ export function CompaniesClient({ workspaceKey = "" }: { workspaceKey?: string }
   useEffect(() => {
     const listChanged = previousListKey.current !== listKey;
     previousListKey.current = listKey;
+    if (!listChanged) return;
     setSelectedIds(new Set());
     setExportOpen(false);
     setMobileFiltersOpen(false);
-    if (listChanged && previewId) closePreview();
-  }, [listKey]);
+    if (previewId) closePreview();
+  }, [listKey, previewId, closePreview]);
 
+  // Preview-only URL changes keep apiQuery/listKey stable; query is intentionally
+  // omitted so opening the drawer cannot refetch or clear the current list.
   useEffect(() => {
     const controller = new AbortController();
     const generation = ++requestGeneration.current;
@@ -197,14 +219,23 @@ export function CompaniesClient({ workspaceKey = "" }: { workspaceKey?: string }
         return body as CompaniesListResponse;
       })
       .then((data) => {
-        if (controller.signal.aborted || generation !== requestGeneration.current) return;
-        if (!Array.isArray(data.companies)) throw new Error("Invalid companies response");
+        if (
+          controller.signal.aborted ||
+          generation !== requestGeneration.current
+        )
+          return;
+        if (!Array.isArray(data.companies))
+          throw new Error("Invalid companies response");
         setCompanies(data.companies);
         setPage(responsePage(data, query));
         setFacets(data.facets);
       })
       .catch((reason: unknown) => {
-        if (controller.signal.aborted || generation !== requestGeneration.current) return;
+        if (
+          controller.signal.aborted ||
+          generation !== requestGeneration.current
+        )
+          return;
         setError(reason instanceof Error ? reason.message : "Request failed");
       })
       .finally(() => {
@@ -212,7 +243,7 @@ export function CompaniesClient({ workspaceKey = "" }: { workspaceKey?: string }
       });
 
     return () => controller.abort();
-  }, [listKey, reloadVersion]);
+  }, [apiQuery, listKey, reloadVersion]);
 
   const pageMeta = page ?? {
     offset: query.offset,
@@ -222,7 +253,10 @@ export function CompaniesClient({ workspaceKey = "" }: { workspaceKey?: string }
   };
   const total = pageMeta.total;
   const emptyPage = Boolean(companies && companies.length === 0 && total > 0);
-  const lastPageOffset = total > 0 ? Math.max(0, Math.floor((total - 1) / query.limit) * query.limit) : 0;
+  const lastPageOffset =
+    total > 0
+      ? Math.max(0, Math.floor((total - 1) / query.limit) * query.limit)
+      : 0;
   const hasFilters = Boolean(query.q || query.industry);
   const industries = useMemo(() => {
     const values = new Set(facets?.industries ?? []);
@@ -230,12 +264,19 @@ export function CompaniesClient({ workspaceKey = "" }: { workspaceKey?: string }
     return [...values].sort((a, b) => a.localeCompare(b));
   }, [facets?.industries, query.industry]);
   const selectedOnPage = useMemo(() => {
-    const ids = new Set((companies ?? []).flatMap((company) => (typeof company.id === "string" ? [company.id] : [])));
+    const ids = new Set(
+      (companies ?? []).flatMap((company) =>
+        typeof company.id === "string" ? [company.id] : [],
+      ),
+    );
     return [...selectedIds].filter((id) => ids.has(id));
   }, [companies, selectedIds]);
   const currentView = useMemo<ViewConfig>(
     () => ({
-      filters: { q: query.q || undefined, industry: query.industry || undefined },
+      filters: {
+        q: query.q || undefined,
+        industry: query.industry || undefined,
+      },
       sort: query.sort ?? undefined,
     }),
     [query.q, query.industry, query.sort],
@@ -270,8 +311,6 @@ export function CompaniesClient({ workspaceKey = "" }: { workspaceKey?: string }
     const pageOnly = Object.keys(patch).length === 1 && "offset" in patch;
     const nextPatch: Partial<CompanyListQuery> = { ...patch };
     if (!pageOnly) nextPatch.offset = 0;
-    // A filter or page action can happen before the search debounce fires.
-    // Commit the visible draft first so the action does not resurrect the old q.
     if (!("q" in patch) && qDraft.trim() !== query.q) {
       nextPatch.q = qDraft.trim();
       nextPatch.offset = 0;
@@ -283,6 +322,7 @@ export function CompaniesClient({ workspaceKey = "" }: { workspaceKey?: string }
     cancelSearch();
     setQDraft("");
     setActiveViewId(null);
+    setMobileFiltersOpen(false);
     updateUrl({ q: "", industry: "", sort: null, offset: 0 });
   };
 
@@ -290,7 +330,8 @@ export function CompaniesClient({ workspaceKey = "" }: { workspaceKey?: string }
     cancelSearch();
     const filters = view?.config.filters ?? {};
     const q = typeof filters.q === "string" ? filters.q : "";
-    const industry = typeof filters.industry === "string" ? filters.industry : "";
+    const industry =
+      typeof filters.industry === "string" ? filters.industry : "";
     setQDraft(q);
     setActiveViewId(view?.id ?? null);
     updateUrl({ q, industry, sort: parseSort(view?.config.sort), offset: 0 });
@@ -298,119 +339,175 @@ export function CompaniesClient({ workspaceKey = "" }: { workspaceKey?: string }
 
   const reload = () => setReloadVersion((value) => value + 1);
 
+  const renderIndustrySelect = (
+    value: string,
+    onValueChange: (value: string) => void,
+    className?: string,
+  ) => (
+    <Select
+      value={value || ALL_INDUSTRIES}
+      onValueChange={(next) => {
+        const normalized = next ?? ALL_INDUSTRIES;
+        onValueChange(normalized === ALL_INDUSTRIES ? "" : normalized);
+      }}
+    >
+      <SelectTrigger aria-label={t("companies.industry")} className={className}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={ALL_INDUSTRIES}>
+          {t("companies.allIndustries")}
+        </SelectItem>
+        {industries.map((industry) => (
+          <SelectItem key={industry} value={industry}>
+            {industry}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+
+  const renderSortSelect = (
+    value: CompanySort | null,
+    onValueChange: (value: CompanySort | null) => void,
+    className?: string,
+  ) => (
+    <Select
+      value={value ?? "updatedAt_desc"}
+      onValueChange={(next) => onValueChange(parseSort(next))}
+    >
+      <SelectTrigger aria-label={t("companies.sort")} className={className}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {SORT_OPTIONS.map(({ value: sortValue, label }) => (
+          <SelectItem key={sortValue} value={sortValue}>
+            {t(label)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+
   return (
     <div className="animate-fade-up">
       <PageHeader
         title={t("companies.title")}
-        subtitle={companies ? t("companies.subtitle", { count: total }) : undefined}
+        subtitle={
+          companies ? t("companies.subtitle", { count: total }) : undefined
+        }
         actions={
           <>
             <DropdownMenu open={exportOpen} onOpenChange={setExportOpen}>
-              <DropdownMenuTrigger asChild>
-                <button type="button" className="btn-ghost">
-                  <IconDownload width={15} height={15} />
-                  <span>{t("companies.export")}</span>
-                </button>
+              <DropdownMenuTrigger
+                render={<Button variant="outline" type="button" />}
+              >
+                <IconDownload width={15} height={15} />
+                <span>{t("companies.export")}</span>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
                 <DropdownMenuItem
-                  asChild
                   disabled={selectedOnPage.length === 0}
-                  onSelect={() => setExportOpen(false)}
+                  render={<a href={exportUrls.selected} download />}
+                  onClick={() => setExportOpen(false)}
                 >
-                  <a href={exportUrls.selected} download>
-                    {t("companies.exportSelected")}
-                  </a>
+                  {t("companies.exportSelected")}
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild onSelect={() => setExportOpen(false)}>
-                  <a href={exportUrls.filtered} download>
-                    {t("companies.exportFiltered")}
-                  </a>
+                <DropdownMenuItem
+                  render={<a href={exportUrls.filtered} download />}
+                  onClick={() => setExportOpen(false)}
+                >
+                  {t("companies.exportFiltered")}
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild onSelect={() => setExportOpen(false)}>
-                  <a href={exportUrls.all} download>
-                    {t("companies.exportAll")}
-                  </a>
+                <DropdownMenuItem
+                  render={<a href={exportUrls.all} download />}
+                  onClick={() => setExportOpen(false)}
+                >
+                  {t("companies.exportAll")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <button type="button" onClick={() => setShowNew(true)} className="btn-primary">
+            <Button type="button" onClick={() => setShowNew(true)}>
               <IconPlus width={15} height={15} />
               <span className="hidden sm:inline">{t("companies.new")}</span>
               <span className="sm:hidden">{t("companies.newShort")}</span>
-            </button>
+            </Button>
           </>
         }
       />
 
-      <SavedViewsBar entity="companies" current={currentView} activeId={activeViewId} onApply={applySavedView} />
+      <SavedViewsBar
+        entity="companies"
+        current={currentView}
+        activeId={activeViewId}
+        onApply={applySavedView}
+      />
 
-      <ContextToolbar
-        className="mb-4"
-        search={
-          <label className="relative min-w-[14rem] max-w-xl grow">
-            <span className="sr-only">{t("companies.searchLabel")}</span>
-            <IconSearch width={15} height={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
-            <input
-              value={qDraft}
-              onChange={(event) => scheduleSearch(event.target.value)}
-              placeholder={t("companies.searchPlaceholder")}
-              aria-label={t("companies.searchLabel")}
-              className="input w-full !pl-9"
-            />
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <label className="relative min-w-[14rem] max-w-xl grow">
+          <span className="sr-only">{t("companies.searchLabel")}</span>
+          <IconSearch
+            width={15}
+            height={15}
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted"
+          />
+          <Input
+            value={qDraft}
+            onChange={(event) => scheduleSearch(event.target.value)}
+            placeholder={t("companies.searchPlaceholder")}
+            aria-label={t("companies.searchLabel")}
+            className="min-h-11 w-full !pl-9 sm:min-h-0"
+          />
+        </label>
+        <div className="hidden items-center gap-2 sm:flex">
+          <label className="flex items-center gap-2 text-sm text-ink-muted">
+            <span>{t("companies.industry")}</span>
+            {renderIndustrySelect(
+              query.industry,
+              (value) => applyFilters({ industry: value }),
+              "h-9 !w-36",
+            )}
           </label>
-        }
-        filters={
-          <>
-            <div className="hidden items-center gap-2 sm:flex">
-              <label className="flex items-center gap-2 text-sm text-ink-muted">
-                <span>{t("companies.industry")}</span>
-                <Select
-                  value={query.industry}
-                  aria-label={t("companies.industry")}
-                  onValueChange={(value) => applyFilters({ industry: value })}
-                  className="h-9 !w-36 py-1"
-                  options={[
-                    { value: "", label: t("companies.allIndustries") },
-                    ...industries.map((industry) => ({ value: industry, label: industry })),
-                  ]}
-                />
-              </label>
-              <label className="flex items-center gap-2 text-sm text-ink-muted">
-                <span>{t("companies.sort")}</span>
-                <Select
-                  value={query.sort ?? "updatedAt_desc"}
-                  aria-label={t("companies.sort")}
-                  onValueChange={(value) => applyFilters({ sort: parseSort(value) })}
-                  className="h-9 !w-44 py-1"
-                  options={SORT_OPTIONS.map(({ value, label }) => ({ value, label: t(label) }))}
-                />
-              </label>
-            </div>
-            <div className="sm:hidden">
-              <button
-                type="button"
-                className="btn-ghost"
-                onClick={() => {
-                  setMobileIndustry(query.industry);
-                  setMobileSort(query.sort);
-                  setMobileFiltersOpen(true);
-                }}
-              >
-                {t("companies.filters")}{hasFilters ? ` (${Number(Boolean(query.q)) + Number(Boolean(query.industry))})` : ""}
-              </button>
-            </div>
-          </>
-        }
-      />
+          <label className="flex items-center gap-2 text-sm text-ink-muted">
+            <span>{t("companies.sort")}</span>
+            {renderSortSelect(
+              query.sort,
+              (value) => applyFilters({ sort: value }),
+              "h-9 !w-44",
+            )}
+          </label>
+        </div>
+        <div className="sm:hidden">
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11 sm:min-h-0"
+            onClick={() => {
+              setMobileIndustry(query.industry);
+              setMobileSort(query.sort);
+              setMobileFiltersOpen(true);
+            }}
+          >
+            {t("companies.filters")}
+            {hasFilters
+              ? ` (${Number(Boolean(query.q)) + Number(Boolean(query.industry))})`
+              : ""}
+          </Button>
+        </div>
+      </div>
 
       {error && (
-        <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 text-sm">
+        <div
+          role="alert"
+          className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 text-sm"
+        >
           <div>
             <p className="font-medium">{t("companies.errorTitle")}</p>
             <p className="text-ink-muted">{t("companies.errorHint")}</p>
           </div>
-          <button type="button" className="btn-ghost" onClick={reload}>{t("companies.retry")}</button>
+          <Button type="button" variant="outline" onClick={reload}>
+            {t("companies.retry")}
+          </Button>
         </div>
       )}
 
@@ -418,18 +515,29 @@ export function CompaniesClient({ workspaceKey = "" }: { workspaceKey?: string }
 
       {companies && companies.length === 0 ? (
         total > 0 ? (
-          <EmptyState title={t("companies.emptyPageTitle")} hint={t("companies.emptyPageHint")} />
+          <EmptyState
+            title={t("companies.emptyPageTitle")}
+            hint={t("companies.emptyPageHint")}
+          />
         ) : hasFilters ? (
           <EmptyState
             title={t("companies.noResultsTitle")}
             hint={t("companies.noResultsHint")}
-            action={<button type="button" onClick={clearFilters} className="btn-ghost">{t("companies.clearFilters")}</button>}
+            action={
+              <Button type="button" variant="outline" onClick={clearFilters}>
+                {t("companies.clearFilters")}
+              </Button>
+            }
           />
         ) : (
           <EmptyState
             title={t("companies.noDataTitle")}
             hint={t("companies.noDataHint")}
-            action={<button type="button" onClick={() => setShowNew(true)} className="btn-primary"><IconPlus width={15} height={15} /> {t("companies.new")}</button>}
+            action={
+              <Button type="button" onClick={() => setShowNew(true)}>
+                <IconPlus width={15} height={15} /> {t("companies.new")}
+              </Button>
+            }
           />
         )
       ) : null}
@@ -437,90 +545,122 @@ export function CompaniesClient({ workspaceKey = "" }: { workspaceKey?: string }
       {companies && (companies.length > 0 || emptyPage) ? (
         <>
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-sm text-ink-muted">
-            <span aria-live="polite">{t("companies.selected", { count: selectedOnPage.length })}</span>
-            <span>{t("companies.pageSummary", {
-              from: companies.length === 0 ? 0 : query.offset + 1,
-              to: companies.length === 0 ? 0 : Math.min(query.offset + companies.length, total),
-              total,
-            })}</span>
+            <span aria-live="polite">
+              {t("companies.selected", { count: selectedOnPage.length })}
+            </span>
+            <span>
+              {t("companies.pageSummary", {
+                from: companies.length === 0 ? 0 : query.offset + 1,
+                to:
+                  companies.length === 0
+                    ? 0
+                    : Math.min(query.offset + companies.length, total),
+                total,
+              })}
+            </span>
           </div>
           {companies.length > 0 ? (
             <CompaniesTable
               companies={companies}
               selectedIds={selectedIds}
               onPreview={openPreview}
-              onToggle={(id, checked) => setSelectedIds((current) => {
-                const next = new Set(current);
-                if (checked) next.add(id);
-                else next.delete(id);
-                return next;
-              })}
-              onToggleAll={(checked) => setSelectedIds((current) => {
-                const next = new Set(current);
-                for (const company of companies) {
-                  if (typeof company.id !== "string" || !company.id) continue;
-                  if (checked) next.add(company.id);
-                  else next.delete(company.id);
-                }
-                return next;
-              })}
+              onToggle={(id, checked) =>
+                setSelectedIds((current) => {
+                  const next = new Set(current);
+                  if (checked) next.add(id);
+                  else next.delete(id);
+                  return next;
+                })
+              }
+              onToggleAll={(checked) =>
+                setSelectedIds((current) => {
+                  const next = new Set(current);
+                  for (const company of companies) {
+                    if (typeof company.id !== "string" || !company.id) continue;
+                    if (checked) next.add(company.id);
+                    else next.delete(company.id);
+                  }
+                  return next;
+                })
+              }
             />
           ) : null}
           <div className="mt-4 flex items-center justify-end gap-2">
-            <button
+            <Button
               type="button"
-              className="btn-ghost"
+              variant="outline"
               disabled={query.offset <= 0 || loading}
-              onClick={() => applyFilters({ offset: emptyPage ? lastPageOffset : Math.max(0, query.offset - query.limit) })}
+              onClick={() =>
+                applyFilters({
+                  offset: emptyPage
+                    ? lastPageOffset
+                    : Math.max(0, query.offset - query.limit),
+                })
+              }
             >
               {t("companies.previousPage")}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className="btn-ghost"
+              variant="outline"
               disabled={!pageMeta.hasMore || loading}
-              onClick={() => applyFilters({ offset: query.offset + query.limit })}
+              onClick={() =>
+                applyFilters({ offset: query.offset + query.limit })
+              }
             >
               {t("companies.nextPage")}
-            </button>
+            </Button>
           </div>
         </>
       ) : null}
 
-      <Modal title={t("companies.filters")} open={mobileFiltersOpen} onClose={() => setMobileFiltersOpen(false)}>
+      <Modal
+        title={t("companies.filters")}
+        open={mobileFiltersOpen}
+        onClose={() => setMobileFiltersOpen(false)}
+      >
         <div className="grid gap-4">
           <label className="block text-sm">
-            <span className="mb-1 block font-medium">{t("companies.industry")}</span>
-            <Select
-              value={mobileIndustry}
-              aria-label={t("companies.industry")}
-              onValueChange={setMobileIndustry}
-              className="!w-full"
-              options={[
-                { value: "", label: t("companies.allIndustries") },
-                ...industries.map((industry) => ({ value: industry, label: industry })),
-              ]}
-            />
+            <span className="mb-1 block font-medium">
+              {t("companies.industry")}
+            </span>
+            {renderIndustrySelect(mobileIndustry, setMobileIndustry, "!w-full")}
           </label>
           <label className="block text-sm">
-            <span className="mb-1 block font-medium">{t("companies.sort")}</span>
-            <Select
-              value={mobileSort ?? "updatedAt_desc"}
-              aria-label={t("companies.sort")}
-              onValueChange={(value) => setMobileSort(parseSort(value))}
-              className="!w-full"
-              options={SORT_OPTIONS.map(({ value, label }) => ({ value, label: t(label) }))}
-            />
+            <span className="mb-1 block font-medium">
+              {t("companies.sort")}
+            </span>
+            {renderSortSelect(mobileSort, setMobileSort, "!w-full")}
           </label>
           <div className="flex justify-end gap-2">
-            <button type="button" className="btn-ghost" onClick={clearFilters}>{t("companies.resetFilters")}</button>
-            <button type="button" className="btn-primary" onClick={() => { applyFilters({ industry: mobileIndustry, sort: mobileSort }); setMobileFiltersOpen(false); }}>{t("companies.applyFilters")}</button>
+            <Button type="button" variant="outline" onClick={clearFilters}>
+              {t("companies.resetFilters")}
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                applyFilters({ industry: mobileIndustry, sort: mobileSort });
+                setMobileFiltersOpen(false);
+              }}
+            >
+              {t("companies.applyFilters")}
+            </Button>
           </div>
         </div>
       </Modal>
 
-      <Modal title={t("companies.new")} open={showNew} onClose={() => setShowNew(false)} wide>
-        <CompanyForm onSaved={() => { setShowNew(false); reload(); }} />
+      <Modal
+        title={t("companies.new")}
+        open={showNew}
+        onClose={() => setShowNew(false)}
+        wide
+      >
+        <CompanyForm
+          onSaved={() => {
+            setShowNew(false);
+            reload();
+          }}
+        />
       </Modal>
 
       <CompanyPreview id={previewId} onClose={closePreview} />

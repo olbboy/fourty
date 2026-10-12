@@ -1,10 +1,9 @@
-import { ilike, or, sql, type SQL } from "drizzle-orm";
-import { db, tables } from "@/db";
 import { withAuth, authorize, json } from "@/lib/api";
+import { searchCrm } from "@/lib/services/search";
 import { canReadField, loadFieldPolicy, type FieldPolicy } from "@/lib/field-permissions";
 
 type SearchResult = {
-  type: "contact" | "company" | "deal";
+  type: "contact" | "company" | "deal" | string;
   id: string;
   title: string;
   subtitle: string | null;
@@ -12,38 +11,13 @@ type SearchResult = {
 
 const RESULT_LIMIT = 5;
 
-function contactSearchWhere(policy: FieldPolicy | null, pattern: string): SQL | null {
-  const predicates: SQL[] = [];
-  const firstNameReadable = canReadField(policy, "contacts", "firstName");
-  const lastNameReadable = canReadField(policy, "contacts", "lastName");
-
-  // A concatenated name is only a valid predicate when both parts are readable.
-  // If one part is hidden, search the readable part by itself instead.
-  if (firstNameReadable && lastNameReadable) {
-    predicates.push(ilike(sql`${tables.contacts.firstName} || ' ' || ${tables.contacts.lastName}`, pattern));
-  } else {
-    if (firstNameReadable) predicates.push(ilike(tables.contacts.firstName, pattern));
-    if (lastNameReadable) predicates.push(ilike(tables.contacts.lastName, pattern));
-  }
-  if (canReadField(policy, "contacts", "email")) {
-    predicates.push(ilike(tables.contacts.email, pattern));
-  }
-
-  return predicates.length ? or(...predicates)! : null;
+function wildcardOnly(q: string): boolean {
+  return !q.trim().replace(/[%_]/g, "");
 }
 
-function companySearchWhere(policy: FieldPolicy | null, pattern: string): SQL | null {
-  const predicates: SQL[] = [];
-  if (canReadField(policy, "companies", "name")) {
-    predicates.push(ilike(tables.companies.name, pattern));
-  }
-  if (canReadField(policy, "companies", "domain")) {
-    predicates.push(ilike(tables.companies.domain, pattern));
-  }
-  return predicates.length ? or(...predicates)! : null;
-}
-
-function contactResult(policy: FieldPolicy | null, row: typeof tables.contacts.$inferSelect): SearchResult | null {
+function contactResult(policy: FieldPolicy | null, row: Record<string, unknown>): SearchResult | null {
+  const id = typeof row.id === "string" ? row.id : null;
+  if (!id || !canReadField(policy, "contacts", "id")) return null;
   const nameParts = [
     canReadField(policy, "contacts", "firstName") ? row.firstName : null,
     canReadField(policy, "contacts", "lastName") ? row.lastName : null,
@@ -52,84 +26,65 @@ function contactResult(policy: FieldPolicy | null, row: typeof tables.contacts.$
   if (!title) return null;
 
   const subtitle =
-    (canReadField(policy, "contacts", "email") && row.email) ||
-    (canReadField(policy, "contacts", "jobTitle") && row.jobTitle) ||
+    (canReadField(policy, "contacts", "email") && typeof row.email === "string" && row.email) ||
+    (canReadField(policy, "contacts", "jobTitle") && typeof row.jobTitle === "string" && row.jobTitle) ||
     null;
-  return { type: "contact", id: row.id, title, subtitle };
+  return { type: "contact", id, title, subtitle };
 }
 
-function companyResult(policy: FieldPolicy | null, row: typeof tables.companies.$inferSelect): SearchResult | null {
-  const title = canReadField(policy, "companies", "name") ? row.name.trim() : "";
+function companyResult(policy: FieldPolicy | null, row: Record<string, unknown>): SearchResult | null {
+  const id = typeof row.id === "string" ? row.id : null;
+  if (!id || !canReadField(policy, "companies", "id")) return null;
+  const title = canReadField(policy, "companies", "name") && typeof row.name === "string" ? row.name.trim() : "";
   if (!title) return null;
 
   const subtitle =
-    (canReadField(policy, "companies", "domain") && row.domain) ||
-    (canReadField(policy, "companies", "industry") && row.industry) ||
+    (canReadField(policy, "companies", "domain") && typeof row.domain === "string" && row.domain) ||
+    (canReadField(policy, "companies", "industry") && typeof row.industry === "string" && row.industry) ||
     null;
-  return { type: "company", id: row.id, title, subtitle };
+  return { type: "company", id, title, subtitle };
 }
 
-function dealResult(policy: FieldPolicy | null, row: typeof tables.deals.$inferSelect): SearchResult | null {
-  const title = canReadField(policy, "deals", "name") ? row.name.trim() : "";
+function dealResult(policy: FieldPolicy | null, row: Record<string, unknown>): SearchResult | null {
+  const id = typeof row.id === "string" ? row.id : null;
+  if (!id || !canReadField(policy, "deals", "id") || !canReadField(policy, "deals", "name")) return null;
+  const title = typeof row.name === "string" ? row.name.trim() : "";
   if (!title) return null;
 
   const subtitle =
     canReadField(policy, "deals", "amount") && canReadField(policy, "deals", "currency")
-      ? `${row.currency} ${row.amount.toLocaleString()}`
+      ? `${typeof row.currency === "string" ? row.currency : ""} ${typeof row.amount === "number" ? row.amount.toLocaleString() : Number(row.amount).toLocaleString()}`.trim()
       : null;
-  return { type: "deal", id: row.id, title, subtitle };
+  return { type: "deal", id, title, subtitle };
 }
 
 export async function GET(req: Request) {
   return withAuth(req, async (auth) => {
-    // Search spans three CRM objects. Keep the same read gate as their detail/list
-    // surfaces, while preserving the established `{ results }` response shape.
+    // Search spans three CRM objects; keep the same read gates as their list
+    // surfaces while preserving the established `{ results }` response shape.
     for (const object of ["contacts", "companies", "deals"] as const) {
       const denied = authorize(auth, object, "read");
       if (denied) return denied;
     }
 
     const q = new URL(req.url).searchParams.get("q")?.trim() ?? "";
-    if (!q) return json({ results: [] });
+    if (!q || wildcardOnly(q)) return json({ results: [] });
 
-    // Load policy before constructing any object predicate. A hidden field must
-    // never participate in WHERE, even if its value would be redacted later.
     const policy = await loadFieldPolicy(auth.role);
-    const pattern = `%${q.replace(/[%_]/g, "")}%`;
-    const results: SearchResult[] = [];
+    const hits = await searchCrm(q, { mode: "contains", limit: RESULT_LIMIT, role: auth.role });
 
-    const contactWhere =
-      canReadField(policy, "contacts", "id") ? contactSearchWhere(policy, pattern) : null;
-    if (contactWhere) {
-      const rows = await db.select().from(tables.contacts).where(contactWhere).limit(RESULT_LIMIT);
-      for (const row of rows) {
-        const result = contactResult(policy, row);
-        if (result) results.push(result);
-      }
-    }
-
-    const companyWhere =
-      canReadField(policy, "companies", "id") ? companySearchWhere(policy, pattern) : null;
-    if (companyWhere) {
-      const rows = await db.select().from(tables.companies).where(companyWhere).limit(RESULT_LIMIT);
-      for (const row of rows) {
-        const result = companyResult(policy, row);
-        if (result) results.push(result);
-      }
-    }
-
-    const dealWhere =
-      canReadField(policy, "deals", "id") && canReadField(policy, "deals", "name")
-        ? ilike(tables.deals.name, pattern)
-        : null;
-    if (dealWhere) {
-      const rows = await db.select().from(tables.deals).where(dealWhere).limit(RESULT_LIMIT);
-      for (const row of rows) {
-        const result = dealResult(policy, row);
-        if (result) results.push(result);
-      }
-    }
-
-    return json({ results });
+    return json({
+      results: [
+        ...hits.contacts.map((row) => contactResult(policy, row)).filter((row): row is SearchResult => row !== null),
+        ...hits.companies.map((row) => companyResult(policy, row)).filter((row): row is SearchResult => row !== null),
+        ...hits.deals.map((row) => dealResult(policy, row)).filter((row): row is SearchResult => row !== null),
+        ...hits.records.map((record) => ({
+          type: record.object,
+          id: record.id,
+          title: record.title,
+          subtitle: record.object,
+        })),
+      ],
+    });
   });
 }

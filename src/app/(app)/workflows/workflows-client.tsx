@@ -2,10 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { timeAgo } from "@/lib/format";
-import { PageHeader, Modal, EmptyState, Spinner } from "@/components/ui";
+import { PageHeader, Modal, EmptyState, Spinner, LoadError, useConfirm } from "@/components/ui";
 import { IconPlus, IconTrash, IconZap, IconEdit } from "@/components/icons";
-import { EVENT_LABELS, type WorkflowEvent } from "@/lib/workflows/types";
+import { formatRunLogLine } from "@/lib/workflows/run-log";
+import { workflowEventLabel } from "@/lib/workflow-field-display";
 import { WorkflowBuilder, type WorkflowDraft } from "./workflow-builder";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { useLocale, useT } from "@/lib/i18n/provider";
 
 type Workflow = WorkflowDraft & {
   id: string;
@@ -23,15 +27,26 @@ type Run = {
 };
 
 export function WorkflowsClient() {
+  const t = useT();
+  const locale = useLocale();
+  const [askConfirm, confirmDialog] = useConfirm();
   const [workflows, setWorkflows] = useState<Workflow[] | null>(null);
+  const [failed, setFailed] = useState(false);
   const [editing, setEditing] = useState<Workflow | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [runsFor, setRunsFor] = useState<Workflow | null>(null);
   const [runs, setRuns] = useState<Run[] | null>(null);
+  const [runsFailed, setRunsFailed] = useState(false);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/workflows");
-    if (res.ok) setWorkflows((await res.json()).workflows);
+    setFailed(false);
+    try {
+      const res = await fetch("/api/workflows");
+      if (!res.ok) throw new Error("workflows");
+      setWorkflows((await res.json()).workflows);
+    } catch {
+      setFailed(true);
+    }
   }, []);
   useEffect(() => {
     load();
@@ -47,7 +62,11 @@ export function WorkflowsClient() {
   }
 
   async function remove(w: Workflow) {
-    if (!confirm(`Delete workflow "${w.name}"?`)) return;
+    const ok = await askConfirm({
+      title: t("page.workflows.deleteTitle", { name: w.name }),
+      body: t("page.workflows.deleteBody"),
+    });
+    if (!ok) return;
     await fetch(`/api/workflows/${w.id}`, { method: "DELETE" });
     load();
   }
@@ -55,41 +74,54 @@ export function WorkflowsClient() {
   async function openRuns(w: Workflow) {
     setRunsFor(w);
     setRuns(null);
-    const res = await fetch(`/api/workflows/${w.id}`);
-    if (res.ok) setRuns((await res.json()).runs);
+    setRunsFailed(false);
+    try {
+      const res = await fetch(`/api/workflows/${w.id}`);
+      if (!res.ok) throw new Error("runs");
+      setRuns((await res.json()).runs);
+    } catch {
+      setRunsFailed(true);
+    }
   }
 
   return (
     <div className="animate-fade-up">
       <PageHeader
-        title="Workflows"
-        subtitle="Automate the busywork — no external tools, no queue servers, runs instantly in-process."
+        title={t("nav.workflows")}
+        subtitle={t("page.workflows.subtitle")}
         actions={
-          <button onClick={() => setShowNew(true)} className="btn-primary">
-            <IconPlus width={15} height={15} /> New workflow
-          </button>
+          <Button onClick={() => setShowNew(true)}>
+            <IconPlus width={15} height={15} /> {t("page.workflows.new")}
+          </Button>
         }
       />
 
-      {!workflows ? (
+      {failed ? (
+        <LoadError
+          onRetry={() => {
+            setWorkflows(null);
+            void load();
+          }}
+        />
+      ) : !workflows ? (
         <Spinner />
       ) : workflows.length === 0 ? (
         <EmptyState
-          title="No workflows yet"
-          hint='Try: "When a deal is won → create an onboarding task and add a celebration note."'
+          title={t("page.workflows.empty")}
+          hint={t("page.workflows.emptyHint")}
           action={
-            <button onClick={() => setShowNew(true)} className="btn-primary">
-              <IconPlus width={15} height={15} /> New workflow
-            </button>
+            <Button onClick={() => setShowNew(true)}>
+              <IconPlus width={15} height={15} /> {t("page.workflows.new")}
+            </Button>
           }
         />
       ) : (
         <div className="space-y-3">
           {workflows.map((w) => (
-            <div key={w.id} className="card flex flex-wrap items-center gap-3 p-4">
+            <Card size="flush" key={w.id} className="flex flex-wrap items-center gap-3 p-4">
               <div
                 className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-                  w.enabled ? "bg-accent-600/15 text-accent-600 dark:text-accent-400" : "bg-surface-2 text-ink-muted"
+                  w.enabled ? "bg-accent-600/15 text-accent-700 dark:text-accent-400" : "bg-surface-2 text-ink-muted"
                 }`}
               >
                 <IconZap width={17} height={17} />
@@ -97,39 +129,67 @@ export function WorkflowsClient() {
               <div className="min-w-0 flex-1">
                 <p className="font-medium">{w.name}</p>
                 <p className="text-xs text-ink-muted">
-                  {EVENT_LABELS[w.trigger.event as WorkflowEvent] ?? w.trigger.event}
-                  {w.conditions.length > 0 && ` · ${w.conditions.length} condition${w.conditions.length > 1 ? "s" : ""}`}
-                  {` · ${w.actions.length} action${w.actions.length > 1 ? "s" : ""}`}
+                  {workflowEventLabel(w.trigger.event, t)}
+                  {w.conditions.length > 0 &&
+                    ` · ${t(
+                      w.conditions.length > 1 ? "page.workflows.conditionsPlural" : "page.workflows.conditions",
+                      { count: w.conditions.length },
+                    )}`}
+                  {` · ${t(
+                    w.actions.length > 1 ? "page.workflows.actionsPlural" : "page.workflows.actions",
+                    { count: w.actions.length },
+                  )}`}
                 </p>
               </div>
               <button
                 onClick={() => openRuns(w)}
-                className="text-xs text-ink-muted transition hover:text-accent-600"
+                className="text-xs text-ink-muted transition hover:text-accent-700"
               >
-                {w.runCount} run{w.runCount === 1 ? "" : "s"}
-                {w.lastRunAt ? ` · last ${timeAgo(w.lastRunAt)}` : ""}
+                {w.runCount === 1
+                  ? t("page.workflows.runOne")
+                  : t("page.workflows.runs", { count: w.runCount })}
+                {w.lastRunAt ? ` · ${t("page.workflows.lastRun", { when: timeAgo(w.lastRunAt, locale) })}` : ""}
               </button>
-              <label className="relative inline-flex cursor-pointer items-center" title={w.enabled ? "Enabled" : "Disabled"}>
+              <label
+                className="relative inline-flex cursor-pointer items-center"
+                title={w.enabled ? t("page.workflows.enabled") : t("page.workflows.disabled")}
+              >
                 <input
                   type="checkbox"
                   checked={w.enabled}
                   onChange={() => toggle(w)}
+                  aria-label={
+                    w.enabled
+                      ? t("page.workflows.disableAria", { name: w.name })
+                      : t("page.workflows.enableAria", { name: w.name })
+                  }
                   className="peer sr-only"
                 />
                 <div className="peer h-5 w-9 rounded-full bg-surface-2 border border-line after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow after:transition peer-checked:bg-accent-600 peer-checked:after:translate-x-4" />
               </label>
-              <button onClick={() => setEditing(w)} className="btn-ghost !px-2">
+              <Button
+                onClick={() => setEditing(w)}
+                variant="outline"
+                size="icon-sm"
+                aria-label={t("page.workflows.editAria", { name: w.name })}
+              >
                 <IconEdit width={15} height={15} />
-              </button>
-              <button onClick={() => remove(w)} className="btn-ghost !px-2 !text-red-400">
+              </Button>
+              <Button
+                onClick={() => remove(w)}
+                variant="outline"
+                size="icon-sm"
+                className="text-feedback-error"
+                aria-label={t("page.workflows.deleteAria", { name: w.name })}
+              >
                 <IconTrash width={15} height={15} />
-              </button>
-            </div>
+              </Button>
+            </Card>
           ))}
         </div>
       )}
 
-      <Modal title="New workflow" open={showNew} onClose={() => setShowNew(false)} wide>
+      <Modal title={t("page.workflows.newModal")} open={showNew} onClose={() => setShowNew(false)} wide>
         <WorkflowBuilder
           onSaved={() => {
             setShowNew(false);
@@ -138,7 +198,7 @@ export function WorkflowsClient() {
         />
       </Modal>
 
-      <Modal title="Edit workflow" open={!!editing} onClose={() => setEditing(null)} wide>
+      <Modal title={t("page.workflows.editModal")} open={!!editing} onClose={() => setEditing(null)} wide>
         {editing && (
           <WorkflowBuilder
             initial={editing}
@@ -151,15 +211,21 @@ export function WorkflowsClient() {
       </Modal>
 
       <Modal
-        title={runsFor ? `Runs — ${runsFor.name}` : "Runs"}
+        title={runsFor ? t("page.workflows.runsModal", { name: runsFor.name }) : t("page.workflows.runsTitle")}
         open={!!runsFor}
         onClose={() => setRunsFor(null)}
         wide
       >
-        {!runs ? (
+        {runsFailed ? (
+          <LoadError
+            onRetry={() => {
+              if (runsFor) void openRuns(runsFor);
+            }}
+          />
+        ) : !runs ? (
           <Spinner />
         ) : runs.length === 0 ? (
-          <p className="py-4 text-sm text-ink-muted">This workflow hasn&apos;t fired yet.</p>
+          <p className="py-4 text-sm text-ink-muted">{t("page.workflows.noRuns")}</p>
         ) : (
           <div className="max-h-96 space-y-2 overflow-y-auto">
             {runs.map((r) => (
@@ -168,17 +234,19 @@ export function WorkflowsClient() {
                   <span
                     className={`chip ${
                       r.status === "success"
-                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300"
-                        : "bg-red-500/10 text-red-500"
+                        ? "bg-feedback-ok-wash text-feedback-ok"
+                        : "bg-feedback-error-wash text-feedback-error"
                     }`}
                   >
-                    {r.status}
+                    {r.status === "success"
+                      ? t("page.workflows.runStatusSuccess")
+                      : t("page.workflows.runStatusError")}
                   </span>
-                  <span className="text-xs text-ink-muted">{timeAgo(r.createdAt)}</span>
+                  <span className="text-xs text-ink-muted">{timeAgo(r.createdAt, locale)}</span>
                 </div>
                 <ul className="mt-1.5 list-inside list-disc text-xs text-ink-muted">
                   {r.log.map((line, i) => (
-                    <li key={i}>{line}</li>
+                    <li key={i}>{formatRunLogLine(line, t)}</li>
                   ))}
                 </ul>
               </div>
@@ -186,6 +254,7 @@ export function WorkflowsClient() {
           </div>
         )}
       </Modal>
+      {confirmDialog}
     </div>
   );
 }

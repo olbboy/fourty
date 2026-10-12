@@ -12,6 +12,7 @@ import {
   listMessages,
   setToolResult,
   type AiMessage,
+  type RecordBinding,
 } from "./store";
 
 /**
@@ -33,6 +34,10 @@ import {
 
 export const MAX_STEPS = 8;
 
+/** Injected into the next provider turn only — never persisted as a user message. */
+const SPEAK_AFTER_TOOLS =
+  "Answer the user's question in one short sentence using the tool results. Do not call tools.";
+
 /** A fixed, generic surface for provider failures — raw upstream text is logged
  *  server-side only (it may leak internal host/port for a self-hosted endpoint — RT-I). */
 export const GENERIC_PROVIDER_ERROR = "AI provider error — please retry.";
@@ -44,7 +49,9 @@ export type SseEvent =
   | { type: "tool_proposal"; messageId: string; name: string; arguments: Record<string, unknown> }
   | { type: "awaiting_confirmation" }
   | { type: "done"; finishReason: string }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  /** Stream liveness; not part of the transcript. Emitted by the route, not the agent loop. */
+  | { type: "heartbeat" };
 
 export type AgentInput =
   | { kind: "message"; conversationId: string | null; message: string }
@@ -61,6 +68,12 @@ export type AgentConfig = {
    * for cookie sessions where the two coincide.
    */
   ownerId?: string | null;
+  /**
+   * The record a new conversation is about (Phase 4). Resolved by the route from
+   * an id the caller could read, so by the time it reaches here it is a fact.
+   * Only used when creating a thread — an existing one carries its own binding.
+   */
+  binding?: RecordBinding | null;
   tools?: Tool[];
   maxSteps?: number;
 };
@@ -138,7 +151,11 @@ export async function* runAgent(config: AgentConfig, input: AgentInput): AsyncGe
       );
     } else {
       const created = await withWorkspace(ctx.workspaceId, () =>
-        createConversationWithFirstMessage(ownerId, { role: "user", content: input.message }),
+        createConversationWithFirstMessage(
+          ownerId,
+          { role: "user", content: input.message },
+          config.binding,
+        ),
       );
       conversationId = created.conversationId;
     }
@@ -210,15 +227,23 @@ async function* loop(
   const providerTools = toProviderTools(tools);
 
   const history = await withWorkspace(ctx.workspaceId, () => listMessages(conversationId, ownerId));
+  let speakAfterTools = false;
+  let ranRead = false;
 
   for (let step = 0; step < maxSteps; step++) {
+    const forceSpeak = speakAfterTools;
+    speakAfterTools = false;
     const messages = toProviderMessages(systemPrompt, history);
+    if (forceSpeak) messages.push({ role: "user", content: SPEAK_AFTER_TOOLS });
     let assistantText = "";
     let toolCalls: ToolCall[] | null = null;
     let finishReason = "stop";
 
     try {
-      for await (const evt of deps.streamChat({ messages, tools: providerTools })) {
+      for await (const evt of deps.streamChat({
+        messages,
+        tools: forceSpeak ? undefined : providerTools,
+      })) {
         if (evt.type === "text") {
           assistantText += evt.delta;
           yield { type: "delta", text: evt.delta };
@@ -240,6 +265,11 @@ async function* loop(
     }
 
     if (!toolCalls || toolCalls.length === 0) {
+      if (!assistantText.trim() && ranRead) {
+        ranRead = false;
+        speakAfterTools = true;
+        continue;
+      }
       await withWorkspace(ctx.workspaceId, () =>
         appendMessage({ conversationId, role: "assistant", content: assistantText }),
       );
@@ -272,6 +302,7 @@ async function* loop(
       );
       history.push(toolMsg);
       yield { type: "tool_result", name: call.name, ok: res.ok, ...(res.ok ? { result: res.result } : { error: res.error }) };
+      ranRead = true;
     }
 
     if (writes.length > 0) {

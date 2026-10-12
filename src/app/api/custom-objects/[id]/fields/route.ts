@@ -4,7 +4,8 @@ import { withAuth, authorize, json, apiError, parseBody } from "@/lib/api";
 import { newId } from "@/lib/id";
 import { audit } from "@/lib/audit";
 import { API_NAME_RE } from "@/lib/records";
-import { objectById, fieldRowsOf } from "@/lib/custom-objects";
+import { objectById, fieldRowsOf, fieldsOf, firstInvalidRecord } from "@/lib/custom-objects";
+import { defsWithNewField, fieldChangeInvalidMessage } from "@/lib/field-def-guard";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -36,6 +37,21 @@ export async function POST(req: Request, { params }: Params) {
     const existing = await fieldRowsOf(id);
     if (existing.some((f) => f.key === body.data.key)) {
       return json({ error: "A field with this key already exists" }, { status: 409 });
+    }
+    // A newly-required field is the same trap as PATCH required:true — every
+    // existing record would fail the next write. Refuse instead of stranding them.
+    if (body.data.required) {
+      const nextDefs = defsWithNewField(await fieldsOf(id), {
+        key: body.data.key,
+        label: body.data.label,
+        type: body.data.type,
+        options: body.data.options,
+        required: true,
+      });
+      const invalid = await firstInvalidRecord(id, nextDefs);
+      if (invalid) {
+        return json({ error: fieldChangeInvalidMessage(invalid) }, { status: 409 });
+      }
     }
     const fieldId = newId();
     await db.insert(tables.customObjectFields).values({

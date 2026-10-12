@@ -7,7 +7,11 @@ import { log } from "@/lib/logger";
 import type { ToolContext } from "@/mcp/tools";
 import { isAiEnabled, streamChat } from "@/lib/ai/provider";
 import { runAgent, GENERIC_PROVIDER_ERROR, type AgentInput, type SseEvent } from "@/lib/ai/agent";
+import { encodeSseEvent, startSseHeartbeat } from "@/lib/ai/sse-heartbeat";
 import { buildSystemPrompt, localeFromRequest } from "@/lib/ai/prompt";
+import { loadRecordContext, resolveBindableEntity, type RecordContext } from "@/lib/ai/record-context";
+import { principals } from "@/lib/ai/principals";
+import { grounding } from "@/lib/capabilities";
 import { aiTurnQuota } from "@/lib/ai/quota";
 import { getConversation, hasUnresolvedPending, latestConversation, listMessages } from "@/lib/ai/store";
 
@@ -45,13 +49,6 @@ function withRateLimitHeaders(res: Response, rl: RateLimitResult): Response {
   return res;
 }
 
-/** The audit actor (null for API keys, like MCP/REST) and the thread ownership
- *  principal (stable + never null so two API keys can't share a thread — RT-C). */
-function principals(auth: { viaApiKey: boolean; callerId: string }) {
-  const identity = `${auth.viaApiKey ? "key" : "user"}:${auth.callerId}`;
-  return { identity, ownerId: identity, auditUserId: auth.viaApiKey ? null : auth.callerId };
-}
-
 /**
  * POST /api/ai/chat — the conversational agent over hand-rolled SSE.
  *
@@ -87,6 +84,10 @@ export async function POST(req: Request): Promise<Response> {
   if (!input) {
     return done(apiError("Expected { message } or { conversationId, decision:{ messageId, approve } }"), auth.workspaceId);
   }
+  const requestedRecord = parseRecord(body);
+  if (requestedRecord === "partial") {
+    return done(apiError("Expected both entityType and entityId"), auth.workspaceId);
+  }
 
   // AI turn quota (RT-E) applies only to message turns — they always call the LLM.
   // A decision (confirm/reject) must never be blocked, else a pending write wedges
@@ -98,21 +99,54 @@ export async function POST(req: Request): Promise<Response> {
 
   const ctx: ToolContext = { workspaceId: auth.workspaceId, role: auth.role, userId: auditUserId, via: "ai" };
 
+  // The record the panel is open on (Phase 4). An existing thread carries its
+  // own binding on the row; only a *new* thread takes one from the request, and
+  // even then it is an id we resolve ourselves — a client that names a record it
+  // cannot read gets the same 404 as one that names a record that is not there.
+  let binding: { entityType: string; entityId: string } | null = null;
+  let recordContext: RecordContext | undefined;
+
   // Ownership (RT-C) + pending guard (RT-F) for an existing conversation.
   if (input.conversationId) {
     const cid = input.conversationId;
     const owned = await withWorkspace(ctx.workspaceId, () => getConversation(cid, ownerId));
     if (!owned) return done(apiError("Conversation not found", 404), ctx.workspaceId);
+    if (owned.entityType && owned.entityId) {
+      binding = { entityType: owned.entityType, entityId: owned.entityId };
+    }
     if (input.kind === "message") {
       const pending = await withWorkspace(ctx.workspaceId, () => hasUnresolvedPending(cid, ownerId));
       if (pending) {
         return done(apiError("Resolve the pending action before sending a new message", 409), ctx.workspaceId);
       }
     }
+  } else if (requestedRecord) {
+    binding = requestedRecord;
   }
 
-  const systemPrompt = buildSystemPrompt(localeFromRequest(req), new Date());
-  const stream = sseStream(() => runAgent({ ctx, ownerId, systemPrompt, deps: { streamChat } }, input), {
+  // One short transaction for the grounding reads, closed before the stream
+  // opens (decision #2: no transaction spans the LLM call).
+  const ground = await withWorkspace(ctx.workspaceId, async () => {
+    const g = await grounding();
+    if (binding) {
+      const bound = await resolveBindableEntity(binding.entityType);
+      if (bound) {
+        binding = { entityType: bound, entityId: binding.entityId };
+        recordContext = (await loadRecordContext(bound, binding.entityId, auth.role)) ?? undefined;
+      }
+    }
+    return g;
+  });
+  // A *new* thread that names a missing record 404s so the panel never chats
+  // ungrounded. An existing thread (message or confirm/reject) must still run:
+  // the binding is already on the row, and a 404 wedges the global drawer and
+  // any pending write (later messages 409).
+  if (binding && !recordContext && !input.conversationId) {
+    return done(apiError("Record not found", 404), ctx.workspaceId);
+  }
+
+  const systemPrompt = buildSystemPrompt(localeFromRequest(req), new Date(), ground, recordContext);
+  const stream = sseStream(() => runAgent({ ctx, ownerId, binding, systemPrompt, deps: { streamChat } }, input), {
     requestId,
     workspaceId: ctx.workspaceId,
     route,
@@ -166,6 +200,24 @@ export async function GET(req: Request): Promise<Response> {
   return done(withRateLimitHeaders(json(result), rl), auth.workspaceId);
 }
 
+/**
+ * The record a *new* thread is about. An id only — the caller's right to see it
+ * is settled by `loadRecordContext` under their own workspace and role, never by
+ * the fact that they were able to name it. One half of the pair without the
+ * other is a client bug, not an unbound chat.
+ */
+function parseRecord(
+  body: unknown,
+): { entityType: string; entityId: string } | "partial" | null {
+  if (!body || typeof body !== "object") return null;
+  const b = body as Record<string, unknown>;
+  const entityType = typeof b.entityType === "string" && b.entityType ? b.entityType : null;
+  const entityId = typeof b.entityId === "string" && b.entityId ? b.entityId : null;
+  if (!entityType && !entityId) return null;
+  if (!entityType || !entityId) return "partial";
+  return { entityType, entityId };
+}
+
 /** Discriminate the two payload shapes; returns null on anything malformed. */
 function parseInput(body: unknown): AgentInput | null {
   if (!body || typeof body !== "object") return null;
@@ -201,14 +253,24 @@ type Obs = { requestId: string; workspaceId: string; route: string; method: stri
  * withWorkspace transaction; none spans the LLM stream (decision #2).
  */
 function sseStream(run: () => AsyncGenerator<SseEvent>, obs: Obs): ReadableStream<Uint8Array> {
-  const enc = new TextEncoder();
   return new ReadableStream<Uint8Array>({
     async start(controller) {
       let status = 200;
+      let closed = false;
+      const enqueue = (chunk: Uint8Array) => {
+        if (closed) return;
+        try {
+          controller.enqueue(chunk);
+        } catch {
+          closed = true;
+        }
+      };
+      const stopBeat = startSseHeartbeat(enqueue);
       try {
         await withContext({ requestId: obs.requestId, workspaceId: obs.workspaceId }, async () => {
           for await (const evt of run()) {
-            controller.enqueue(enc.encode(`data: ${JSON.stringify(evt)}\n\n`));
+            if (closed) break;
+            enqueue(encodeSseEvent(evt));
             if (evt.type === "error") status = 500;
           }
         });
@@ -218,10 +280,16 @@ function sseStream(run: () => AsyncGenerator<SseEvent>, obs: Obs): ReadableStrea
           { err: e instanceof Error ? e.message : String(e) },
           "ai chat stream failed",
         );
-        controller.enqueue(enc.encode(`data: ${JSON.stringify({ type: "error", message: GENERIC_PROVIDER_ERROR })}\n\n`));
+        enqueue(encodeSseEvent({ type: "error", message: GENERIC_PROVIDER_ERROR }));
       } finally {
+        stopBeat();
+        closed = true;
         record(obs.route, obs.method, obs.requestId, obs.workspaceId, obs.startedAt, new Response(null, { status }));
-        controller.close();
+        try {
+          controller.close();
+        } catch {
+          // Client already cancelled (navigated away mid-turn).
+        }
       }
     },
   });

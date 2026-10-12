@@ -1,77 +1,91 @@
 # UI design system
 
-This is the maintainer reference for Fourty's shared UI contracts. The
-executable owners are [the semantic stylesheet](../src/app/globals.css),
-[shared primitives](../src/components/ui.tsx),
-[button primitives](../src/components/button.tsx),
-[async error state](../src/components/async-state.tsx),
-[context toolbar](../src/components/context-toolbar.tsx), and
-[Radix Select wrapper](../src/components/select.tsx). Feature screens own
-their data, URL state, and request lifecycle; these shared surfaces own visual
-language and interaction boundaries.
+Fourty uses the shadcn v4 component model on top of Base UI. The executable
+owners are [`components.json`](../components.json), the token bridge in
+[`globals.css`](../src/app/globals.css), the vendored Tailwind v4 variants in
+[`shadcn-tailwind.css`](../src/app/shadcn-tailwind.css), the primitives in
+[`src/components/ui/`](../src/components/ui/), and the application adapters in
+[`ui.tsx`](../src/components/ui.tsx).
 
-## Semantic tokens
+The Tailwind variant and utility layer is source-owned in the repository. It is
+vendored from `shadcn@4.21.4`'s `dist/tailwind.css` under its MIT license, so the
+application keeps the shadcn/Base UI design contract without carrying the
+shadcn CLI's registry dependency tree into installs. Refresh the vendored file
+deliberately when the shadcn Tailwind layer changes and review the resulting CSS
+alongside the component tests.
 
-`globals.css` defines the same semantic vocabulary in `:root` and `.dark`.
-Use the exposed utilities (`bg`, `surface`, `surface-2`, `surface-raised`,
-`surface-hover`, `line`, `line-strong`, `ink`, `ink-muted`, `danger`,
-`success`, `warning`, and `info`) instead of hard-coding a theme value in a
-consumer. The public utility groups are:
+Feature screens own data, URL state, and request lifecycles. Shared primitives
+own appearance, focus, dismissal, labelling, and keyboard behavior.
 
-- **Surfaces and text:** `bg`, `surface`, `surface-2`, `surface-raised`,
-  `surface-hover`, `ink`, and `ink-muted`. These map to the raw CSS variables
-  `--text` and `--text-muted` where appropriate.
-- **Boundaries and state:** `border`, `border-strong`, `focus-ring`, and the
-  `danger`, `success`, `warning`, `info` status colors, including the selected,
-  error, and panel state tokens.
-- **Shared geometry and motion:** `radius-control`, `radius-surface`,
-  `shadow-raised`, `duration-fast`, and `ease-standard`.
+## Component layers
 
-Control and surface recipes in the same stylesheet preserve the legacy control
-aliases `.input`, `.btn-primary`, `.btn-ghost`, and `.btn-danger`. The shared
-`.card`, `.th`, and `.td` recipes remain available to existing table and card
-consumers.
+Use the narrowest layer that matches the job:
 
-## Primitive contracts
+1. Import a primitive from `@/components/ui/<name>` for buttons, inputs,
+   dialogs, sheets, selects, tables, cards, and other shadcn components.
+2. Import from `@/components/ui` for Fourty-specific compositions such as
+   `PageHeader`, `Field`, `AsyncError`, `ContextToolbar`, `StatusChip`, and
+   `KpiCard`.
+3. Keep record fetching, mutation state, routing, and domain rules in the
+   feature component or server action.
 
-Use the primitives through their source modules or the exports from
-`components/ui.tsx`.
+Do not add another primitive wrapper around Radix or hand-written focus
+management. Base UI supplies the interaction behavior beneath the shadcn
+components.
+
+## Tokens
+
+`globals.css` maps Fourty's palette onto shadcn's semantic tokens, including
+`--background`, `--foreground`, `--primary`, `--secondary`, `--muted`,
+`--accent`, `--destructive`, `--border`, `--input`, and `--ring`. Product states
+use the `--feedback-*`, `--status-*`, `--score-*`, and `--priority-*` families.
+
+Use token-backed utilities such as `bg-background`, `bg-card`, `text-foreground`,
+`text-muted-foreground`, `border-border`, `text-feedback-error`, and
+`bg-feedback-error-wash`. Add a token to both light and dark themes before
+using a new visual value repeatedly.
+
+## Core contracts
 
 | Primitive | Contract |
 | --- | --- |
-| `Button` | Native button by default (`type="button"`), or a link/child element through `href`/`asChild`. `intent`/`variant` is `primary`, `neutral`, or `danger`; `size` is `default` or `compact`. `busy`/`loading` disables a native button and exposes `aria-busy`. |
-| `IconButton` | Icon-only native button with a required `aria-label`, safe `type="button"`, shared intent/size recipes, and the same busy/loading behavior. Keep the icon decorative when the label supplies the name. |
-| `Field` | Wraps a label and one control. `id`, `required`, `description`/`hint`, and `error` wire `htmlFor`, stable hint/error IDs, `aria-describedby`, `aria-invalid`, and an alerting error message. Keep the control as a valid child when the wrapper must add these attributes. |
-| `Spinner` | Announces loading with `role="status"`, `aria-live="polite"`, `aria-busy="true"`, and the supplied accessible label. A fetch failure must switch to an error state instead of leaving the spinner mounted indefinitely. |
-| `AsyncError` | Recoverable request failure: `role="alert"`, a message, optional hint, and an explicit retry button. The page supplies retry behavior and retains its route/filter state. |
-| `ContextToolbar` | Layout-only `search`, `filters`, `view`, `actions`, and `meta` slots with `role="toolbar"`. Query state, navigation, fetching, and action semantics remain in the feature screen. |
-| `DialogFocusScope` | Shared modal focus boundary. When open, it wraps Tab/Shift+Tab, lets only the topmost nested surface handle Escape, and restores focus to the trigger or the main fallback on close. Modal, Drawer, command palette, and AI chat share this stack. |
-| `Select` | Radix Select wrapper with controlled/uncontrolled value, placeholder, options, disabled/required state, optional form `name`, and a hidden input for form submission. Its trigger uses the shared control recipe and removes the legacy `input` token if a caller still passes it. |
+| `Button` | Base UI button with shadcn variants `default`, `outline`, `secondary`, `ghost`, `destructive`, and `link`. Use `buttonVariants()` on a real `Link` or anchor for navigation. |
+| `Field` | Fourty adapter that connects a label, stable control ID, hint/error IDs, `aria-describedby`, `aria-invalid`, and required state. |
+| `Spinner` | Announces loading through `role="status"`, `aria-live`, and an accessible localized label. A failed request must replace it with a retryable error state. |
+| `AsyncError` | Recoverable request failure with `role="alert"`, optional context, and an explicit retry action. |
+| `ContextToolbar` | Responsive layout for page-owned search, filters, view controls, actions, and result metadata. It does not own query or request state. |
+| `Select` | Base UI/shadcn composable select for custom popup behavior. Use `NativeSelect` when native form semantics are enough. |
+| `Dialog` / `Modal` | Base UI dialog owns portal, focus trapping, Escape handling, dismissal, and focus restoration. `Modal` is the app-level composition for existing feature call sites. |
+| `Sheet` / `Drawer` | Base UI sheet owns side-panel behavior. `Drawer` is the app-level compatibility composition and must not implement a separate focus stack. |
+| `Table` | Shared table markup and horizontal overflow boundary. Domain columns, sorting, selection, and pagination stay in the feature. |
 
-Surface styling is a recipe rather than a separate React wrapper: `.surface`
-provides the raised boundary, with `.surface-subtle`, `.surface-danger`, and
-`.surface-compact` for the supported variations. Keep domain content and
-stateful behavior in the feature component.
+## Accessibility and responsive behavior
 
-## Accessibility and responsive rules
+- Preserve the global `:focus-visible` ring and give icon-only controls an
+  accessible name.
+- Use real links for navigation and real buttons for actions. Do not make a row
+  clickable without a focusable control that exposes the same destination.
+- Keep `prefers-reduced-motion` effective for transitions and animations.
+- Coarse-pointer controls must retain a minimum 44px hit area.
+- `ContextToolbar` wraps on narrow screens and lets its search slot take a full
+  row.
+- Tables and Kanban boards that overflow on mobile must stay horizontally
+  scrollable and provide a visible continuation cue.
+- Let `Dialog`, `Sheet`, `Command`, and `Popover` manage focus and Escape. Add a
+  local workaround only when a focused browser test proves a framework gap.
 
-- Preserve the global `:focus-visible` ring. Icon-only actions need an
-  accessible name; record rows and cards need a real link or button in the tab
-  order rather than a click-only container.
-- Keep `prefers-reduced-motion: reduce` effective. Shared animations and
-  transitions are disabled by the global reduced-motion rule.
-- Coarse-pointer controls receive a minimum 44px block size. The icon can stay
-  visually compact while the hit area remains usable.
-- `ContextToolbar` wraps at narrow widths; its search slot becomes a full row.
-  Do not move query or fetch state into the toolbar to solve responsive layout.
-- On mobile, the shell keeps the primary bottom navigation and exposes the
-  complete route tree through the shared navigation drawer. The Companies,
-  Contacts, and Deals table/Kanban surfaces remain horizontally scrollable and
-  provide a visible cue where fields or stages continue off screen.
-- Dialog consumers must use the shared focus scope and preserve nested LIFO
-  close behavior. Do not add a second Escape or focus manager inside a feature.
+## Verification
 
-When extending the system, add a semantic token in both themes, use an
-existing recipe or primitive, and add a focused render/accessibility test at
-the owning test boundary (`tests/design-system.test.ts` and the relevant
-feature or E2E spec).
+When changing the system, run the focused component and accessibility tests:
+
+```bash
+npx vitest run \
+  tests/a11y.test.ts \
+  tests/button-render-as.test.ts \
+  tests/design-system.test.ts \
+  tests/semantic-tokens.test.ts \
+  tests/source-hygiene.test.ts
+```
+
+Use `e2e/design-system.spec.ts`, `e2e/dev-warnings.spec.ts`, and the affected
+feature spec for portal, keyboard, responsive, and runtime-warning behavior.

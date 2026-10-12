@@ -118,4 +118,24 @@ describe("saved views (real handlers + Postgres + RLS)", () => {
     });
     expect(asB.status).toBe(404);
   });
+
+  it("accepts a custom-object apiName as the entity", async () => {
+    const create = await routes.POST(
+      req("/api/saved-views", TOKEN_A, {
+        method: "POST",
+        body: JSON.stringify({
+          entity: "project",
+          name: "Open projects",
+          config: { sort: "title", columns: ["title", "stage"] },
+        }),
+      }),
+    );
+    expect(create.status).toBe(201);
+    const view = (await create.json()).view;
+    expect(view.entity).toBe("project");
+    const list = await routes.GET(req("/api/saved-views?entity=project", TOKEN_A));
+    expect((await list.json()).views.some((v: { id: string }) => v.id === view.id)).toBe(true);
+    const asContacts = await routes.GET(req("/api/saved-views?entity=contacts", TOKEN_A));
+    expect((await asContacts.json()).views.some((v: { id: string }) => v.id === view.id)).toBe(false);
+  });
 });

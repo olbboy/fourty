@@ -92,6 +92,48 @@
       "when": 1783500600000,
       "tag": "0012_deal_score",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1783587000000,
+      "tag": "0013_record_facts",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1783673400000,
+      "tag": "0014_agent_tasks",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1783759800000,
+      "tag": "0015_email_signature",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1783846200000,
+      "tag": "0016_conversation_record",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1783932600000,
+      "tag": "0017_stage_colour_default",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1784019000000,
+      "tag": "0018_password_resets",
+      "breakpoints": true
     }
   ]
 }

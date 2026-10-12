@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import pg from "pg";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 
@@ -14,11 +14,26 @@ import { createHash } from "node:crypto";
  *
  * Runs on the dedicated `fourty_revtest` database (owner role) so it never
  * disturbs the migrator state of the shared test database.
+ *
+ * Point `REVTEST_DATABASE_URL` elsewhere when the default port is taken. The
+ * name guard below is the real protection: this test drops every table it
+ * finds, so it refuses to run against anything not named as a test database.
  */
-const DSN = process.env.MIGRATION_TEST_DATABASE_URL ??
+const DSN =
+  process.env.REVTEST_DATABASE_URL ??
+  process.env.MIGRATION_TEST_DATABASE_URL ??
   "postgresql://fourty:fourty@localhost:5432/fourty_revtest";
-if (new URL(DSN).pathname !== "/fourty_revtest") {
-  throw new Error("Migration reversibility requires the dedicated fourty_revtest database");
+
+assertTestDatabase(DSN);
+
+/** Refuse to touch a database whose name does not mark it as disposable. */
+function assertTestDatabase(dsn: string): void {
+  const name = new URL(dsn).pathname.replace(/^\//, "");
+  if (!/test/i.test(name)) {
+    throw new Error(
+      `Refusing to run destructive migration tests against database "${name}" — expected a test database`,
+    );
+  }
 }
 
 const UP = [
@@ -35,8 +50,20 @@ const UP = [
   "drizzle/0010_sso_oidc.sql",
   "drizzle/0011_ai_chat.sql",
   "drizzle/0012_deal_score.sql",
+  "drizzle/0013_record_facts.sql",
+  "drizzle/0014_agent_tasks.sql",
+  "drizzle/0015_email_signature.sql",
+  "drizzle/0016_conversation_record.sql",
+  "drizzle/0017_stage_colour_default.sql",
+  "drizzle/0018_password_resets.sql",
 ];
 const DOWN = [
+  "drizzle/down/0018_password_resets.down.sql",
+  "drizzle/down/0017_stage_colour_default.down.sql",
+  "drizzle/down/0016_conversation_record.down.sql",
+  "drizzle/down/0015_email_signature.down.sql",
+  "drizzle/down/0014_agent_tasks.down.sql",
+  "drizzle/down/0013_record_facts.down.sql",
   "drizzle/down/0012_deal_score.down.sql",
   "drizzle/down/0011_ai_chat.down.sql",
   "drizzle/down/0010_sso_oidc.down.sql",
@@ -87,6 +114,21 @@ async function dropAll(client: pg.Client) {
 }
 
 describe("migration reversibility (full chain, real Postgres)", () => {
+  it("covers every migration on disk, each with a down file", () => {
+    // The lists above are hand-maintained, and nothing else notices when a new
+    // migration lands without joining them — 0018 shipped exactly that way and
+    // this suite stayed green while silently no longer walking the full chain.
+    const onDisk = readdirSync(path.join(process.cwd(), "drizzle"))
+      .filter((f) => f.endsWith(".sql"))
+      .sort()
+      .map((f) => `drizzle/${f}`);
+    expect(UP).toEqual(onDisk);
+    expect(DOWN.map((f) => f.replace("drizzle/down/", "").replace(".down.sql", ""))).toEqual(
+      UP.map((f) => f.replace("drizzle/", "").replace(".sql", "")).reverse(),
+    );
+  });
+
+
   it("up → checksum → down → re-apply yields an identical schema", async () => {
     const client = new pg.Client({ connectionString: DSN });
     await client.connect();
@@ -98,8 +140,8 @@ describe("migration reversibility (full chain, real Postgres)", () => {
       await runFiles(client, UP);
       const before = await schemaFingerprint(client);
       const up1 = await counts(client);
-      expect(up1.tables).toBe(32); // 30 (D4) + ai_conversations + ai_messages
-      expect(up1.policies).toBe(25); // 23 + ai_conversations_tenant + ai_messages_tenant
+      expect(up1.tables).toBe(35); // 34 + password_resets (0018, identity plane — no policy)
+      expect(up1.policies).toBe(27); // 23 + ai_conversations_tenant + ai_messages_tenant + record_facts_tenant + agent_tasks_tenant
 
       // Roll the whole chain back → empty schema
       await runFiles(client, DOWN);
@@ -111,8 +153,8 @@ describe("migration reversibility (full chain, real Postgres)", () => {
       await runFiles(client, UP);
       const after = await schemaFingerprint(client);
       const up2 = await counts(client);
-      expect(up2.tables).toBe(32);
-      expect(up2.policies).toBe(25);
+      expect(up2.tables).toBe(35);
+      expect(up2.policies).toBe(27);
       expect(after).toBe(before);
     } finally {
       await client.end();

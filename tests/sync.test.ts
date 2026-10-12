@@ -1,11 +1,24 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { resetDb, createWorkspace } from "./pg-setup";
-import { parseEmail } from "@/lib/sync/parse-email";
+import { parseEmail, threadIdOf } from "@/lib/sync/parse-email";
+import { readAccountConfig } from "@/lib/sync/account-config";
 import { parseIcs, parseIcsDate } from "@/lib/sync/parse-ics";
 import { buildConsentUrl, exchangeCode, refreshAccessToken } from "@/lib/sync/oauth";
 import { fetchRawMessages } from "@/lib/sync/fetch-mail";
 import type { HttpFetcher } from "@/lib/sync/http";
+
+/**
+ * The refresh tokens the leak assertions below search for. Long and distinctive
+ * on purpose: `not.toContain` over a sealed value is scanning random base64, so
+ * a two-character fixture turns up inside its own ciphertext by chance about one
+ * run in a hundred. That failure says nothing about the sealing, and the ninety-
+ * nine passes say nothing either — a substring that short cannot tell a leak from
+ * a coincidence in either direction. `secrets.test.ts` and `rekey.test.ts` already
+ * use a fixture this shape; these are the same convention.
+ */
+const REFRESH_STORED = "refresh-token-fixture-stored-not-a-real-credential";
+const REFRESH_EXCHANGED = "refresh-token-fixture-exchanged-not-a-real-credential";
 
 const EML = [
   "Message-ID: <abc123@mail.example.com>",
@@ -61,6 +74,85 @@ describe("sync parsers (pure)", () => {
   it("parses all-day and floating ICS dates", () => {
     expect(parseIcsDate("20260708")).toBe(Date.UTC(2026, 6, 8));
     expect(parseIcsDate("20260708T090000")).toBe(Date.UTC(2026, 6, 8, 9, 0, 0));
+  });
+
+  // Phase 3: the signature extractor reads the *end* of a body, so the parser
+  // has to hand it the whole decoded text rather than a naive slice.
+  it("prefers the text/plain half of a multipart/alternative message", () => {
+    const raw = [
+      "Message-ID: <mp-1@mail.example.com>",
+      "From: Ada <ada@acme.example>",
+      "To: me@myco.com",
+      "Subject: Renewal",
+      'Content-Type: multipart/alternative; boundary="B1"',
+      "",
+      "--B1",
+      "Content-Type: text/plain; charset=utf-8",
+      "",
+      "Plain half.",
+      "--B1",
+      "Content-Type: text/html; charset=utf-8",
+      "",
+      "<p>HTML half.</p>",
+      "--B1--",
+    ].join("\n");
+    expect(parseEmail(raw).body).toBe("Plain half.");
+  });
+
+  it("decodes quoted-printable and base64 bodies", () => {
+    const qp = [
+      "Message-ID: <qp@mail.example.com>",
+      "Content-Type: text/plain; charset=utf-8",
+      "Content-Transfer-Encoding: quoted-printable",
+      "",
+      "Caf=C3=A9 at 3pm =E2=80=94 bring the=20",
+      "renewal deck.",
+    ].join("\n");
+    expect(parseEmail(qp).body).toContain("Café at 3pm — bring the");
+
+    const b64 = [
+      "Message-ID: <b64@mail.example.com>",
+      "Content-Type: text/plain; charset=utf-8",
+      "Content-Transfer-Encoding: base64",
+      "",
+      Buffer.from("Head of Security, Acme").toString("base64"),
+    ].join("\n");
+    expect(parseEmail(b64).body).toBe("Head of Security, Acme");
+  });
+
+  it("falls back to text/html, keeping the line breaks a signature needs", () => {
+    const raw = [
+      "Message-ID: <html@mail.example.com>",
+      "Content-Type: text/html; charset=utf-8",
+      "",
+      "<div>Thanks!</div><div>Ada Marchetti<br>Head of Security, Acme</div>",
+    ].join("\n");
+    expect(parseEmail(raw).body?.split("\n")).toContain("Head of Security, Acme");
+  });
+
+  it("decodes RFC 2047 encoded subjects", () => {
+    const raw = [
+      "Message-ID: <ew@mail.example.com>",
+      "Subject: =?utf-8?B?UsOpc2lsaWF0aW9u?=",
+      "",
+      "body",
+    ].join("\n");
+    expect(parseEmail(raw).subject).toBe("Résiliation");
+  });
+
+  it("puts a reply and the message it answers on one thread", () => {
+    const root = parseEmail(["Message-ID: <root@x.example>", "", "hi"].join("\n"));
+    const reply = parseEmail(
+      [
+        "Message-ID: <reply@x.example>",
+        "In-Reply-To: <root@x.example>",
+        "References: <root@x.example>",
+        "",
+        "hi back",
+      ].join("\n"),
+    );
+    expect(threadIdOf(root)).toBe("root@x.example");
+    expect(threadIdOf(reply)).toBe("root@x.example");
   });
 });
 
@@ -316,7 +408,7 @@ describe("mail OAuth run + connect (real routes + Postgres)", () => {
         id: aliceId, firstName: "Alice", lastName: "Example", email: "alice@example.com", status: "lead", createdAt: Date.now(), updatedAt: Date.now(),
       });
       await db.insert(tables.syncAccounts).values({
-        id: accountId, provider: "google", email: "me@myco.com", config: JSON.stringify({ refreshToken: "r1" }), createdAt: Date.now(),
+        id: accountId, provider: "google", email: "me@myco.com", config: JSON.stringify({ refreshToken: REFRESH_STORED }), createdAt: Date.now(),
       });
     });
   });
@@ -344,9 +436,13 @@ describe("mail OAuth run + connect (real routes + Postgres)", () => {
 
     await withWorkspace(wsA, async () => {
       const acct = (await db.select().from(tables.syncAccounts).where(eq(tables.syncAccounts.id, accountId)))[0];
-      const cfg = JSON.parse(acct.config);
+      // The tokens are on the row but not in the clear: a database dump does
+      // not hand over the mailbox (ADR-019).
+      expect(acct.config).not.toContain(REFRESH_STORED);
+      expect(JSON.parse(acct.config).refreshToken).toMatch(/^enc:v1:/);
+      const cfg = readAccountConfig(acct.config);
       expect(cfg.accessToken).toBe("at"); // refreshed + persisted
-      expect(cfg.refreshToken).toBe("r1"); // preserved across refresh
+      expect(cfg.refreshToken).toBe(REFRESH_STORED); // preserved across refresh
       const msgs = await db.select().from(tables.emailMessages);
       expect(msgs).toHaveLength(1);
       expect(msgs[0].contactId).toBe(aliceId);
@@ -365,7 +461,7 @@ describe("mail OAuth run + connect (real routes + Postgres)", () => {
     const cookieVal = startRes.headers.get("set-cookie")!.split(";")[0].split("=").slice(1).join("="); // id:state:verifier (percent-encoded)
     const state = decodeURIComponent(cookieVal).split(":")[1];
     setFetcher(async (url) => {
-      if (url.includes("oauth2.googleapis.com/token")) return { status: 200, json: async () => ({ access_token: "at2", refresh_token: "r2", expires_in: 3600 }), text: async () => "" };
+      if (url.includes("oauth2.googleapis.com/token")) return { status: 200, json: async () => ({ access_token: "at2", refresh_token: REFRESH_EXCHANGED, expires_in: 3600 }), text: async () => "" };
       return { status: 404, json: async () => ({}), text: async () => "" };
     });
     const res = await callback.GET(
@@ -377,9 +473,12 @@ describe("mail OAuth run + connect (real routes + Postgres)", () => {
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toContain("sync=connected");
     await withWorkspace(wsA, async () => {
-      const cfg = JSON.parse((await db.select().from(tables.syncAccounts).where(eq(tables.syncAccounts.id, accountId)))[0].config);
+      const stored = (await db.select().from(tables.syncAccounts).where(eq(tables.syncAccounts.id, accountId)))[0].config;
+      // The first place a real refresh token ever lands must already be sealed.
+      expect(stored).not.toContain(REFRESH_EXCHANGED);
+      const cfg = readAccountConfig(stored);
       expect(cfg.accessToken).toBe("at2");
-      expect(cfg.refreshToken).toBe("r2");
+      expect(cfg.refreshToken).toBe(REFRESH_EXCHANGED);
     });
   });
 
@@ -391,5 +490,231 @@ describe("mail OAuth run + connect (real routes + Postgres)", () => {
       params(),
     );
     expect(res.headers.get("location")).toContain("sync=error");
+  });
+});
+
+describe("sync account lifecycle (real routes + Postgres)", () => {
+  const TOKEN_ADMIN = "frty_life_admin";
+  const TOKEN_VIEWER = "frty_life_viewer";
+  const TOKEN_OTHER = "frty_life_other";
+  let db: typeof import("@/db").db;
+  let tables: typeof import("@/db").tables;
+  let withWorkspace: typeof import("@/db").withWorkspace;
+  let sha256: typeof import("@/lib/auth").sha256;
+  let newId: typeof import("@/lib/id").newId;
+  let accounts: typeof import("@/app/api/sync/accounts/route");
+  let account: typeof import("@/app/api/sync/accounts/[id]/route");
+  let wsA: string;
+
+  const req = (url: string, token: string, init?: RequestInit) =>
+    new Request(`http://localhost${url}`, {
+      headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
+      ...init,
+    });
+  const params = (id: string) => ({ params: Promise.resolve({ id }) });
+
+  /** A fresh account each test, so destructive cases stay independent. */
+  async function makeAccount(fields: Record<string, unknown> = {}): Promise<string> {
+    const id = newId();
+    await withWorkspace(wsA, async () => {
+      await db.insert(tables.syncAccounts).values({
+        id,
+        provider: "ics",
+        email: "me@myco.com",
+        label: "Original",
+        config: JSON.stringify({ url: "https://cal.example.com/feed.ics" }),
+        createdAt: Date.now(),
+        ...fields,
+      });
+    });
+    return id;
+  }
+
+  async function seedKey(ws: string, token: string, role: string) {
+    await db.insert(tables.apiKeys).values({
+      id: newId(),
+      workspaceId: ws,
+      name: "t",
+      prefix: token.slice(0, 8),
+      keyHash: sha256(token),
+      role,
+      createdAt: Date.now(),
+    });
+  }
+
+  beforeAll(async () => {
+    await resetDb();
+    ({ db, tables, withWorkspace } = await import("@/db"));
+    ({ sha256 } = await import("@/lib/auth"));
+    ({ newId } = await import("@/lib/id"));
+    accounts = await import("@/app/api/sync/accounts/route");
+    account = await import("@/app/api/sync/accounts/[id]/route");
+
+    wsA = await createWorkspace();
+    const wsB = await createWorkspace();
+    await seedKey(wsA, TOKEN_ADMIN, "admin");
+    await seedKey(wsA, TOKEN_VIEWER, "viewer");
+    await seedKey(wsB, TOKEN_OTHER, "admin");
+  });
+
+  it("renames an account and reports the new label", async () => {
+    const id = await makeAccount();
+    const res = await account.PATCH(
+      req(`/api/sync/accounts/${id}`, TOKEN_ADMIN, {
+        method: "PATCH",
+        body: JSON.stringify({ label: "Team calendar" }),
+      }),
+      params(id),
+    );
+    expect(res.status).toBe(200);
+    expect((await res.json()).account.label).toBe("Team calendar");
+  });
+
+  it("pauses and resumes an account", async () => {
+    const id = await makeAccount();
+    const paused = await account.PATCH(
+      req(`/api/sync/accounts/${id}`, TOKEN_ADMIN, { method: "PATCH", body: JSON.stringify({ status: "paused" }) }),
+      params(id),
+    );
+    expect((await paused.json()).account.status).toBe("paused");
+
+    const resumed = await account.PATCH(
+      req(`/api/sync/accounts/${id}`, TOKEN_ADMIN, { method: "PATCH", body: JSON.stringify({ status: "active" }) }),
+      params(id),
+    );
+    expect((await resumed.json()).account.status).toBe("active");
+  });
+
+  it("refuses to let a client claim the account is in error", async () => {
+    // `error` is set by the sync run when a pull actually fails. Letting a client
+    // set it would let the UI lie about the health of the integration.
+    const id = await makeAccount();
+    const res = await account.PATCH(
+      req(`/api/sync/accounts/${id}`, TOKEN_ADMIN, { method: "PATCH", body: JSON.stringify({ status: "error" }) }),
+      params(id),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("never returns config secrets when updating", async () => {
+    const id = await makeAccount({ config: JSON.stringify({ host: "imap.myco.com", password: "secret", refreshToken: REFRESH_STORED }) });
+    const res = await account.PATCH(
+      req(`/api/sync/accounts/${id}`, TOKEN_ADMIN, { method: "PATCH", body: JSON.stringify({ label: "x" }) }),
+      params(id),
+    );
+    const body = (await res.json()).account;
+    expect(body.config.host).toBe("imap.myco.com");
+    expect(body.config.password).toBeUndefined();
+    expect(body.config.refreshToken).toBeUndefined();
+    expect(body.connected).toBe(true);
+  });
+
+  it("tells the list which accounts still need connecting", async () => {
+    // The mailbox panel decides whether to offer a "Connect" button from this one
+    // flag, and shows the feed URL as the only hint of how an account is wired up.
+    const linked = await makeAccount({ provider: "google", config: JSON.stringify({ refreshToken: REFRESH_STORED }) });
+    const unlinked = await makeAccount({ provider: "google", config: JSON.stringify({}) });
+
+    const body = await (await accounts.GET(req("/api/sync/accounts", TOKEN_ADMIN))).text();
+    expect(body).not.toContain(REFRESH_STORED);
+    const byId: Record<string, { connected: boolean; config: Record<string, string> }> = {};
+    for (const a of JSON.parse(body).accounts) byId[a.id] = a;
+    expect(byId[linked].connected).toBe(true);
+    expect(byId[unlinked].connected).toBe(false);
+    expect(byId[linked].config.refreshToken).toBeUndefined();
+  });
+
+  it("deletes an account and the mail it had filed against it", async () => {
+    const id = await makeAccount();
+    await withWorkspace(wsA, async () => {
+      await db.insert(tables.emailMessages).values({
+        id: newId(), accountId: id, messageId: "m@example.com", toAddrs: "[]", createdAt: Date.now(),
+      });
+      await db.insert(tables.calendarEvents).values({
+        id: newId(), accountId: id, uid: "e@example.com", attendees: "[]", createdAt: Date.now(),
+      });
+    });
+
+    const res = await account.DELETE(
+      req(`/api/sync/accounts/${id}`, TOKEN_ADMIN, { method: "DELETE" }),
+      params(id),
+    );
+    expect(res.status).toBe(200);
+
+    const list = await accounts.GET(req("/api/sync/accounts", TOKEN_ADMIN));
+    expect((await list.json()).accounts.map((a: { id: string }) => a.id)).not.toContain(id);
+
+    // The dedup ledger is keyed by account, so it is dead weight once the account
+    // is gone — drop it rather than leave rows pointing at an id that no longer
+    // resolves. Contact timeline activities are keyed to the contact and stay.
+    await withWorkspace(wsA, async () => {
+      const msgs = (await db.select().from(tables.emailMessages)).filter((m) => m.accountId === id);
+      const events = (await db.select().from(tables.calendarEvents)).filter((e) => e.accountId === id);
+      expect(msgs).toHaveLength(0);
+      expect(events).toHaveLength(0);
+    });
+  });
+
+  it("records who changed and who removed an account", async () => {
+    const id = await makeAccount();
+    await account.PATCH(
+      req(`/api/sync/accounts/${id}`, TOKEN_ADMIN, { method: "PATCH", body: JSON.stringify({ label: "audited" }) }),
+      params(id),
+    );
+    await account.DELETE(req(`/api/sync/accounts/${id}`, TOKEN_ADMIN, { method: "DELETE" }), params(id));
+
+    await withWorkspace(wsA, async () => {
+      const keys = (await db.select().from(tables.auditLog))
+        .filter((a) => a.objectId === id)
+        .map((a) => a.action);
+      expect(keys).toContain("sync_account.updated");
+      expect(keys).toContain("sync_account.deleted");
+    });
+  });
+
+  it("404s on an account that does not exist", async () => {
+    const missing = newId();
+    const patched = await account.PATCH(
+      req(`/api/sync/accounts/${missing}`, TOKEN_ADMIN, { method: "PATCH", body: JSON.stringify({ label: "x" }) }),
+      params(missing),
+    );
+    expect(patched.status).toBe(404);
+    const deleted = await account.DELETE(
+      req(`/api/sync/accounts/${missing}`, TOKEN_ADMIN, { method: "DELETE" }),
+      params(missing),
+    );
+    expect(deleted.status).toBe(404);
+  });
+
+  it("denies a viewer both writes", async () => {
+    const id = await makeAccount();
+    const patched = await account.PATCH(
+      req(`/api/sync/accounts/${id}`, TOKEN_VIEWER, { method: "PATCH", body: JSON.stringify({ label: "x" }) }),
+      params(id),
+    );
+    expect(patched.status).toBe(403);
+    const deleted = await account.DELETE(
+      req(`/api/sync/accounts/${id}`, TOKEN_VIEWER, { method: "DELETE" }),
+      params(id),
+    );
+    expect(deleted.status).toBe(403);
+  });
+
+  it("hides another workspace's account from both writes (RLS)", async () => {
+    const id = await makeAccount();
+    const patched = await account.PATCH(
+      req(`/api/sync/accounts/${id}`, TOKEN_OTHER, { method: "PATCH", body: JSON.stringify({ label: "x" }) }),
+      params(id),
+    );
+    expect(patched.status).toBe(404);
+    const deleted = await account.DELETE(
+      req(`/api/sync/accounts/${id}`, TOKEN_OTHER, { method: "DELETE" }),
+      params(id),
+    );
+    expect(deleted.status).toBe(404);
+
+    // Still there for its owner.
+    const list = await accounts.GET(req("/api/sync/accounts", TOKEN_ADMIN));
+    expect((await list.json()).accounts.map((a: { id: string }) => a.id)).toContain(id);
   });
 });
