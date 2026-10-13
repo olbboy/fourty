@@ -2,7 +2,8 @@ import { z } from "zod";
 import { and, eq } from "drizzle-orm";
 import { db, tables, withWorkspace } from "@/db";
 import { json, apiError, parseBody } from "@/lib/api";
-import { createSession, createUser, getSessionUser, sha256 } from "@/lib/auth";
+import { createSession, createUser, getSessionUser } from "@/lib/auth";
+import { parseInviteToken } from "@/lib/invites";
 import { newId } from "@/lib/id";
 import { audit } from "@/lib/audit";
 
@@ -28,11 +29,9 @@ const schema = z.object({
 export async function POST(req: Request) {
   const body = await parseBody(req, schema);
   if (!body.ok) return body.response;
-  const token = body.data.token;
-  const dot = token.indexOf(".");
-  if (dot <= 0) return apiError("Invalid invite token", 400);
-  const workspaceId = token.slice(0, dot);
-  const tokenHash = sha256(token);
+  const parsed = parseInviteToken(body.data.token);
+  if (!parsed) return apiError("Invalid invite token", 400);
+  const { workspaceId, tokenHash } = parsed;
   const sessionUser = await getSessionUser();
 
   return withWorkspace(workspaceId, async () => {

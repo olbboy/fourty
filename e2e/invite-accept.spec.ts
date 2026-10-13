@@ -43,6 +43,9 @@ test("an invited teammate redeems the link and lands in the workspace", async ({
     const guestPage = await guest.newPage();
     await guestPage.goto(acceptUrl);
     await expect(guestPage.getByText("You've been invited to a workspace")).toBeVisible();
+    // The form asks only for a name and a password, so the page says which
+    // address the new account signs in with.
+    await expect(guestPage.getByText(`Your sign-in email: ${invitee}`)).toBeVisible();
 
     await guestPage.getByLabel("Your name").fill("E2E Invitee");
     await guestPage.getByLabel("Choose a password").fill(INVITEE_PASSWORD);
@@ -57,6 +60,7 @@ test("an invited teammate redeems the link and lands in the workspace", async ({
     // claiming it expired (which read as "you are not in").
     await guest.clearCookies();
     await guestPage.goto(acceptUrl);
+    await expect(guestPage.getByText(/Your sign-in email/)).toHaveCount(0);
     await guestPage.getByLabel("Your name").fill("Replay");
     await guestPage.getByLabel("Choose a password").fill("replay-password-123");
     await guestPage.getByRole("button", { name: "Create account and join" }).click();
