@@ -59,8 +59,10 @@ const UP = [
   "drizzle/0019_invite_revoked.sql",
   "drizzle/0020_note_edited.sql",
   "drizzle/0021_session_devices.sql",
+  "drizzle/0022_created_by.sql",
 ];
 const DOWN = [
+  "drizzle/down/0022_created_by.down.sql",
   "drizzle/down/0021_session_devices.down.sql",
   "drizzle/down/0020_note_edited.down.sql",
   "drizzle/down/0019_invite_revoked.down.sql",

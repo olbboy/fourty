@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 import { useLocale, useT } from "@/lib/i18n/provider";
 import type { MessageKey } from "@/lib/i18n";
 import { formatMailboxLastError, isSecretKeyError } from "@/lib/mailbox-display";
+import { useOwnerPeople } from "@/components/owner-controls";
+import { ownerLabel } from "@/lib/owner-display";
 
 type SyncAccount = {
   id: string;
@@ -22,6 +24,7 @@ type SyncAccount = {
   lastSyncedAt: number | null;
   lastError: string | null;
   createdAt: number;
+  createdBy?: string | null;
   /** Only non-secret hints survive redaction — never credentials or tokens. */
   config: { host?: string; urlHost?: string };
   /** True once a refresh token is on file, i.e. OAuth has been completed. */
@@ -60,6 +63,7 @@ function mailboxError(t: Translate, error: unknown, fallback: MessageKey): strin
 
 export function MailboxSection() {
   const t = useT();
+  const people = useOwnerPeople();
   const locale = useLocale();
   const [askConfirm, confirmDialog] = useConfirm();
   const [accounts, setAccounts] = useState<SyncAccount[] | null>(null);
@@ -236,6 +240,7 @@ export function MailboxSection() {
                       ? ` · ${t("settings.mailboxSynced", { when: timeAgo(a.lastSyncedAt, locale) })}`
                       : ` · ${t("settings.mailboxNeverSynced")}`}
                     {a.status === "paused" && ` · ${t("settings.mailboxPaused")}`}
+                    {a.createdBy && ` · ${t("settings.connectedBy", { name: ownerLabel(a.createdBy, people, t) })}`}
                   </p>
                   {a.status === "error" && a.lastError && (
                     <p className="mt-0.5 break-all text-xs text-feedback-error">

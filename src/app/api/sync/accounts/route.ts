@@ -55,6 +55,7 @@ export async function POST(req: Request) {
       email: body.data.email,
       label: body.data.label ?? null,
       config,
+      createdBy: auth.user?.id ?? null,
       createdAt: Date.now(),
     });
     await audit(auth.user?.id, "sync_account.connected", { objectType: "sync_account", objectId: id });

@@ -25,6 +25,7 @@ export async function GET(req: Request) {
         lastUsedAt: r.lastUsedAt,
         revokedAt: r.revokedAt,
         createdAt: r.createdAt,
+        createdBy: r.createdBy,
       })),
     });
   });
@@ -53,6 +54,7 @@ export async function POST(req: Request) {
       workspaceId: auth.workspaceId,
       name: body.data.name,
       role: body.data.role,
+      createdBy: auth.user?.id ?? null,
       prefix: secret.slice(0, 12),
       keyHash: sha256(secret),
       createdAt: Date.now(),

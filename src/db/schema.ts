@@ -510,6 +510,7 @@ export const apiKeys = pgTable("api_keys", {
   role: text("role").notNull().default("admin"), // RBAC role a key acts as (admin = back-compat)
   lastUsedAt: millis("last_used_at"),
   revokedAt: millis("revoked_at"),
+    createdBy: text("created_by"), // the person who made it; null for older keys
   createdAt: millis("created_at").notNull(),
 });
 
@@ -565,6 +566,7 @@ export const syncAccounts = pgTable(
     provider: text("provider").notNull(), // imap | google | microsoft | ics
     email: text("email").notNull(),
     label: text("label"),
+    createdBy: text("created_by"), // the person who connected it; null for older ones
     config: text("config").notNull().default("{}"), // provider connection details (JSON)
     status: text("status").notNull().default("active"), // active | paused | error
     lastSyncedAt: millis("last_synced_at"),

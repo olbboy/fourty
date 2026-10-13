@@ -40,6 +40,8 @@ type Member = {
   twoFactor?: boolean;
   /** When this person last signed in, or null if never. */
   lastLoginAt?: number | null;
+  /** API keys and mailboxes this person set up here. */
+  access?: { keys: number; mailboxes: number };
 };
 
 /** An invite nobody has used yet; resending replaces its link. */
@@ -202,14 +204,29 @@ export function MembersSection() {
   }
 
   async function remove(m: Member) {
+    const keys = m.access?.keys ?? 0;
+    const mailboxes = m.access?.mailboxes ?? 0;
+    // Take back what they set up, unless the admin unticks it (D2).
+    let revokeAccess = keys + mailboxes > 0;
     const ok = await askConfirm({
       title: t("settings.inviteRemoveTitle", { name: m.name }),
       body: t("settings.inviteRemoveBody"),
       confirmLabel: t("settings.inviteRemove"),
+      ...(revokeAccess
+        ? {
+            option: {
+              label: t("settings.removeRevokeAccess", { keys, mailboxes }),
+              defaultChecked: true,
+              onChange: (checked: boolean) => {
+                revokeAccess = checked;
+              },
+            },
+          }
+        : {}),
     });
     if (!ok) return;
     setError(null);
-    const res = await fetch(`/api/members/${m.userId}`, { method: "DELETE" });
+    const res = await fetch(`/api/members/${m.userId}${revokeAccess ? "?revokeAccess=1" : ""}`, { method: "DELETE" });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       setError(memberError(t, body.error, "settings.inviteFailedRemove"));

@@ -234,10 +234,12 @@ export function useConfirm(): [
 ] {
   const t = useT();
   const [request, setRequest] = useState<ConfirmRequest | null>(null);
+  const [optionChecked, setOptionChecked] = useState(false);
   const settle = useRef<((confirmed: boolean) => void) | null>(null);
 
   const askConfirm = useCallback((next: ConfirmRequest) => {
     setRequest(next);
+    setOptionChecked(next.option?.defaultChecked ?? false);
     return new Promise<boolean>((resolve) => {
       settle.current = resolve;
     });
@@ -256,6 +258,20 @@ export function useConfirm(): [
       onClose={() => answer(false)}
     >
       {request?.body && <p className="text-sm text-ink-muted">{request.body}</p>}
+      {request?.option && (
+        <label className="mt-3 flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={optionChecked}
+            onChange={(e) => {
+              setOptionChecked(e.target.checked);
+              request.option?.onChange(e.target.checked);
+            }}
+            className="mt-0.5 h-4 w-4 accent-indigo-600"
+          />
+          {request.option.label}
+        </label>
+      )}
       <div className="mt-5 flex justify-end gap-2">
         <Button variant="outline" onClick={() => answer(false)}>
           {t("action.cancel")}
@@ -277,6 +293,8 @@ export type ConfirmRequest = {
   body?: string;
   /** Names the action, never "OK". Defaults to "Delete". */
   confirmLabel?: string;
+  /** One extra choice that goes with the action, as a checkbox. */
+  option?: { label: string; defaultChecked: boolean; onChange: (checked: boolean) => void };
 };
 
 export function Field({

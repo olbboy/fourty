@@ -4,6 +4,7 @@ import { db, tables } from "@/db";
 import { withAuth, authorize, json, apiError, parseBody } from "@/lib/api";
 import { audit } from "@/lib/audit";
 import { redactAccount } from "@/lib/sync/account-view";
+import { disconnectSyncAccount } from "@/lib/sync/disconnect";
 
 /**
  * Update / disconnect one sync account (Gate C6). The collection route creates
@@ -65,15 +66,7 @@ export async function DELETE(req: Request, { params }: Params) {
     const existing = await load(id);
     if (!existing) return apiError("Account not found", 404);
 
-    // Ingested mail and events carry an account_id with no foreign key behind it
-    // (the ingest tables are written, never read back), so nothing at the database
-    // level would clear them. Their dedup index is keyed by account, which makes
-    // them dead weight the moment the account goes — drop them here rather than
-    // leave rows pointing at an id that no longer resolves. Contact timeline
-    // activities are keyed to the contact, not the account, and are left alone.
-    await db.delete(tables.emailMessages).where(eq(tables.emailMessages.accountId, id));
-    await db.delete(tables.calendarEvents).where(eq(tables.calendarEvents.accountId, id));
-    await db.delete(tables.syncAccounts).where(eq(tables.syncAccounts.id, id));
+    await disconnectSyncAccount(id);
 
     await audit(auth.user?.id, "sync_account.deleted", {
       objectType: "sync_account",
