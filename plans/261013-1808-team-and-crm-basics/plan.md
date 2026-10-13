@@ -1,7 +1,7 @@
 ---
 title: "Trang Thành viên và các tính năng CRM cơ bản còn thiếu"
 date: 2026-10-13
-status: "Phase 3 xong (PR #30); Phase 4 xong trên máy (nhánh feat/owner-visibility-handover); Phase 5–9 chưa bắt đầu"
+status: "Phase 3 xong và đã deploy (PR #30); Phase 4 chờ merge (PR #31); Phase 5 xong trên máy (nhánh feat/value-history-lost-reason); Phase 6–9 chưa bắt đầu"
 nguon:
   - "plans/reports/research-261013-1649-user-administration.md (quyết định Q63–Q65)"
   - "plans/reports/research-261013-1649-crm-baseline-feature-gaps.md (quyết định Q66–Q68)"
@@ -57,6 +57,14 @@ Kết quả Phase 4 (13/10/2026):
 - Một lần ghi vừa đổi stage vừa đổi số tiền thì dòng đổi stage cũng mang các thay đổi số tiền, không mất đi như giới hạn đã biết của P1.
 - Lý do thua theo Q75.
 - Seam dự kiến: action `deals.update`; hàm hiển thị dòng thời gian (`tests/activity-display.test.ts`); e2e kéo deal trên kanban.
+
+Kết quả Phase 5 (13/10/2026):
+
+- Q84 = A (seam như trên), Q85 = A (ô "Trường lý do thua" ở Cài đặt → Pipeline; giá trị lưu cùng các cài đặt chọn trường khác trong `settings.reporting`).
+- Dòng thời gian ghi `meta.changes` cho Amount (kèm mã tiền), Expected close date và Delivery date; hiển thị "Giá trị: 80 tỷ ₫ → 60 tỷ ₫". Đổi stage hay đổi owner cùng lần sửa vẫn giữ các thay đổi đó.
+- Chuyển sang stage thua khi đã chọn trường lý do mà thiếu giá trị: API trả 400; Kanban hỏi lý do trước khi lưu. Chưa chọn trường thì như cũ.
+- Việc Leo làm sau deploy: Cài đặt → Pipeline chọn "Lý do không tiếp tục"; tắt workflow "Bổ sung lý do không tiếp tục" vì đã thừa.
+- Test mới: `tests/deal-history-lost-reason.test.ts` (6), 2 test trong `tests/activity-display.test.ts`, e2e `lost-reason`. Toàn bộ 1.172 unit và 110 e2e đạt.
 
 ## Phase 6 — Dự báo chia cột theo owner (việc 4 của Q70)
 

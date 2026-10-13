@@ -14,6 +14,7 @@ import { CustomFieldsSection } from "./sections/custom-fields";
 import { CustomObjectsSection } from "./sections/custom-objects";
 import { PipelinesSection } from "./sections/pipelines";
 import { ReportingSection } from "./sections/reporting";
+import { LostReasonSection } from "./sections/lost-reason";
 import { ApiKeysSection } from "./sections/api-keys";
 import { WebhooksSection } from "./sections/webhooks";
 import { DiagnosticsSection } from "./sections/diagnostics";
@@ -37,6 +38,7 @@ export function SettingsClient({
       <SsoSection />
       <MailboxSection />
       <PipelinesSection canManagePipelines={canManagePipelines} />
+      {isAdmin && <LostReasonSection />}
       {isAdmin && <ReportingSection />}
       <LanguageSection />
       <SecuritySection />

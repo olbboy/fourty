@@ -4,7 +4,8 @@ import { db, tables } from "@/db";
 import { dealPatch } from "@/lib/validators";
 import { recomputeDealScore } from "@/lib/services/deal-score";
 import { lockPipelineWorkspace } from "@/lib/services/pipelines";
-import { encodeCustom } from "@/lib/custom-fields";
+import { customFieldDefsOf, encodeCustom } from "@/lib/custom-fields";
+import { loadReportingSettings } from "@/lib/reporting";
 import { resolveOwner } from "../assignees";
 import type { EventContext } from "@/lib/workflows/types";
 import { defineAction } from "../define";
@@ -14,6 +15,15 @@ import { auditMeta, toDeal, type Deal } from "./shared";
 type StageInfo = { name: string; type: string };
 /** Display names at the time of the change; null means unassigned. */
 type OwnerChange = { from: string | null; to: string | null };
+/**
+ * What a value was and what it became, for the values a forecast reads: the
+ * Amount (with both currencies), the Expected close date and the Delivery date
+ * (by the label its field had at the time).
+ */
+export type ValueChange =
+  | { field: "amount"; from: number | null; to: number | null; fromCurrency: string; toCurrency: string }
+  | { field: "expectedCloseDate"; from: number | null; to: number | null }
+  | { field: "delivery"; label: string; from: number | null; to: number | null };
 
 type UpdateResult = PayloadEnvelope<Deal> & {
   fieldKeys: string[];
@@ -22,6 +32,7 @@ type UpdateResult = PayloadEnvelope<Deal> & {
   oldStage: StageInfo | null;
   newStage: StageInfo | null;
   ownerChange: OwnerChange | null;
+  valueChanges: ValueChange[];
   /** Pre-rescore row, matching the REST snapshot the workflows already see. */
   snapshot: Record<string, unknown>;
 };
@@ -31,7 +42,7 @@ export const dealsUpdate = defineAction({
   object: "deals",
   verb: "update",
   description:
-    "Update a deal by id. Pass stageId to move it along the pipeline (fires won/lost workflows). Recomputes the health score.",
+    "Update a deal by id. Pass stageId to move it along the pipeline (fires won/lost workflows). If the workspace names a lost-reason field, moving into a lost stage needs that field filled (pass it in custom). Recomputes the health score.",
   input: dealPatch.extend({ id: z.string().min(1) }),
   expose: { rest: true, graphql: true, mcp: true, ai: true },
   run: async ({ id, ...patch }, ctx): Promise<UpdateResult> => {
@@ -63,6 +74,16 @@ export const dealsUpdate = defineAction({
       oldStage = (await db.select().from(tables.stages).where(eq(tables.stages.id, existing.stageId)).limit(1))[0] ?? null;
     }
 
+    const settings = await loadReportingSettings();
+    const before = JSON.parse(existing.custom) as Record<string, unknown>;
+    // A deal closes as lost only with the reason the workspace asks for.
+    if (stageChanged && newStage!.type === "lost" && settings.lostReasonField) {
+      const reason = { ...before, ...(custom ?? {}) }[settings.lostReasonField];
+      if (reason === undefined || reason === null || reason === "") {
+        throw new ActionError("invalid", `${settings.lostReasonField}: choose a lost reason to close this deal as lost`);
+      }
+    }
+
     let customJson: string | undefined;
     if (custom !== undefined) {
       const blob = await encodeCustom("deal", { ...JSON.parse(existing.custom), ...custom });
@@ -87,6 +108,7 @@ export const dealsUpdate = defineAction({
       .where(eq(tables.deals.id, id));
 
     const mid = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0]!;
+    const valueChanges = await changedValues(existing, mid, settings.deliveryField);
     const snapshot = { ...mid, custom: undefined, stageName: newStage?.name };
     await recomputeDealScore(id);
     return {
@@ -97,6 +119,7 @@ export const dealsUpdate = defineAction({
       oldStage: oldStage ? { name: oldStage.name, type: oldStage.type } : null,
       newStage: newStage ? { name: newStage.name, type: newStage.type } : null,
       ownerChange,
+      valueChanges,
       snapshot,
     };
   },
@@ -108,7 +131,7 @@ export const dealsUpdate = defineAction({
           entityType: "deal",
           entityId: out.payload.id,
           actorId: ctx.userId,
-          meta: { from: out.oldStage?.name, to: out.newStage.name },
+          meta: { from: out.oldStage?.name, to: out.newStage.name, ...withChanges(out.valueChanges) },
         };
       }
       // One timeline entry per write: a stage move outranks an owner change.
@@ -118,7 +141,7 @@ export const dealsUpdate = defineAction({
           entityType: "deal",
           entityId: out.payload.id,
           actorId: ctx.userId,
-          meta: { ...out.ownerChange },
+          meta: { ...out.ownerChange, ...withChanges(out.valueChanges) },
         };
       }
       if (out.fieldKeys.length === 0 && !out.touchedCustom) return null;
@@ -127,7 +150,7 @@ export const dealsUpdate = defineAction({
         entityType: "deal",
         entityId: out.payload.id,
         actorId: ctx.userId,
-        meta: { fields: out.fieldKeys },
+        meta: { fields: out.fieldKeys, ...withChanges(out.valueChanges) },
       };
     },
     audit: (_i, out, ctx) => ({
@@ -146,6 +169,37 @@ export const dealsUpdate = defineAction({
     },
   },
 });
+
+const withChanges = (changes: ValueChange[]) => (changes.length ? { changes } : {});
+
+type DealRow = typeof tables.deals.$inferSelect;
+const asTime = (v: unknown): number | null => (typeof v === "number" ? v : null);
+
+/** The forecast-relevant values that differ between two versions of a deal. */
+async function changedValues(before: DealRow, after: DealRow, deliveryField: string | null): Promise<ValueChange[]> {
+  const changes: ValueChange[] = [];
+  if (before.amount !== after.amount || before.currency !== after.currency) {
+    changes.push({
+      field: "amount",
+      from: before.amount,
+      to: after.amount,
+      fromCurrency: before.currency,
+      toCurrency: after.currency,
+    });
+  }
+  if (before.expectedCloseDate !== after.expectedCloseDate) {
+    changes.push({ field: "expectedCloseDate", from: before.expectedCloseDate, to: after.expectedCloseDate });
+  }
+  if (deliveryField) {
+    const from = asTime(JSON.parse(before.custom)[deliveryField]);
+    const to = asTime(JSON.parse(after.custom)[deliveryField]);
+    if (from !== to) {
+      const def = (await customFieldDefsOf("deal")).find((d) => d.key === deliveryField);
+      changes.push({ field: "delivery", label: def?.label ?? deliveryField, from, to });
+    }
+  }
+  return changes;
+}
 
 /** Read from users, not active memberships: a departed owner keeps their name in history. */
 async function ownerName(id: string | null): Promise<string | null> {
