@@ -1,7 +1,7 @@
 ---
 title: "Trang Thành viên và các tính năng CRM cơ bản còn thiếu"
 date: 2026-10-13
-status: "Đã chốt Q73–Q81 (13/10/2026); Phase 3 xong trên máy (nhánh feat/invites-pending-list), chờ #29 merge để mở PR"
+status: "Phase 3 xong (PR #30); Phase 4 xong trên máy (nhánh feat/owner-visibility-handover); Phase 5–9 chưa bắt đầu"
 nguon:
   - "plans/reports/research-261013-1649-user-administration.md (quyết định Q63–Q65)"
   - "plans/reports/research-261013-1649-crm-baseline-feature-gaps.md (quyết định Q66–Q68)"
@@ -44,6 +44,12 @@ Lý do đi đầu: hôm nay có hai lời mời đang chờ mà không ai nhìn 
 - Đổi owner hàng loạt: chọn nhiều deal hoặc nhiều việc rồi chọn owner mới. Mỗi deal vẫn ghi một dòng `owner_changed` trên dòng thời gian.
 - Thao tác đổi owner hàng loạt đi qua action registry, nên REST, GraphQL và MCP cùng có.
 - Seam dự kiến: action `deals.list` và `tasks.list` (tham số lọc), action đổi owner hàng loạt mới; e2e `kanban`, `deal-form` và một e2e mới cho danh sách việc.
+
+Kết quả Phase 4 (13/10/2026):
+
+- Q82 = A (seam như trên), Q83 = A (chọn nhiều chỉ ở chế độ Bảng của Deals).
+- Hai chỗ tự quyết, khác chữ của Q65: người đã nghỉ hiện "Tên (đã nghỉ)" thay vì chỉ "Thành viên đã nghỉ", để còn biết việc của ai; trang Việc không có ô chọn từng dòng (mỗi dòng đã có ô tick hoàn thành), mà lọc theo người rồi "Giao cho" mọi việc đang hiện.
+- Test mới: `tests/owner-handover.test.ts` (10), `tests/owner-display.test.ts` (2), một test `pattern` trong `tests/action-json-schema.test.ts`, e2e `owner-handover`. Toàn bộ 1.159 unit và 108 e2e đạt.
 
 ## Phase 5 — Lịch sử giá trị cũ và mới, lý do thua (việc 1 và 2 của Q70)
 
