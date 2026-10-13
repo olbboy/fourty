@@ -22,6 +22,14 @@ _Avoid_: User, teammate, seat
 A single-use link that lets whoever holds it join one Workspace as a Member with a set role; it lapses after seven days.
 _Avoid_: Invitation code, join link
 
+**Session**:
+One device an Account is signed in on; signing out or changing the password ends it.
+_Avoid_: Login, token
+
+**Trash**:
+Where a deleted contact, company, Deal or task waits for 30 days, with its notes and timeline, until it is restored or purged.
+_Avoid_: Archive, recycle bin, soft delete
+
 ### Selling
 
 **Deal**:
@@ -32,6 +40,18 @@ _Avoid_: Opportunity, project, lead
 The money the seller expects to invoice for a Deal if it is won.
 A market potential, a partner's sales target, or the customer's total project budget is not an Amount.
 _Avoid_: Target value, deal size, potential
+
+**Deal contact**:
+A contact taking part in a Deal besides its primary contact, with the role they play in it, such as technical or purchasing.
+_Avoid_: Participant, stakeholder
+
+**Product**:
+Something the team sells, listed once with a name, an optional code and a list price in one currency.
+_Avoid_: SKU, item, catalogue entry
+
+**Line item**:
+One Product, or a typed-in item, on a Deal with a quantity and a unit price in the Deal's currency; a Deal with line items has their sum as its Amount.
+_Avoid_: Order line, position
 
 **Owner**:
 The one workspace member accountable for a Deal right now; ownership can be handed to another member.
