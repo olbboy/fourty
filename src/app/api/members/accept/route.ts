@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db, tables, withWorkspace } from "@/db";
 import { json, apiError, parseBody } from "@/lib/api";
 import { createSession, createUser, getSessionUser, sha256 } from "@/lib/auth";
@@ -37,12 +37,11 @@ export async function POST(req: Request) {
 
   return withWorkspace(workspaceId, async () => {
     const invite = (
-      await db
-        .select()
-        .from(tables.invites)
-        .where(and(eq(tables.invites.tokenHash, tokenHash), isNull(tables.invites.acceptedAt)))
-        .limit(1)
+      await db.select().from(tables.invites).where(eq(tables.invites.tokenHash, tokenHash)).limit(1)
     )[0];
+    // A link opened again after joining is not an error to the person holding
+    // it: say it was used, so the page can send them to sign in.
+    if (invite?.acceptedAt) return apiError("Invite already accepted", 409);
     if (!invite || invite.expiresAt < Date.now()) {
       return apiError("Invite is invalid or expired", 400);
     }
