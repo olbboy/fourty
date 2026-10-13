@@ -31,6 +31,8 @@ export function AcceptForm({ token, signedInAs }: { token: string; signedInAs: s
   // The API answers 401 when the invited address already has an account. That
   // is not a dead end, so it gets its own prompt rather than a red error.
   const [needsSignIn, setNeedsSignIn] = useState(false);
+  // 409: this link was already used to join. Same way out as 401, different words.
+  const [alreadyJoined, setAlreadyJoined] = useState(false);
   const [busy, setBusy] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -55,7 +57,8 @@ export function AcceptForm({ token, signedInAs }: { token: string; signedInAs: s
       router.refresh();
       return;
     }
-    if (res.status === 401) {
+    if (res.status === 401 || res.status === 409) {
+      if (res.status === 409) setAlreadyJoined(true);
       setNeedsSignIn(true);
       setBusy(false);
       return;
@@ -68,10 +71,14 @@ export function AcceptForm({ token, signedInAs }: { token: string; signedInAs: s
   if (needsSignIn) {
     return (
       <Card className="space-y-4 p-6">
-        <p className="text-sm">{t("accept.alreadyHasAccount")}</p>
+        <p className="text-sm">{t(alreadyJoined ? "accept.alreadyAccepted" : "accept.alreadyHasAccount")}</p>
         {/* Carry the accept link through login, so signing in lands the invitee
-            back here instead of on the dashboard with a spent visit. */}
-        <a href={`/login?next=${encodeURIComponent(`/accept?token=${encodeURIComponent(token)}`)}`} className="block">
+            back here instead of on the dashboard with a spent visit. A link that
+            was already used has nothing left to do here: plain sign-in. */}
+        <a
+          href={alreadyJoined ? "/login" : `/login?next=${encodeURIComponent(`/accept?token=${encodeURIComponent(token)}`)}`}
+          className="block"
+        >
           <Button className="w-full">{t("accept.goToSignIn")}</Button>
         </a>
       </Card>
