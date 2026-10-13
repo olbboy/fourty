@@ -5,6 +5,7 @@ import { dealInput } from "@/lib/validators";
 import { recomputeDealScore } from "@/lib/services/deal-score";
 import { ensureSelectedPipeline, lockPipelineWorkspace } from "@/lib/services/pipelines";
 import { encodeCustom } from "@/lib/custom-fields";
+import { resolveOwner } from "../assignees";
 import { defineAction } from "../define";
 import { ActionError } from "../types";
 import { auditMeta, toDeal, type Deal } from "./shared";
@@ -44,7 +45,8 @@ export const dealsCreate = defineAction({
 
     const now = Date.now();
     const id = newId();
-    const { custom, ...fields } = data;
+    const { custom, ownerId: requestedOwner, ...fields } = data;
+    const ownerId = await resolveOwner(requestedOwner, ctx);
     const blob = await encodeCustom("deal", custom ?? {});
     if (!blob.ok) throw new ActionError("invalid", blob.error);
     await db.insert(tables.deals).values({
@@ -52,7 +54,7 @@ export const dealsCreate = defineAction({
       ...fields,
       pipelineId,
       stageId,
-      ownerId: ctx.userId,
+      ownerId,
       stageEnteredAt: now,
       custom: blob.json,
       createdAt: now,

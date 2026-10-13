@@ -30,7 +30,8 @@ Typed queries for every object, plus custom-object records:
   `Company.tasks` / `Company.notes` / `Company.activities` likewise;
   `Company.facts` likewise
 - `deals`, `deal(id)` — `deals(stageId:, pipelineId:, companyId:, contactId:)` matches REST/MCP;
-  `Deal.company` / `Deal.contact` nest like `Contact.company`; `Deal.stage` is the MCP stage clock (name, days in stage);
+  `Deal.company` / `Deal.contact` nest like `Contact.company`; `Deal.owner` nests the owner like `Task.owner`;
+  `Deal.stage` is the MCP stage clock (name, days in stage);
   `Deal.tasks` / `Deal.notes` / `Deal.activities` likewise
 - `tasks`, `task(id)` — `tasks(entityType:, entityId:, state:)` matches REST/MCP;
   `Task.owner` nests the assignee (`id` + `name`); `Task.contact` / `Task.company` /

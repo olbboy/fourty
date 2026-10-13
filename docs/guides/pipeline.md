@@ -51,7 +51,20 @@ out. Because it is a pure calculation, the number on the board and the number in
 Deals can be denominated in **12 currencies** (USD, EUR, GBP, JPY, VND, and more).
 Every report and every pipeline total **auto-normalizes to USD** using the rates in
 `src/lib/currency.ts`, so a mixed-currency pipeline still rolls up to one comparable
-figure. The original currency stays on the deal for display.
+figure. The original currency stays on the deal for display. A code outside the 12
+is refused with `400`, so an unconvertible amount never reaches a total.
+
+## Deal owner
+
+Every deal has one **owner**: the member accountable for it right now. A deal created
+in the app starts with its creator as owner; one created with an API key starts
+unassigned. Pick another member in the deal form, or send `ownerId` (a member id from
+`/api/tasks/assignees`) on create or update; `null` unassigns. Any member can hand a
+deal over.
+
+The handover is written to the deal's timeline as **changed owner: A → B**. A member
+who has since left keeps their name there. Tasks that [workflows](./workflows.md) create
+for a deal go to its owner.
 
 ## Over the API
 

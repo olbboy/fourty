@@ -11,7 +11,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
 import { useLocale, useT } from "@/lib/i18n/provider";
 import type { MessageKey } from "@/lib/i18n";
-import { formatActivityDetail } from "@/lib/activity-display";
+import { formatActivityDetail, formatOwnerChange } from "@/lib/activity-display";
 
 type EntityRef = { entityType: string; entityId: string };
 type TFn = (key: MessageKey, vars?: Record<string, string | number>) => string;
@@ -20,6 +20,7 @@ const ACTIVITY_KEYS: Record<string, MessageKey> = {
   created: "activity.created",
   updated: "activity.updated",
   stage_changed: "activity.stageChanged",
+  owner_changed: "activity.ownerChanged",
   note_added: "activity.noteAdded",
   task_completed: "activity.taskCompleted",
   email: "activity.email",
@@ -46,6 +47,7 @@ const ACTIVITY_DOT: Record<string, string> = {
   note_added: "bg-ink/60", // someone wrote something
   task_completed: "bg-ink/60",
   stage_changed: "bg-ink", // the record moved
+  owner_changed: "bg-ink", // the record changed hands
   created: "bg-ink",
   workflow: "bg-accent-500", // written by the system, not by a person
 };
@@ -55,6 +57,7 @@ function describe(a: Activity, t: TFn): string {
   if (a.type === "stage_changed" && a.meta.from && a.meta.to) {
     return t("activity.stageChangedDetail", { from: String(a.meta.from), to: String(a.meta.to) });
   }
+  if (a.type === "owner_changed") return formatOwnerChange(a.meta, t);
   if (a.type === "updated" && Array.isArray(a.meta.fields) && a.meta.fields.length) {
     return t("activity.updatedFields", { fields: (a.meta.fields as string[]).join(", ") });
   }

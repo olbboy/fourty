@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { translator } from "@/lib/i18n";
-import { formatActivityDetail } from "@/lib/activity-display";
+import { formatActivityDetail, formatOwnerChange } from "@/lib/activity-display";
 
 describe("formatActivityDetail", () => {
   const en = translator("en");
@@ -14,5 +14,20 @@ describe("formatActivityDetail", () => {
 
   it("leaves unknown details unchanged", () => {
     expect(formatActivityDetail("someone typed this", en)).toBe("someone typed this");
+  });
+});
+
+describe("formatOwnerChange", () => {
+  const en = translator("en");
+  const vi = translator("vi");
+
+  it("names both owners", () => {
+    expect(formatOwnerChange({ from: "Ada Lovelace", to: "Grace Hopper" }, en)).toBe("changed owner: Ada Lovelace → Grace Hopper");
+    expect(formatOwnerChange({ from: "DVHai", to: "LTHoa" }, vi)).toBe("đổi người phụ trách: DVHai → LTHoa");
+  });
+
+  it("shows a missing side as unassigned", () => {
+    expect(formatOwnerChange({ from: null, to: "Grace Hopper" }, en)).toBe("changed owner: Unassigned → Grace Hopper");
+    expect(formatOwnerChange({ from: "DVHai", to: null }, vi)).toBe("đổi người phụ trách: DVHai → Chưa gán");
   });
 });

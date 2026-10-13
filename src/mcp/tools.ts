@@ -9,7 +9,7 @@ import { dealsCreate, dealsDelete, dealsGet, dealsList, dealsUpdate } from "@/li
 import { dealStageClock } from "@/lib/actions/deals/shared";
 import { pinnedWorkIds } from "@/lib/pinned-tasks";
 import { tasksCreate, tasksDelete, tasksGet, tasksList, tasksUpdate } from "@/lib/actions/tasks";
-import { listAssignees } from "@/lib/actions/tasks/shared";
+import { listAssignees } from "@/lib/actions/assignees";
 import { notesCreate, notesList } from "@/lib/actions/notes";
 import { activitiesCreate, activitiesList } from "@/lib/actions/activities";
 import { factsDecide, factsList, factsRecord } from "@/lib/actions/facts";
@@ -485,7 +485,7 @@ export const TOOLS: Tool[] = [
     name: "list_assignees",
     mutates: false,
     description:
-      "List workspace members a task can be assigned to (id and name). Pass id as ownerId on create_task or update_task.",
+      "List workspace members a task or deal can be owned by (id and name). Pass id as ownerId on create_task, update_task, create_deal or update_deal.",
     inputSchema: { type: "object", properties: {} },
     handler: async (_args, ctx) => {
       requireRole(ctx, "tasks", "read");

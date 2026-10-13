@@ -20,7 +20,7 @@ import { companiesCreate, companiesDelete, companiesGet, companiesList, companie
 import { dealsCreate, dealsDelete, dealsGet, dealsList, dealsUpdate } from "@/lib/actions/deals";
 import { dealStageClock } from "@/lib/actions/deals/shared";
 import { tasksCreate, tasksDelete, tasksGet, tasksList, tasksUpdate } from "@/lib/actions/tasks";
-import { getAssignee, listAssignees } from "@/lib/actions/tasks/shared";
+import { getAssignee, listAssignees } from "@/lib/actions/assignees";
 import { notesCreate, notesList } from "@/lib/actions/notes";
 import { activitiesCreate, activitiesList } from "@/lib/actions/activities";
 import { factsDecide, factsList, factsRecord } from "@/lib/actions/facts";
@@ -255,6 +255,14 @@ const Deal: GraphQLObjectType = new GraphQLObjectType({
     stageId: { type: S },
     companyId: { type: S },
     contactId: { type: S },
+    ownerId: { type: S },
+    owner: {
+      type: Assignee,
+      resolve: async (row: DealRow & { ownerId?: string | null }) => {
+        if (!row.ownerId) return null;
+        return (await getAssignee(row.ownerId)) ?? null;
+      },
+    },
     expectedCloseDate: { type: GraphQLFloat },
     closedAt: { type: GraphQLFloat },
     score: { type: GraphQLInt },

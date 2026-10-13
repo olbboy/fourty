@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SUPPORTED_CURRENCIES } from "@/lib/currency";
 
 /** Built-in records (`contact` / `company` / `deal`) plus a no-code object's apiName. */
 const entityType = z.string().min(1).max(40);
@@ -38,12 +39,13 @@ export const companyPatch = companyInput.partial();
 export const dealInput = z.object({
   name: z.string().min(1).max(240),
   amount: z.number().min(0).optional().default(0),
-  currency: z.string().length(3).optional().default("USD"),
+  currency: z.enum(SUPPORTED_CURRENCIES).optional().default("USD"),
   pipelineId: z.string().optional(),
   stageId: z.string().optional(),
   companyId: z.string().nullable().optional(),
   contactId: z.string().nullable().optional(),
   expectedCloseDate: z.number().nullable().optional(),
+  ownerId: z.string().min(1).max(64).nullable().optional(),
   custom: z.record(z.string(), z.unknown()).optional(),
 });
 

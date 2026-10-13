@@ -11,3 +11,9 @@ export function formatActivityDetail(detail: string, t: Translate): string {
   if (detail === "AI draft") return t("activity.aiDraft");
   return detail;
 }
+
+/** An `owner_changed` entry: both sides by name, a missing side read as unassigned. */
+export function formatOwnerChange(meta: { from?: unknown; to?: unknown }, t: Translate): string {
+  const name = (v: unknown) => (typeof v === "string" && v ? v : t("common.unassigned"));
+  return t("activity.ownerChangedDetail", { from: name(meta.from), to: name(meta.to) });
+}

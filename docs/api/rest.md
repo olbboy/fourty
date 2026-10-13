@@ -12,8 +12,8 @@ error shapes.
 |---|---|
 | Contacts | `/api/contacts`, `/api/contacts/{id}` |
 | Companies | `/api/companies`, `/api/companies/{id}` |
-| Deals | `/api/deals`, `/api/deals/{id}` |
-| Tasks | `/api/tasks`, `/api/tasks/{id}` (`ownerId` assigns a member); `/api/tasks/assignees` (GraphQL `assignees`, MCP `list_assignees`) |
+| Deals | `/api/deals`, `/api/deals/{id}` (`ownerId` assigns a member; `currency` must be one of the [12 supported codes](../guides/pipeline.md#multi-currency)) |
+| Tasks | `/api/tasks`, `/api/tasks/{id}` (`ownerId` assigns a member); `/api/tasks/assignees` lists who can own a task or deal (GraphQL `assignees`, MCP `list_assignees`) |
 | Notes | `/api/notes` (GET list + POST create; append-only) |
 | Activities (timeline) | `/api/activities` |
 | Pipelines | `/api/pipelines` (GET, POST), `/api/pipelines/{id}` (PATCH name; DELETE when empty and not the last) |

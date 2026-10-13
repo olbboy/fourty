@@ -5,12 +5,15 @@ import { dealPatch } from "@/lib/validators";
 import { recomputeDealScore } from "@/lib/services/deal-score";
 import { lockPipelineWorkspace } from "@/lib/services/pipelines";
 import { encodeCustom } from "@/lib/custom-fields";
+import { resolveOwner } from "../assignees";
 import type { EventContext } from "@/lib/workflows/types";
 import { defineAction } from "../define";
 import { ActionError, type PayloadEnvelope } from "../types";
 import { auditMeta, toDeal, type Deal } from "./shared";
 
 type StageInfo = { name: string; type: string };
+/** Display names at the time of the change; null means unassigned. */
+type OwnerChange = { from: string | null; to: string | null };
 
 type UpdateResult = PayloadEnvelope<Deal> & {
   fieldKeys: string[];
@@ -18,6 +21,7 @@ type UpdateResult = PayloadEnvelope<Deal> & {
   stageChanged: boolean;
   oldStage: StageInfo | null;
   newStage: StageInfo | null;
+  ownerChange: OwnerChange | null;
   /** Pre-rescore row, matching the REST snapshot the workflows already see. */
   snapshot: Record<string, unknown>;
 };
@@ -39,8 +43,13 @@ export const dealsUpdate = defineAction({
     if (!existing) throw new ActionError("not_found", "Deal not found");
 
     // pipelineId is accepted by the patch schema but deals cannot move pipelines.
-    const { custom, stageId, pipelineId: _ignored, ...fields } = patch;
+    const { custom, stageId, pipelineId: _ignored, ownerId: requestedOwner, ...fields } = patch;
     void _ignored;
+    const ownerPatch = requestedOwner !== undefined ? { ownerId: await resolveOwner(requestedOwner, ctx) } : {};
+    const ownerChange: OwnerChange | null =
+      ownerPatch.ownerId !== undefined && ownerPatch.ownerId !== existing.ownerId
+        ? { from: await ownerName(existing.ownerId), to: await ownerName(ownerPatch.ownerId) }
+        : null;
 
     const now = Date.now();
     const stageChanged = stageId !== undefined && stageId !== existing.stageId;
@@ -64,6 +73,7 @@ export const dealsUpdate = defineAction({
       .update(tables.deals)
       .set({
         ...fields,
+        ...ownerPatch,
         ...(stageChanged
           ? {
               stageId: stageId!,
@@ -86,6 +96,7 @@ export const dealsUpdate = defineAction({
       stageChanged,
       oldStage: oldStage ? { name: oldStage.name, type: oldStage.type } : null,
       newStage: newStage ? { name: newStage.name, type: newStage.type } : null,
+      ownerChange,
       snapshot,
     };
   },
@@ -98,6 +109,16 @@ export const dealsUpdate = defineAction({
           entityId: out.payload.id,
           actorId: ctx.userId,
           meta: { from: out.oldStage?.name, to: out.newStage.name },
+        };
+      }
+      // One timeline entry per write: a stage move outranks an owner change.
+      if (out.ownerChange) {
+        return {
+          type: "owner_changed",
+          entityType: "deal",
+          entityId: out.payload.id,
+          actorId: ctx.userId,
+          meta: { ...out.ownerChange },
         };
       }
       if (out.fieldKeys.length === 0 && !out.touchedCustom) return null;
@@ -125,3 +146,10 @@ export const dealsUpdate = defineAction({
     },
   },
 });
+
+/** Read from users, not active memberships: a departed owner keeps their name in history. */
+async function ownerName(id: string | null): Promise<string | null> {
+  if (!id) return null;
+  const row = (await db.select({ name: tables.users.name }).from(tables.users).where(eq(tables.users.id, id)).limit(1))[0];
+  return row?.name ?? null;
+}
