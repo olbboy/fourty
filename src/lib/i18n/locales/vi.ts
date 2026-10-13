@@ -1174,6 +1174,7 @@ export const vi: Record<MessageKey, string> = {
 
   "accept.invited": "Bạn được mời vào một workspace",
   "accept.incomplete": "Link lời mời không đầy đủ",
+  "accept.loginEmail": "Email đăng nhập của bạn: {email}",
   "accept.missingToken":
     "Link thiếu token lời mời. Mở lại link từ email mời, hoặc nhờ admin gửi lời mời mới.",
   "accept.alreadyHasAccount":

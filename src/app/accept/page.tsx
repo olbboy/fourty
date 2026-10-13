@@ -1,4 +1,5 @@
 import { getSessionUser } from "@/lib/auth";
+import { inviteEmail } from "@/lib/invites";
 import { Logo } from "@/components/logo";
 import { AcceptForm } from "./accept-form";
 import { LocaleProvider } from "@/lib/i18n/provider";
@@ -22,6 +23,9 @@ export default async function AcceptPage({
   // A signed-in visitor joins as themselves; anyone else fills in a name and a
   // password and the token authorizes the signup.
   const user = await getSessionUser();
+  // A new member signs in later with the address the invite went to; say which
+  // one, since the form only asks for a name and a password.
+  const loginEmail = token && !user ? await inviteEmail(token) : null;
   const locale = await requestLocale();
   const t = translator(locale);
 
@@ -36,6 +40,9 @@ export default async function AcceptPage({
             <p className="text-sm text-ink-muted">
               {token ? t("accept.invited") : t("accept.incomplete")}
             </p>
+            {loginEmail && (
+              <p className="text-sm text-ink">{t("accept.loginEmail", { email: loginEmail })}</p>
+            )}
           </div>
           {token ? (
             <AcceptForm token={token} signedInAs={user?.email ?? null} />

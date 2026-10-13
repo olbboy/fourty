@@ -1172,6 +1172,7 @@ export const en = {
 
   "accept.invited": "You've been invited to a workspace",
   "accept.incomplete": "This invite link is incomplete",
+  "accept.loginEmail": "Your sign-in email: {email}",
   "accept.missingToken":
     "The link is missing its invite token. Open the link from your invite email again, or ask an admin to send a new invite.",
   "accept.alreadyHasAccount":
