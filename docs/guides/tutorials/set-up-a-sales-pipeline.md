@@ -56,8 +56,9 @@ Drag the deal from *Discovery* to *Proposal*. The per-column totals and the
 probability`. Moving into a Won/Lost stage fires the `deal.won` / `deal.lost` events.
 
 > [!TIP]
-> Mixing currencies? Every total auto-normalizes to USD, so a EUR + GBP + USD pipeline
-> still rolls up to one comparable number. See [Pipeline → Multi-currency](../pipeline.md#multi-currency).
+> Mixing currencies? Every total is converted into the workspace's reporting currency
+> (USD unless an admin picks another), so a EUR + GBP + USD pipeline still rolls up to
+> one comparable number. See [Pipeline → Multi-currency](../pipeline.md#multi-currency).
 
 ## Done — what you built
 

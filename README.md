@@ -47,7 +47,7 @@ Contacts, Companies, Deals, Tasks, Notes — polymorphic activity timeline, list
 <td width="50%">
 
 **📊 Kanban Pipeline**
-Drag deals between stages with optimistic updates. Per-column totals, probability-weighted forecasts, and multi-currency support (12 currencies, auto-USD).
+Drag deals between stages with optimistic updates. Per-column totals, probability-weighted forecasts by quarter, and multi-currency support (12 currencies, one reporting currency per workspace).
 
 </td>
 </tr>

@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Company, Contact, Deal, Pipeline } from "@/lib/types";
-import { formatCompact, formatMoney, sumUsd } from "@/lib/currency";
+import { formatCompact, formatMoney, sumInReporting } from "@/lib/currency";
+import { useReporting } from "@/hooks/use-reporting";
 import { timeAgo, formatDate, displayName } from "@/lib/format";
 import { washedChip } from "@/lib/contrast-color";
 import {
@@ -78,6 +79,7 @@ function isPipelinesResponse(
 
 export function DealsClient() {
   const t = useT();
+  const reporting = useReporting();
   const locale = useLocale();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -293,7 +295,7 @@ export function DealsClient() {
   }
 
   const hideAmounts = pipelineDeals.some((deal) => deal.amount == null);
-  const pipelineTotal = hideAmounts ? null : sumUsd(pipelineDeals);
+  const pipelineTotal = hideAmounts || !reporting.ready ? null : sumInReporting(pipelineDeals, reporting.rates);
 
   return (
     <div className="animate-fade-up">
@@ -304,7 +306,7 @@ export function DealsClient() {
             ? pipelineTotal != null
               ? t("page.deals.countTotal", {
                   count: pipelineDeals.length,
-                  total: formatCompact(pipelineTotal, "USD"),
+                  total: formatCompact(pipelineTotal, reporting.rates.currency, locale),
                 })
               : t("page.deals.count", { count: pipelineDeals.length })
             : undefined
@@ -431,7 +433,7 @@ export function DealsClient() {
             {board.columns.map((column) => {
               const stage = column.stage;
               const inStage = column.deals;
-              const totalUsd = hideAmounts ? null : (sumUsd(inStage) ?? 0);
+              const columnTotal = hideAmounts || !reporting.ready ? null : (sumInReporting(inStage, reporting.rates) ?? 0);
               const canDrop = canMoveStage && stage != null;
               return (
                 <div
@@ -462,24 +464,24 @@ export function DealsClient() {
                       : "border-line bg-surface-2/50"
                   }`}
                 >
-                  <div className="mb-2 flex items-center justify-between px-1.5 pt-1">
-                    <div className="flex items-center gap-1.5">
+                  <div className="mb-2 flex items-center justify-between gap-2 px-1.5 pt-1">
+                    <div className="flex min-w-0 items-center gap-1.5">
                       {stage && <StageDot color={stage.color} />}
-                      <span className="text-sm font-semibold">
+                      <span className="min-w-0 text-sm font-semibold">
                         {stage?.name ??
                           (board.groupByStage
                             ? t("common.unassigned")
                             : t("nav.deals"))}
                       </span>
-                      <span className="text-xs text-ink-muted">
+                      <span className="shrink-0 text-xs text-ink-muted">
                         {inStage.length}
                       </span>
                     </div>
                     <span
                       data-testid="stage-total"
-                      className="text-xs font-medium text-ink-muted"
+                      className="shrink-0 whitespace-nowrap text-xs font-medium text-ink-muted"
                     >
-                      {formatCompact(totalUsd, "USD")}
+                      {formatCompact(columnTotal, reporting.rates.currency, locale)}
                     </span>
                   </div>
                   <div className="space-y-2">
@@ -512,7 +514,7 @@ export function DealsClient() {
                           </Link>
                         </p>
                         <p className="mt-1 text-sm font-semibold text-accent-700 dark:text-accent-400">
-                          {formatMoney(deal.amount, deal.currency)}
+                          {formatMoney(deal.amount, deal.currency, locale)}
                         </p>
                         {deal.score != null && (
                           <div className="mt-1.5">
@@ -580,7 +582,7 @@ export function DealsClient() {
                       </Link>
                     </TableCell>
                     <TableCell>
-                      {formatMoney(deal.amount, deal.currency)}
+                      {formatMoney(deal.amount, deal.currency, locale)}
                     </TableCell>
                     <TableCell>
                       <HealthBadge score={deal.score} />

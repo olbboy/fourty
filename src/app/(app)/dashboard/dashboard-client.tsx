@@ -18,6 +18,8 @@ import { useLocale, useT } from "@/lib/i18n/provider";
 import { isDashboardStatsPayload } from "@/lib/stats-payload";
 
 type Stats = {
+  /** Reporting currency of every amount below; absent from older servers. */
+  currency?: string;
   kpis: {
     pipelineValue?: number;
     weightedForecast?: number;
@@ -149,6 +151,7 @@ export function DashboardClient() {
   }
 
   const { kpis } = stats;
+  const currency = stats.currency ?? "USD";
 
   return (
     <div className="animate-fade-up space-y-4">
@@ -164,7 +167,7 @@ export function DashboardClient() {
           label={t("dash.kpi.pipeline")}
           value={
             kpis.pipelineValue != null
-              ? formatCompact(kpis.pipelineValue, "USD")
+              ? formatCompact(kpis.pipelineValue, currency, locale)
               : "—"
           }
           hint={t("dash.kpi.pipelineHint", { count: kpis.openDeals })}
@@ -173,7 +176,7 @@ export function DashboardClient() {
           label={t("dash.kpi.forecast")}
           value={
             kpis.weightedForecast != null
-              ? formatCompact(kpis.weightedForecast, "USD")
+              ? formatCompact(kpis.weightedForecast, currency, locale)
               : "—"
           }
           hint={t("dash.kpi.forecastHint")}
@@ -182,7 +185,7 @@ export function DashboardClient() {
           label={t("dash.kpi.won")}
           value={
             kpis.wonThisMonth != null
-              ? formatCompact(kpis.wonThisMonth, "USD")
+              ? formatCompact(kpis.wonThisMonth, currency, locale)
               : "—"
           }
         />
@@ -200,9 +203,11 @@ export function DashboardClient() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card size="flush" className="p-4">
           <h2 className="mb-1 text-sm font-semibold">{t("dash.revenue")}</h2>
-          <p className="mb-3 text-xs text-ink-muted">{t("dash.revenueHint")}</p>
+          <p className="mb-3 text-xs text-ink-muted">{t("dash.revenueHint", { currency })}</p>
           {stats.revenueByMonth.some((row) => row.won != null) ? (
             <MoneyBarChart
+              currency={currency}
+              locale={locale}
               data={stats.revenueByMonth}
               xKey="month"
               yKey="won"
@@ -218,7 +223,7 @@ export function DashboardClient() {
               ? t("dash.funnelValue")
               : t("dash.funnelCount")}
           </p>
-          <FunnelChart data={stats.funnel} />
+          <FunnelChart data={stats.funnel} currency={currency} locale={locale} />
         </Card>
       </div>
 
@@ -306,7 +311,7 @@ export function DashboardClient() {
                   <p className="text-xs text-ink-muted">
                     {[
                       deal.amount != null
-                        ? formatMoney(deal.amount, deal.currency ?? "USD")
+                        ? formatMoney(deal.amount, deal.currency ?? "USD", locale)
                         : null,
                       deal.stage,
                     ]

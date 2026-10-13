@@ -189,7 +189,7 @@ export function CompanyDetail({ id }: { id: string }) {
               { label: t("field.linkedin"), value: company.linkedin, field: "linkedin" },
               {
                 label: t("field.annualRevenue"),
-                value: company.annualRevenue ? formatCompact(company.annualRevenue, "USD") : null,
+                value: company.annualRevenue ? formatCompact(company.annualRevenue, "USD", locale) : null,
               },
             ].map(({ label, value, field }) => (
               <div key={label}>
@@ -269,7 +269,7 @@ export function CompanyDetail({ id }: { id: string }) {
                       <HealthBadge score={d.score} />
                     </p>
                     <p className="text-xs text-ink-muted">
-                      {formatMoney(d.amount, d.currency)}
+                      {formatMoney(d.amount, d.currency, locale)}
                       {stage && (
                         <span
                           className="ml-2 font-medium data-ink"

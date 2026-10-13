@@ -13,6 +13,7 @@ import { AuditLogSection } from "./sections/audit-log";
 import { CustomFieldsSection } from "./sections/custom-fields";
 import { CustomObjectsSection } from "./sections/custom-objects";
 import { PipelinesSection } from "./sections/pipelines";
+import { ReportingSection } from "./sections/reporting";
 import { ApiKeysSection } from "./sections/api-keys";
 import { WebhooksSection } from "./sections/webhooks";
 import { DiagnosticsSection } from "./sections/diagnostics";
@@ -23,8 +24,10 @@ import { useT } from "@/lib/i18n/provider";
 
 export function SettingsClient({
   canManagePipelines = false,
+  isAdmin = false,
 }: {
   canManagePipelines?: boolean;
+  isAdmin?: boolean;
 } = {}) {
   const t = useT();
   return (
@@ -34,6 +37,7 @@ export function SettingsClient({
       <SsoSection />
       <MailboxSection />
       <PipelinesSection canManagePipelines={canManagePipelines} />
+      {isAdmin && <ReportingSection />}
       <LanguageSection />
       <SecuritySection />
       <FieldPermissionsSection />
