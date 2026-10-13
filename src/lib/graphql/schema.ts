@@ -17,7 +17,8 @@ import { can } from "@/lib/permissions";
 import { toResolver } from "@/lib/actions/adapters/graphql";
 import { contactsCreate, contactsDelete, contactsGet, contactsList, contactsUpdate } from "@/lib/actions/contacts";
 import { companiesCreate, companiesDelete, companiesGet, companiesList, companiesUpdate } from "@/lib/actions/companies";
-import { dealsCreate, dealsDelete, dealsGet, dealsList, dealsReassign, dealsUpdate } from "@/lib/actions/deals";
+import { dealsCreate, dealsDelete, dealsGet, dealsList, dealsReassign, dealsSetContacts, dealsUpdate } from "@/lib/actions/deals";
+import { dealContactsOf } from "@/lib/actions/deals/contacts";
 import { dealStageClock } from "@/lib/actions/deals/shared";
 import { tasksCreate, tasksDelete, tasksGet, tasksList, tasksReassign, tasksUpdate } from "@/lib/actions/tasks";
 import { getAssignee, listAssignees } from "@/lib/actions/assignees";
@@ -244,6 +245,20 @@ type DealRow = {
   stageEnteredAt?: number;
 };
 
+/** A person on a deal (CONTEXT.md: Deal contact), resolved to their contact record. */
+const DealContact: GraphQLObjectType = new GraphQLObjectType({
+  name: "DealContact",
+  fields: () => ({
+    role: { type: S },
+    primary: { type: new GraphQLNonNull(GraphQLBoolean) },
+    contact: {
+      type: Contact,
+      resolve: (row: { contactId: string }, _args: unknown, ctx: GqlContext) =>
+        toResolver(contactsGet, { onNotFound: () => null })(row, { id: row.contactId }, ctx),
+    },
+  }),
+});
+
 const Deal: GraphQLObjectType = new GraphQLObjectType({
   name: "Deal",
   fields: () => ({
@@ -280,6 +295,14 @@ const Deal: GraphQLObjectType = new GraphQLObjectType({
       resolve: (row: DealRow, _args: unknown, ctx: GqlContext) => {
         if (!row.contactId) return null;
         return toResolver(contactsGet, { onNotFound: () => null })(row, { id: row.contactId }, ctx);
+      },
+    },
+    contacts: {
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(DealContact))),
+      description: "The primary contact first, then the other Deal contacts with their roles.",
+      resolve: async (row: DealRow & { id: string }, _args: unknown, ctx: GqlContext) => {
+        requireRbac(ctx, "contacts", "read");
+        return dealContactsOf(row.id, row.contactId ?? null);
       },
     },
     stage: {
@@ -954,6 +977,12 @@ const mutationFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
     type: new GraphQLNonNull(GraphQLBoolean),
     args: { id: { type: new GraphQLNonNull(GraphQLID) } },
     resolve: toResolver(dealsDelete, { onNotFound: () => false, map: () => true }),
+  },
+  setDealContacts: {
+    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(DealContact))),
+    description: "Replace the people on a deal besides its primary contact: [{ contactId, role }].",
+    args: { id: { type: new GraphQLNonNull(GraphQLID) }, contacts: { type: new GraphQLNonNull(JSONScalar) } },
+    resolve: toResolver(dealsSetContacts, { map: (out) => (out as { contacts: unknown }).contacts }),
   },
   reassignDeals: {
     type: new GraphQLNonNull(GraphQLInt),

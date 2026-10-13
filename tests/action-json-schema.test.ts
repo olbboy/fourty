@@ -52,6 +52,11 @@ describe("zod → JSON Schema", () => {
     expect(out.properties.currency.enum).not.toContain("THB");
   });
 
+  it("treats a trimmed string as a plain string: trimming cleans a value, it does not constrain it", () => {
+    const schema = toJsonSchema(z.object({ role: z.string().trim().max(80) })) as { properties: Record<string, unknown> };
+    expect(schema.properties.role).toEqual({ type: "string", maxLength: 80 });
+  });
+
   it("tells an agent the shape a patterned string must have", () => {
     const schema = toJsonSchema(z.object({ closeQuarter: z.string().regex(/^\d{4}-Q[1-4]$/) })) as {
       properties: Record<string, unknown>;

@@ -169,6 +169,13 @@
       "when": 1784024000000,
       "tag": "0023_trash",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1784025000000,
+      "tag": "0024_deal_contacts",
+      "breakpoints": true
     }
   ]
 }

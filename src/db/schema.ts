@@ -314,6 +314,25 @@ export const notes = pgTable(
   (t) => [index("notes_ws_entity_idx").on(t.workspaceId, t.entityType, t.entityId)],
 );
 
+// Deal contacts (0024): people in a deal besides its primary contact
+// (deals.contact_id), each with the role they play. Order is the deal's own.
+export const dealContacts = pgTable(
+  "deal_contacts",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    dealId: text("deal_id").notNull(),
+    contactId: text("contact_id").notNull(),
+    role: text("role"),
+    position: integer("position").notNull().default(0),
+    createdAt: millis("created_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("deal_contacts_pair_idx").on(t.workspaceId, t.dealId, t.contactId),
+    index("deal_contacts_contact_idx").on(t.workspaceId, t.contactId),
+  ],
+);
+
 // The Trash (0023): a deleted contact, company, deal or task with its notes,
 // timeline and detached links, kept 30 days for restore. See src/lib/trash.ts.
 export const trash = pgTable(

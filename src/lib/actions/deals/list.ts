@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, ilike, isNull, lt, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, exists, gte, ilike, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { defineAction } from "../define";
 import { listDealsInput } from "../schemas";
@@ -23,7 +23,20 @@ export const dealsList = defineAction({
     if (input.stageId) where.push(eq(tables.deals.stageId, input.stageId));
     if (input.pipelineId) where.push(eq(tables.deals.pipelineId, input.pipelineId));
     if (input.companyId) where.push(eq(tables.deals.companyId, input.companyId));
-    if (input.contactId) where.push(eq(tables.deals.contactId, input.contactId));
+    // A contact's deals: the ones they are primary on and the ones they take part in.
+    if (input.contactId) {
+      where.push(
+        or(
+          eq(tables.deals.contactId, input.contactId),
+          exists(
+            db
+              .select({ one: sql`1` })
+              .from(tables.dealContacts)
+              .where(and(eq(tables.dealContacts.dealId, tables.deals.id), eq(tables.dealContacts.contactId, input.contactId))),
+          ),
+        )!,
+      );
+    }
     if (input.ownerId === "none") where.push(isNull(tables.deals.ownerId));
     else if (input.ownerId) where.push(eq(tables.deals.ownerId, input.ownerId));
     const quarter = input.closeQuarter ? quarterRange(input.closeQuarter) : null;

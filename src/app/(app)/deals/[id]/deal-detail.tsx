@@ -11,6 +11,7 @@ import { readableOn } from "@/lib/contrast-color";
 import { Modal, Spinner, LoadError, Avatar, HealthBadge, useConfirm } from "@/components/ui";
 import { NotesPanel, TasksPanel, LogTouchpoint } from "@/components/record-panels";
 import { RecordTabs } from "@/components/agent-panel/record-tabs";
+import { DealContactsPanel } from "@/components/deal-contacts-panel";
 import { CustomFieldsDisplay, useCustomFields } from "@/components/custom-fields";
 import { IconEdit, IconTrash } from "@/components/icons";
 import { AgentQueue } from "@/components/agent-queue";
@@ -262,6 +263,10 @@ export function DealDetail({ id }: { id: string }) {
               </div>
             ))}
             <CustomFieldsDisplay defs={defs} values={deal.custom} failed={fieldsFailed} onRetry={retryFields} />
+          </Card>
+          <Card size="flush" className="p-4">
+            <h2 className="mb-3 text-sm font-semibold">{t("dealContacts.title")}</h2>
+            <DealContactsPanel dealId={id} contacts={contacts} onChanged={bump} />
           </Card>
           <Card size="flush" className="p-4">
             <h2 className="mb-3 text-sm font-semibold">{t("record.logTouchpoint")}</h2>

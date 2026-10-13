@@ -71,6 +71,8 @@ function describe(node: z.ZodTypeAny, nullable: boolean): Record<string, unknown
       else if (check.kind === "url") out.format = "uri";
       // JSON Schema patterns are ECMA-262 regexes, the same dialect zod checks.
       else if (check.kind === "regex") out.pattern = check.regex.source;
+      // Trimming cleans what was sent; it constrains nothing an agent must know.
+      else if (check.kind === "trim") continue;
       else throw new Error(`toJsonSchema: unsupported string check "${check.kind}"`);
     }
     return out;

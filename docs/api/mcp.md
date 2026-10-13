@@ -1,7 +1,7 @@
 # MCP server
 
 *Expose Fourty to Claude, Cursor, and other LLM clients over the Model Context
-Protocol — 43 tools, on stdio or HTTP, every call scoped by workspace and role.*
+Protocol — 44 tools, on stdio or HTTP, every call scoped by workspace and role.*
 
 Fourty ships a **hand-rolled, dependency-free** MCP server ([ADR-010](../adr/010-mcp-server.md))
 — no SDK, consistent with the ~10-dependency ethos. It's the centerpiece of Fourty's
@@ -33,7 +33,7 @@ MCP to Cloud/OAuth, Fourty's HTTP transport runs on the OSS build.
 `initialize`, `tools/list`, `tools/call`, `resources/list`, `resources/read`,
 `prompts/list`, `prompts/get`, `ping`.
 
-## Tools (43)
+## Tools (44)
 
 **Read:** `search`, `get_contact`, `get_company`, `get_deal`, `list_contacts`,
 `list_companies`, `list_deals`, `list_tasks`, `get_task`, `list_assignees`,
@@ -57,7 +57,7 @@ MCP to Cloud/OAuth, Fourty's HTTP transport runs on the OSS build.
 **Write:** `create_contact`, `update_contact`, `delete_contact`, `create_company`,
 `update_company`, `delete_company`, `create_deal`, `update_deal`, `delete_deal`,
 `create_task`, `update_task`, `delete_task` (pin `entityType` to a contact, company, deal, or custom-object apiName),
-`reassign_deals`, `reassign_tasks` (give many records one owner; all or nothing),
+`reassign_deals`, `reassign_tasks` (give many records one owner; all or nothing), `set_deal_contacts` (the people on a deal besides its primary contact, with roles),
 `create_note` (contact, company, deal, or a custom-object apiName), `update_note`, `delete_note` (author or admin only),
 `log_activity` (email, call, or meeting on a record's timeline),
 `create_record`, `update_record`, `delete_record`, `record_fact`, `decide_fact`.

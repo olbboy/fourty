@@ -5,7 +5,7 @@ import { toMcpTool } from "@/lib/actions/adapters/mcp";
 import { searchCrm } from "@/lib/services/search";
 import { contactsCreate, contactsDelete, contactsGet, contactsList, contactsUpdate } from "@/lib/actions/contacts";
 import { companiesCreate, companiesDelete, companiesGet, companiesList, companiesUpdate } from "@/lib/actions/companies";
-import { dealsCreate, dealsDelete, dealsGet, dealsList, dealsReassign, dealsUpdate } from "@/lib/actions/deals";
+import { dealsCreate, dealsDelete, dealsGet, dealsList, dealsReassign, dealsSetContacts, dealsUpdate } from "@/lib/actions/deals";
 import { dealStageClock } from "@/lib/actions/deals/shared";
 import { pinnedWorkIds } from "@/lib/pinned-tasks";
 import { tasksCreate, tasksDelete, tasksGet, tasksList, tasksReassign, tasksUpdate } from "@/lib/actions/tasks";
@@ -121,7 +121,15 @@ async function dealNeighbours(id: string) {
         .where(eq(tables.contacts.companyId, row.companyId))
         .limit(NEIGHBOUR_LIMIT)
     : [];
-  const contactIds = [...new Set([row.contactId, ...contacts.map((c) => c.id)].filter((v): v is string => !!v))];
+  // ...and the Deal contacts, whatever company they belong to.
+  const participants = await db
+    .select({ id: tables.dealContacts.contactId })
+    .from(tables.dealContacts)
+    .where(eq(tables.dealContacts.dealId, id))
+    .limit(NEIGHBOUR_LIMIT);
+  const contactIds = [
+    ...new Set([row.contactId, ...participants.map((p) => p.id), ...contacts.map((c) => c.id)].filter((v): v is string => !!v)),
+  ];
   return {
     companyId: row.companyId,
     contactIds,
@@ -459,6 +467,7 @@ export const TOOLS: Tool[] = [
   toMcpTool(tasksCreate, { name: "create_task" }),
   toMcpTool(tasksUpdate, { name: "update_task" }),
   toMcpTool(dealsReassign, { name: "reassign_deals" }),
+  toMcpTool(dealsSetContacts, { name: "set_deal_contacts" }),
   toMcpTool(tasksReassign, { name: "reassign_tasks" }),
   toMcpTool(tasksDelete, {
     name: "delete_task",

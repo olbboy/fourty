@@ -30,6 +30,8 @@ type Payload = {
   record: Row;
   notes: Row[];
   activities: Row[];
+  /** Deal contact rows this record was part of (as the deal, or as the contact). */
+  dealContacts?: Row[];
   /** Ids this record was unhooked from on delete, re-hooked on restore when still free. */
   detached: { contacts?: string[]; deals?: string[] };
 };
@@ -68,13 +70,15 @@ export async function trashRecord(kind: TrashKind, id: string, deletedBy: string
   const hasTimeline = kind !== "task";
   const notes = hasTimeline ? await db.select().from(tables.notes).where(eq(tables.notes.entityId, id)) : [];
   const activities = hasTimeline ? await db.select().from(tables.activities).where(eq(tables.activities.entityId, id)) : [];
+  const linkColumn = kind === "deal" ? tables.dealContacts.dealId : kind === "contact" ? tables.dealContacts.contactId : null;
+  const dealContacts = linkColumn ? await db.select().from(tables.dealContacts).where(eq(linkColumn, id)) : [];
   const detached: Payload["detached"] = {};
   if (kind === "company") {
     detached.contacts = (await db.select({ id: tables.contacts.id }).from(tables.contacts).where(eq(tables.contacts.companyId, id))).map((r) => r.id);
     detached.deals = (await db.select({ id: tables.deals.id }).from(tables.deals).where(eq(tables.deals.companyId, id))).map((r) => r.id);
   }
 
-  const payload: Payload = { record, notes, activities, detached };
+  const payload: Payload = { record, notes, activities, dealContacts, detached };
   await db.insert(tables.trash).values({
     id: newId(),
     entityType: kind,
@@ -86,6 +90,7 @@ export async function trashRecord(kind: TrashKind, id: string, deletedBy: string
   });
 
   await db.delete(table).where(eq(table.id, id));
+  if (linkColumn) await db.delete(tables.dealContacts).where(eq(linkColumn, id));
   if (kind === "company") {
     await db.update(tables.contacts).set({ companyId: null }).where(eq(tables.contacts.companyId, id));
     await db.update(tables.deals).set({ companyId: null }).where(eq(tables.deals.companyId, id));
@@ -151,6 +156,7 @@ export async function restoreTrash(trashId: string): Promise<RestoreResult> {
   await db.insert(table).values(record as never);
   if (payload.notes.length) await db.insert(tables.notes).values(payload.notes as never).onConflictDoNothing();
   if (payload.activities.length) await db.insert(tables.activities).values(payload.activities as never).onConflictDoNothing();
+  await restoreDealContacts(payload.dealContacts ?? []);
   if (kind === "company") {
     const id = item.entityId;
     if (payload.detached.contacts?.length) {
@@ -168,6 +174,19 @@ export async function restoreTrash(trashId: string): Promise<RestoreResult> {
   }
   await db.delete(tables.trash).where(eq(tables.trash.id, trashId));
   return { ok: true, entityType: kind, entityId: item.entityId };
+}
+
+/** Put back the deal-contact links whose deal and contact both still exist. */
+async function restoreDealContacts(rows: Row[]): Promise<void> {
+  if (rows.length === 0) return;
+  const dealIds = [...new Set(rows.map((r) => String(r.dealId)))];
+  const contactIds = [...new Set(rows.map((r) => String(r.contactId)))];
+  const deals = new Set((await db.select({ id: tables.deals.id }).from(tables.deals).where(inArray(tables.deals.id, dealIds))).map((r) => r.id));
+  const contacts = new Set(
+    (await db.select({ id: tables.contacts.id }).from(tables.contacts).where(inArray(tables.contacts.id, contactIds))).map((r) => r.id),
+  );
+  const alive = rows.filter((r) => deals.has(String(r.dealId)) && contacts.has(String(r.contactId)));
+  if (alive.length) await db.insert(tables.dealContacts).values(alive as never).onConflictDoNothing();
 }
 
 /** A deal's stage and pipeline as they can be restored now. */

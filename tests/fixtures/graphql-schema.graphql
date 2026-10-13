@@ -118,6 +118,11 @@ type Deal {
   custom: JSON
   company: Company
   contact: Contact
+
+  """
+  The primary contact first, then the other Deal contacts with their roles.
+  """
+  contacts: [DealContact!]!
   stage: DealStage
   tasks: [Task!]!
   notes: [Note!]!
@@ -127,6 +132,12 @@ type Deal {
 type Assignee {
   id: ID!
   name: String!
+}
+
+type DealContact {
+  role: String
+  primary: Boolean!
+  contact: Contact
 }
 
 type DealStage {
@@ -378,6 +389,11 @@ type Mutation {
   createDeal(input: JSON!): Deal!
   updateDeal(id: ID!, input: JSON!): Deal!
   deleteDeal(id: ID!): Boolean!
+
+  """
+  Replace the people on a deal besides its primary contact: [{ contactId, role }].
+  """
+  setDealContacts(id: ID!, contacts: JSON!): [DealContact!]!
 
   """
   Give many deals one owner (null = unassigned); all or nothing. Returns how many moved.
