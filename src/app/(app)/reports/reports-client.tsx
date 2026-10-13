@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { formatCompact } from "@/lib/currency";
+import type { ForecastTable } from "@/lib/forecast";
 import { formatDate } from "@/lib/format";
 import { PageHeader, Spinner, HealthBadge, LoadError } from "@/components/ui";
 import { WinLossChart, CategoryBars } from "@/components/charts";
@@ -19,13 +20,17 @@ import {
 import { useLocale, useT } from "@/lib/i18n/provider";
 
 type Reports = {
+  /** Reporting currency of every amount below; absent from older servers. */
+  currency?: string;
+  /** Absent when the role cannot read deal amounts. */
+  forecast?: { byClose?: ForecastTable; byDelivery: ForecastTable | null };
   sourceBreakdown: { source: string; leads: number; customers: number; conversion: number }[];
   winLoss: { month: string; won: number; lost: number }[];
   aging: {
     id: string;
     name: string;
     stage?: string;
-    amountUsd?: number;
+    amount?: number;
     daysInStage: number;
     expectedCloseDate?: number | null;
     overdue?: boolean;
@@ -71,6 +76,7 @@ export function ReportsClient() {
   }
 
   if (!data) return <Spinner />;
+  const currency = data.currency ?? "USD";
 
   return (
     <div className="animate-fade-up space-y-4">
@@ -136,6 +142,29 @@ export function ReportsClient() {
         </Card>
       </div>
 
+      {data.forecast && (
+        <Card size="flush" className="space-y-6 p-4">
+          {data.forecast.byClose && (
+            <section>
+              <h2 className="mb-1 text-sm font-semibold">{t("reports.forecast.byClose")}</h2>
+              <p className="mb-3 text-xs text-ink-muted">{t("reports.forecast.hint", { currency })}</p>
+              <ForecastPeriodTable table={data.forecast.byClose} currency={currency} />
+            </section>
+          )}
+          <section>
+            <h2 className="mb-1 text-sm font-semibold">{t("reports.forecast.byDelivery")}</h2>
+            {data.forecast.byDelivery ? (
+              <>
+                <p className="mb-3 text-xs text-ink-muted">{t("reports.forecast.hint", { currency })}</p>
+                <ForecastPeriodTable table={data.forecast.byDelivery} currency={currency} />
+              </>
+            ) : (
+              <p className="text-xs text-ink-muted">{t("reports.forecast.deliveryUnset")}</p>
+            )}
+          </section>
+        </Card>
+      )}
+
       <Card size="flush" className="p-4">
         <h2 className="mb-1 text-sm font-semibold">{t("reports.aging")}</h2>
         <p className="mb-3 text-xs text-ink-muted">{t("reports.agingHint")}</p>
@@ -145,7 +174,7 @@ export function ReportsClient() {
                 <TableHead>{t("col.deal")}</TableHead>
                 <TableHead>{t("col.stage")}</TableHead>
                 <TableHead>{t("col.health")}</TableHead>
-                <TableHead>{t("col.valueUsd")}</TableHead>
+                <TableHead>{t("col.valueIn", { currency })}</TableHead>
                 <TableHead>{t("col.daysInStage")}</TableHead>
                 <TableHead>{t("col.expectedClose")}</TableHead>
               </TableRow>
@@ -160,7 +189,7 @@ export function ReportsClient() {
                   </TableCell>
                   <TableCell className="text-ink-muted">{d.stage ?? "—"}</TableCell>
                   <TableCell>{d.score != null ? <HealthBadge score={d.score} /> : "—"}</TableCell>
-                  <TableCell>{d.amountUsd != null ? formatCompact(d.amountUsd, "USD") : "—"}</TableCell>
+                  <TableCell>{d.amount != null ? formatCompact(d.amount, currency, locale) : "—"}</TableCell>
                   <TableCell>
                     <span className={d.daysInStage > 14 ? "font-semibold text-feedback-warn" : ""}>
                       {t("time.daysShort", { n: d.daysInStage })}
@@ -185,5 +214,52 @@ export function ReportsClient() {
           </Table>
       </Card>
     </div>
+  );
+}
+
+/** One Forecast period table: quarters, a year subtotal after each year, then undated deals. */
+function ForecastPeriodTable({ table, currency }: { table: ForecastTable; currency: string }) {
+  const t = useT();
+  const locale = useLocale();
+  const money = (n: number) => formatCompact(n, currency, locale);
+  const label = (period: string) => {
+    if (period === "undated") return t("reports.forecast.undated");
+    const [year, quarter] = period.split("-Q");
+    return quarter ? t("reports.forecast.quarter", { q: quarter, year }) : t("reports.forecast.year", { year });
+  };
+  return (
+    <Table className="min-w-[560px]">
+      <TableHeader>
+        <TableRow>
+          <TableHead>{t("reports.forecast.period")}</TableHead>
+          {table.columns.map((column) => (
+            <TableHead key={column} className="text-right">
+              {column || t("reports.forecast.emptyChoice")}
+            </TableHead>
+          ))}
+          <TableHead className="text-right">{t("reports.forecast.weighted")}</TableHead>
+          <TableHead className="text-right">{t("reports.forecast.total")}</TableHead>
+          <TableHead className="text-right">{t("reports.forecast.count")}</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {table.rows.map((row) => {
+          const isYear = /^\d{4}$/.test(row.period);
+          return (
+            <TableRow key={row.period} className={isYear ? "bg-surface-2 font-semibold" : undefined}>
+              <TableCell>{label(row.period)}</TableCell>
+              {table.columns.map((column) => (
+                <TableCell key={column} className="text-right tabular-nums">
+                  {row.count ? money(row.byBreakdown[column] ?? 0) : "—"}
+                </TableCell>
+              ))}
+              <TableCell className="text-right tabular-nums">{row.count ? money(row.weighted) : "—"}</TableCell>
+              <TableCell className="text-right tabular-nums text-ink-muted">{row.count ? money(row.total) : "—"}</TableCell>
+              <TableCell className="text-right tabular-nums">{row.count}</TableCell>
+            </TableRow>
+          );
+        })}
+      </TableBody>
+    </Table>
   );
 }

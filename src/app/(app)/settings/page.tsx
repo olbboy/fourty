@@ -8,5 +8,5 @@ export default async function SettingsPage() {
   const user = await getSessionUser();
   const role = user?.workspaceId ? await roleInWorkspace(user.id, user.workspaceId) : null;
   const canManagePipelines = role === "admin" || role === "member";
-  return <SettingsClient canManagePipelines={canManagePipelines} />;
+  return <SettingsClient canManagePipelines={canManagePipelines} isAdmin={role === "admin"} />;
 }

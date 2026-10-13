@@ -294,7 +294,7 @@ export function ContactDetail({ id }: { id: string }) {
                       <HealthBadge score={d.score} />
                     </p>
                     <p className="text-xs text-ink-muted">
-                      {formatMoney(d.amount, d.currency)}
+                      {formatMoney(d.amount, d.currency, locale)}
                       {stage && (
                         <span
                           className="ml-2 font-medium data-ink"

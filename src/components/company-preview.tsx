@@ -12,7 +12,7 @@ import {
 import { Spinner as ShadcnSpinner } from "@/components/ui/spinner";
 import { formatCompact } from "@/lib/currency";
 import { timeAgo } from "@/lib/format";
-import { useT } from "@/lib/i18n/provider";
+import { useLocale, useT } from "@/lib/i18n/provider";
 import type { CompanyRead } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -72,6 +72,7 @@ export function CompanyPreview({
   onClose: () => void;
 }) {
   const t = useT();
+  const locale = useLocale();
   const lastId = useRef<string | null>(id);
   const [retryVersion, setRetryVersion] = useState(0);
   const [state, setState] = useState<PreviewState | null>(null);
@@ -281,7 +282,7 @@ export function CompanyPreview({
                   {typeof company.annualRevenue === "number" ? (
                     <PreviewField
                       label={t("companies.revenue")}
-                      value={formatCompact(company.annualRevenue, "USD")}
+                      value={formatCompact(company.annualRevenue, "USD", locale)}
                       tabular
                     />
                   ) : null}

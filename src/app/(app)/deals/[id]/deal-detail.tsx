@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import type { Company, Contact, Deal, Pipeline } from "@/lib/types";
-import { formatMoney, convert } from "@/lib/currency";
+import { formatMoney, toReporting } from "@/lib/currency";
+import { useReporting } from "@/hooks/use-reporting";
 import { timeAgo, formatDate, displayName } from "@/lib/format";
 import { readableOn } from "@/lib/contrast-color";
 import { Modal, Spinner, LoadError, Avatar, HealthBadge, useConfirm } from "@/components/ui";
@@ -25,6 +26,7 @@ import { useLocale, useT } from "@/lib/i18n/provider";
 export function DealDetail({ id }: { id: string }) {
   const t = useT();
   const locale = useLocale();
+  const reporting = useReporting();
   const [askConfirm, confirmDialog] = useConfirm();
   const router = useRouter();
   const { defs, failed: fieldsFailed, retry: retryFields } = useCustomFields("deal");
@@ -114,9 +116,10 @@ export function DealDetail({ id }: { id: string }) {
   const stage = pipeline?.stages.find((s) => s.id === deal.stageId);
   const company = companies.find((c) => c.id === deal.companyId);
   const contact = contacts.find((c) => c.id === deal.contactId);
+  const reportingCurrency = reporting.rates.currency;
   const weighted =
-    deal.amount != null && stage
-      ? convert(deal.amount, deal.currency ?? "USD", "USD") * (stage.winProbability / 100)
+    deal.amount != null && stage && reporting.ready
+      ? toReporting(deal.amount, deal.currency ?? "USD", reporting.rates) * (stage.winProbability / 100)
       : null;
   const daysInStage = Math.floor((Date.now() - deal.stageEnteredAt) / 86400000);
   const canMoveStage = canEditField(access, "stageId");
@@ -149,17 +152,17 @@ export function DealDetail({ id }: { id: string }) {
           <h1 className="text-xl font-bold tracking-tight md:text-2xl">{label}</h1>
           <p className="mt-1 text-sm text-ink-muted">
             <span className="text-base font-semibold text-accent-700 dark:text-accent-400">
-              {formatMoney(deal.amount, deal.currency)}
+              {formatMoney(deal.amount, deal.currency, locale)}
             </span>
-            {deal.amount != null && deal.currency && deal.currency !== "USD" && (
+            {deal.amount != null && deal.currency && reporting.ready && deal.currency !== reportingCurrency && (
               <span className="ml-1.5">
-                (≈ {formatMoney(convert(deal.amount, deal.currency, "USD"), "USD")})
+                (≈ {formatMoney(toReporting(deal.amount, deal.currency, reporting.rates), reportingCurrency, locale)})
               </span>
             )}
             {weighted != null && stage?.type === "open" && (
               <span className="ml-2">
                 {t("record.dealWeighted", {
-                  amount: formatMoney(weighted, "USD"),
+                  amount: formatMoney(weighted, reportingCurrency, locale),
                   pct: stage.winProbability,
                 })}
               </span>

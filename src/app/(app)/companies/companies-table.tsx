@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { CompanyRead } from "@/lib/types";
 import { formatCompact } from "@/lib/currency";
 import { timeAgo } from "@/lib/format";
-import { useT } from "@/lib/i18n/provider";
+import { useLocale, useT } from "@/lib/i18n/provider";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -43,6 +43,7 @@ export function CompaniesTable({
   onPreview,
 }: CompaniesTableProps) {
   const t = useT();
+  const locale = useLocale();
   const readableIds = companies.flatMap((company) =>
     typeof company.id === "string" && company.id ? [company.id] : [],
   );
@@ -98,7 +99,7 @@ export function CompaniesTable({
               const isSelected = id ? selectedIds.has(id) : false;
               const revenue =
                 typeof company.annualRevenue === "number"
-                  ? formatCompact(company.annualRevenue, "USD")
+                  ? formatCompact(company.annualRevenue, "USD", locale)
                   : "—";
               const updated =
                 typeof company.updatedAt === "number"

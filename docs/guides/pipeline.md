@@ -1,7 +1,7 @@
 # Pipeline & deals
 
 *A drag-and-drop Kanban that always shows what your pipeline is worth — weighted by
-probability and normalized to one currency.*
+probability and expressed in one reporting currency.*
 
 ## Stages and the board
 
@@ -49,10 +49,15 @@ out. Because it is a pure calculation, the number on the board and the number in
 ## Multi-currency
 
 Deals can be denominated in **12 currencies** (USD, EUR, GBP, JPY, VND, and more).
-Every report and every pipeline total **auto-normalizes to USD** using the rates in
-`src/lib/currency.ts`, so a mixed-currency pipeline still rolls up to one comparable
-figure. The original currency stays on the deal for display. A code outside the 12
-is refused with `400`, so an unconvertible amount never reaches a total.
+Every report and every pipeline total is converted into the workspace's **reporting
+currency**, so a mixed-currency pipeline still rolls up to one comparable figure. The
+original currency stays on the deal for display. A code outside the 12 is refused with
+`400`, so an unconvertible amount never reaches a total.
+
+An admin picks the reporting currency in **Settings → Reporting** and can override any
+exchange rate there, written as units per 1 USD (1 USD = 25,500 VND). A rate left blank
+uses the built-in one. A workspace that never changed these reports in USD. Amounts
+read in the app's language: "293,9 tỷ ₫" in Vietnamese, "₫293.9B" in English.
 
 ## Deal owner
 

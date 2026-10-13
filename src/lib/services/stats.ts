@@ -1,5 +1,8 @@
 import { db, tables } from "@/db";
-import { convert } from "@/lib/currency";
+import { toReporting, toUsd } from "@/lib/currency";
+import { DEFAULT_REPORTING, loadReportingSettings, type ReportingSettings } from "@/lib/reporting";
+import { customFieldDefsOf, parseCustomBlob } from "@/lib/custom-fields";
+import { forecastByPeriod, type ForecastTable } from "@/lib/forecast";
 import { canReadField, loadFieldPolicy, redact, type FieldPolicy } from "@/lib/field-permissions";
 
 const DAY = 86400000;
@@ -14,7 +17,7 @@ function monthLabel(key: string): string {
   return new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "short" });
 }
 
-export async function computeDashboardStats() {
+export async function computeDashboardStats(reporting: ReportingSettings = DEFAULT_REPORTING) {
   const now = Date.now();
   const stages = await db.select().from(tables.stages);
   const stageById = new Map(stages.map((s) => [s.id, s]));
@@ -23,22 +26,22 @@ export async function computeDashboardStats() {
   const tasks = await db.select().from(tables.tasks);
   const activities = await db.select().from(tables.activities);
 
-  const usd = (d: { amount: number; currency: string }) => convert(d.amount, d.currency, "USD");
+  const money = (d: { amount: number; currency: string }) => toReporting(d.amount, d.currency, reporting);
 
   const open = deals.filter((d) => stageById.get(d.stageId)?.type === "open");
   const won = deals.filter((d) => stageById.get(d.stageId)?.type === "won");
   const lost = deals.filter((d) => stageById.get(d.stageId)?.type === "lost");
 
-  const pipelineValue = open.reduce((s, d) => s + usd(d), 0);
+  const pipelineValue = open.reduce((s, d) => s + money(d), 0);
   const weightedForecast = open.reduce(
-    (s, d) => s + usd(d) * ((stageById.get(d.stageId)?.winProbability ?? 0) / 100),
+    (s, d) => s + money(d) * ((stageById.get(d.stageId)?.winProbability ?? 0) / 100),
     0,
   );
 
   const startOfMonth = new Date(new Date(now).getFullYear(), new Date(now).getMonth(), 1).getTime();
   const wonThisMonth = won
     .filter((d) => (d.closedAt ?? 0) >= startOfMonth)
-    .reduce((s, d) => s + usd(d), 0);
+    .reduce((s, d) => s + money(d), 0);
 
   const closed90 = deals.filter(
     (d) => d.closedAt && d.closedAt >= now - 90 * DAY && stageById.get(d.stageId)?.type !== "open",
@@ -46,7 +49,7 @@ export async function computeDashboardStats() {
   const won90 = closed90.filter((d) => stageById.get(d.stageId)?.type === "won");
   const winRate = closed90.length ? Math.round((won90.length / closed90.length) * 100) : null;
 
-  const avgDealSize = won.length ? won.reduce((s, d) => s + usd(d), 0) / won.length : 0;
+  const avgDealSize = won.length ? won.reduce((s, d) => s + money(d), 0) / won.length : 0;
 
   // Average sales-cycle length (creation → close) for deals won in the last 180d
   const recentWon = won.filter((d) => d.closedAt && d.closedAt >= now - 180 * DAY);
@@ -63,7 +66,7 @@ export async function computeDashboardStats() {
       return {
         stage: s.name,
         count: inStage.length,
-        value: Math.round(inStage.reduce((sum, d) => sum + usd(d), 0)),
+        value: Math.round(inStage.reduce((sum, d) => sum + money(d), 0)),
       };
     });
 
@@ -76,12 +79,12 @@ export async function computeDashboardStats() {
   const revenueByMonth = months.map((key) => ({
     month: monthLabel(key),
     won: Math.round(
-      won.filter((d) => d.closedAt && monthKey(d.closedAt) === key).reduce((s, d) => s + usd(d), 0),
+      won.filter((d) => d.closedAt && monthKey(d.closedAt) === key).reduce((s, d) => s + money(d), 0),
     ),
     lost: Math.round(
       lost
         .filter((d) => d.closedAt && monthKey(d.closedAt) === key)
-        .reduce((s, d) => s + usd(d), 0),
+        .reduce((s, d) => s + money(d), 0),
     ),
   }));
 
@@ -139,6 +142,7 @@ export async function computeDashboardStats() {
     }));
 
   return {
+    currency: reporting.currency,
     kpis: {
       pipelineValue: Math.round(pipelineValue),
       weightedForecast: Math.round(weightedForecast),
@@ -160,14 +164,14 @@ export async function computeDashboardStats() {
   };
 }
 
-export async function computeReportStats() {
+export async function computeReportStats(reporting: ReportingSettings = DEFAULT_REPORTING) {
   const now = Date.now();
   const stages = await db.select().from(tables.stages);
   const stageById = new Map(stages.map((s) => [s.id, s]));
   const deals = await db.select().from(tables.deals);
   const contacts = await db.select().from(tables.contacts);
 
-  const usd = (d: { amount: number; currency: string }) => convert(d.amount, d.currency, "USD");
+  const money = (d: { amount: number; currency: string }) => toReporting(d.amount, d.currency, reporting);
   const open = deals.filter((d) => stageById.get(d.stageId)?.type === "open");
 
   // Lead sources: volume + conversion to customer
@@ -205,7 +209,8 @@ export async function computeReportStats() {
       id: d.id,
       name: d.name,
       stage: stageById.get(d.stageId)?.name ?? "",
-      amountUsd: Math.round(usd(d)),
+      amount: Math.round(money(d)),
+      amountUsd: Math.round(toUsd(d.amount, d.currency, reporting)),
       daysInStage: Math.floor((now - d.stageEnteredAt) / 86400000),
       expectedCloseDate: d.expectedCloseDate,
       overdue: !!d.expectedCloseDate && d.expectedCloseDate < now,
@@ -225,11 +230,32 @@ export async function computeReportStats() {
     count: contacts.filter((c) => c.status === status).length,
   }));
 
-  return { sourceBreakdown, winLoss, aging, scoreBands, statusBreakdown };
+  // Forecast period tables: by Expected close date, and by Delivery date once
+  // the admin has picked the custom date field that holds it.
+  const breakdownDef = reporting.breakdownField
+    ? (await customFieldDefsOf("deal")).find((d) => d.key === reporting.breakdownField && d.type === "select")
+    : undefined;
+  const forecastDeals = deals.map((d) => ({ ...d, custom: parseCustomBlob(d.custom) }));
+  const forecastOptions = {
+    breakdown: breakdownDef ? { key: breakdownDef.key, values: breakdownDef.options } : null,
+    toReporting: (amount: number, currency: string) => toReporting(amount, currency, reporting),
+  };
+  const forecast: { byClose: ForecastTable; byDelivery: ForecastTable | null } = {
+    byClose: forecastByPeriod(forecastDeals, stages, { ...forecastOptions, date: "close" }),
+    byDelivery: reporting.deliveryField
+      ? forecastByPeriod(forecastDeals, stages, { ...forecastOptions, date: { customKey: reporting.deliveryField } })
+      : null,
+  };
+
+  return { currency: reporting.currency, sourceBreakdown, winLoss, aging, scoreBands, statusBreakdown, forecast };
 }
 
 type DashboardStats = Awaited<ReturnType<typeof computeDashboardStats>>;
 type ReportStats = Awaited<ReturnType<typeof computeReportStats>>;
+/** What a role receives: the forecast tables drop out with the fields they are built from. */
+type VisibleReportStats = Omit<ReportStats, "forecast"> & {
+  forecast?: { byClose?: ForecastTable; byDelivery: ForecastTable | null };
+};
 
 function withoutKeys<T extends object>(row: T, keys: readonly (keyof T)[]): T {
   const out = { ...row };
@@ -274,15 +300,31 @@ export function applyFieldPolicyToDashboard(policy: FieldPolicy | null, stats: D
   };
 }
 
-/** Strip unreadable per-record fields from report lists. `amountUsd` is deals.amount. */
-export function applyFieldPolicyToReports(policy: FieldPolicy | null, stats: ReportStats): ReportStats {
+/** Strip unreadable per-record fields from report lists. `amount` and `amountUsd` are deals.amount. */
+export function applyFieldPolicyToReports(policy: FieldPolicy | null, stats: ReportStats): VisibleReportStats {
   const hideAmount = !canReadField(policy, "deals", "amount");
   const hideClose = !canReadField(policy, "deals", "expectedCloseDate");
+  const hideCustom = !canReadField(policy, "deals", "custom");
+  const { forecast, ...rest } = stats;
+  const unsplit = (table: ForecastTable): ForecastTable => ({
+    columns: [],
+    rows: table.rows.map((row) => ({ ...row, byBreakdown: {} })),
+  });
+  const visibleForecast = hideAmount
+    ? undefined
+    : {
+        ...(hideClose ? {} : { byClose: hideCustom ? unsplit(forecast.byClose) : forecast.byClose }),
+        byDelivery: hideCustom ? null : forecast.byDelivery,
+      };
   return {
-    ...stats,
+    ...rest,
+    ...(visibleForecast ? { forecast: visibleForecast } : {}),
     aging: stats.aging.map((row) => {
       const out: Record<string, unknown> = { ...row };
-      if (hideAmount) delete out.amountUsd;
+      if (hideAmount) {
+        delete out.amount;
+        delete out.amountUsd;
+      }
       if (hideClose) delete out.overdue;
       return redactDealSummary(policy, out) as typeof row;
     }),
@@ -291,10 +333,10 @@ export function applyFieldPolicyToReports(policy: FieldPolicy | null, stats: Rep
 
 export async function dashboardStatsForRole(role: string): Promise<DashboardStats> {
   const policy = await loadFieldPolicy(role);
-  return applyFieldPolicyToDashboard(policy, await computeDashboardStats());
+  return applyFieldPolicyToDashboard(policy, await computeDashboardStats(await loadReportingSettings()));
 }
 
-export async function reportStatsForRole(role: string): Promise<ReportStats> {
+export async function reportStatsForRole(role: string): Promise<VisibleReportStats> {
   const policy = await loadFieldPolicy(role);
-  return applyFieldPolicyToReports(policy, await computeReportStats());
+  return applyFieldPolicyToReports(policy, await computeReportStats(await loadReportingSettings()));
 }

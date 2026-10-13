@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { convert, formatCompact, formatMoney, sumUsd } from "@/lib/currency";
+import { convert, formatCompact, formatMoney, sumInReporting, toReporting } from "@/lib/currency";
 
 describe("convert", () => {
   it("is identity for same currency", () => {
@@ -39,21 +39,50 @@ describe("formatMoney", () => {
   });
 });
 
-describe("sumUsd", () => {
-  it("adds visible amounts in USD", () => {
+describe("money in Vietnamese", () => {
+  it("spells the compact unit out, the way a Vietnamese reader says it", () => {
+    expect(formatCompact(293_864_000_000, "VND", "vi")).toBe("293,9 tỷ\u00a0₫");
+    expect(formatCompact(850_000_000, "VND", "vi")).toBe("850 triệu\u00a0₫");
+    expect(formatCompact(139_000, "USD", "vi")).toBe("139 nghìn\u00a0US$");
+  });
+
+  it("writes a full amount with Vietnamese separators", () => {
+    expect(formatMoney(293_864_000_000, "VND", "vi")).toBe("293.864.000.000\u00a0₫");
+  });
+
+  it("keeps the English form for English", () => {
+    expect(formatCompact(293_864_000_000, "VND", "en")).toBe("₫293.9B");
+  });
+});
+
+describe("sumInReporting", () => {
+  const usd = { currency: "USD", perUsd: {} };
+
+  it("adds visible amounts in the reporting currency", () => {
     expect(
-      sumUsd([
-        { amount: 100, currency: "USD" },
-        { amount: 100, currency: "EUR" },
-      ]),
+      sumInReporting(
+        [
+          { amount: 100, currency: "USD" },
+          { amount: 100, currency: "EUR" },
+        ],
+        usd,
+      ),
     ).toBeCloseTo(209, 0);
   });
 
   it("returns null when any amount is hidden", () => {
-    expect(sumUsd([{ amount: 100, currency: "USD" }, { currency: "USD" }])).toBeNull();
+    expect(sumInReporting([{ amount: 100, currency: "USD" }, { currency: "USD" }], usd)).toBeNull();
   });
 
   it("returns 0 for an empty list", () => {
-    expect(sumUsd([])).toBe(0);
+    expect(sumInReporting([], usd)).toBe(0);
+  });
+});
+
+describe("toReporting", () => {
+  it("uses the admin's rate, written per 1 USD, over the built-in one", () => {
+    const vnd = { currency: "VND", perUsd: { VND: 25_000 } };
+    expect(toReporting(100, "USD", vnd)).toBeCloseTo(2_500_000, 6);
+    expect(toReporting(1_000_000, "VND", vnd)).toBeCloseTo(1_000_000, 6);
   });
 });

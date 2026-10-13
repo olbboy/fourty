@@ -19,8 +19,9 @@ error shapes.
 | Pipelines | `/api/pipelines` (GET, POST), `/api/pipelines/{id}` (PATCH name; DELETE when empty and not the last) |
 | Stages | `/api/stages` (POST name, winProbability, color), `/api/stages/{id}` (PATCH name, winProbability, order, color; DELETE open stages with no deals) |
 | Search | `/api/search?q=…` (contacts + companies + deals + custom-object records) |
-| Dashboard stats | `/api/stats/dashboard` |
-| Reports | `/api/stats/reports` |
+| Dashboard stats | `/api/stats/dashboard` (amounts in the reporting `currency` it names) |
+| Reports | `/api/stats/reports` (adds `forecast.byClose` / `forecast.byDelivery` quarter tables) |
+| Reporting settings | `/api/settings/reporting` (GET for any member; PATCH `currency`, `perUsd`, `deliveryField`, `breakdownField` for admins) |
 | Custom fields | `/api/custom-fields` |
 | Custom object definitions | `/api/custom-objects` (+ `/fields`) |
 | Custom object records | `/api/objects/{apiName}` (`q`, `sort`, `limit`), `/api/objects/{apiName}/{id}` |

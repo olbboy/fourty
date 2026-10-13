@@ -1,7 +1,8 @@
 /**
  * Multi-currency support with built-in reference rates — a gap users
- * repeatedly call out in Twenty. Rates can be overridden in Settings
- * (stored in the `settings` table under "fx_rates") or via env.
+ * repeatedly call out in Twenty. Each workspace picks a Reporting currency and
+ * may override any rate in Settings → Reporting (src/lib/reporting.ts); the
+ * pure helpers below take those settings as an argument.
  */
 
 export const SUPPORTED_CURRENCIES = [
@@ -49,11 +50,16 @@ export function convert(
   return (amount * fromRate) / toRate;
 }
 
-export function formatMoney(amount: number | null | undefined, currency?: string | null): string {
+/** Intl tag for the app's UI language; English keeps the long-standing en-US look. */
+function intlLocale(locale?: string): string {
+  return locale === "vi" ? "vi-VN" : "en-US";
+}
+
+export function formatMoney(amount: number | null | undefined, currency?: string | null, locale?: string): string {
   if (amount == null) return "—";
   const code = currency || "USD";
   try {
-    return new Intl.NumberFormat("en-US", {
+    return new Intl.NumberFormat(intlLocale(locale), {
       style: "currency",
       currency: code,
       maximumFractionDigits: amount >= 1000 ? 0 : 2,
@@ -63,10 +69,23 @@ export function formatMoney(amount: number | null | undefined, currency?: string
   }
 }
 
-export function formatCompact(amount: number | null | undefined, currency?: string | null): string {
+export function formatCompact(amount: number | null | undefined, currency?: string | null, locale?: string): string {
   if (amount == null) return "—";
   const code = currency || "USD";
   try {
+    if (locale === "vi") {
+      // Intl's Vietnamese currency style abbreviates (293,9 T ₫); readers say
+      // the unit in full, so spell the number and add the symbol ourselves.
+      const number = new Intl.NumberFormat("vi-VN", {
+        notation: "compact",
+        compactDisplay: "long",
+        maximumFractionDigits: 1,
+      }).format(amount);
+      const symbol = new Intl.NumberFormat("vi-VN", { style: "currency", currency: code })
+        .formatToParts(0)
+        .find((part) => part.type === "currency")?.value;
+      return `${number}\u00a0${symbol ?? code}`;
+    }
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: code,
@@ -78,14 +97,39 @@ export function formatCompact(amount: number | null | undefined, currency?: stri
   }
 }
 
-/** USD total, or null when any amount is absent (field-level hide). */
-export function sumUsd(
+/**
+ * A workspace's Reporting currency and its Exchange rate overrides, written as
+ * units of each currency per 1 USD (how people quote them: 1 USD = 25,500 VND).
+ */
+export type ReportingRates = { currency: string; perUsd: Record<string, number> };
+
+export const DEFAULT_REPORTING_RATES: ReportingRates = { currency: "USD", perUsd: {} };
+
+function ratesToUsd(perUsd: Record<string, number>): Record<string, number> {
+  const rates = { ...DEFAULT_RATES_TO_USD };
+  for (const [code, units] of Object.entries(perUsd)) if (units > 0) rates[code] = 1 / units;
+  return rates;
+}
+
+/** `amount` of `from` expressed in the Reporting currency. */
+export function toReporting(amount: number, from: string, reporting: ReportingRates): number {
+  return convert(amount, from || "USD", reporting.currency, ratesToUsd(reporting.perUsd));
+}
+
+/** `amount` of `from` in USD at the workspace's rates (for USD-labelled API fields). */
+export function toUsd(amount: number, from: string, reporting: ReportingRates): number {
+  return convert(amount, from || "USD", "USD", ratesToUsd(reporting.perUsd));
+}
+
+/** Total in the Reporting currency, or null when any amount is absent (field-level hide). */
+export function sumInReporting(
   rows: readonly { amount?: number | null; currency?: string | null }[],
+  reporting: ReportingRates,
 ): number | null {
   let total = 0;
   for (const row of rows) {
     if (row.amount == null) return null;
-    total += convert(row.amount, row.currency || "USD", "USD");
+    total += toReporting(row.amount, row.currency || "USD", reporting);
   }
   return total;
 }

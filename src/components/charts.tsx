@@ -96,7 +96,11 @@ export function MoneyBarChart({
   xKey,
   yKey,
   height = 220,
+  currency = "USD",
+  locale,
 }: {
+  currency?: string;
+  locale?: string;
   data: Record<string, unknown>[];
   xKey: string;
   yKey: string;
@@ -113,11 +117,11 @@ export function MoneyBarChart({
           axisLine={false}
           tickLine={false}
           width={52}
-          tickFormatter={(v: number) => formatCompact(v, "USD")}
+          tickFormatter={(v: number) => formatCompact(v, currency, locale)}
         />
         <Tooltip
           contentStyle={tooltipStyle}
-          formatter={(v) => [formatCompact(Number(v), "USD"), "Won"]}
+          formatter={(v) => [formatCompact(Number(v), currency, locale), "Won"]}
           cursor={{ fill: colors.grid, opacity: 0.35 }}
         />
         <Bar dataKey={yKey} fill={colors.series} radius={[4, 4, 0, 0]} maxBarSize={44} />
@@ -161,7 +165,11 @@ export function CountBarChart({
 export function FunnelChart({
   data,
   height = 240,
+  currency = "USD",
+  locale,
 }: {
+  currency?: string;
+  locale?: string;
   data: { stage: string; count: number; value?: number }[];
   height?: number;
 }) {
@@ -184,7 +192,7 @@ export function FunnelChart({
           contentStyle={tooltipStyle}
           formatter={(_v, _n, item) => [
             showValue
-              ? `${item.payload.count} deals · ${formatCompact(Number(item.payload.value), "USD")}`
+              ? `${item.payload.count} deals · ${formatCompact(Number(item.payload.value), currency, locale)}`
               : `${item.payload.count} deals`,
             "Open",
           ]}
@@ -194,7 +202,7 @@ export function FunnelChart({
           <LabelList
             dataKey={measure}
             position="right"
-            formatter={(v) => (showValue ? formatCompact(Number(v ?? 0), "USD") : String(v ?? 0))}
+            formatter={(v) => (showValue ? formatCompact(Number(v ?? 0), currency, locale) : String(v ?? 0))}
             style={{ fontSize: 11, fill: colors.text }}
           />
         </Bar>

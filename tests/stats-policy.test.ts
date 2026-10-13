@@ -8,6 +8,7 @@ const deny = (...fields: string[]): FieldPolicy => ({
 });
 
 const dashboard = {
+  currency: "USD",
   kpis: {
     pipelineValue: 1,
     weightedForecast: 1,
@@ -48,6 +49,7 @@ describe("applyFieldPolicyToDashboard", () => {
 
 describe("applyFieldPolicyToReports", () => {
   const reports = {
+    currency: "USD",
     sourceBreakdown: [],
     winLoss: [],
     aging: [
@@ -55,6 +57,7 @@ describe("applyFieldPolicyToReports", () => {
         id: "d1",
         name: "Acme",
         stage: "Lead",
+        amount: 99,
         amountUsd: 99,
         daysInStage: 20,
         expectedCloseDate: null as number | null,
@@ -64,6 +67,7 @@ describe("applyFieldPolicyToReports", () => {
     ],
     scoreBands: [],
     statusBreakdown: [],
+    forecast: { byClose: { columns: [], rows: [] }, byDelivery: null },
   };
 
   it("does not leak a hidden stageId through the aging stage label", () => {

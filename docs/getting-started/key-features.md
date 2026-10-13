@@ -10,7 +10,7 @@
 - **[Pipeline & deals](../guides/pipeline.md)** — a drag-and-drop **Kanban** with
   per-column totals and probability-weighted forecasts that update optimistically.
 - **[Multi-currency](../guides/pipeline.md#multi-currency)** — deals in 12 currencies,
-  every report auto-normalized to USD.
+  every total in the workspace's reporting currency at rates an admin can set.
 
 ## Intelligence (deterministic, no LLM)
 
