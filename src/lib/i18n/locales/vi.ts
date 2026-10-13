@@ -855,6 +855,8 @@ export const vi: Record<MessageKey, string> = {
   "reports.forecast.year": "Cả năm {year}",
   "reports.forecast.undated": "Chưa có ngày",
   "reports.forecast.emptyChoice": "(trống)",
+  "reports.forecast.splitBy": "Chia cột theo",
+  "reports.forecast.splitField": "Trường chia cột",
   "reports.forecast.weighted": "Có trọng số",
   "reports.forecast.total": "Chưa trọng số",
   "reports.forecast.count": "Số deal",

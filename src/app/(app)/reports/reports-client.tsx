@@ -18,6 +18,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useLocale, useT } from "@/lib/i18n/provider";
+import { NativeSelect } from "@/components/ui/native-select";
+import { useOwnerPeople } from "@/components/owner-controls";
+import { ownerLabel, type OwnerPerson } from "@/lib/owner-display";
+
+/** Which split the forecast columns show: the Breakdown field, or the Owner. */
+type Split = "field" | "owner";
 
 type Reports = {
   /** Reporting currency of every amount below; absent from older servers. */
@@ -46,6 +52,8 @@ export function ReportsClient() {
   const [data, setData] = useState<Reports | null>(null);
   const [failed, setFailed] = useState(false);
   const [retry, setRetry] = useState(0);
+  const [split, setSplit] = useState<Split>("field");
+  const people = useOwnerPeople();
 
   useEffect(() => {
     let cancelled = false;
@@ -144,11 +152,20 @@ export function ReportsClient() {
 
       {data.forecast && (
         <Card size="flush" className="space-y-6 p-4">
+          <div className="flex items-center gap-2 text-sm">
+            <label htmlFor="forecast-split" className="text-ink-muted">
+              {t("reports.forecast.splitBy")}
+            </label>
+            <NativeSelect id="forecast-split" value={split} onChange={(e) => setSplit(e.target.value as Split)} size="sm">
+              <option value="field">{t("reports.forecast.splitField")}</option>
+              <option value="owner">{t("field.owner")}</option>
+            </NativeSelect>
+          </div>
           {data.forecast.byClose && (
             <section>
               <h2 className="mb-1 text-sm font-semibold">{t("reports.forecast.byClose")}</h2>
               <p className="mb-3 text-xs text-ink-muted">{t("reports.forecast.hint", { currency })}</p>
-              <ForecastPeriodTable table={data.forecast.byClose} currency={currency} />
+              <ForecastPeriodTable table={data.forecast.byClose} currency={currency} split={split} people={people} />
             </section>
           )}
           <section>
@@ -156,7 +173,7 @@ export function ReportsClient() {
             {data.forecast.byDelivery ? (
               <>
                 <p className="mb-3 text-xs text-ink-muted">{t("reports.forecast.hint", { currency })}</p>
-                <ForecastPeriodTable table={data.forecast.byDelivery} currency={currency} />
+                <ForecastPeriodTable table={data.forecast.byDelivery} currency={currency} split={split} people={people} />
               </>
             ) : (
               <p className="text-xs text-ink-muted">{t("reports.forecast.deliveryUnset")}</p>
@@ -218,8 +235,24 @@ export function ReportsClient() {
 }
 
 /** One Forecast period table: quarters, a year subtotal after each year, then undated deals. */
-function ForecastPeriodTable({ table, currency }: { table: ForecastTable; currency: string }) {
+function ForecastPeriodTable({
+  table,
+  currency,
+  split,
+  people,
+}: {
+  table: ForecastTable;
+  currency: string;
+  split: Split;
+  people: OwnerPerson[];
+}) {
   const t = useT();
+  // Owner columns are member ids; someone who left keeps their name, marked.
+  const columns = split === "owner" ? (table.ownerColumns ?? []) : table.columns;
+  const heading = (column: string) =>
+    split === "owner" ? ownerLabel(column || null, people, t) : column || t("reports.forecast.emptyChoice");
+  const cell = (row: ForecastTable["rows"][number], column: string) =>
+    (split === "owner" ? row.byOwner?.[column] : row.byBreakdown[column]) ?? 0;
   const locale = useLocale();
   const money = (n: number) => formatCompact(n, currency, locale);
   const label = (period: string) => {
@@ -232,9 +265,9 @@ function ForecastPeriodTable({ table, currency }: { table: ForecastTable; curren
       <TableHeader>
         <TableRow>
           <TableHead>{t("reports.forecast.period")}</TableHead>
-          {table.columns.map((column) => (
+          {columns.map((column) => (
             <TableHead key={column} className="text-right">
-              {column || t("reports.forecast.emptyChoice")}
+              {heading(column)}
             </TableHead>
           ))}
           <TableHead className="text-right">{t("reports.forecast.weighted")}</TableHead>
@@ -248,9 +281,9 @@ function ForecastPeriodTable({ table, currency }: { table: ForecastTable; curren
           return (
             <TableRow key={row.period} className={isYear ? "bg-surface-2 font-semibold" : undefined}>
               <TableCell>{label(row.period)}</TableCell>
-              {table.columns.map((column) => (
+              {columns.map((column) => (
                 <TableCell key={column} className="text-right tabular-nums">
-                  {row.count ? money(row.byBreakdown[column] ?? 0) : "—"}
+                  {row.count ? money(cell(row, column)) : "—"}
                 </TableCell>
               ))}
               <TableCell className="text-right tabular-nums">{row.count ? money(row.weighted) : "—"}</TableCell>

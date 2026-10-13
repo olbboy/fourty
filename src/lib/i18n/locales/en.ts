@@ -854,6 +854,8 @@ export const en = {
   "reports.forecast.year": "Total {year}",
   "reports.forecast.undated": "No date",
   "reports.forecast.emptyChoice": "(empty)",
+  "reports.forecast.splitBy": "Columns by",
+  "reports.forecast.splitField": "Breakdown field",
   "reports.forecast.weighted": "Weighted",
   "reports.forecast.total": "Unweighted",
   "reports.forecast.count": "Deals",

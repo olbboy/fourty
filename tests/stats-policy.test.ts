@@ -67,7 +67,7 @@ describe("applyFieldPolicyToReports", () => {
     ],
     scoreBands: [],
     statusBreakdown: [],
-    forecast: { byClose: { columns: [], rows: [] }, byDelivery: null },
+    forecast: { byClose: { columns: [], ownerColumns: [], rows: [] }, byDelivery: null },
   };
 
   it("does not leak a hidden stageId through the aging stage label", () => {

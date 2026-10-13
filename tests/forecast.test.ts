@@ -86,3 +86,26 @@ describe("forecastByPeriod", () => {
     expect(delivery.rows.find((r) => r.period === "undated")).toMatchObject({ weighted: 4_000, total: 10_000, count: 1 });
   });
 });
+
+describe("forecastByPeriod split by owner", () => {
+  // DVHai, NVLong, BTDuc (who has left) and one deal nobody owns, all in 2026-Q2 at 40%.
+  const owned: ForecastDeal[] = [
+    deal({ amount: 10_000, expectedCloseDate: day(2026, 5, 10), ownerId: "binh" }),
+    deal({ amount: 20_000, expectedCloseDate: day(2026, 6, 30), ownerId: "dai" }),
+    deal({ amount: 30_000, expectedCloseDate: day(2026, 4, 2), ownerId: "bac" }),
+    deal({ amount: 5_000, expectedCloseDate: day(2026, 5, 20), ownerId: null }),
+  ];
+  const table = forecastByPeriod(owned, stages, { date: "close", breakdown: null, toReporting });
+  const q2 = table.rows.find((r) => r.period === "2026-Q2")!;
+
+  it("gives every owner a column, largest first, including one who left, with unassigned last", () => {
+    expect(table.ownerColumns).toEqual(["bac", "dai", "binh", ""]);
+    expect(q2.byOwner).toEqual({ bac: 12_000, dai: 8_000, binh: 4_000, "": 2_000 });
+  });
+
+  it("splits exactly the weighted total the quarter shows", () => {
+    expect(q2.weighted).toBe(26_000);
+    expect(Object.values(q2.byOwner).reduce((sum, v) => sum + v, 0)).toBe(26_000);
+    expect(table.rows.find((r) => r.period === "2026")!.byOwner).toEqual(q2.byOwner);
+  });
+});
