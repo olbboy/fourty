@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -11,9 +11,9 @@ import { useLocale, useT } from "@/lib/i18n/provider";
 type Line = { id: string; productId: string | null; name: string; quantity: number; unitPrice?: number; total?: number };
 type Product = { id: string; name: string; code: string | null; unitPrice: number; currency: string };
 /** What PUT takes back: a line keeps its own name and price, so a later catalogue change never rewrites it. */
-type LineInput = { productId: string | null; name: string; quantity: number; unitPrice?: number };
+type LineInput = { id?: string; productId: string | null; name: string; quantity: number; unitPrice?: number };
 
-const asInput = (l: Line): LineInput => ({ productId: l.productId, name: l.name, quantity: l.quantity, unitPrice: l.unitPrice });
+const asInput = (l: Line): LineInput => ({ id: l.id, productId: l.productId, name: l.name, quantity: l.quantity, unitPrice: l.unitPrice });
 
 /**
  * A deal's Line items (D5, CONTEXT.md). With any lines, the deal's Amount is
@@ -43,9 +43,14 @@ export function DealLinesPanel({
   const [quantity, setQuantity] = useState("1");
   const [price, setPrice] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // The list as the server last returned it, and the saves still in flight:
+  // each save starts from the one before it, so two quick edits never undo each other.
+  const latest = useRef<Line[]>([]);
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
 
   const show = useCallback(
     (body: { lines: Line[]; total: number | null }) => {
+      latest.current = body.lines;
       setLines(body.lines);
       setTotal(body.total);
       onCount?.(body.lines.length);
@@ -68,38 +73,44 @@ export function DealLinesPanel({
       .catch(() => setProducts([]));
   }, [canEdit]);
 
-  async function save(next: LineInput[]): Promise<boolean> {
-    setError(null);
-    const res = await fetch(`/api/deals/${dealId}/lines`, {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ lines: next }),
-    }).catch(() => null);
-    if (!res?.ok) {
-      const message = res ? ((await res.json().catch(() => ({}))) as { error?: string }).error : undefined;
-      setError(message ?? t("dealLines.failed"));
-      return false;
-    }
-    show(await res.json());
-    onChanged?.();
-    return true;
+  /** Save the list `edit` makes of the current one, after any save already under way. */
+  function save(edit: (current: LineInput[]) => LineInput[]): Promise<boolean> {
+    const run = queue.current.then(async () => {
+      setError(null);
+      const res = await fetch(`/api/deals/${dealId}/lines`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ lines: edit(latest.current.map(asInput)) }),
+      }).catch(() => null);
+      if (!res?.ok) {
+        const message = res ? ((await res.json().catch(() => ({}))) as { error?: string }).error : undefined;
+        setError(message ?? t("dealLines.failed"));
+        return false;
+      }
+      show(await res.json());
+      onChanged?.();
+      return true;
+    });
+    queue.current = run;
+    return run;
   }
 
   if (!lines) return null;
-  const current = lines.map(asInput);
   const chosen = products.find((p) => p.id === productId);
   const qty = Number(quantity);
   const canAdd = qty > 0 && (chosen !== undefined || (name.trim() !== "" && price !== ""));
 
-  function change(index: number, patch: Partial<LineInput>) {
-    const before = current[index]!;
+  // Lines are addressed by id, which the server keeps across saves: a removal
+  // still in flight cannot make an edit land on the wrong line.
+  function change(line: Line, patch: Partial<LineInput>) {
+    const before = asInput(line);
     const after = { ...before, ...patch };
     if (after.quantity === before.quantity && after.unitPrice === before.unitPrice) return;
     if (!(after.quantity > 0) || (after.unitPrice !== undefined && !(after.unitPrice >= 0))) {
       setError(t("dealLines.badNumber"));
       return;
     }
-    void save(current.map((l, i) => (i === index ? after : l)));
+    void save((current) => current.map((l) => (l.id === line.id ? { ...l, ...patch } : l)));
   }
 
   return (
@@ -108,7 +119,7 @@ export function DealLinesPanel({
         <p className="text-sm text-ink-muted">{t("dealLines.none")}</p>
       ) : (
         <ul className="divide-y divide-line/60">
-          {lines.map((line, i) => (
+          {lines.map((line) => (
             <li key={line.id} className="flex flex-wrap items-center gap-2 py-2 text-sm">
               <span className="min-w-0 flex-1 truncate font-medium">{line.name}</span>
               {canEdit ? (
@@ -120,7 +131,7 @@ export function DealLinesPanel({
                     defaultValue={line.quantity}
                     aria-label={t("dealLines.quantityOf", { name: line.name })}
                     className="h-8 w-16"
-                    onBlur={(e) => change(i, { quantity: Number(e.currentTarget.value) })}
+                    onBlur={(e) => change(line, { quantity: Number(e.currentTarget.value) })}
                   />
                   {line.unitPrice !== undefined && (
                     <Input
@@ -130,7 +141,7 @@ export function DealLinesPanel({
                       defaultValue={line.unitPrice}
                       aria-label={t("dealLines.priceOf", { name: line.name })}
                       className="h-8 w-32"
-                      onBlur={(e) => change(i, { unitPrice: Number(e.currentTarget.value) })}
+                      onBlur={(e) => change(line, { unitPrice: Number(e.currentTarget.value) })}
                     />
                   )}
                 </>
@@ -148,7 +159,7 @@ export function DealLinesPanel({
                   size="icon-sm"
                   variant="ghost"
                   aria-label={t("dealLines.removeAria", { name: line.name })}
-                  onClick={() => void save(current.filter((_, j) => j !== i))}
+                  onClick={() => void save((current) => current.filter((l) => l.id !== line.id))}
                 >
                   ×
                 </Button>
@@ -178,7 +189,7 @@ export function DealLinesPanel({
               quantity: qty,
               ...(price !== "" ? { unitPrice: Number(price) } : {}),
             };
-            void save([...current, line]).then((ok) => {
+            void save((current) => [...current, line]).then((ok) => {
               if (!ok) return;
               setProductId("");
               setName("");

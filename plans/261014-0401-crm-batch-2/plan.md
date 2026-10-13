@@ -49,3 +49,26 @@ Seam: action `products.*`, `deals.setLines` (tổng thành Amount, ghi lịch s�
 ## Phase 15 — Gửi email (D6)
 
 Seam: action gửi email (người nhận phải là email của liên hệ thuộc bản ghi; Reply-To; dòng thời gian; nhật ký; giới hạn tần suất). E2E: soạn thư trên trang liên hệ; môi trường e2e không có mail nên kiểm thông báo "mail chưa cấu hình".
+
+## Review trước khi merge (14/10/2026)
+
+Hai chiều review chạy song song trên `1420479...HEAD`: chuẩn code (CONTRIBUTING, quy ước action kernel) và đúng quyết định D1–D6.
+
+Đã sửa:
+- Hai lần lưu dòng sản phẩm cùng lúc làm deal có cả hai danh sách mà Amount chỉ bằng tổng một bên. Giờ khoá dòng deal trong lúc thay. Đã có test; bỏ khoá thì test hỏng.
+- Bảng dòng trên trang deal lưu lần lượt từng thao tác. Server giữ id của dòng qua các lần lưu, chỉ với id vốn thuộc deal đó, nên sửa và xoá theo id không trúng nhầm dòng.
+- Đổi dòng làm đổi Amount từng ghi hai mục nhật ký. Giờ chỉ ghi một.
+- Dòng thời gian của email ghi tên người nhận thay vì địa chỉ, vì người bị ẩn trường email vẫn đọc được dòng thời gian.
+- Email đi qua hàng đợi `mail.send` như mọi thư khác (ADR-015: không gọi mạng trong giao dịch), và tiêu đề không được có xuống dòng.
+- Worker dọn Thùng rác quá 30 ngày mỗi phút, không phải chờ có người mở trang.
+- Nhật ký có nhãn cho sản phẩm, email đã gửi, khôi phục và xoá hẳn.
+- `products.list` lọc bằng `state=active|all` (giống `state` của việc), vì chuỗi `"false"` bị ép thành true.
+- Thêm test: sửa và xoá sản phẩm không đổi deal, role không được ghi Amount không đổi được dòng và không ghi gì.
+
+Giữ nguyên, có lý do:
+- Lời từ chối giữa chừng: REST trả lời bên trong cùng giao dịch, và giao dịch vẫn commit. Vì vậy `setLines` kiểm quyền ghi Amount trước khi ghi dòng, không trông vào `deals.update` lồng bên trong.
+- Khôi phục deal hay liên hệ vẫn giữ id công ty hoặc liên hệ đã bị xoá. Xoá liên hệ xưa nay cũng để nguyên `contactId` trên deal, nên khi bên kia được khôi phục thì liên kết tự nối lại.
+- Đưa `setDealLines`, `setDealContacts` và `list_products` lên GraphQL, MCP và AI: repo đưa mọi thao tác CRM lên mọi cổng. Mọi lệnh ghi của AI đều phải người dùng xác nhận.
+- Khoá đổi tiền tệ khi deal có dòng: đơn giá các dòng tính theo tiền của deal, đổi tiền tệ mà không đổi giá thì sai.
+- Xoá hết dòng thì Amount giữ số cuối, rồi lại nhập tay. Đưa Leo xác nhận.
+- Giới hạn 30 email/giờ đếm trong bộ nhớ: đúng kiến trúc một tiến trình đã ghi trong `ratelimit.ts`.

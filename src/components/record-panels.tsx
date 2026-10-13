@@ -75,7 +75,7 @@ function describe(a: Activity, t: TFn, locale: Locale): string {
   }
   // Written and sent from the CRM; a synced email has no `sent`.
   if (a.type === "email" && a.meta.sent && a.meta.subject) {
-    return t("activity.emailSent", { to: String(a.meta.to ?? ""), subject: String(a.meta.subject) });
+    return t("activity.emailSent", { to: String(a.meta.toName ?? ""), subject: String(a.meta.subject) });
   }
   if (a.type === "task_completed" && a.meta.title) {
     return t("activity.taskCompletedTitle", { title: String(a.meta.title) });

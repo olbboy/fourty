@@ -103,8 +103,8 @@ mailbox, and disconnects one.
 
 Fourty sends four kinds of message: the member invite, the forgot-password link, the
 morning task reminder, and the emails members write to contacts from a contact's or a
-deal's page (sent under the member's name with `Reply-To` set to their own address, and
-straight from the app rather than the queue, so the writer sees at once whether it left).
+deal's page (sent under the member's name with `Reply-To` set to their own address).
+All four go through the `mail.send` queue.
 **Disabled until a transport is
 configured** — SMTP below, or Resend over HTTPS if your host blocks SMTP. With it off,
 **Settings → Team

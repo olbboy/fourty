@@ -14,6 +14,7 @@ import { getBoss, stopBoss, enqueue, JOB_NAMES, SELF_MANAGED_JOBS, type JobEnvel
 import { runJob } from "./handlers";
 import { dispatchTick } from "./dispatch";
 import { dispatchReminders } from "@/lib/services/reminders";
+import { purgeExpiredTrash } from "@/lib/trash";
 import { log } from "@/lib/logger";
 import { initTracing } from "@/lib/otel";
 
@@ -29,8 +30,14 @@ async function main(): Promise<void> {
       await boss.work<JobEnvelope>(name, async (jobs) => {
         for (const job of jobs) {
           const ws = job.data.workspaceId;
-          if (name === "reminders.dispatch") await withWorkspace(ws, () => dispatchReminders(ws));
-          else await dispatchTick(ws);
+          // Housekeeping rides the minute tick with the reminder: the Trash
+          // forgets what has waited 30 days (one indexed delete).
+          if (name === "reminders.dispatch") {
+            await withWorkspace(ws, async () => {
+              await purgeExpiredTrash();
+              await dispatchReminders(ws);
+            });
+          } else await dispatchTick(ws);
         }
       });
     } else {

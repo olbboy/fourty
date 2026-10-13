@@ -110,7 +110,9 @@ describe("sending email from the CRM", () => {
       }),
     ]);
     const [entry] = await timeline("contact", ids.lan);
-    expect(entry.meta).toMatchObject({ sent: true, subject: "Báo giá pin", to: "lan@khach.test" });
+    // The timeline names the contact; the address stays on the contact, behind its field permission.
+    expect(entry.meta).toMatchObject({ sent: true, subject: "Báo giá pin", toName: "Lan Trần" });
+    expect(JSON.stringify(entry.meta)).not.toContain("lan@khach.test");
   });
 
   it("sends from a deal to anyone on it and writes it on both timelines", async () => {
@@ -126,6 +128,8 @@ describe("sending email from the CRM", () => {
     expect((await send({ entityType: "deal", entityId: ids.deal, contactId: ids.hung, subject: "x", body: "x" })).status).toBe(400);
     expect((await send({ entityType: "contact", entityId: ids.lan, contactId: ids.hung, subject: "x", body: "x" })).status).toBe(400);
     expect((await send({ entityType: "contact", entityId: ids.noMail, contactId: ids.noMail, subject: "x", body: "x" })).status).toBe(400);
+    // A subject is a header: a line break in it would start another one.
+    expect((await send({ entityType: "contact", entityId: ids.lan, contactId: ids.lan, subject: "x\r\nBcc: y@z.test", body: "x" })).status).toBe(400);
     expect(sent).toEqual([]);
   });
 

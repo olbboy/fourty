@@ -67,7 +67,7 @@ export function EmailCompose({
       onSent?.();
       return;
     }
-    if (res?.status === 503) setError(t("email.unavailable"));
+    if (res?.status === 503) setError(t("email.notConfigured"));
     else if (res?.status === 429) setError(t("email.tooMany"));
     else setError(t("email.failed"));
   }

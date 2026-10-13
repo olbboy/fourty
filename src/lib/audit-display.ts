@@ -20,6 +20,7 @@ const OBJECT_KEYS: Record<string, MessageKey> = {
   saved_view: "audit.object.saved_view",
   sso_connection: "audit.object.sso_connection",
   sync_account: "audit.object.sync_account",
+  product: "audit.object.product",
   settings: "nav.settings",
 };
 
@@ -27,6 +28,9 @@ const CRUD_KEYS: Record<string, MessageKey> = {
   created: "audit.verb.created",
   updated: "audit.verb.updated",
   deleted: "audit.verb.deleted",
+  // From the Trash (contact.restored, deal.purged…).
+  restored: "audit.verb.restored",
+  purged: "audit.verb.purged",
 };
 
 const ACTION_KEYS: Record<string, MessageKey> = {
@@ -40,6 +44,7 @@ const ACTION_KEYS: Record<string, MessageKey> = {
   "member.reset_link_created": "audit.action.member.reset_link_created",
   "member.2fa_disabled": "audit.action.member.2fa_disabled",
   "member.signed_out": "audit.action.member.signed_out",
+  "email.sent": "audit.action.email.sent",
   "account.renamed": "audit.action.account.renamed",
   "account.password_changed": "audit.action.account.password_changed",
   "member.role_changed": "audit.action.member.role_changed",

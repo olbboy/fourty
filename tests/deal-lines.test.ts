@@ -103,6 +103,81 @@ describe("products and line items", () => {
     expect(changed.changes[0]).toMatchObject({ field: "amount", from: 20e9, to: 95_000_000 });
   });
 
+  it("keeps a line's id when it is saved again, and never takes another deal's", async () => {
+    const deal = await newDeal({ name: "Giữ id", currency: "VND" });
+    const first = (await (await setLines(deal.id, [{ name: "A", quantity: 1, unitPrice: 10 }, { name: "B", quantity: 1, unitPrice: 20 }])).json()).lines as {
+      id: string;
+      name: string;
+    }[];
+    const other = await newDeal({ name: "Deal khác", currency: "VND" });
+    const theirs = (await (await setLines(other.id, [{ name: "C", quantity: 1, unitPrice: 5 }])).json()).lines[0].id as string;
+
+    const again = await setLines(deal.id, [
+      { id: first[1].id, name: "B", quantity: 2, unitPrice: 20 },
+      { id: theirs, name: "C sao chép", quantity: 1, unitPrice: 5 },
+    ]);
+    expect(again.status).toBe(200);
+    const lines = (await again.json()).lines as { id: string; name: string; quantity: number }[];
+    expect(lines[0]).toMatchObject({ id: first[1].id, name: "B", quantity: 2 });
+    expect(lines[1].id).not.toBe(theirs);
+    expect(((await (await setLines(other.id, [])).json()) as { lines: unknown[] }).lines).toEqual([]);
+  });
+
+  it("takes two saves at once in turn: the deal ends with one list and its sum", async () => {
+    const deal = await newDeal({ name: "Đồng thời", currency: "VND" });
+    await Promise.all([
+      setLines(deal.id, [{ name: "X", quantity: 1, unitPrice: 100 }]),
+      setLines(deal.id, [{ name: "Y", quantity: 1, unitPrice: 200 }, { name: "Z", quantity: 1, unitPrice: 300 }]),
+    ]);
+    const route = await import("@/app/api/deals/[id]/lines/route");
+    const { lines, total } = await (await route.GET(req(ADMIN, `/api/deals/${deal.id}/lines`), params({ id: deal.id }))).json();
+    expect([["X"], ["Y", "Z"]]).toContainEqual(lines.map((l: { name: string }) => l.name));
+    expect((await getDeal(deal.id)).amount).toBe(total);
+  });
+
+  it("refuses lines that would move the amount from a role that may not write it, and writes nothing", async () => {
+    const deal = await newDeal({ name: "Khoá giá trị", currency: "VND" });
+    await setLines(deal.id, [{ name: "Gốc", quantity: 1, unitPrice: 1_000 }]);
+    const perms = await import("@/app/api/field-permissions/route");
+    await perms.POST(
+      req(ADMIN, "/api/field-permissions", {
+        method: "POST",
+        body: JSON.stringify({ object: "deals", field: "amount", role: "member", canRead: true, canWrite: false }),
+      }),
+    );
+    const route = await import("@/app/api/deals/[id]/lines/route");
+    const refused = await route.PUT(
+      req(MEMBER, `/api/deals/${deal.id}/lines`, { method: "PUT", body: JSON.stringify({ lines: [{ name: "Mới", quantity: 1, unitPrice: 9_000 }] }) }),
+      params({ id: deal.id }),
+    );
+    expect(refused.status).toBe(403);
+    const { lines } = await (await route.GET(req(ADMIN, `/api/deals/${deal.id}/lines`), params({ id: deal.id }))).json();
+    expect(lines.map((l: { name: string }) => l.name)).toEqual(["Gốc"]);
+    await perms.POST(
+      req(ADMIN, "/api/field-permissions", {
+        method: "POST",
+        body: JSON.stringify({ object: "deals", field: "amount", role: "member", canRead: true, canWrite: true }),
+      }),
+    );
+  });
+
+  it("lets a product be renamed or removed without touching the deals that use it", async () => {
+    const created = (await (await product({ name: "Cáp DC", unitPrice: 50_000, currency: "VND" })).json()).product as { id: string };
+    const deal = await newDeal({ name: "Dùng cáp", currency: "VND" });
+    await setLines(deal.id, [{ productId: created.id, quantity: 10 }]);
+    const one = await import("@/app/api/products/[id]/route");
+    const renamed = await one.PATCH(
+      req(ADMIN, `/api/products/${created.id}`, { method: "PATCH", body: JSON.stringify({ name: "Cáp DC 6mm", unitPrice: 60_000 }) }),
+      params({ id: created.id }),
+    );
+    expect((await renamed.json()).product).toMatchObject({ name: "Cáp DC 6mm", unitPrice: 60_000 });
+    expect((await one.DELETE(req(ADMIN, `/api/products/${created.id}`, { method: "DELETE" }), params({ id: created.id }))).status).toBe(200);
+    expect((await one.DELETE(req(ADMIN, `/api/products/${created.id}`, { method: "DELETE" }), params({ id: created.id }))).status).toBe(404);
+    const route = await import("@/app/api/deals/[id]/lines/route");
+    const { lines } = await (await route.GET(req(ADMIN, `/api/deals/${deal.id}/lines`), params({ id: deal.id }))).json();
+    expect(lines).toEqual([expect.objectContaining({ name: "Cáp DC", unitPrice: 50_000, total: 500_000 })]);
+  });
+
   it("converts a product's list price into the deal's currency at the workspace's rate", async () => {
     const created = await product({ name: "Tủ điều khiển", unitPrice: 1_200, currency: "USD" });
     const ctrl = (await created.json()).product as { id: string };

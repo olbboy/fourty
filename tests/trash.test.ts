@@ -134,4 +134,17 @@ describe("trash", () => {
     );
     expect((await trash()).some((i) => i.id === item.id)).toBe(false);
   });
+
+  it("is emptied of expired records by the worker's tick, without anyone opening it", async () => {
+    const { task } = await create("tasks", { title: "Việc quá hạn trong thùng" });
+    await remove("tasks", task.id);
+    const { eq } = await import("drizzle-orm");
+    const { purgeExpiredTrash } = await import("@/lib/trash");
+    const left = await withWorkspace(ws, async () => {
+      await db.update(tables.trash).set({ deletedAt: Date.now() - 31 * 86_400_000 }).where(eq(tables.trash.entityId, task.id));
+      await purgeExpiredTrash();
+      return db.select({ id: tables.trash.id }).from(tables.trash).where(eq(tables.trash.entityId, task.id));
+    });
+    expect(left).toEqual([]);
+  });
 });

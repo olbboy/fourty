@@ -108,14 +108,19 @@ export async function trashRecord(kind: TrashKind, id: string, deletedBy: string
   return true;
 }
 
-/** Drop what has waited longer than 30 days. */
-async function purgeExpired(now = Date.now()): Promise<void> {
+/**
+ * Drop what has waited longer than 30 days. The worker runs it for every
+ * workspace each minute, so a deleted record's copy does not outlive its 30
+ * days in a workspace where nobody opens the Trash; reading the Trash runs it
+ * too, so nothing expired shows while the worker lags.
+ */
+export async function purgeExpiredTrash(now = Date.now()): Promise<void> {
   await db.delete(tables.trash).where(lt(tables.trash.deletedAt, now - TRASH_MS));
 }
 
 /** What is in the Trash, most recently deleted first. */
 export async function listTrash(): Promise<TrashItem[]> {
-  await purgeExpired();
+  await purgeExpiredTrash();
   const rows = await db.select().from(tables.trash).orderBy(sql`${tables.trash.deletedAt} desc`);
   return rows.map((r) => ({
     id: r.id,
@@ -143,7 +148,7 @@ export type RestoreResult =
  * pipeline's, if that is gone too).
  */
 export async function restoreTrash(trashId: string): Promise<RestoreResult> {
-  await purgeExpired();
+  await purgeExpiredTrash();
   const item = (await db.select().from(tables.trash).where(eq(tables.trash.id, trashId)).limit(1))[0];
   if (!item) return { ok: false, status: 404, error: "Not in the trash" };
   const kind = item.entityType as TrashKind;
