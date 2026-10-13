@@ -305,16 +305,23 @@ export function applyFieldPolicyToReports(policy: FieldPolicy | null, stats: Rep
   const hideAmount = !canReadField(policy, "deals", "amount");
   const hideClose = !canReadField(policy, "deals", "expectedCloseDate");
   const hideCustom = !canReadField(policy, "deals", "custom");
+  const hideOwner = !canReadField(policy, "deals", "ownerId");
   const { forecast, ...rest } = stats;
-  const unsplit = (table: ForecastTable): ForecastTable => ({
-    columns: [],
-    rows: table.rows.map((row) => ({ ...row, byBreakdown: {} })),
+  // A split drops out with the field it is read from.
+  const visible = (table: ForecastTable): ForecastTable => ({
+    columns: hideCustom ? [] : table.columns,
+    ownerColumns: hideOwner ? [] : table.ownerColumns,
+    rows: table.rows.map((row) => ({
+      ...row,
+      byBreakdown: hideCustom ? {} : row.byBreakdown,
+      byOwner: hideOwner ? {} : row.byOwner,
+    })),
   });
   const visibleForecast = hideAmount
     ? undefined
     : {
-        ...(hideClose ? {} : { byClose: hideCustom ? unsplit(forecast.byClose) : forecast.byClose }),
-        byDelivery: hideCustom ? null : forecast.byDelivery,
+        ...(hideClose ? {} : { byClose: visible(forecast.byClose) }),
+        byDelivery: hideCustom || !forecast.byDelivery ? null : visible(forecast.byDelivery),
       };
   return {
     ...rest,

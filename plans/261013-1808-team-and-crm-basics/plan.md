@@ -1,7 +1,7 @@
 ---
 title: "Trang Thành viên và các tính năng CRM cơ bản còn thiếu"
 date: 2026-10-13
-status: "Phase 3 xong và đã deploy (PR #30); Phase 4 chờ merge (PR #31); Phase 5 xong trên máy (nhánh feat/value-history-lost-reason); Phase 6–9 chưa bắt đầu"
+status: "Phase 3, 4 đã deploy (PR #30, #31); Phase 5 chờ merge (PR #32); Phase 6 xong trên máy (nhánh feat/forecast-by-owner); Phase 7–9 chưa bắt đầu"
 nguon:
   - "plans/reports/research-261013-1649-user-administration.md (quyết định Q63–Q65)"
   - "plans/reports/research-261013-1649-crm-baseline-feature-gaps.md (quyết định Q66–Q68)"
@@ -70,6 +70,12 @@ Kết quả Phase 5 (13/10/2026):
 
 - Trang Báo cáo có công tắc "Chia cột theo: trường chia cột | Owner" cho hai bảng dự báo theo quý. Cột owner gồm "Chưa giao" và người đã nghỉ (giữ tên).
 - Seam dự kiến: hàm thuần `forecastByPeriod` (`tests/forecast.test.ts`).
+
+Kết quả Phase 6 (13/10/2026):
+
+- Q86 = A. `forecastByPeriod` chia cả theo trường và theo owner trong một lượt (`ownerColumns`, `byOwner`); trang Báo cáo có ô "Chia cột theo: Trường chia cột | Người phụ trách". Cột owner xếp theo tổng có trọng số giảm dần, "Chưa gán" cuối; người đã nghỉ giữ tên.
+- Vai trò không đọc được trường owner thì không có cột owner (cùng cách với trường chia cột).
+- Test mới: 2 test trong `tests/forecast.test.ts`, e2e `forecast-owner`. Toàn bộ 1.174 unit và 111 e2e đạt.
 
 ## Phase 7 — Sửa và xoá ghi chú (việc 6 của Q70)
 

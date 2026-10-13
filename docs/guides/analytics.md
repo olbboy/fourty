@@ -50,6 +50,11 @@ weighted total, the unweighted total and the number of deals. Quarters follow UT
 a deal marked won in the first hours of a quarter's first day east of UTC can count in
 the quarter before. A role that cannot read deal amounts does not get either table.
 
+**Columns by** above the tables switches the split to **Owner**: one column per
+person, largest first, then deals nobody owns. Someone who has left the workspace
+keeps their column under their name, marked *(left)*. A role that cannot read the
+owner field sees no owner columns.
+
 ## Currency handling
 
 Every monetary figure is converted into the workspace's **reporting currency** before
