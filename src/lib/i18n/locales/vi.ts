@@ -298,6 +298,7 @@ export const vi: Record<MessageKey, string> = {
   "settings.invitePending": "Lời mời đang chờ",
   "settings.inviteBy": "mời bởi {name}",
   "settings.inviteExpires": "hết hạn {date}",
+  "settings.inviteExpired": "đã hết hạn {date}",
   "settings.inviteResend": "Gửi lại",
   "settings.inviteResendAria": "Gửi lại lời mời cho {email}",
   "settings.inviteRevoke": "Thu hồi",

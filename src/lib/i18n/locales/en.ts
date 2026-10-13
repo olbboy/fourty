@@ -297,6 +297,7 @@ export const en = {
   "settings.invitePending": "Pending invites",
   "settings.inviteBy": "invited by {name}",
   "settings.inviteExpires": "expires {date}",
+  "settings.inviteExpired": "expired {date}",
   "settings.inviteResend": "Resend",
   "settings.inviteResendAria": "Resend the invite to {email}",
   "settings.inviteRevoke": "Revoke",

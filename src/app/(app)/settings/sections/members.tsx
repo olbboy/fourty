@@ -260,7 +260,14 @@ export function MembersSection() {
                   <p className="text-xs text-ink-muted">
                     {roleLabel(inv.role, t)}
                     {inv.invitedByName && ` · ${t("settings.inviteBy", { name: inv.invitedByName })}`}
-                    {` · ${t("settings.inviteExpires", { date: formatDate(inv.expiresAt, locale) })}`}
+                    {" · "}
+                    {inv.expiresAt < Date.now() ? (
+                      <span className="text-feedback-warn">
+                        {t("settings.inviteExpired", { date: formatDate(inv.expiresAt, locale) })}
+                      </span>
+                    ) : (
+                      t("settings.inviteExpires", { date: formatDate(inv.expiresAt, locale) })
+                    )}
                   </p>
                 </div>
                 <Button

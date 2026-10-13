@@ -206,6 +206,22 @@ describe("workspace members + invites", () => {
     expect(await inviteEmail(second.token)).toBe("btduc@t.dev");
   });
 
+  it("keeps an expired invite in the list until it is replaced", async () => {
+    const { withWorkspace } = await import("@/db");
+    const { eq } = await import("drizzle-orm");
+    const late = await invite("late@t.dev");
+    // A week passes without anyone opening it.
+    await withWorkspace(ws, () =>
+      db.update(tables.invites).set({ expiresAt: Date.now() - 1_000 }).where(eq(tables.invites.id, late.id)),
+    );
+    const listed = (await pending()).find((i) => i.email === "late@t.dev");
+    expect(listed?.id).toBe(late.id);
+    expect(listed!.expiresAt).toBeLessThan(Date.now());
+
+    const resent = await invite("late@t.dev");
+    expect((await pending()).filter((i) => i.email === "late@t.dev").map((i) => i.id)).toEqual([resent.id]);
+  });
+
   it("deactivates a non-admin member", async () => {
     const res = await memberIdRoute.DELETE(req(`/api/members/${memberUser}`), {
       params: Promise.resolve({ userId: memberUser }),

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { withAuth, authorize, json, apiError, parseBody, requestOrigin } from "@/lib/api";
 import { newId, newToken } from "@/lib/id";
@@ -88,8 +88,10 @@ export async function POST(req: Request) {
   });
 }
 
-// Invites still waiting for someone (admin only): not used, not taken back,
-// not expired. Newest first, with the inviter's name when a person sent it.
+// Invites still waiting for someone (admin only): not used and not taken back.
+// Expired ones stay listed, so an admin sees who never joined and can resend;
+// a row leaves the list once it is used, revoked, or replaced by a new invite.
+// Newest first, with the inviter's name when a person sent it.
 export async function GET(req: Request) {
   return withAuth(req, async (auth) => {
     const denied = authorize(auth, "members", "read");
@@ -105,13 +107,7 @@ export async function GET(req: Request) {
       })
       .from(tables.invites)
       .leftJoin(tables.users, eq(tables.users.id, tables.invites.invitedBy))
-      .where(
-        and(
-          isNull(tables.invites.acceptedAt),
-          isNull(tables.invites.revokedAt),
-          gt(tables.invites.expiresAt, Date.now()),
-        ),
-      )
+      .where(and(isNull(tables.invites.acceptedAt), isNull(tables.invites.revokedAt)))
       .orderBy(desc(tables.invites.createdAt));
     return json({ invites });
   });
