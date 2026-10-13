@@ -14,7 +14,7 @@ error shapes.
 | Companies | `/api/companies`, `/api/companies/{id}` |
 | Deals | `/api/deals` (filters `ownerId` = member id or `none`, `closeQuarter` = `2026-Q4`, `fieldKey` + `fieldValue`), `/api/deals/{id}` (`ownerId` assigns a member; `currency` must be one of the [12 supported codes](../guides/pipeline.md#multi-currency)), `POST /api/deals/reassign` (`{ ids, ownerId }`, all or nothing) |
 | Tasks | `/api/tasks` (filter `ownerId` = member id or `none`), `/api/tasks/{id}` (`ownerId` assigns a member), `POST /api/tasks/reassign` (`{ ids, ownerId }`); `/api/tasks/assignees` lists who can own a task or deal (GraphQL `assignees`, MCP `list_assignees`), `?all=1` adds members who left, each with `active` |
-| Notes | `/api/notes` (GET list + POST create; append-only) |
+| Notes | `/api/notes` (GET list + POST create), `/api/notes/{id}` (PATCH `{ body }`, DELETE; author or admin only) |
 | Activities (timeline) | `/api/activities` |
 | Pipelines | `/api/pipelines` (GET, POST), `/api/pipelines/{id}` (PATCH name; DELETE when empty and not the last) |
 | Stages | `/api/stages` (POST name, winProbability, color), `/api/stages/{id}` (PATCH name, winProbability, order, color; DELETE open stages with no deals) |
@@ -39,7 +39,7 @@ error shapes.
 | Webhooks | `/api/webhooks/secret` (HMAC signing secret) |
 
 Core CRM objects use the same JSON shapes the UI uses. Standard verbs: `GET` /
-`POST` / `PATCH` / `DELETE`. Notes are append-only (`GET` / `POST`).
+`POST` / `PATCH` / `DELETE`. A note can be changed or deleted only by its author or an admin.
 
 ### Pipelines and stages
 

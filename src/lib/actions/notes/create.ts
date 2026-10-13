@@ -4,7 +4,7 @@ import { newId } from "@/lib/id";
 import { noteInput } from "@/lib/validators";
 import { recomputeContactScore } from "@/lib/services/contact-score";
 import { defineAction } from "../define";
-import { auditMeta, type Note } from "./shared";
+import { auditMeta, notePreview, type Note } from "./shared";
 
 export const notesCreate = defineAction({
   name: "notes.create",
@@ -29,7 +29,8 @@ export const notesCreate = defineAction({
       entityType: row.entityType,
       entityId: row.entityId,
       actorId: ctx.userId,
-      meta: { preview: row.body.slice(0, 120) },
+      // noteId lets an edit or a delete find this line again.
+      meta: { preview: notePreview(row.body), noteId: row.id },
     }),
     audit: (_i, row, ctx) => ({
       key: "note.created",

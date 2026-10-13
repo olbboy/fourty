@@ -305,6 +305,7 @@ export const notes = pgTable(
     entityId: text("entity_id").notNull(),
     authorId: text("author_id"),
     createdAt: millis("created_at").notNull(),
+    editedAt: millis("edited_at"), // set when the author or an admin corrects it
   },
   (t) => [index("notes_ws_entity_idx").on(t.workspaceId, t.entityType, t.entityId)],
 );

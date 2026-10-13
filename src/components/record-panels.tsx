@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Activity, Note, Task } from "@/lib/types";
 import { timeAgo, formatDate } from "@/lib/format";
-import { PriorityChip, Spinner, LoadError } from "./ui";
+import { PriorityChip, Spinner, LoadError, useConfirm } from "./ui";
 import { IconMail, IconPhone, IconCalendar, IconPlus } from "./icons";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -212,12 +212,45 @@ export function NotesPanel({ entityType, entityId, onChanged }: EntityRef & { on
   const [failed, setFailed] = useState(false);
   const [retry, setRetry] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  // The note being corrected, and its text so far.
+  const [editing, setEditing] = useState<{ id: string; body: string } | null>(null);
+  const [askConfirm, confirmDialog] = useConfirm();
   const reload = useCallback(() => setRetry((n) => n + 1), []);
 
   useEffect(() => {
     setNotes(null);
     setError(null);
   }, [entityType, entityId]);
+
+  // Correct or remove a note; the timeline line it left follows on the server.
+  async function change(method: "PATCH" | "DELETE", id: string, body?: string): Promise<void> {
+    setError(null);
+    try {
+      const res = await fetch(`/api/notes/${id}`, {
+        method,
+        headers: { "content-type": "application/json" },
+        ...(body !== undefined ? { body: JSON.stringify({ body }) } : {}),
+      });
+      if (!res.ok) {
+        setError(t("activity.failedWrite"));
+        return;
+      }
+      setEditing(null);
+      reload();
+      onChanged?.();
+    } catch {
+      setError(t("activity.failedWrite"));
+    }
+  }
+
+  async function remove(note: Note) {
+    const ok = await askConfirm({
+      title: t("activity.deleteNoteTitle"),
+      body: t("activity.deleteNoteBody"),
+      confirmLabel: t("activity.deleteNote"),
+    });
+    if (ok) await change("DELETE", note.id);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -293,11 +326,59 @@ export function NotesPanel({ entityType, entityId, onChanged }: EntityRef & { on
       ) : (
         notes.map((n) => (
           <div key={n.id} className="rounded-lg bg-surface-2 px-3 py-2.5">
-            <p className="whitespace-pre-wrap text-sm">{n.body}</p>
-            <p className="mt-1 text-xs text-ink-muted">{timeAgo(n.createdAt, locale)}</p>
+            {editing?.id === n.id ? (
+              <div className="space-y-2">
+                <Textarea
+                  value={editing.body}
+                  onChange={(e) => setEditing({ id: n.id, body: e.target.value })}
+                  aria-label={t("activity.editNoteAria")}
+                  rows={3}
+                  className="resize-y"
+                />
+                <div className="flex gap-2">
+                  <Button size="sm" disabled={!editing.body.trim()} onClick={() => void change("PATCH", n.id, editing.body.trim())}>
+                    {t("action.save")}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setEditing(null)}>
+                    {t("action.cancel")}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <p className="whitespace-pre-wrap text-sm">{n.body}</p>
+            )}
+            <div className="mt-1 flex items-center gap-2 text-xs text-ink-muted">
+              <span>
+                {timeAgo(n.createdAt, locale)}
+                {n.editedAt ? ` · ${t("activity.noteEdited")}` : ""}
+              </span>
+              {n.canChange && editing?.id !== n.id && (
+                <span className="ml-auto flex gap-1">
+                  {/* Named apart from the record's own Edit/Delete buttons on the same page. */}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    aria-label={t("activity.editThisNote")}
+                    onClick={() => setEditing({ id: n.id, body: n.body })}
+                  >
+                    {t("activity.editNote")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-feedback-error"
+                    aria-label={t("activity.deleteThisNote")}
+                    onClick={() => void remove(n)}
+                  >
+                    {t("activity.deleteNote")}
+                  </Button>
+                </span>
+              )}
+            </div>
           </div>
         ))
       )}
+      {confirmDialog}
     </div>
   );
 }

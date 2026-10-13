@@ -11,7 +11,7 @@ full history of everything that touched it.*
 | **Companies** | Organizations. Roll up their contacts and deals. |
 | **Deals** | Opportunities in a [pipeline](./pipeline.md), with amount, currency, stage, and a [health score](./lead-scoring.md#deal-health). |
 | **Tasks** | To-dos with due dates, assignable to members. |
-| **Notes** | Free-form text pinned to any record. Append-only — add from the record; no edit or delete. |
+| **Notes** | Free-form text pinned to any record. The author or an admin can correct or delete one; a corrected note is marked *edited*. |
 
 Add fields to any of these — or define entirely new objects — from Settings; see
 **[Custom fields & objects](./custom-objects.md)**.
@@ -32,11 +32,14 @@ write) can log an email, call, or meeting (`POST /api/activities`, GraphQL
 ## Working with records
 
 - **Create / edit / delete** contacts, companies, deals, and tasks from the UI,
-  or over [REST](../api/rest.md) and [GraphQL](../api/graphql.md). Notes are
-  **append-only**: add them on the record (`POST /api/notes`, GraphQL
-  `createNote`, MCP `create_note`). List them on the record (`GET /api/notes`,
-  GraphQL `notes`, MCP `list_notes`). Writes are validated with zod; a bad field
-  returns `400 {"error": "field: message"}`.
+  or over [REST](../api/rest.md) and [GraphQL](../api/graphql.md). Add notes on
+  the record (`POST /api/notes`, GraphQL `createNote`, MCP `create_note`) and list
+  them there (`GET /api/notes`, GraphQL `notes`, MCP `list_notes`; each carries
+  `canChange` for the caller). Only the note's author or an admin may correct one
+  (`PATCH /api/notes/{id}` with `{ body }`, `updateNote`, `update_note`) or delete
+  it (`DELETE /api/notes/{id}`, `deleteNote`, `delete_note`); the timeline line the
+  note left is updated or removed with it. Writes are validated with zod; a bad
+  field returns `400 {"error": "field: message"}`.
 - **Search** across contacts, companies, deals, and custom-object records from the **⌘K command palette** or
   `GET /api/search?q=…`.
 - **Bulk-load** with [CSV import](./import-export.md), which updates on email match

@@ -10,7 +10,7 @@ import { dealStageClock } from "@/lib/actions/deals/shared";
 import { pinnedWorkIds } from "@/lib/pinned-tasks";
 import { tasksCreate, tasksDelete, tasksGet, tasksList, tasksReassign, tasksUpdate } from "@/lib/actions/tasks";
 import { listAssignees } from "@/lib/actions/assignees";
-import { notesCreate, notesList } from "@/lib/actions/notes";
+import { notesCreate, notesDelete, notesList, notesUpdate } from "@/lib/actions/notes";
 import { activitiesCreate, activitiesList } from "@/lib/actions/activities";
 import { factsDecide, factsList, factsRecord } from "@/lib/actions/facts";
 import { dashboardStatsForRole, reportStatsForRole } from "@/lib/services/stats";
@@ -502,6 +502,9 @@ export const TOOLS: Tool[] = [
     max: { limit: 200 },
   }),
   toMcpTool(notesCreate, { name: "create_note" }),
+  toMcpTool(notesUpdate, { name: "update_note" }),
+  // Dry run unless confirm=true, like the other delete tools.
+  toMcpTool(notesDelete, { name: "delete_note", defaults: { confirm: false } }),
   toMcpTool(activitiesList, {
     name: "list_activities",
     defaults: { limit: 50 },
