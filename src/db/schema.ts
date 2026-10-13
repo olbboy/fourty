@@ -108,6 +108,7 @@ export const users = pgTable("users", {
   totpEnabled: integer("totp_enabled").notNull().default(0),
   backupCodes: text("backup_codes").notNull().default("[]"),
   createdAt: millis("created_at").notNull(),
+  lastLoginAt: millis("last_login_at"), // set whenever a session starts
 });
 
 export const sessions = pgTable("sessions", {
@@ -116,6 +117,9 @@ export const sessions = pgTable("sessions", {
   workspaceId: text("workspace_id"), // active workspace for this session (nullable pre-selection)
   expiresAt: millis("expires_at").notNull(),
   createdAt: millis("created_at").notNull(),
+  lastSeenAt: millis("last_seen_at"), // refreshed at most every SEEN_EVERY_MS
+  userAgent: text("user_agent"),
+  ip: text("ip"),
 });
 
 // Forgot-password tokens. Identity plane like users/sessions — a reset happens

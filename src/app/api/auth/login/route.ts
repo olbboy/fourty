@@ -2,7 +2,7 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { json, apiError, parseBody, tooManyRequests } from "@/lib/api";
-import { createSession, verifyPassword, membershipsOf, sha256 } from "@/lib/auth";
+import { createSession, verifyPassword, membershipsOf, sessionClient, sha256 } from "@/lib/auth";
 import { rateLimit, clientIp, loginBudget } from "@/lib/ratelimit";
 import { verifyTotp } from "@/lib/totp";
 
@@ -58,6 +58,6 @@ export async function POST(req: Request) {
 
   // Activate the user's first workspace for this session.
   const memberships = await membershipsOf(user.id);
-  await createSession(user.id, memberships[0]?.workspaceId ?? null);
+  await createSession(user.id, memberships[0]?.workspaceId ?? null, sessionClient(req));
   return json({ ok: true });
 }

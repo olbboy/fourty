@@ -18,6 +18,7 @@ export async function GET(req: Request) {
         email: tables.users.email,
         name: tables.users.name,
         totpEnabled: tables.users.totpEnabled,
+        lastLoginAt: tables.users.lastLoginAt,
       })
       .from(tables.workspaceMembers)
       .innerJoin(tables.users, eq(tables.users.id, tables.workspaceMembers.userId))

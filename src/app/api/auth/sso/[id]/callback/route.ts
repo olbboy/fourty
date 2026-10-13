@@ -3,7 +3,7 @@ import { requestOrigin } from "@/lib/api";
 import { eq } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { log } from "@/lib/logger";
-import { createSession } from "@/lib/auth";
+import { createSession, sessionClient } from "@/lib/auth";
 import { ssoFetcher } from "@/lib/sso/http";
 import { discover, exchangeCode, fetchJwks } from "@/lib/sso/oidc";
 import { verifyIdToken } from "@/lib/sso/jwt";
@@ -85,7 +85,7 @@ export async function GET(req: Request, { params }: Params) {
 
     const { userId } = await findOrProvisionUser(email, typeof claims.name === "string" ? claims.name : null);
     const workspaceId = await ensureMembershipForConnection(userId, conn);
-    await createSession(userId, workspaceId);
+    await createSession(userId, workspaceId, sessionClient(req));
     return NextResponse.redirect(new URL("/dashboard", origin).toString(), 302);
   } catch (err) {
     log().warn({ err: String(err), connection: id }, "sso callback failed");

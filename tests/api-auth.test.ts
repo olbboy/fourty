@@ -162,9 +162,11 @@ describe("static guard: every API route authenticates", () => {
       "2fa/setup",
       "2fa/enable",
       "2fa/disable",
-      // The caller's own name and password, like 2FA above: no tenant data.
+      // The caller's own name, password and sessions, like 2FA above: no tenant data.
       "me",
       "me/password",
+      "me/sessions",
+      "me/sessions/[id]",
     ]);
     const missing: string[] = [];
     for (const { rel, file } of files) {

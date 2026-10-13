@@ -2,7 +2,7 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { withAuth, json, apiError, parseBody, tooManyRequests } from "@/lib/api";
-import { createSession, setPassword, verifyPassword, PASSWORD_MAX, PASSWORD_MIN } from "@/lib/auth";
+import { createSession, sessionClient, setPassword, verifyPassword, PASSWORD_MAX, PASSWORD_MIN } from "@/lib/auth";
 import { rateLimit, loginBudget } from "@/lib/ratelimit";
 import { audit } from "@/lib/audit";
 
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
       return apiError("Current password is wrong", 400);
     }
     await setPassword(auth.user.id, body.data.newPassword);
-    await createSession(auth.user.id, auth.workspaceId);
+    await createSession(auth.user.id, auth.workspaceId, sessionClient(req));
     await audit(auth.user.id, "account.password_changed", { objectType: "user", objectId: auth.user.id });
     return json({ ok: true });
   });

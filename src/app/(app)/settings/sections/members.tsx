@@ -38,6 +38,8 @@ type Member = {
   name: string;
   /** Two-factor sign-in is on for this person. */
   twoFactor?: boolean;
+  /** When this person last signed in, or null if never. */
+  lastLoginAt?: number | null;
 };
 
 /** An invite nobody has used yet; resending replaces its link. */
@@ -172,6 +174,19 @@ export function MembersSection() {
     load();
   }
 
+  async function signOutEverywhere(m: Member) {
+    const ok = await askConfirm({
+      title: t("settings.rescueSignOutTitle", { name: m.name }),
+      body: t("settings.rescueSignOutBody"),
+      confirmLabel: t("settings.rescueSignOut"),
+    });
+    if (!ok) return;
+    setError(null);
+    const res = await fetch(`/api/members/${m.userId}/sessions`, { method: "DELETE" });
+    if (!res.ok) setError(t("settings.rescueFailed"));
+    load();
+  }
+
   async function changeRole(m: Member, next: string) {
     setError(null);
     const res = await fetch(`/api/members/${m.userId}`, {
@@ -287,6 +302,10 @@ export function MembersSection() {
                 </p>
                 <p className="text-xs text-ink-muted">
                   {m.email} · {t("settings.inviteJoined", { when: timeAgo(m.createdAt, locale) })}
+                  {" · "}
+                  {m.lastLoginAt
+                    ? t("settings.memberLastLogin", { when: timeAgo(m.lastLoginAt, locale) })
+                    : t("settings.memberNeverLoggedIn")}
                   {m.deactivatedAt && t("settings.inviteRemoved")}
                 </p>
               </div>
@@ -329,6 +348,9 @@ export function MembersSection() {
                             {t("settings.rescue2fa")}
                           </DropdownMenuItem>
                         )}
+                        <DropdownMenuItem onClick={() => void signOutEverywhere(m)}>
+                          {t("settings.rescueSignOut")}
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}

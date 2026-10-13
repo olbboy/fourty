@@ -39,6 +39,7 @@ const ACTION_KEYS: Record<string, MessageKey> = {
   "member.email_changed": "audit.action.member.email_changed",
   "member.reset_link_created": "audit.action.member.reset_link_created",
   "member.2fa_disabled": "audit.action.member.2fa_disabled",
+  "member.signed_out": "audit.action.member.signed_out",
   "account.renamed": "audit.action.account.renamed",
   "account.password_changed": "audit.action.account.password_changed",
   "member.role_changed": "audit.action.member.role_changed",
