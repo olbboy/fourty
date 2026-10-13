@@ -13,6 +13,7 @@ import { db, tables, withWorkspace } from "@/db";
 import { getBoss, stopBoss, enqueue, JOB_NAMES, SELF_MANAGED_JOBS, type JobEnvelope } from "@/lib/queue";
 import { runJob } from "./handlers";
 import { dispatchTick } from "./dispatch";
+import { dispatchReminders } from "@/lib/services/reminders";
 import { log } from "@/lib/logger";
 import { initTracing } from "@/lib/otel";
 
@@ -26,7 +27,11 @@ async function main(): Promise<void> {
       // across a mailbox fetch — and needs no idempotency claim, because taking
       // a task row already is one.
       await boss.work<JobEnvelope>(name, async (jobs) => {
-        for (const job of jobs) await dispatchTick(job.data.workspaceId);
+        for (const job of jobs) {
+          const ws = job.data.workspaceId;
+          if (name === "reminders.dispatch") await withWorkspace(ws, () => dispatchReminders(ws));
+          else await dispatchTick(ws);
+        }
       });
     } else {
       await boss.work<JobEnvelope>(name, async (jobs) => {
@@ -83,6 +88,11 @@ function startTicking(): () => void {
         await enqueue("agent.dispatch", {}, {
           workspaceId: ws.id,
           idempotencyKey: `agent.dispatch:${ws.id}:${bucket}`,
+        });
+        // The morning reminder rides the same tick; it sends at most once a day.
+        await enqueue("reminders.dispatch", {}, {
+          workspaceId: ws.id,
+          idempotencyKey: `reminders.dispatch:${ws.id}:${bucket}`,
         });
       }
     } catch (err) {

@@ -85,6 +85,18 @@ facets share one database snapshot per response. Separate page requests can shif
 when records are added, removed, or re-sorted between requests; offset pagination
 does not provide a snapshot across pages.
 
+## Morning task reminder
+
+An admin can turn on **Settings → Morning task reminder**. At 8:00 in the chosen time
+zone (Asia/Ho_Chi_Minh by default), everyone who owns open tasks due that day or
+already overdue gets one email listing them, with a link to the task list; people with
+nothing due get no email. It needs [outbound email](../self-hosting/configuration.md#outbound-email).
+
+The worker sends it once a day: if it was down at 8:00 it sends when it comes back,
+until noon, and never twice. The email is written in the language picked next to the
+switch (the admin's language when they first turn it on), and links to the address
+the app had when the settings were last saved.
+
 ## Permissions
 
 Who can see and change a record is governed by:

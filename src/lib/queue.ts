@@ -44,6 +44,11 @@ export type JobPayloads = {
   // origin and any one-time token); the handler only hands it to SMTP. No-ops
   // when SMTP is unconfigured.
   "mail.send": { to: string; subject: string; text: string; html?: string };
+  // The morning task reminder tick (Phase 9). Carries nothing: the handler reads
+  // the workspace's reminder settings and sends at most once a day. Self-managed
+  // like the agent tick: a receipt per minute per workspace would be pure growth,
+  // and the handler claims the day itself before it sends anything.
+  "reminders.dispatch": Record<string, never>;
 };
 
 export type JobName = keyof JobPayloads;
@@ -61,6 +66,7 @@ export const JOB_NAMES: JobName[] = [
   "ai.generate",
   "agent.dispatch",
   "mail.send",
+  "reminders.dispatch",
 ];
 
 /**
@@ -71,7 +77,7 @@ export const JOB_NAMES: JobName[] = [
  * open across a mailbox fetch, and claiming a task row is already atomic, so a
  * duplicate tick finds the rows leased and does nothing.
  */
-export const SELF_MANAGED_JOBS: JobName[] = ["agent.dispatch"];
+export const SELF_MANAGED_JOBS: JobName[] = ["agent.dispatch", "reminders.dispatch"];
 
 // Per-queue durability policy. retryBackoff=true → exponential backoff seeded by
 // retryDelay; exhausted jobs move to `<name>.dead` (retained, never auto-run).
@@ -90,6 +96,8 @@ const QUEUE_CONFIG: Record<JobName, { retryLimit: number; expireInSeconds: numbe
   // a restart), and an invite that never arrives is invisible to the sender —
   // so retry generously before dead-lettering.
   "mail.send": { retryLimit: 5, expireInSeconds: EXPIRE_SECONDS },
+  // Like the agent tick: the next one is a minute away.
+  "reminders.dispatch": { retryLimit: 1, expireInSeconds: EXPIRE_SECONDS },
 };
 
 export const deadLetterName = (name: JobName | string) => `${name}.dead`;

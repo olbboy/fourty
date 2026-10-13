@@ -1,4 +1,5 @@
 import type { MailMessage } from "@/lib/mail";
+import { translator, type Locale } from "@/lib/i18n";
 
 /**
  * Rendered bodies for the transactional mail Fourty sends.
@@ -90,6 +91,46 @@ export function inviteEmail(input: InviteEmailInput): Omit<MailMessage, "to"> {
     `<p><a href="${escapeHtml(acceptUrl)}">Accept the invite</a></p>`,
     `<p style="color:#666;font-size:13px">The link works once and expires in ${days} day${days === 1 ? "" : "s"}. `,
     `If you weren't expecting this, you can ignore this email.</p>`,
+    `</div>`,
+  ].join("");
+
+  return { subject, text, html };
+}
+
+export type TaskReminderEmailInput = {
+  name: string;
+  dueToday: { title: string }[];
+  overdue: { title: string }[];
+  tasksUrl: string;
+  locale: Locale;
+};
+
+/** The morning reminder: today's tasks, then overdue ones, and a link to the list. */
+export function taskReminderEmail(input: TaskReminderEmailInput): Omit<MailMessage, "to"> {
+  const t = translator(input.locale);
+  const subject = t("reminder.subject", { today: input.dueToday.length, overdue: input.overdue.length });
+  const sections = [
+    { heading: t("reminder.dueToday"), tasks: input.dueToday },
+    { heading: t("reminder.overdue"), tasks: input.overdue },
+  ].filter((section) => section.tasks.length > 0);
+
+  const text = [
+    t("reminder.greeting", { name: input.name }),
+    "",
+    ...sections.flatMap((section) => [section.heading, ...section.tasks.map((task) => `- ${task.title}`), ""]),
+    t("reminder.open", { url: input.tasksUrl }),
+  ].join("\n");
+
+  const html = [
+    `<div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;font-size:15px;line-height:1.55">`,
+    `<p>${escapeHtml(t("reminder.greeting", { name: input.name }))}</p>`,
+    ...sections.map(
+      (section) =>
+        `<p style="margin-bottom:4px"><strong>${escapeHtml(section.heading)}</strong></p><ul style="margin-top:0">${section.tasks
+          .map((task) => `<li>${escapeHtml(task.title)}</li>`)
+          .join("")}</ul>`,
+    ),
+    `<p><a href="${escapeHtml(input.tasksUrl)}">${escapeHtml(t("reminder.openLink"))}</a></p>`,
     `</div>`,
   ].join("");
 
