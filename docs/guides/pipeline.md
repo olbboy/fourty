@@ -71,6 +71,24 @@ The handover is written to the deal's timeline as **changed owner: A → B**. A 
 who has since left keeps their name there. Tasks that [workflows](./workflows.md) create
 for a deal go to its owner.
 
+Kanban cards and the list view show each deal's owner. Someone who has left the
+workspace is shown as **Name (left)**, so their deals never pass for unassigned ones.
+
+### Handing work over
+
+When someone leaves, filter the deals list by owner (their name is marked *(left)*),
+switch to the list view, tick **Select all shown**, pick the new owner in **Give to…**
+and apply. Every deal moves, each with its own **changed owner** line, or none does if
+something is wrong. The Tasks page works the same way: filter by owner, then give every
+task shown to someone else.
+
+The deals list also filters by **expected close quarter** and by one choice of a
+single-choice custom field, such as a breakdown field; saved views keep these filters.
+Over the API: `GET /api/deals?ownerId=…|none&closeQuarter=2026-Q4&fieldKey=…&fieldValue=…`,
+`GET /api/tasks?ownerId=…`, and `POST /api/deals/reassign` / `POST /api/tasks/reassign`
+with `{ "ids": [...], "ownerId": "…" | null }` (GraphQL `reassignDeals`, `reassignTasks`;
+MCP `reassign_deals`, `reassign_tasks`).
+
 ## Over the API
 
 Create and move deals over [REST](../api/rest.md) or [GraphQL](../api/graphql.md):

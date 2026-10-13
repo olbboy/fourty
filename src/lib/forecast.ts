@@ -42,6 +42,21 @@ export type ForecastTable = { columns: string[]; rows: ForecastRow[] };
 
 const UNDATED = "undated";
 
+/** The quarter label ("2026-Q4") a timestamp falls in, by UTC calendar. */
+export function quarterOf(ts: number): string {
+  const at = new Date(ts);
+  return `${at.getUTCFullYear()}-Q${Math.floor(at.getUTCMonth() / 3) + 1}`;
+}
+
+/** Start (inclusive) and end (exclusive) of a "2026-Q4" quarter, or null. */
+export function quarterRange(label: string): { start: number; end: number } | null {
+  const m = /^(\d{4})-Q([1-4])$/.exec(label);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const first = (Number(m[2]) - 1) * 3;
+  return { start: Date.UTC(year, first, 1), end: Date.UTC(year, first + 3, 1) };
+}
+
 export function forecastByPeriod(
   deals: readonly ForecastDeal[],
   stages: readonly ForecastStage[],
@@ -72,10 +87,9 @@ export function forecastByPeriod(
       add(rowFor(rows, UNDATED), column, weighted, total);
       continue;
     }
-    const at = new Date(ts);
-    const year = at.getUTCFullYear();
+    const year = new Date(ts).getUTCFullYear();
     years.add(year);
-    add(rowFor(rows, `${year}-Q${Math.floor(at.getUTCMonth() / 3) + 1}`), column, weighted, total);
+    add(rowFor(rows, quarterOf(ts)), column, weighted, total);
     add(rowFor(rows, String(year)), column, weighted, total);
   }
 

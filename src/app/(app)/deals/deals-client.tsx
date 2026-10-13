@@ -43,6 +43,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useLocale, useT } from "@/lib/i18n/provider";
+import { Checkbox } from "@/components/ui/checkbox";
+import { BulkOwnerBar, OwnerFilter, reassignOwner, useOwnerPeople } from "@/components/owner-controls";
+import { ownerLabel } from "@/lib/owner-display";
+import { quarterOf } from "@/lib/forecast";
+
+/** A single-choice custom field on deals, offered as a list filter. */
+type ChoiceField = { key: string; label: string; options: string[] };
+
+/** Quarters from last year to two years out, for the close-quarter filter. */
+function quarterChoices(now: number): string[] {
+  const year = new Date(now).getUTCFullYear();
+  const out: string[] = [];
+  for (let y = year - 1; y <= year + 2; y++) for (let q = 1; q <= 4; q++) out.push(`${y}-Q${q}`);
+  return out;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -85,6 +100,8 @@ export function DealsClient() {
   const router = useRouter();
   const access = useFieldAccess("deals");
   const canMoveStage = canEditField(access, "stageId");
+  const canAssign = canEditField(access, "ownerId");
+  const people = useOwnerPeople();
   const [deals, setDeals] = useState<Deal[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [lookupsFailed, setLookupsFailed] = useState(false);
@@ -95,6 +112,13 @@ export function DealsClient() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [pipelineId, setPipelineId] = useState<string>("");
   const [q, setQ] = useState("");
+  // "" = any; "none" = unowned; otherwise a member id.
+  const [ownerFilter, setOwnerFilter] = useState("");
+  const [closeQuarter, setCloseQuarter] = useState("");
+  // "key=value" of one custom field choice, or "".
+  const [fieldFilter, setFieldFilter] = useState("");
+  const [choiceFields, setChoiceFields] = useState<ChoiceField[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [view, setView] = useState<"kanban" | "list">("kanban");
   const [activeView, setActiveView] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(searchParams.get("new") === "1");
@@ -117,6 +141,13 @@ export function DealsClient() {
     if (typeof cfg.filters?.pipelineId === "string")
       setPipelineId(cfg.filters.pipelineId);
     setQ(typeof cfg.filters?.q === "string" ? cfg.filters.q : "");
+    setOwnerFilter(typeof cfg.filters?.ownerId === "string" ? cfg.filters.ownerId : "");
+    setCloseQuarter(typeof cfg.filters?.closeQuarter === "string" ? cfg.filters.closeQuarter : "");
+    setFieldFilter(
+      typeof cfg.filters?.fieldKey === "string" && typeof cfg.filters?.fieldValue === "string"
+        ? `${cfg.filters.fieldKey}=${cfg.filters.fieldValue}`
+        : "",
+    );
     const nextView = cfg.filters?.view;
     if (nextView === "list" || nextView === "kanban") setView(nextView);
   }, []);
@@ -132,6 +163,13 @@ export function DealsClient() {
 
     const params = new URLSearchParams();
     if (q.trim()) params.set("q", q.trim());
+    if (ownerFilter) params.set("ownerId", ownerFilter);
+    if (closeQuarter) params.set("closeQuarter", closeQuarter);
+    if (fieldFilter) {
+      const split = fieldFilter.indexOf("=");
+      params.set("fieldKey", fieldFilter.slice(0, split));
+      params.set("fieldValue", fieldFilter.slice(split + 1));
+    }
     const query = params.toString();
 
     try {
@@ -149,6 +187,7 @@ export function DealsClient() {
       if (generation !== generationRef.current || controller.signal.aborted)
         return;
       setDeals(payload.deals);
+      setSelected(new Set());
       setFailed(false);
     } catch {
       if (controller.signal.aborted || generation !== generationRef.current)
@@ -158,7 +197,7 @@ export function DealsClient() {
       if (requestRef.current?.generation === generation)
         requestRef.current = null;
     }
-  }, [q]);
+  }, [q, ownerFilter, closeQuarter, fieldFilter]);
 
   const loadLookups = useCallback(async (): Promise<void> => {
     const generation = lookupGenerationRef.current + 1;
@@ -248,6 +287,26 @@ export function DealsClient() {
     };
   }, [loadLookups, lookupRetry]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/custom-fields?entity=deal", { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: unknown) => {
+        const fields = (data as { fields?: unknown } | null)?.fields;
+        if (!Array.isArray(fields)) return;
+        setChoiceFields(
+          (fields as { key: string; label: string; type: string; options: string[] }[])
+            .filter((field) => field.type === "select" && field.options.length > 0)
+            .map(({ key, label, options }) => ({ key, label, options })),
+        );
+      })
+      // The field filter is optional; the list works without it.
+      .catch(() => {});
+    return () => controller.abort();
+  }, []);
+
+  const quarters = useMemo(() => quarterChoices(Date.now()), []);
+
   useEffect(
     () => () => {
       generationRef.current += 1;
@@ -266,6 +325,16 @@ export function DealsClient() {
 
   const companyName = (id: string | null): string | undefined =>
     companies.find((company) => company.id === id)?.name;
+
+  const toggle = (id: string, on: boolean) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  const selectedShown = pipelineDeals.filter((deal) => selected.has(deal.id));
+  const allShownSelected = pipelineDeals.length > 0 && selectedShown.length === pipelineDeals.length;
 
   async function moveDeal(dealId: string, stageId: string): Promise<void> {
     if (!canMoveStage) return;
@@ -381,13 +450,18 @@ export function DealsClient() {
           filters: {
             ...(pipelineId ? { pipelineId } : {}),
             ...(q.trim() ? { q: q.trim() } : {}),
+            ...(ownerFilter ? { ownerId: ownerFilter } : {}),
+            ...(closeQuarter ? { closeQuarter } : {}),
+            ...(fieldFilter
+              ? { fieldKey: fieldFilter.slice(0, fieldFilter.indexOf("=")), fieldValue: fieldFilter.slice(fieldFilter.indexOf("=") + 1) }
+              : {}),
             view,
           },
         }}
         onApply={applyView}
       />
 
-      <div className="mb-4">
+      <div className="mb-4 flex flex-wrap gap-2">
         <Input
           value={q}
           onChange={(event) => {
@@ -398,6 +472,50 @@ export function DealsClient() {
           placeholder={t("page.deals.searchPlaceholder")}
           className="max-w-xs"
         />
+        <OwnerFilter
+          value={ownerFilter}
+          people={people}
+          onChange={(value) => {
+            setOwnerFilter(value);
+            setActiveView(null);
+          }}
+        />
+        <NativeSelect
+          value={closeQuarter}
+          onChange={(event) => {
+            setCloseQuarter(event.target.value);
+            setActiveView(null);
+          }}
+          aria-label={t("page.deals.quarterAria")}
+        >
+          <option value="">{t("page.deals.quarterAll")}</option>
+          {quarters.map((quarter) => (
+            <option key={quarter} value={quarter}>
+              {quarter === quarterOf(Date.now()) ? t("page.deals.quarterNow", { quarter }) : quarter}
+            </option>
+          ))}
+        </NativeSelect>
+        {choiceFields.length > 0 && (
+          <NativeSelect
+            value={fieldFilter}
+            onChange={(event) => {
+              setFieldFilter(event.target.value);
+              setActiveView(null);
+            }}
+            aria-label={t("page.deals.fieldAria")}
+          >
+            <option value="">{t("page.deals.fieldAll")}</option>
+            {choiceFields.map((field) => (
+              <optgroup key={field.key} label={field.label}>
+                {field.options.map((option) => (
+                  <option key={option} value={`${field.key}=${option}`}>
+                    {option}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </NativeSelect>
+        )}
       </div>
 
       {failed ? (
@@ -521,6 +639,9 @@ export function DealsClient() {
                             <HealthBadge score={deal.score} />
                           </div>
                         )}
+                        <p data-testid="deal-owner" className="mt-1.5 truncate text-xs text-ink-muted">
+                          {ownerLabel(deal.ownerId ?? null, people, t)}
+                        </p>
                         <div className="mt-1.5 flex items-center justify-between text-xs text-ink-muted">
                           <span className="truncate">
                             {companyName(deal.companyId) ?? ""}
@@ -547,15 +668,39 @@ export function DealsClient() {
           </div>
         </div>
       ) : (
+        <>
+        {canAssign && (
+          <BulkOwnerBar
+            count={selectedShown.length}
+            people={people}
+            onClear={() => setSelected(new Set())}
+            onApply={async (ownerId) => {
+              const ok = await reassignOwner("deals", selectedShown.map((deal) => deal.id), ownerId);
+              if (ok) void load();
+              return ok;
+            }}
+          />
+        )}
         <Card size="flush">
-          <Table className="min-w-[720px]">
+          <Table className="min-w-[820px]">
             <TableHeader>
               <TableRow>
+                {canAssign && (
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={allShownSelected}
+                      indeterminate={selectedShown.length > 0 && !allShownSelected}
+                      onCheckedChange={(on) => setSelected(on ? new Set(pipelineDeals.map((deal) => deal.id)) : new Set())}
+                      aria-label={t("owner.selectAll")}
+                    />
+                  </TableHead>
+                )}
                 <TableHead>{t("col.deal")}</TableHead>
                 <TableHead>{t("col.amount")}</TableHead>
                 <TableHead>{t("col.health")}</TableHead>
                 <TableHead>{t("col.stage")}</TableHead>
                 <TableHead>{t("col.company")}</TableHead>
+                <TableHead>{t("field.owner")}</TableHead>
                 <TableHead>{t("col.closeDate")}</TableHead>
                 <TableHead>{t("col.updated")}</TableHead>
               </TableRow>
@@ -572,6 +717,15 @@ export function DealsClient() {
                     onClick={() => router.push(`/deals/${deal.id}`)}
                     className="cursor-pointer transition hover:bg-surface-2"
                   >
+                    {canAssign && (
+                      <TableCell onClick={(event) => event.stopPropagation()}>
+                        <Checkbox
+                          checked={selected.has(deal.id)}
+                          onCheckedChange={(on) => toggle(deal.id, on)}
+                          aria-label={t("owner.selectRow", { name: displayName(deal.name) })}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell className="font-medium">
                       <Link
                         href={`/deals/${deal.id}`}
@@ -607,6 +761,9 @@ export function DealsClient() {
                       {companyName(deal.companyId) ?? "—"}
                     </TableCell>
                     <TableCell className="text-ink-muted">
+                      {ownerLabel(deal.ownerId ?? null, people, t)}
+                    </TableCell>
+                    <TableCell className="text-ink-muted">
                       {formatDate(deal.expectedCloseDate, locale)}
                     </TableCell>
                     <TableCell className="text-ink-muted">
@@ -618,6 +775,7 @@ export function DealsClient() {
             </TableBody>
           </Table>
         </Card>
+        </>
       )}
 
       <Modal

@@ -49,7 +49,12 @@ export const listCompaniesInput = z.object({
   sort: z.string().optional(),
 });
 
-/** Deal list controls. REST default/max (300/1000) live in the action, not here. */
+/**
+ * Deal list controls. REST default/max (300/1000) live in the action, not here.
+ * `ownerId` takes a member id or "none" (no owner). `closeQuarter` ("2026-Q4")
+ * matches the Expected close date by the same UTC quarters the forecast uses.
+ * `fieldKey` + `fieldValue` match one choice of a custom field.
+ */
 export const listDealsInput = z.object({
   q: z.string().optional(),
   limit: z.coerce.number().optional().catch(undefined),
@@ -57,6 +62,10 @@ export const listDealsInput = z.object({
   pipelineId: z.string().optional(),
   companyId: z.string().optional(),
   contactId: z.string().optional(),
+  ownerId: z.string().optional(),
+  closeQuarter: z.string().regex(/^\d{4}-Q[1-4]$/, 'expected a quarter like "2026-Q4"').optional(),
+  fieldKey: z.string().regex(/^[a-z][a-z0-9_]*$/).optional(),
+  fieldValue: z.string().optional(),
 });
 
 /**
@@ -65,6 +74,8 @@ export const listDealsInput = z.object({
  */
 export const listTasksInput = z.object({
   state: z.string().optional(),
+  /** A member id, or "none" for tasks nobody owns. */
+  ownerId: z.string().optional(),
   entityType: z.string().optional(),
   entityId: z.string().optional(),
   limit: z.coerce.number().optional().catch(undefined),

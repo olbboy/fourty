@@ -52,6 +52,13 @@ describe("zod → JSON Schema", () => {
     expect(out.properties.currency.enum).not.toContain("THB");
   });
 
+  it("tells an agent the shape a patterned string must have", () => {
+    const schema = toJsonSchema(z.object({ closeQuarter: z.string().regex(/^\d{4}-Q[1-4]$/) })) as {
+      properties: Record<string, unknown>;
+    };
+    expect(schema.properties.closeQuarter).toEqual({ type: "string", pattern: "^\\d{4}-Q[1-4]$" });
+  });
+
   it("marks an email string with its format", () => {
     const out = toJsonSchema(validators.contactInput) as { properties: Record<string, Record<string, unknown>> };
     expect(out.properties.email).toMatchObject({ format: "email" });

@@ -83,7 +83,7 @@ A background pass mines your own mailbox for job titles and company links. No AP
 <td>
 
 **🔌 APIs Everywhere**
-REST, typed GraphQL, a native MCP server (39 tools, stdio + HTTP), and signed webhooks — CRM records on every surface; admin (members, SSO, workflows) stays REST.
+REST, typed GraphQL, a native MCP server (41 tools, stdio + HTTP), and signed webhooks — CRM records on every surface; admin (members, SSO, workflows) stays REST.
 
 </td>
 <td>
@@ -120,7 +120,7 @@ Full tour: **[Key Features](./docs/getting-started/key-features.md)** · **[User
 | Lead scoring | ✅ Automatic, zero-config | ❌ | Einstein ($$) |
 | Workflow automation | ✅ Visual builder, durable queue | Limited | Flow ($$) |
 | REST **and** GraphQL | ✅ Both | GraphQL-first | ✅ |
-| MCP server (AI agents) | ✅ Self-host, 39 tools | ✅ (Cloud/OAuth) | ❌ |
+| MCP server (AI agents) | ✅ Self-host, 41 tools | ✅ (Cloud/OAuth) | ❌ |
 | Self-host complexity | Minimal (1 process + PG) | High (5+ services) | N/A |
 | License | **BSL 1.1** (free for internal use) | AGPL | Proprietary |
 

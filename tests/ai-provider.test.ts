@@ -251,6 +251,7 @@ describe("toProviderTools bridge + mutates flag", () => {
       "create_company", "update_company", "delete_company",
       "create_deal", "update_deal", "delete_deal",
       "create_task", "update_task", "delete_task", "create_note", "log_activity",
+      "reassign_deals", "reassign_tasks",
       "create_record", "update_record", "delete_record",
       // The evidence ledger writes too: recording an observation adds a row, and
       // deciding one can write the record's field. Both are proposed to the user

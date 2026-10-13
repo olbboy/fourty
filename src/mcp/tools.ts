@@ -5,10 +5,10 @@ import { toMcpTool } from "@/lib/actions/adapters/mcp";
 import { searchCrm } from "@/lib/services/search";
 import { contactsCreate, contactsDelete, contactsGet, contactsList, contactsUpdate } from "@/lib/actions/contacts";
 import { companiesCreate, companiesDelete, companiesGet, companiesList, companiesUpdate } from "@/lib/actions/companies";
-import { dealsCreate, dealsDelete, dealsGet, dealsList, dealsUpdate } from "@/lib/actions/deals";
+import { dealsCreate, dealsDelete, dealsGet, dealsList, dealsReassign, dealsUpdate } from "@/lib/actions/deals";
 import { dealStageClock } from "@/lib/actions/deals/shared";
 import { pinnedWorkIds } from "@/lib/pinned-tasks";
-import { tasksCreate, tasksDelete, tasksGet, tasksList, tasksUpdate } from "@/lib/actions/tasks";
+import { tasksCreate, tasksDelete, tasksGet, tasksList, tasksReassign, tasksUpdate } from "@/lib/actions/tasks";
 import { listAssignees } from "@/lib/actions/assignees";
 import { notesCreate, notesList } from "@/lib/actions/notes";
 import { activitiesCreate, activitiesList } from "@/lib/actions/activities";
@@ -458,6 +458,8 @@ export const TOOLS: Tool[] = [
   }),
   toMcpTool(tasksCreate, { name: "create_task" }),
   toMcpTool(tasksUpdate, { name: "update_task" }),
+  toMcpTool(dealsReassign, { name: "reassign_deals" }),
+  toMcpTool(tasksReassign, { name: "reassign_tasks" }),
   toMcpTool(tasksDelete, {
     name: "delete_task",
     description: "Delete a task by id. SAFE BY DEFAULT: without confirm=true this only previews what would be deleted.",

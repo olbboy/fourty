@@ -11,7 +11,8 @@ export const tasksList = defineAction({
   name: "tasks.list",
   object: "tasks",
   verb: "read",
-  description: "List tasks. Optional entity filter (entityType + entityId) and state (open/done/all).",
+  description:
+    'List tasks. Optional entity filter (entityType + entityId), state (open/done/all) and ownerId (a member id, or "none" for unowned).',
   input: listTasksInput,
   expose: { rest: true, graphql: true, mcp: true, ai: true },
   run: async (input): Promise<Task[]> => {
@@ -20,6 +21,8 @@ export const tasksList = defineAction({
     else if (input.state !== "all") where.push(isNull(tables.tasks.completedAt));
     if (input.entityType) where.push(eq(tables.tasks.entityType, input.entityType));
     if (input.entityId) where.push(eq(tables.tasks.entityId, input.entityId));
+    if (input.ownerId === "none") where.push(isNull(tables.tasks.ownerId));
+    else if (input.ownerId) where.push(eq(tables.tasks.ownerId, input.ownerId));
 
     const rows = await db
       .select()

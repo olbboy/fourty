@@ -17,9 +17,9 @@ import { can } from "@/lib/permissions";
 import { toResolver } from "@/lib/actions/adapters/graphql";
 import { contactsCreate, contactsDelete, contactsGet, contactsList, contactsUpdate } from "@/lib/actions/contacts";
 import { companiesCreate, companiesDelete, companiesGet, companiesList, companiesUpdate } from "@/lib/actions/companies";
-import { dealsCreate, dealsDelete, dealsGet, dealsList, dealsUpdate } from "@/lib/actions/deals";
+import { dealsCreate, dealsDelete, dealsGet, dealsList, dealsReassign, dealsUpdate } from "@/lib/actions/deals";
 import { dealStageClock } from "@/lib/actions/deals/shared";
-import { tasksCreate, tasksDelete, tasksGet, tasksList, tasksUpdate } from "@/lib/actions/tasks";
+import { tasksCreate, tasksDelete, tasksGet, tasksList, tasksReassign, tasksUpdate } from "@/lib/actions/tasks";
 import { getAssignee, listAssignees } from "@/lib/actions/assignees";
 import { notesCreate, notesList } from "@/lib/actions/notes";
 import { activitiesCreate, activitiesList } from "@/lib/actions/activities";
@@ -737,6 +737,10 @@ const queryFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
       pipelineId: { type: GraphQLString },
       companyId: { type: GraphQLString },
       contactId: { type: GraphQLString },
+      ownerId: { type: GraphQLString, description: 'A member id, or "none" for unowned deals.' },
+      closeQuarter: { type: GraphQLString, description: 'Expected close date quarter, e.g. "2026-Q4".' },
+      fieldKey: { type: GraphQLString, description: "Custom field key; pair with fieldValue." },
+      fieldValue: { type: GraphQLString },
     },
     resolve: toResolver(dealsList),
   },
@@ -753,6 +757,7 @@ const queryFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
       entityType: { type: GraphQLString },
       entityId: { type: GraphQLString },
       sort: { type: GraphQLString },
+      ownerId: { type: GraphQLString, description: 'A member id, or "none" for unowned tasks.' },
     },
     resolve: toResolver(tasksList, { defaults: { state: "all", sort: "createdAt", limit: 200 } }),
   },
@@ -949,10 +954,22 @@ const mutationFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
     args: { id: { type: new GraphQLNonNull(GraphQLID) } },
     resolve: toResolver(dealsDelete, { onNotFound: () => false, map: () => true }),
   },
+  reassignDeals: {
+    type: new GraphQLNonNull(GraphQLInt),
+    description: "Give many deals one owner (null = unassigned); all or nothing. Returns how many moved.",
+    args: { ids: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLID))) }, ownerId: { type: GraphQLID } },
+    resolve: toResolver(dealsReassign, { map: (out) => (out as { updated: number }).updated }),
+  },
   createTask: {
     type: new GraphQLNonNull(Task),
     args: { input: { type: new GraphQLNonNull(JSONScalar) } },
     resolve: toResolver(tasksCreate),
+  },
+  reassignTasks: {
+    type: new GraphQLNonNull(GraphQLInt),
+    description: "Give many tasks one owner (null = unassigned); all or nothing. Returns how many moved.",
+    args: { ids: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLID))) }, ownerId: { type: GraphQLID } },
+    resolve: toResolver(tasksReassign, { map: (out) => (out as { updated: number }).updated }),
   },
   updateTask: {
     type: new GraphQLNonNull(Task),

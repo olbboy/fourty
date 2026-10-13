@@ -21,6 +21,8 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { useLocale, useT } from "@/lib/i18n/provider";
+import { BulkOwnerBar, OwnerFilter, reassignOwner, useOwnerPeople } from "@/components/owner-controls";
+import { ownerLabel } from "@/lib/owner-display";
 
 const ENTITY_PATH: Record<string, string> = {
   contact: "/contacts/",
@@ -63,6 +65,9 @@ export function TasksClient() {
   );
   const [failed, setFailed] = useState(false);
   const [state, setState] = useState<"open" | "done" | "all">("open");
+  // "" = any; "none" = unowned; otherwise a member id.
+  const [ownerFilter, setOwnerFilter] = useState("");
+  const people = useOwnerPeople();
   const [activeView, setActiveView] = useState<string | null>(null);
   const [editor, setEditor] = useState<Task | "new" | null>(null);
   const [busy, setBusy] = useState(false);
@@ -79,6 +84,8 @@ export function TasksClient() {
     const next = view?.config?.filters?.state;
     if (next === "open" || next === "done" || next === "all") setState(next);
     else if (!view) setState("open");
+    const owner = view?.config?.filters?.ownerId;
+    setOwnerFilter(typeof owner === "string" ? owner : "");
   }, []);
 
   const load = useCallback(async (): Promise<void> => {
@@ -92,7 +99,7 @@ export function TasksClient() {
 
     try {
       const response = await fetch(
-        `/api/tasks?state=${encodeURIComponent(state)}`,
+        `/api/tasks?state=${encodeURIComponent(state)}${ownerFilter ? `&ownerId=${encodeURIComponent(ownerFilter)}` : ""}`,
         {
           signal: controller.signal,
         },
@@ -114,7 +121,7 @@ export function TasksClient() {
       if (requestRef.current?.generation === generation)
         requestRef.current = null;
     }
-  }, [state]);
+  }, [state, ownerFilter]);
 
   useEffect(() => {
     void load();
@@ -233,8 +240,6 @@ export function TasksClient() {
 
   const overdue = (task: Task): boolean =>
     !task.completedAt && task.dueDate != null && task.dueDate < Date.now();
-  const ownerName = (id: string | null): string | undefined =>
-    assignees.find((assignee) => assignee.id === id)?.name;
 
   return (
     <div className="animate-fade-up">
@@ -258,11 +263,11 @@ export function TasksClient() {
       <SavedViewsBar
         entity="tasks"
         activeId={activeView}
-        current={{ filters: { state } }}
+        current={{ filters: { state, ...(ownerFilter ? { ownerId: ownerFilter } : {}) } }}
         onApply={applyView}
       />
 
-      <div className="mb-4 flex gap-1.5">
+      <div className="mb-4 flex flex-wrap items-center gap-1.5">
         {(["open", "done", "all"] as const).map((filter) => (
           <Button
             key={filter}
@@ -290,7 +295,30 @@ export function TasksClient() {
                 : t("common.all")}
           </Button>
         ))}
+        <OwnerFilter
+          value={ownerFilter}
+          people={people}
+          onChange={(value) => {
+            setOwnerFilter(value);
+            setActiveView(null);
+          }}
+        />
       </div>
+
+      {/* Handing over: narrow to one owner, then give every task shown to
+          someone else in one go. */}
+      {ownerFilter && tasks && tasks.length > 0 && (
+        <BulkOwnerBar
+          count={tasks.length}
+          label={t("owner.bulkShown", { count: tasks.length })}
+          people={people}
+          onApply={async (ownerId) => {
+            const ok = await reassignOwner("tasks", tasks.map((task) => task.id), ownerId);
+            if (ok) void load();
+            return ok;
+          }}
+        />
+      )}
 
       {failed ? (
         <LoadError
@@ -342,9 +370,7 @@ export function TasksClient() {
                       {formatDate(task.dueDate, locale)}
                     </span>
                   )}
-                  <span>
-                    {ownerName(task.ownerId) ?? t("common.unassigned")}
-                  </span>
+                  <span>{ownerLabel(task.ownerId, people, t)}</span>
                   {task.entityType && task.entityId && (
                     <Link
                       href={`${ENTITY_PATH[task.entityType] ?? `/objects/${task.entityType}/`}${task.entityId}`}

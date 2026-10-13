@@ -10,10 +10,8 @@ export type Assignee = { id: string; name: string };
  * row-level security (sign-in reads every membership a user has), so this
  * scopes it to the same GUC the RLS policies use: unset means no rows.
  */
-const activeInWorkspace = and(
-  eq(tables.workspaceMembers.workspaceId, sql`current_setting('app.workspace_id', true)`),
-  isNull(tables.workspaceMembers.deactivatedAt),
-);
+const inWorkspace = eq(tables.workspaceMembers.workspaceId, sql`current_setting('app.workspace_id', true)`);
+const activeInWorkspace = and(inWorkspace, isNull(tables.workspaceMembers.deactivatedAt));
 
 /** Active workspace members a record may be assigned to. */
 export async function listAssignees(): Promise<Assignee[]> {
@@ -23,6 +21,20 @@ export async function listAssignees(): Promise<Assignee[]> {
     .innerJoin(tables.users, eq(tables.users.id, tables.workspaceMembers.userId))
     .where(activeInWorkspace)
     .orderBy(asc(tables.users.name));
+}
+
+/**
+ * Everyone who has been a member of this workspace, with whether they still
+ * are: lists name the owner of older work by it, even after that person left.
+ */
+export async function listMembersForDisplay(): Promise<(Assignee & { active: boolean })[]> {
+  const rows = await db
+    .select({ id: tables.workspaceMembers.userId, name: tables.users.name, deactivatedAt: tables.workspaceMembers.deactivatedAt })
+    .from(tables.workspaceMembers)
+    .innerJoin(tables.users, eq(tables.users.id, tables.workspaceMembers.userId))
+    .where(inWorkspace)
+    .orderBy(asc(tables.users.name));
+  return rows.map(({ deactivatedAt, ...person }) => ({ ...person, active: deactivatedAt === null }));
 }
 
 export async function getAssignee(id: string): Promise<Assignee | undefined> {

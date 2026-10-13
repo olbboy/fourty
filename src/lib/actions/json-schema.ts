@@ -69,6 +69,8 @@ function describe(node: z.ZodTypeAny, nullable: boolean): Record<string, unknown
       // An agent reading `format: "uri"` sends a URL; zod is still what refuses
       // one that is not.
       else if (check.kind === "url") out.format = "uri";
+      // JSON Schema patterns are ECMA-262 regexes, the same dialect zod checks.
+      else if (check.kind === "regex") out.pattern = check.regex.source;
       else throw new Error(`toJsonSchema: unsupported string check "${check.kind}"`);
     }
     return out;
