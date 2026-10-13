@@ -314,6 +314,23 @@ export const notes = pgTable(
   (t) => [index("notes_ws_entity_idx").on(t.workspaceId, t.entityType, t.entityId)],
 );
 
+// The Trash (0023): a deleted contact, company, deal or task with its notes,
+// timeline and detached links, kept 30 days for restore. See src/lib/trash.ts.
+export const trash = pgTable(
+  "trash",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    entityType: text("entity_type").notNull(), // contact | company | deal | task
+    entityId: text("entity_id").notNull(),
+    label: text("label").notNull(),
+    payload: text("payload").notNull(), // JSON: record, notes, activities, detached links
+    deletedBy: text("deleted_by"),
+    deletedAt: millis("deleted_at").notNull(),
+  },
+  (t) => [index("trash_ws_deleted_idx").on(t.workspaceId, t.deletedAt)],
+);
+
 export const activities = pgTable(
   "activities",
   {

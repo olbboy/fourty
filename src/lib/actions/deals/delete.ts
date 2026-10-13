@@ -4,6 +4,7 @@ import { defineAction } from "../define";
 import { deleteInput } from "../schemas";
 import { ActionError } from "../types";
 import { auditMeta } from "./shared";
+import { trashRecord } from "@/lib/trash";
 
 /**
  * Either the dry run or the deletion. The MCP tool returns this as-is — the
@@ -22,7 +23,7 @@ export const dealsDelete = defineAction({
   description: "Delete a deal by id. Call with confirm=true to actually delete.",
   input: deleteInput,
   expose: { rest: true, graphql: true, mcp: true, ai: true },
-  run: async ({ id, confirm }): Promise<DeleteResult> => {
+  run: async ({ id, confirm }, ctx): Promise<DeleteResult> => {
     const existing = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0];
     if (!existing) throw new ActionError("not_found", "Deal not found");
 
@@ -30,12 +31,10 @@ export const dealsDelete = defineAction({
       return {
         dryRun: true,
         wouldDelete: { type: "deal", id, name: existing.name, amount: existing.amount },
-        hint: "Re-call with confirm=true to actually delete (also removes its notes + activities).",
+        hint: "Re-call with confirm=true to delete. It moves to the Trash with its notes and timeline for 30 days, where it can be restored.",
       };
     }
-    await db.delete(tables.deals).where(eq(tables.deals.id, id));
-    await db.delete(tables.notes).where(eq(tables.notes.entityId, id));
-    await db.delete(tables.activities).where(eq(tables.activities.entityId, id));
+    await trashRecord("deal", id, ctx.userId);
     return { deleted: true, type: "deal", id };
   },
   effects: {

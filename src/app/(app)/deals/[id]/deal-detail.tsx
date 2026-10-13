@@ -138,7 +138,7 @@ export function DealDetail({ id }: { id: string }) {
   async function remove() {
     const ok = await askConfirm({
       title: t("record.deleteAria", { name: label }),
-      body: t("common.confirmDelete"),
+      body: t("common.confirmTrash"),
     });
     if (!ok) return;
     await fetch(`/api/deals/${id}`, { method: "DELETE" });

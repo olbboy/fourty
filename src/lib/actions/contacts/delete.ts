@@ -4,6 +4,7 @@ import { defineAction } from "../define";
 import { deleteInput } from "../schemas";
 import { ActionError } from "../types";
 import { auditMeta } from "./shared";
+import { trashRecord } from "@/lib/trash";
 
 /**
  * Either the dry run or the deletion. The MCP tool returns this as-is — the
@@ -22,7 +23,7 @@ export const contactsDelete = defineAction({
   description: "Delete a contact by id. Call with confirm=true to actually delete.",
   input: deleteInput,
   expose: { rest: true, graphql: true, mcp: true, ai: true },
-  run: async ({ id, confirm }): Promise<DeleteResult> => {
+  run: async ({ id, confirm }, ctx): Promise<DeleteResult> => {
     const existing = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0];
     if (!existing) throw new ActionError("not_found", "Contact not found");
 
@@ -30,14 +31,10 @@ export const contactsDelete = defineAction({
       return {
         dryRun: true,
         wouldDelete: { type: "contact", id, name: `${existing.firstName} ${existing.lastName}`.trim() },
-        hint: "Re-call with confirm=true to actually delete (also removes its notes + activities).",
+        hint: "Re-call with confirm=true to delete. It moves to the Trash with its notes and timeline for 30 days, where it can be restored.",
       };
     }
-    // notes and activities point at the contact through a polymorphic key, so
-    // the database cannot cascade this for us.
-    await db.delete(tables.contacts).where(eq(tables.contacts.id, id));
-    await db.delete(tables.notes).where(eq(tables.notes.entityId, id));
-    await db.delete(tables.activities).where(eq(tables.activities.entityId, id));
+    await trashRecord("contact", id, ctx.userId);
     return { deleted: true, type: "contact", id };
   },
   effects: {

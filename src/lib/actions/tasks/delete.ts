@@ -4,6 +4,7 @@ import { defineAction } from "../define";
 import { deleteInput } from "../schemas";
 import { ActionError } from "../types";
 import { auditMeta } from "./shared";
+import { trashRecord } from "@/lib/trash";
 
 type DeleteResult =
   | { dryRun: true; wouldDelete: { type: "task"; id: string; title: string }; hint: string }
@@ -16,7 +17,7 @@ export const tasksDelete = defineAction({
   description: "Delete a task by id. Call with confirm=true to actually delete.",
   input: deleteInput,
   expose: { rest: true, graphql: true, mcp: true, ai: true },
-  run: async ({ id, confirm }): Promise<DeleteResult> => {
+  run: async ({ id, confirm }, ctx): Promise<DeleteResult> => {
     const existing = (await db.select().from(tables.tasks).where(eq(tables.tasks.id, id)).limit(1))[0];
     if (!existing) throw new ActionError("not_found", "Task not found");
 
@@ -24,10 +25,10 @@ export const tasksDelete = defineAction({
       return {
         dryRun: true,
         wouldDelete: { type: "task", id, title: existing.title },
-        hint: "Re-call with confirm=true to actually delete.",
+        hint: "Re-call with confirm=true to delete. It moves to the Trash for 30 days, where it can be restored.",
       };
     }
-    await db.delete(tables.tasks).where(eq(tables.tasks.id, id));
+    await trashRecord("task", id, ctx.userId);
     return { deleted: true, type: "task", id };
   },
   effects: {

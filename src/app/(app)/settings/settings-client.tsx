@@ -16,6 +16,7 @@ import { PipelinesSection } from "./sections/pipelines";
 import { ReportingSection } from "./sections/reporting";
 import { LostReasonSection } from "./sections/lost-reason";
 import { RemindersSection } from "./sections/reminders";
+import { TrashSection } from "./sections/trash";
 import { ApiKeysSection } from "./sections/api-keys";
 import { WebhooksSection } from "./sections/webhooks";
 import { DiagnosticsSection } from "./sections/diagnostics";
@@ -42,6 +43,7 @@ export function SettingsClient({
       {isAdmin && <LostReasonSection />}
       {isAdmin && <ReportingSection />}
       {isAdmin && <RemindersSection />}
+      <TrashSection isAdmin={isAdmin} />
       <LanguageSection />
       <SecuritySection />
       <FieldPermissionsSection />
