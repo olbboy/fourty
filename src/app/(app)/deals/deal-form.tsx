@@ -40,6 +40,10 @@ export function DealForm({
     deal?.custom ?? {},
   );
   const submittingRef = useRef(false);
+  const [assignees, setAssignees] = useState<{ id: string; name: string }[]>([]);
+  // "" means "keep the default": the creator on a new deal, unassigned on an
+  // existing one. ownerId is only sent when the choice moves off this value.
+  const initialOwnerId = deal?.ownerId ?? "";
   const defaultPipeline = pipelines.find((p) => p.isDefault === 1);
   const initialPipelineId =
     deal?.pipelineId ??
@@ -76,6 +80,23 @@ export function DealForm({
     }
   }, [deal, defaultPipelineId, pipelineId, pipelines, stageId]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/tasks/assignees", { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Assignees request failed");
+        return (await response.json()) as unknown;
+      })
+      .then((payload) => {
+        if (typeof payload !== "object" || payload === null || !("assignees" in payload)) return;
+        if (Array.isArray(payload.assignees)) setAssignees(payload.assignees as { id: string; name: string }[]);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setAssignees([]);
+      });
+    return () => controller.abort();
+  }, []);
+
   function handlePipelineChange(nextPipelineId: string): void {
     const nextPipeline = pipelines.find((p) => p.id === nextPipelineId);
     setPipelineId(nextPipelineId);
@@ -111,6 +132,10 @@ export function DealForm({
         );
       }
       if (!access.hidden.has("custom")) body.custom = custom;
+      if (!access.hidden.has("ownerId")) {
+        const owner = f.get("ownerId");
+        if (typeof owner === "string" && owner !== initialOwnerId) body.ownerId = owner || null;
+      }
 
       if (!deal) {
         const selectedStage = stages.find((stage) => stage.id === stageId);
@@ -262,6 +287,28 @@ export function DealForm({
             {contacts.map((contact) => (
               <option key={contact.id} value={contact.id}>
                 {contact.firstName} {contact.lastName}
+              </option>
+            ))}
+          </NativeSelect>
+        </Field>
+      )}
+      {!access.hidden.has("ownerId") && (
+        <Field label={t("field.owner")}>
+          <NativeSelect
+            name="ownerId"
+            // Remount once members load so the saved owner can be selected.
+            key={assignees.length}
+            defaultValue={initialOwnerId}
+            className="w-full"
+            disabled={access.blockedWrites.has("ownerId")}
+          >
+            <option value="">{deal ? t("common.unassigned") : t("field.ownerMe")}</option>
+            {initialOwnerId && assignees.length > 0 && !assignees.some((a) => a.id === initialOwnerId) && (
+              <option value={initialOwnerId}>{t("field.ownerInactive")}</option>
+            )}
+            {assignees.map((assignee) => (
+              <option key={assignee.id} value={assignee.id}>
+                {assignee.name}
               </option>
             ))}
           </NativeSelect>

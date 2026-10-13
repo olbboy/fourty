@@ -1,5 +1,5 @@
 import { withAuth, authorize, json } from "@/lib/api";
-import { listAssignees } from "@/lib/actions/tasks/shared";
+import { listAssignees } from "@/lib/actions/assignees";
 
 /** Active workspace members a task can be assigned to. Readable by any role that can read tasks. */
 export async function GET(req: Request) {

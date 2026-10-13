@@ -42,8 +42,14 @@ describe("zod → JSON Schema", () => {
   });
 
   it("expresses .length() as an exact bound", () => {
+    const out = toJsonSchema(z.object({ code: z.string().length(3) })) as { properties: Record<string, Record<string, unknown>> };
+    expect(out.properties.code).toMatchObject({ type: "string", minLength: 3, maxLength: 3 });
+  });
+
+  it("lists the currencies a deal accepts", () => {
     const out = toJsonSchema(validators.dealInput) as { properties: Record<string, Record<string, unknown>> };
-    expect(out.properties.currency).toMatchObject({ type: "string", minLength: 3, maxLength: 3 });
+    expect(out.properties.currency.enum).toContain("VND");
+    expect(out.properties.currency.enum).not.toContain("THB");
   });
 
   it("marks an email string with its format", () => {

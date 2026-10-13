@@ -84,6 +84,8 @@ type Deal {
   stageId: String
   companyId: String
   contactId: String
+  ownerId: String
+  owner: Assignee
   expectedCloseDate: Float
   closedAt: Float
   score: Int
@@ -94,6 +96,11 @@ type Deal {
   tasks: [Task!]!
   notes: [Note!]!
   activities: [Activity!]!
+}
+
+type Assignee {
+  id: ID!
+  name: String!
 }
 
 type DealStage {
@@ -121,11 +128,6 @@ type Task {
   company: Company
   deal: Deal
   record: Record
-}
-
-type Assignee {
-  id: ID!
-  name: String!
 }
 
 type Record {

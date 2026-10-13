@@ -2,7 +2,7 @@ import { db, tables } from "@/db";
 import { newId } from "./id";
 
 export type ActivityInput = {
-  type: string; // created | updated | stage_changed | note_added | task_completed | email | call | meeting | workflow
+  type: string; // created | updated | stage_changed | owner_changed | note_added | task_completed | email | call | meeting | workflow
   entityType: string; // contact | company | deal | custom-object apiName
   entityId: string;
   actorId?: string | null;

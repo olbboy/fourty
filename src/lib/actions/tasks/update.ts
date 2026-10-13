@@ -4,7 +4,8 @@ import { db, tables } from "@/db";
 import { taskPatch } from "@/lib/validators";
 import { defineAction } from "../define";
 import { ActionError, type PayloadEnvelope } from "../types";
-import { auditMeta, resolveTaskOwner, type Task } from "./shared";
+import { resolveOwner } from "../assignees";
+import { auditMeta, type Task } from "./shared";
 
 type UpdateResult = PayloadEnvelope<Task> & { justCompleted: boolean };
 
@@ -26,7 +27,7 @@ export const tasksUpdate = defineAction({
       .update(tables.tasks)
       .set({
         ...fields,
-        ...(requested !== undefined ? { ownerId: await resolveTaskOwner(requested, ctx) } : {}),
+        ...(requested !== undefined ? { ownerId: await resolveOwner(requested, ctx) } : {}),
         ...(completed !== undefined ? { completedAt: completed ? Date.now() : null } : {}),
       })
       .where(eq(tables.tasks.id, id));

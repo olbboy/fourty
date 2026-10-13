@@ -3,7 +3,8 @@ import { db, tables } from "@/db";
 import { newId } from "@/lib/id";
 import { taskInput } from "@/lib/validators";
 import { defineAction } from "../define";
-import { auditMeta, resolveTaskOwner, type Task } from "./shared";
+import { resolveOwner } from "../assignees";
+import { auditMeta, type Task } from "./shared";
 
 export const tasksCreate = defineAction({
   name: "tasks.create",
@@ -19,7 +20,7 @@ export const tasksCreate = defineAction({
     await db.insert(tables.tasks).values({
       id,
       ...fields,
-      ownerId: await resolveTaskOwner(requested, ctx),
+      ownerId: await resolveOwner(requested, ctx),
       createdAt: Date.now(),
     });
     return (await db.select().from(tables.tasks).where(eq(tables.tasks.id, id)).limit(1))[0]!;
