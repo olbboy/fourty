@@ -1,7 +1,7 @@
 ---
 title: "Trang Thành viên và các tính năng CRM cơ bản còn thiếu"
 date: 2026-10-13
-status: "Chờ Leo chốt các câu Q73–Q79 ở cuối file; chưa bắt đầu phase nào"
+status: "Đã chốt Q73–Q80 (13/10/2026); đang làm Phase 3"
 nguon:
   - "plans/reports/research-261013-1649-user-administration.md (quyết định Q63–Q65)"
   - "plans/reports/research-261013-1649-crm-baseline-feature-gaps.md (quyết định Q66–Q68)"
@@ -81,6 +81,15 @@ Lý do đi đầu: hôm nay có hai lời mời đang chờ mà không ai nhìn 
 - Nhóm 5 và 6 của Q65: lần đăng nhập cuối, xem và huỷ phiên; gắn API key và hộp thư với người tạo.
 - Tệp đính kèm (thay bằng ô link, Q71), xoá có thùng rác, nhiều liên hệ trên một deal, dòng sản phẩm, gửi email từ CRM, báo giá, mục tiêu theo người.
 
-## Chỗ trống cần điền
+## Quyết định (13/10/2026, Leo)
 
-Xem tin nhắn kèm theo; câu trả lời sẽ được ghi lại ở đây.
+| Câu | Chọn | Nghĩa |
+|---|---|---|
+| Q73 | A | Mời lại một email đang có lời mời chờ thì link cũ tự bị thu hồi; "Gửi lại" đi đúng đường này |
+| Q74 | A | Mời một email đã là thành viên đang hoạt động thì bị từ chối ngay lúc mời |
+| Q75 | A | Admin chọn một custom field chọn một làm trường lý do thua (PilotCo: "Lý do không tiếp tục"); vào stage mất mà thiếu lý do thì bị từ chối; giao diện hỏi lý do khi kéo |
+| Q76 | A | Người viết và admin được sửa, xoá ghi chú |
+| Q77 | A | Sửa email, tạo link đặt lại mật khẩu, tắt 2FA của người khác: chỉ admin của workspace tạo đầu tiên, như SSO |
+| Q78 | A | Admin bật email nhắc trong Settings; gửi 8 giờ sáng theo múi giờ workspace (cài đặt mới, mặc định Asia/Ho_Chi_Minh) |
+| Q79 | A | Leo tự tạo ô link "Thư mục tài liệu" trong Settings |
+| Q80 | A | Seam Phase 3: `POST /api/members/invite`, route danh sách và thu hồi lời mời, `POST /api/members/accept`, e2e `invite-accept` |
