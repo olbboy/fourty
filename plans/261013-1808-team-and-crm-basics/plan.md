@@ -1,7 +1,7 @@
 ---
 title: "Trang Thành viên và các tính năng CRM cơ bản còn thiếu"
 date: 2026-10-13
-status: "Đã chốt Q73–Q80 (13/10/2026); đang làm Phase 3"
+status: "Đã chốt Q73–Q81 (13/10/2026); Phase 3 xong trên máy (nhánh feat/invites-pending-list), chờ #29 merge để mở PR"
 nguon:
   - "plans/reports/research-261013-1649-user-administration.md (quyết định Q63–Q65)"
   - "plans/reports/research-261013-1649-crm-baseline-feature-gaps.md (quyết định Q66–Q68)"
@@ -93,3 +93,4 @@ Lý do đi đầu: hôm nay có hai lời mời đang chờ mà không ai nhìn 
 | Q78 | A | Admin bật email nhắc trong Settings; gửi 8 giờ sáng theo múi giờ workspace (cài đặt mới, mặc định Asia/Ho_Chi_Minh) |
 | Q79 | A | Leo tự tạo ô link "Thư mục tài liệu" trong Settings |
 | Q80 | A | Seam Phase 3: `POST /api/members/invite`, route danh sách và thu hồi lời mời, `POST /api/members/accept`, e2e `invite-accept` |
+| Q81 | A | Lời mời hết hạn mà chưa ai dùng vẫn nằm trong danh sách, ghi "đã hết hạn", có Gửi lại và Thu hồi; chỉ rời danh sách khi được dùng, bị thu hồi hoặc bị thay |
