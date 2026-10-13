@@ -118,10 +118,10 @@ export const PASSWORD_MAX = 200;
 /**
  * Set a user's password out of band, for `npm run reset-password`.
  *
- * Fourty has no forgot-password flow — there is nowhere to send a reset link on
- * a fresh self-hosted install, and the first account is created before any mail
- * is configured. Without this, one lost admin password locks an instance out
- * for good.
+ * The way in when no other works: the emailed forgot-password link needs mail
+ * and the admin-made link needs a signed-in admin, while the first account on a
+ * fresh install exists before any mail is configured. Without this, one lost
+ * admin password locks an instance out for good.
  *
  * Existing sessions are dropped with the old password: a reset is usually a
  * response to a password that may be known to someone else, and leaving live

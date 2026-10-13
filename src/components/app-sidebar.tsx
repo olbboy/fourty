@@ -16,10 +16,12 @@ import {
   Settings,
   Sun,
   Target,
+  UserRound,
   Users,
   Zap,
   type LucideIcon,
 } from "lucide-react";
+import { AccountDialog } from "@/components/account-dialog";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -209,6 +211,7 @@ function NavUser({
   const t = translator(locale);
   const { isMobile } = useSidebar();
   const { dark, toggle } = useTheme();
+  const [accountOpen, setAccountOpen] = useState(false);
 
   return (
     <SidebarMenu>
@@ -257,6 +260,10 @@ function NavUser({
               </DropdownMenuLabel>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setAccountOpen(true)}>
+              <UserRound />
+              {t("account.title")}
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={toggle}>
               {dark ? <Sun /> : <Moon />}
               {t("shell.toggleTheme")}
@@ -268,6 +275,11 @@ function NavUser({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        {/* Mounted per opening: fresh fields each time, and a rename that
+            refreshes the page keeps its confirmation on screen. */}
+        {accountOpen && (
+          <AccountDialog open onClose={() => setAccountOpen(false)} name={user.name} locale={locale} />
+        )}
       </SidebarMenuItem>
     </SidebarMenu>
   );

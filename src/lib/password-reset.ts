@@ -24,6 +24,35 @@ import { log } from "@/lib/logger";
  */
 
 export const RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
+/**
+ * A link an admin makes and hands over by hand (chat, phone) when mail cannot
+ * carry it: it has to survive until the person reads the message.
+ */
+export const ADMIN_RESET_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+/**
+ * Store a fresh reset token for a user and return the raw value, which exists
+ * nowhere else. One live link at a time: the user's unused tokens go first.
+ */
+export async function issueResetToken(userId: string, ttlMs: number): Promise<{ token: string; expiresAt: number }> {
+  const token = newToken(24);
+  const now = Date.now();
+  await db.transaction(async (tx) => {
+    // A stack of outstanding tokens is a wider target for a compromised
+    // mailbox and confuses the "which email do I click" case.
+    await tx
+      .delete(tables.passwordResets)
+      .where(and(eq(tables.passwordResets.userId, userId), isNull(tables.passwordResets.usedAt)));
+    await tx.insert(tables.passwordResets).values({
+      id: newId(),
+      userId,
+      tokenHash: sha256(token),
+      expiresAt: now + ttlMs,
+      createdAt: now,
+    });
+  });
+  return { token, expiresAt: now + ttlMs };
+}
 
 // Queue jobs carry a workspace id for RLS-scoped idempotency receipts, but a
 // password reset happens before sign-in — there is no workspace. This sentinel
@@ -55,27 +84,11 @@ export async function requestPasswordReset(email: string, origin: string): Promi
     return;
   }
 
-  const token = newToken(24);
-  const now = Date.now();
-  await db.transaction(async (tx) => {
-    // One live link at a time: a stack of outstanding tokens is a wider target
-    // for a compromised mailbox and confuses the "which email do I click" case.
-    await tx
-      .delete(tables.passwordResets)
-      .where(and(eq(tables.passwordResets.userId, user.id), isNull(tables.passwordResets.usedAt)));
-    await tx.insert(tables.passwordResets).values({
-      id: newId(),
-      userId: user.id,
-      tokenHash: sha256(token),
-      expiresAt: now + RESET_TTL_MS,
-      createdAt: now,
-    });
-  });
-
+  const { token, expiresAt } = await issueResetToken(user.id, RESET_TTL_MS);
   const message = passwordResetEmail({
     name: user.name,
-    resetUrl: `${origin}/reset?token=${encodeURIComponent(token)}`,
-    expiresAt: now + RESET_TTL_MS,
+    resetUrl: resetUrl(origin, token),
+    expiresAt,
   });
   // Wrapped in withWorkspace even though no tenant data is touched: in inline
   // queue mode the job runs right here, and its idempotency receipt lands in
@@ -85,6 +98,9 @@ export async function requestPasswordReset(email: string, origin: string): Promi
     enqueue("mail.send", { to: normalized, ...message }, { workspaceId: IDENTITY_SCOPE }),
   );
 }
+
+/** The page a reset token is redeemed on. */
+export const resetUrl = (origin: string, token: string) => `${origin}/reset?token=${encodeURIComponent(token)}`;
 
 /**
  * Redeem a token: set the new password, burn the token, kill the sessions.

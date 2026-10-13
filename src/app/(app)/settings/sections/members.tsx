@@ -12,12 +12,20 @@ import { Card } from "@/components/ui/card";
 import { useLocale, useT } from "@/lib/i18n/provider";
 import type { MessageKey } from "@/lib/i18n";
 import { roleLabel } from "@/lib/role-display";
+import { Modal } from "@/components/ui";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 /** Map known members-API English errors to catalog keys; else a generic fallback. */
 function memberError(t: (key: MessageKey) => string, error: unknown, fallback: MessageKey): string {
   if (error === "Cannot demote the last admin") return t("settings.inviteLastAdminDemote");
   if (error === "Cannot remove the last admin") return t("settings.inviteLastAdminRemove");
   if (error === "Already a member of this workspace") return t("settings.inviteAlreadyMember");
+  if (error === "Email already in use") return t("settings.rescueEmailTaken");
   return t(fallback);
 }
 
@@ -28,6 +36,8 @@ type Member = {
   createdAt: number;
   email: string;
   name: string;
+  /** Two-factor sign-in is on for this person. */
+  twoFactor?: boolean;
 };
 
 /** An invite nobody has used yet; resending replaces its link. */
@@ -44,6 +54,10 @@ export function MembersSection() {
   const locale = useLocale();
   const [askConfirm, confirmDialog] = useConfirm();
   const [members, setMembers] = useState<Member[] | null>(null);
+  // This admin may rescue accounts: the instance owner's workspace, signed in as a person (Q77).
+  const [canRescue, setCanRescue] = useState(false);
+  const [emailFor, setEmailFor] = useState<{ member: Member; email: string } | null>(null);
+  const [resetLink, setResetLink] = useState<{ name: string; url: string; expiresAt: number } | null>(null);
   const [pending, setPending] = useState<PendingInvite[]>([]);
   const [failed, setFailed] = useState(false);
   const [adminOnly, setAdminOnly] = useState(false);
@@ -63,7 +77,9 @@ export function MembersSection() {
         return;
       }
       if (!res.ok || !invites.ok) throw new Error("members");
-      setMembers((await res.json()).members);
+      const body = await res.json();
+      setMembers(body.members);
+      setCanRescue(body.canRescue === true);
       setPending((await invites.json()).invites);
     } catch {
       setFailed(true);
@@ -113,6 +129,46 @@ export function MembersSection() {
     setError(null);
     const res = await fetch(`/api/members/invite/${inv.id}`, { method: "DELETE" });
     if (!res.ok) setError(t("settings.inviteFailedRevoke"));
+    load();
+  }
+
+  async function saveEmail() {
+    if (!emailFor) return;
+    setError(null);
+    const res = await fetch(`/api/members/${emailFor.member.userId}/email`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: emailFor.email.trim() }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(memberError(t, body.error, "settings.rescueFailed"));
+    }
+    setEmailFor(null);
+    load();
+  }
+
+  async function makeResetLink(m: Member) {
+    setError(null);
+    const res = await fetch(`/api/members/${m.userId}/reset-link`, { method: "POST" });
+    if (!res.ok) {
+      setError(t("settings.rescueFailed"));
+      return;
+    }
+    const data = (await res.json()) as { url: string; expiresAt: number };
+    setResetLink({ name: m.name, ...data });
+  }
+
+  async function turnOffTwoFactor(m: Member) {
+    const ok = await askConfirm({
+      title: t("settings.rescue2faTitle", { name: m.name }),
+      body: t("settings.rescue2faBody"),
+      confirmLabel: t("settings.rescue2fa"),
+    });
+    if (!ok) return;
+    setError(null);
+    const res = await fetch(`/api/members/${m.userId}/2fa`, { method: "DELETE" });
+    if (!res.ok) setError(t("settings.rescueFailed"));
     load();
   }
 
@@ -180,6 +236,16 @@ export function MembersSection() {
         </Button>
       </div>
       {error && <p className="mb-3 text-sm text-feedback-error">{error}</p>}
+      {resetLink && (
+        <div className="mb-3 rounded-lg border border-feedback-warn/20 bg-feedback-warn-wash p-3">
+          <p className="mb-1 text-xs font-semibold text-feedback-warn">
+            {t("settings.rescueLinkShown", { name: resetLink.name, date: formatDate(resetLink.expiresAt, locale) })}
+          </p>
+          <code data-testid="reset-link" className="block select-all break-all rounded bg-surface px-2 py-1.5 text-xs">
+            {resetLink.url}
+          </code>
+        </div>
+      )}
       {invite && (
         <div
           className={`mb-3 rounded-lg border p-3 ${
@@ -243,6 +309,29 @@ export function MembersSection() {
                     aria-label={t("settings.inviteRemoveAria", { name: m.name })} variant="outline" size="icon-sm" className="text-feedback-error">
                     <IconTrash width={14} height={14} />
                   </Button>
+                  {canRescue && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        render={<Button variant="outline" size="sm" />}
+                        aria-label={t("settings.rescueMenuAria", { name: m.name })}
+                      >
+                        {t("settings.rescueMenu")}
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setEmailFor({ member: m, email: m.email })}>
+                          {t("settings.rescueEmail")}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => void makeResetLink(m)}>
+                          {t("settings.rescueResetLink")}
+                        </DropdownMenuItem>
+                        {m.twoFactor && (
+                          <DropdownMenuItem onClick={() => void turnOffTwoFactor(m)}>
+                            {t("settings.rescue2fa")}
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </>
               )}
             </div>
@@ -286,6 +375,36 @@ export function MembersSection() {
           </div>
         </div>
       )}
+      <Modal
+        title={emailFor ? t("settings.rescueEmailTitle", { name: emailFor.member.name }) : ""}
+        open={emailFor !== null}
+        onClose={() => setEmailFor(null)}
+      >
+        {emailFor && (
+          <form
+            className="space-y-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void saveEmail();
+            }}
+          >
+            <p className="text-sm text-ink-muted">{t("settings.rescueEmailHint")}</p>
+            <Input
+              type="email"
+              value={emailFor.email}
+              onChange={(e) => setEmailFor({ ...emailFor, email: e.target.value })}
+              aria-label={t("settings.rescueEmailAria")}
+              required
+            />
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setEmailFor(null)}>
+                {t("action.cancel")}
+              </Button>
+              <Button type="submit">{t("action.save")}</Button>
+            </div>
+          </form>
+        )}
+      </Modal>
       {confirmDialog}
     </Card>
   );
