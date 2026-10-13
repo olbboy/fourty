@@ -246,3 +246,11 @@ Báo cáo này không đề xuất, theo yêu cầu. Mỗi câu liệt kê phư�
 **U9. Rào "admin cuối cùng" qua đường lời mời (ghi chú a) và phiên không workspace sau khi mời lại (ghi chú b).** Hai điểm này là hành vi hiện tại có thể không đúng ý. Chọn: (A) coi là lỗi, sửa riêng; (B) để vào phạm vi quản trị người dùng ở trên; (C) chạy thử xác nhận trước khi quyết.
 
 **Câu hỏi về dữ kiện (ngoài lựa chọn sản phẩm):** PilotCo hiện dùng SSO hay chỉ mật khẩu? Người phụ trách vận hành (có SSH vào droplet) có luôn là admin trong Fourty không? Việc "đặt lại mật khẩu bằng lệnh" có chấp nhận được là quy trình thường trực của PilotCo hay chỉ là biện pháp khẩn?
+
+## Quyết định (13/10/2026, Leo)
+
+| Câu | Chọn | Nghĩa |
+|---|---|---|
+| Q63 (ghi chú a, b; U9) | A | Sửa riêng ngay, viết test trước ở `POST /api/members/accept`: thành viên đang hoạt động mở link thì được báo "đã ở trong workspace", vai trò không đổi, link không bị tiêu; người từng bị gỡ nhận lại lời mời thì vào thẳng workspace |
+| Q64 (U1) | A | "Quản lý người dùng" là quản lý **Thành viên** của workspace; nâng Cài đặt → Team members thành trang Thành viên đầy đủ. Từ ngữ Workspace, Account, Member, Invite thêm vào `CONTEXT.md` |
+| Q65 (U2, U3, U4, U6, U7) | A | Đợt đầu gồm nhóm 1–4: bàn giao khi nghỉ (hiện owner, lọc theo owner, đổi owner hàng loạt, task của người đã nghỉ hiện đúng nhãn); lời mời (danh sách, thu hồi, gửi lại); sửa tên (tự sửa) và email (admin sửa); cứu tài khoản không cần SSH (link đặt lại mật khẩu do admin tạo, admin tắt 2FA, tự đổi mật khẩu khi đang đăng nhập, mọi thao tác ghi nhật ký). Nhóm 5 (lần đăng nhập cuối, phiên) và 6 (key, hộp thư theo người) để đợt sau |

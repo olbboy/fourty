@@ -254,3 +254,12 @@ Báo cáo này không khuyến nghị phương án nào.
 **Q4. Hộp thư của PilotCo.** Gmail/Microsoft đã kết nối trên `crm.example.com` chưa? (A) Đã kết nối · (B) Chưa · (C) Không rõ, cần người có quyền xem Settings → Mailboxes kiểm.
 
 **Q5. Chỗ tài liệu và code lệch (§7).** (A) Ghi nhận như một việc riêng, chưa quyết sửa bên nào · (B) Bỏ qua ở báo cáo này.
+
+## 10. Quyết định (13/10/2026, Leo)
+
+| Câu | Chọn | Nghĩa |
+|---|---|---|
+| Q66 (Q1, Q2) | A | Giữ 22 mục (ít nhất 3/5 nguồn ở bậc nhập) làm danh sách kiểm; chọn việc làm trước theo nhu cầu bán hàng của PilotCo (hỏi ở vòng sau) |
+| Q67 (Q4) | A | Đã kiểm 13/10/2026 bằng `GET /api/sync/accounts` trên `crm.example.com` (chỉ đọc): **0** hộp thư hoặc lịch đã nối. Chỗ thiếu "thư chỉ gắn vào liên hệ" (#10) chưa ảnh hưởng PilotCo lúc này |
+| Q68 (Q5) | A | Sửa `docs/guides/email-calendar.md` cho khớp code: thư chỉ gắn vào liên hệ, không gắn vào deal |
+| Q3 | chưa hỏi | Các mục "chưa đủ nguồn" giữ nguyên trạng thái |
