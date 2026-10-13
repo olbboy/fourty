@@ -1,5 +1,5 @@
-import { getSessionUser } from "@/lib/auth";
-import { inviteEmail } from "@/lib/invites";
+import { getSessionUser, roleInWorkspace } from "@/lib/auth";
+import { inviteEmail, parseInviteToken } from "@/lib/invites";
 import { Logo } from "@/components/logo";
 import { AcceptForm } from "./accept-form";
 import { LocaleProvider } from "@/lib/i18n/provider";
@@ -26,6 +26,10 @@ export default async function AcceptPage({
   // A new member signs in later with the address the invite went to; say which
   // one, since the form only asks for a name and a password.
   const loginEmail = token && !user ? await inviteEmail(token) : null;
+  // Someone already in the workspace has nothing to join; say so up front
+  // instead of offering a button that would be refused.
+  const inviteWorkspace = token ? parseInviteToken(token)?.workspaceId : undefined;
+  const alreadyMember = !!(user && inviteWorkspace && (await roleInWorkspace(user.id, inviteWorkspace)));
   const locale = await requestLocale();
   const t = translator(locale);
 
@@ -45,7 +49,7 @@ export default async function AcceptPage({
             )}
           </div>
           {token ? (
-            <AcceptForm token={token} signedInAs={user?.email ?? null} />
+            <AcceptForm token={token} signedInAs={user?.email ?? null} alreadyMember={alreadyMember} />
           ) : (
             <p
               role="alert"

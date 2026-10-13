@@ -64,6 +64,13 @@ export async function destroySession(): Promise<void> {
   jar.delete(SESSION_COOKIE);
 }
 
+/** Point the current session at a workspace its user has just joined. */
+export async function setSessionWorkspace(workspaceId: string): Promise<void> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  if (!token) return;
+  await db.update(tables.sessions).set({ workspaceId }).where(eq(tables.sessions.id, sha256(token)));
+}
+
 export async function getSessionUser(): Promise<SessionUser | null> {
   const jar = await cookies();
   const token = jar.get(SESSION_COOKIE)?.value;

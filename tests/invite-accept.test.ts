@@ -21,7 +21,8 @@ vi.mock("next/headers", () => ({
 
 describe("invite acceptance", () => {
   let accept: typeof import("@/app/api/members/accept/route");
-  let invite: (opts: { email: string; expiresAt: number }) => Promise<string>;
+  let invite: (opts: { email: string; expiresAt: number; role?: string }) => Promise<string>;
+  let ws: string;
 
   const post = (body: Record<string, unknown>) =>
     accept.POST(
@@ -39,12 +40,12 @@ describe("invite acceptance", () => {
     const { sha256 } = await import("@/lib/auth");
     const { newId } = await import("@/lib/id");
     accept = await import("@/app/api/members/accept/route");
-    const ws = await createWorkspace();
-    invite = async ({ email, expiresAt }) => {
+    ws = await createWorkspace();
+    invite = async ({ email, expiresAt, role = "member" }) => {
       const token = `${ws}.${newId()}${newId()}`;
       await withWorkspace(ws, () =>
         db.insert(tables.invites).values({
-          id: newId(), workspaceId: ws, email, role: "member", tokenHash: sha256(token), expiresAt, createdAt: Date.now(),
+          id: newId(), workspaceId: ws, email, role, tokenHash: sha256(token), expiresAt, createdAt: Date.now(),
         }),
       );
       return token;
@@ -75,6 +76,52 @@ describe("invite acceptance", () => {
     const late = await invite({ email: "late2@test.dev", expiresAt: Date.now() - 1_000 });
     expect(await inviteEmail(late)).toBeNull();
     expect(await inviteEmail("no-dot-token")).toBeNull();
+  });
+
+  it("leaves a member who opens someone else's invite as they are, and the link usable", async () => {
+    const { roleInWorkspace, getSessionUser } = await import("@/lib/auth");
+    // The admin opens the link they just made for a new hire, in their own browser.
+    const own = await invite({ email: "dat@test.dev", expiresAt: Date.now() + 86_400_000, role: "admin" });
+    jar.clear();
+    expect((await post({ token: own, name: "Dat", password: "correcthorse" })).status).toBe(200);
+    const admin = (await getSessionUser())!;
+    const forHire = await invite({ email: "btduc@test.dev", expiresAt: Date.now() + 86_400_000 });
+
+    const res = await post({ token: forHire });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("Already a member of this workspace");
+    expect(await roleInWorkspace(admin.id, ws)).toBe("admin");
+
+    jar.clear(); // the new hire, later, from their own browser
+    expect((await post({ token: forHire, name: "Bac", password: "correcthorse" })).status).toBe(200);
+  });
+
+  it("lands a removed member who accepts a new invite in the workspace, without signing in again", async () => {
+    const { db, tables } = await import("@/db");
+    const { eq } = await import("drizzle-orm");
+    const { getSessionUser } = await import("@/lib/auth");
+    const login = await import("@/app/api/auth/login/route");
+    const first = await invite({ email: "linh@test.dev", expiresAt: Date.now() + 86_400_000 });
+    jar.clear();
+    expect((await post({ token: first, name: "Linh", password: "correcthorse" })).status).toBe(200);
+    const linh = (await getSessionUser())!;
+    await db.update(tables.workspaceMembers).set({ deactivatedAt: Date.now() }).where(eq(tables.workspaceMembers.userId, linh.id));
+
+    // Removed, Linh signs in again: there is no workspace to open yet.
+    jar.clear();
+    const signIn = await login.POST(
+      new Request("http://localhost/api/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: "linh@test.dev", password: "correcthorse" }),
+      }),
+    );
+    expect(signIn.status).toBe(200);
+    expect((await getSessionUser())!.workspaceId).toBeNull();
+
+    const again = await invite({ email: "linh@test.dev", expiresAt: Date.now() + 86_400_000 });
+    expect((await post({ token: again })).status).toBe(200);
+    expect((await getSessionUser())!.workspaceId).toBe(ws);
   });
 
   it("still reports an unused invite past its date as expired", async () => {
