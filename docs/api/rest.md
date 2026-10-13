@@ -21,7 +21,8 @@ error shapes.
 | Search | `/api/search?q=…` (contacts + companies + deals + custom-object records) |
 | Dashboard stats | `/api/stats/dashboard` (amounts in the reporting `currency` it names) |
 | Reports | `/api/stats/reports` (adds `forecast.byClose` / `forecast.byDelivery` quarter tables) |
-| Reporting settings | `/api/settings/reporting` (GET for any member; PATCH `currency`, `perUsd`, `deliveryField`, `breakdownField` for admins) |
+| Reporting settings | `/api/settings/reporting` (GET for any member; PATCH `currency`, `perUsd`, `deliveryField`, `breakdownField`, `lostReasonField` for admins) |
+| Reminder settings | `/api/settings/reminders` (admins; GET, PATCH `enabled`, `timeZone`, `locale`) |
 | Custom fields | `/api/custom-fields` |
 | Custom object definitions | `/api/custom-objects` (+ `/fields`) |
 | Custom object records | `/api/objects/{apiName}` (`q`, `sort`, `limit`), `/api/objects/{apiName}/{id}` |

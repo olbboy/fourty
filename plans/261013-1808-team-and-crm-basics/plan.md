@@ -1,7 +1,7 @@
 ---
 title: "Trang Thành viên và các tính năng CRM cơ bản còn thiếu"
 date: 2026-10-13
-status: "Phase 3–6 đã deploy (PR #30–#33); Phase 7 chờ merge (PR #34); Phase 8 xong trên máy (nhánh feat/account-rescue); Phase 9 chưa bắt đầu"
+status: "Phase 3–7 đã deploy (PR #30–#34); Phase 8 chờ merge (PR #35); Phase 9 xong trên máy (nhánh feat/morning-reminders)"
 nguon:
   - "plans/reports/research-261013-1649-user-administration.md (quyết định Q63–Q65)"
   - "plans/reports/research-261013-1649-crm-baseline-feature-gaps.md (quyết định Q66–Q68)"
@@ -110,6 +110,13 @@ Kết quả Phase 8 (14/10/2026):
 - Gửi đúng một lần mỗi người mỗi ngày, kể cả khi worker khởi động lại (dùng biên nhận việc sẵn có của hàng đợi).
 - Giờ gửi và múi giờ theo Q78. Fourty hiện chưa có cài đặt múi giờ.
 - Seam dự kiến: hàm thuần chọn việc cần nhắc theo ngày và múi giờ; handler của worker.
+
+Kết quả Phase 9 (14/10/2026):
+
+- Q89 = A. Hàm thuần `remindersFor`, `isReminderWindow`, `localDay` (`src/lib/reminders.ts`): việc mở đến hạn hôm nay và quá hạn của từng người theo lịch của múi giờ workspace; gửi trong khung 8:00–12:00 địa phương.
+- `dispatchReminders` (`src/lib/services/reminders.ts`): tắt, chưa có mail, hoặc ngoài khung giờ thì không làm gì; lần đầu trong khung thì giữ chỗ "hôm nay đã nhắc" rồi gửi mỗi người một email (khoá chống trùng theo người và ngày). Job `reminders.dispatch` theo nhịp mỗi phút của worker, do worker tự chạy như job của trợ lý (không ghi biên nhận mỗi phút).
+- Cài đặt `/api/settings/reminders` (admin): bật/tắt, múi giờ (mặc định Asia/Ho_Chi_Minh), ngôn ngữ email (mặc định theo ngôn ngữ của admin lúc bật); lưu kèm địa chỉ app để email có link. Thẻ "Nhắc việc mỗi sáng" trong Settings.
+- Test mới: `tests/reminders.test.ts` (3), `tests/reminders-dispatch.test.ts` (4), e2e `reminders`. Toàn bộ 1.194 unit và 114 e2e đạt. E2E tìm ra công tắc chưa đổi ngay khi bấm; đã sửa.
 
 ## Ngoài phạm vi (đợt sau)
 

@@ -24,7 +24,7 @@ type Handler<N extends JobName> = (env: JobEnvelope<N>) => Promise<void>;
  * src/lib/queue.ts), and this map stays exhaustive over the rest so a new job
  * without a handler is a type error rather than a silent no-op.
  */
-type RunnableJob = Exclude<JobName, "agent.dispatch">;
+type RunnableJob = Exclude<JobName, "agent.dispatch" | "reminders.dispatch">;
 
 const handlers: { [N in RunnableJob]: Handler<N> } = {
   "webhook.deliver": async (env) => {
@@ -98,8 +98,8 @@ const handlers: { [N in RunnableJob]: Handler<N> } = {
  * already processed (a redelivery). Throws to signal a retryable failure.
  */
 export async function runJob<N extends JobName>(name: N, env: JobEnvelope<N>): Promise<void> {
-  if (name === "agent.dispatch") {
-    throw new Error("agent.dispatch is driven by the worker directly, not through runJob");
+  if (name === "agent.dispatch" || name === "reminders.dispatch") {
+    throw new Error(`${name} is driven by the worker directly, not through runJob`);
   }
   const fresh = await claimJob(env.idempotencyKey, name);
   if (!fresh) {
