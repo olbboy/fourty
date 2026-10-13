@@ -447,3 +447,69 @@ describe("SSO admin API shape (what Settings renders)", () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe("SSO is managed from the instance owner's workspace", () => {
+  // Connections are instance-wide and sign-in links existing users by email, so
+  // an admin of any later workspace could otherwise point a connection at an IdP
+  // they control and sign in as anyone on the instance (ADR-014).
+  const OWNER = "frty_sso_owner_key";
+  const OTHER = "frty_sso_other_key";
+  let connections: typeof import("@/app/api/sso/connections/route");
+  let connection: typeof import("@/app/api/sso/connections/[id]/route");
+  let ownerConnId: string;
+
+  const req = (url: string, token: string, init?: RequestInit) =>
+    new Request(`http://localhost${url}`, {
+      headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
+      ...init,
+    });
+  const create = (token: string) =>
+    connections.POST(
+      req("/api/sso/connections", token, {
+        method: "POST",
+        body: JSON.stringify({ label: "IdP", issuer: "https://idp.test/", clientId: "cid", clientSecret: "s" }),
+      }),
+    );
+  const params = (id: string) => ({ params: Promise.resolve({ id }) });
+
+  beforeAll(async () => {
+    await resetDb();
+    const { db, tables } = await import("@/db");
+    const { sha256 } = await import("@/lib/auth");
+    const { newId } = await import("@/lib/id");
+    const { eq } = await import("drizzle-orm");
+    connections = await import("@/app/api/sso/connections/route");
+    connection = await import("@/app/api/sso/connections/[id]/route");
+
+    const ownerWs = await createWorkspace();
+    const otherWs = await createWorkspace();
+    // Make the order explicit: the owner's workspace is the one created first.
+    await db.update(tables.workspaces).set({ createdAt: 1_000 }).where(eq(tables.workspaces.id, ownerWs));
+    await db.update(tables.workspaces).set({ createdAt: 2_000 }).where(eq(tables.workspaces.id, otherWs));
+    for (const [token, ws] of [[OWNER, ownerWs], [OTHER, otherWs]] as const) {
+      await db.insert(tables.apiKeys).values({
+        id: newId(), workspaceId: ws, name: "t", prefix: token.slice(0, 8), keyHash: sha256(token), role: "admin", createdAt: Date.now(),
+      });
+    }
+  });
+
+  it("lets an admin of the first workspace manage connections", async () => {
+    const created = await create(OWNER);
+    expect(created.status).toBe(201);
+    ownerConnId = (await created.json()).connection.id;
+    expect((await connections.GET(req("/api/sso/connections", OWNER))).status).toBe(200);
+  });
+
+  it("refuses an admin of any later workspace, for every operation", async () => {
+    expect((await create(OTHER)).status).toBe(403);
+    expect((await connections.GET(req("/api/sso/connections", OTHER))).status).toBe(403);
+    expect((await connection.GET(req(`/api/sso/connections/${ownerConnId}`, OTHER), params(ownerConnId))).status).toBe(403);
+    const patch = await connection.PATCH(
+      req(`/api/sso/connections/${ownerConnId}`, OTHER, { method: "PATCH", body: JSON.stringify({ issuer: "https://evil.test/" }) }),
+      params(ownerConnId),
+    );
+    expect(patch.status).toBe(403);
+    const del = await connection.DELETE(req(`/api/sso/connections/${ownerConnId}`, OTHER, { method: "DELETE" }), params(ownerConnId));
+    expect(del.status).toBe(403);
+  });
+});

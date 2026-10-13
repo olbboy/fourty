@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { withAuth, authorize, json, parseBody } from "@/lib/api";
+import { withAuth, json, parseBody } from "@/lib/api";
+import { authorizeSso } from "@/lib/sso/authorize";
 import { audit } from "@/lib/audit";
 import { newId } from "@/lib/id";
 import { redactConnection } from "@/lib/sso/connection-view";
@@ -15,7 +16,7 @@ import { redactConnection } from "@/lib/sso/connection-view";
 
 export async function GET(req: Request) {
   return withAuth(req, async (auth) => {
-    const denied = authorize(auth, "sso", "read");
+    const denied = await authorizeSso(auth, "read");
     if (denied) return denied;
     const rows = await db.select().from(tables.ssoConnections);
     return json({ connections: rows.map(redactConnection) });
@@ -35,7 +36,7 @@ const createSchema = z.object({
 
 export async function POST(req: Request) {
   return withAuth(req, async (auth) => {
-    const denied = authorize(auth, "sso", "create");
+    const denied = await authorizeSso(auth, "create");
     if (denied) return denied;
     const body = await parseBody(req, createSchema);
     if (!body.ok) return body.response;

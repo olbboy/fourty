@@ -44,9 +44,15 @@ GraphQL choices. Discovery/JWKS caching and SAML are deliberately deferred (YAGN
 
 ## Consequences
 - **Instance-global providers, not per-workspace.** Login precedes workspace
-  selection, so a connection is instance-level. In a multi-workspace deployment
-  any workspace admin can manage SSO for the whole instance — a known limitation,
-  stated honestly; a `workspace_id` scope column is a forward-compatible add.
+  selection, so a connection is instance-level. Because sign-in links an existing
+  user by email, whoever manages connections can point one at an IdP they control
+  and sign in as anyone on the instance, or provision themselves into any
+  workspace at any role. So only admins of the **instance owner's workspace** —
+  the first one created, at setup — may read or change connections
+  (`src/lib/sso/authorize.ts`, amended 2026-10-13; admins of later workspaces get
+  403 and the Settings panel hides itself). A `workspace_id` scope column remains a
+  forward-compatible add for deployments where unrelated organisations share one
+  instance.
 - Client secrets are stored plaintext in `sso_connections` (like IMAP passwords in
   `sync_accounts.config`) and redacted on read. Encrypting secrets at rest is a
   follow-up.
