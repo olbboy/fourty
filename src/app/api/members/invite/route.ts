@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { withAuth, authorize, json, parseBody, requestOrigin } from "@/lib/api";
+import { withAuth, authorize, json, apiError, parseBody, requestOrigin } from "@/lib/api";
 import { newId, newToken } from "@/lib/id";
 import { sha256 } from "@/lib/auth";
 import { audit } from "@/lib/audit";
@@ -21,6 +21,11 @@ const schema = z.object({
 // without mail (or whose mail is down) can still hand it over out of band. The
 // token embeds the workspace id so /api/members/accept can resolve the
 // workspace without a cross-tenant scan.
+//
+// Someone already active in the workspace is refused: there is nothing for
+// them to accept, and a role change goes through PATCH /api/members/:userId.
+// Inviting an address again revokes its pending invite, so one person has at
+// most one working link; "resend" in the UI is exactly this call.
 export async function POST(req: Request) {
   return withAuth(req, async (auth) => {
     const denied = authorize(auth, "members", "create");
@@ -28,11 +33,32 @@ export async function POST(req: Request) {
     const body = await parseBody(req, schema);
     if (!body.ok) return body.response;
 
+    const email = body.data.email.toLowerCase().trim();
+    const member = (
+      await db
+        .select({ id: tables.workspaceMembers.id })
+        .from(tables.workspaceMembers)
+        .innerJoin(tables.users, eq(tables.users.id, tables.workspaceMembers.userId))
+        .where(
+          and(
+            eq(tables.workspaceMembers.workspaceId, auth.workspaceId),
+            eq(sql`lower(${tables.users.email})`, email),
+            isNull(tables.workspaceMembers.deactivatedAt),
+          ),
+        )
+        .limit(1)
+    )[0];
+    if (member) return apiError("Already a member of this workspace", 409);
+
     const id = newId();
     const token = `${auth.workspaceId}.${newToken(24)}`;
     const now = Date.now();
     const expiresAt = now + INVITE_TTL;
-    const email = body.data.email.toLowerCase().trim();
+    const replaced = await db
+      .update(tables.invites)
+      .set({ revokedAt: now })
+      .where(and(eq(tables.invites.email, email), isNull(tables.invites.acceptedAt), isNull(tables.invites.revokedAt)))
+      .returning({ id: tables.invites.id });
     await db.insert(tables.invites).values({
       id,
       email,
@@ -45,7 +71,7 @@ export async function POST(req: Request) {
     await audit(auth.user?.id, "member.invited", {
       objectType: "invite",
       objectId: id,
-      meta: { email, role: body.data.role },
+      meta: { email, role: body.data.role, ...(replaced.length ? { replaced: replaced.length } : {}) },
     });
 
     const emailed = await sendInviteEmail({
@@ -59,6 +85,35 @@ export async function POST(req: Request) {
     });
 
     return json({ id, token, expiresAt, emailed }, { status: 201 });
+  });
+}
+
+// Invites still waiting for someone (admin only): not used, not taken back,
+// not expired. Newest first, with the inviter's name when a person sent it.
+export async function GET(req: Request) {
+  return withAuth(req, async (auth) => {
+    const denied = authorize(auth, "members", "read");
+    if (denied) return denied;
+    const invites = await db
+      .select({
+        id: tables.invites.id,
+        email: tables.invites.email,
+        role: tables.invites.role,
+        createdAt: tables.invites.createdAt,
+        expiresAt: tables.invites.expiresAt,
+        invitedByName: tables.users.name,
+      })
+      .from(tables.invites)
+      .leftJoin(tables.users, eq(tables.users.id, tables.invites.invitedBy))
+      .where(
+        and(
+          isNull(tables.invites.acceptedAt),
+          isNull(tables.invites.revokedAt),
+          gt(tables.invites.expiresAt, Date.now()),
+        ),
+      )
+      .orderBy(desc(tables.invites.createdAt));
+    return json({ invites });
   });
 }
 

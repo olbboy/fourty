@@ -32,7 +32,8 @@ error shapes.
 | Import | `/api/import/contacts` |
 | API keys | `/api/api-keys` |
 | Audit log | `/api/audit` |
-| Members | `/api/members` |
+| Members | `/api/members`, `/api/members/{userId}` (role, remove) |
+| Invites (admin) | `GET` pending / `POST` `/api/members/invite`, `DELETE /api/members/invite/{id}` (revoke); inviting an address again replaces its pending invite; `/api/members/accept` |
 | Field permissions | `/api/field-permissions` (admin), `/api/field-permissions/me` (own) |
 | Workflows | `/api/workflows` |
 | Webhooks | `/api/webhooks/secret` (HMAC signing secret) |

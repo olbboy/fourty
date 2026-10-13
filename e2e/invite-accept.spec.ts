@@ -141,6 +141,48 @@ test("a removed member signs in from a new invite and lands back in the workspac
   }
 });
 
+test("an admin sees a pending invite, resends it and takes it back", async ({ page, browser }) => {
+  const pendingEmail = `e2e-pending-${Date.now()}@fourty.test`;
+  await page.goto("/settings");
+  const members = page.locator("[data-slot=card]", {
+    has: page.getByRole("heading", { name: "Team members" }),
+  });
+  await members.getByRole("textbox", { name: "Email address to invite" }).fill(pendingEmail);
+  await members.getByRole("combobox", { name: "Role for the invitee" }).selectOption("member");
+  await members.getByRole("button", { name: "Invite", exact: true }).click();
+  const link = members.locator("code");
+  const first = (await link.innerText()).trim();
+
+  // Listed until someone uses it; resending hands out a fresh link and keeps
+  // one row, because the earlier link is replaced.
+  const resend = members.getByRole("button", { name: `Resend the invite to ${pendingEmail}` });
+  await expect(resend).toBeVisible();
+  await resend.click();
+  await expect(link).not.toHaveText(first);
+  const second = (await link.innerText()).trim();
+  await expect(resend).toHaveCount(1);
+
+  await members.getByRole("button", { name: `Revoke the invite to ${pendingEmail}` }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Revoke" }).click();
+  await expect(resend).toHaveCount(0);
+
+  // Neither link lets anyone in any more.
+  const guest = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  try {
+    const guestPage = await guest.newPage();
+    for (const url of [first, second]) {
+      await guestPage.goto(url);
+      await expect(guestPage.getByText(/Your sign-in email/)).toHaveCount(0);
+      await guestPage.getByLabel("Your name").fill("Too Late");
+      await guestPage.getByLabel("Choose a password").fill("too-late-password-123");
+      await guestPage.getByRole("button", { name: "Create account and join" }).click();
+      await expect(guestPage.getByText("This invite is invalid or has expired")).toBeVisible();
+    }
+  } finally {
+    await guest.close();
+  }
+});
+
 test("the accept page refuses a link with no token", async ({ browser }) => {
   const guest = await browser.newContext({ storageState: { cookies: [], origins: [] } });
   try {

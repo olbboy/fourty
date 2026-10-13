@@ -16,6 +16,8 @@ describe("workspace members + invites", () => {
   let membersRoute: typeof import("@/app/api/members/route");
   let memberIdRoute: typeof import("@/app/api/members/[userId]/route");
   let inviteRoute: typeof import("@/app/api/members/invite/route");
+  let inviteIdRoute: typeof import("@/app/api/members/invite/[id]/route");
+  let inviteEmail: typeof import("@/lib/invites").inviteEmail;
   let ws: string;
   let adminUser: string;
   let memberUser: string;
@@ -36,6 +38,8 @@ describe("workspace members + invites", () => {
     membersRoute = await import("@/app/api/members/route");
     memberIdRoute = await import("@/app/api/members/[userId]/route");
     inviteRoute = await import("@/app/api/members/invite/route");
+    inviteIdRoute = await import("@/app/api/members/invite/[id]/route");
+    ({ inviteEmail } = await import("@/lib/invites"));
 
     ws = await createWorkspace();
     await db.insert(tables.apiKeys).values({
@@ -153,6 +157,53 @@ describe("workspace members + invites", () => {
       params: Promise.resolve({ userId: adminUser }),
     });
     expect(res.status).toBe(400);
+  });
+
+  // Pending invites (Phase 3): an admin sees who has not joined yet, can take a
+  // link back, and inviting again replaces the earlier link.
+  const invite = async (email: string, role = "member") => {
+    const res = await inviteRoute.POST(
+      req("/api/members/invite", { method: "POST", body: JSON.stringify({ email, role }) }),
+    );
+    return { status: res.status, ...(await res.json()) } as { status: number; id: string; token: string; error?: string };
+  };
+  const pending = async () => {
+    const res = await inviteRoute.GET(req("/api/members/invite"));
+    expect(res.status).toBe(200);
+    return (await res.json()).invites as { id: string; email: string; role: string; expiresAt: number }[];
+  };
+
+  it("refuses to invite someone who is already in the workspace", async () => {
+    const res = await invite(`a-${adminUser}@t.dev`);
+    expect(res.status).toBe(409);
+    expect(res.error).toBe("Already a member of this workspace");
+  });
+
+  it("lists pending invites and takes one back", async () => {
+    const lthoa = await invite("lthoa@t.dev", "member");
+    const listed = (await pending()).find((i) => i.email === "lthoa@t.dev");
+    expect(listed).toMatchObject({ id: lthoa.id, role: "member" });
+
+    const revoke = await inviteIdRoute.DELETE(req(`/api/members/invite/${lthoa.id}`, { method: "DELETE" }), {
+      params: Promise.resolve({ id: lthoa.id }),
+    });
+    expect(revoke.status).toBe(200);
+    expect((await pending()).some((i) => i.email === "lthoa@t.dev")).toBe(false);
+    expect(await inviteEmail(lthoa.token)).toBeNull();
+
+    const again = await inviteIdRoute.DELETE(req(`/api/members/invite/${lthoa.id}`, { method: "DELETE" }), {
+      params: Promise.resolve({ id: lthoa.id }),
+    });
+    expect(again.status).toBe(404);
+  });
+
+  it("replaces a pending invite when the same address is invited again", async () => {
+    const first = await invite("btduc@t.dev", "member");
+    const second = await invite("btduc@t.dev", "viewer");
+    const rows = (await pending()).filter((i) => i.email === "btduc@t.dev");
+    expect(rows).toEqual([expect.objectContaining({ id: second.id, role: "viewer" })]);
+    expect(await inviteEmail(first.token)).toBeNull();
+    expect(await inviteEmail(second.token)).toBe("btduc@t.dev");
   });
 
   it("deactivates a non-admin member", async () => {
