@@ -55,6 +55,33 @@ When an edit changes a deal's **Amount**, **Expected close date** or **Delivery 
 new value, for example *Amount: ₫80B → ₫60B*. A stage move or an owner change made in
 the same edit carries the value changes on the same line.
 
+## People on a deal
+
+A deal has one **primary contact**, chosen in the deal form, and any number of **other
+people on the deal**, each with the role they play: *Technical*, *Purchasing*, *Decides*.
+Add them in the deal page's **Other people on this deal** panel. A contact's own page
+lists every deal they are on, as the primary contact or not, and so does
+`GET /api/deals?contactId=…`. Over the API: `GET`/`PUT /api/deals/{id}/contacts`,
+GraphQL `Deal.contacts` and `setDealContacts`, MCP `set_deal_contacts`.
+
+## Products and line items
+
+**Settings → Products** keeps the catalogue: name, an optional code, the list price and
+its currency. Members add, edit, stop selling or delete products; viewers read them.
+
+On a deal page, **Products on this deal** adds a product from the catalogue or a typed-in
+item (installation, survey), with a quantity and a unit price in the deal's currency. A
+catalogue product priced in another currency is converted at the workspace's rates from
+**Settings → Reporting**; type your own price to override it. The line keeps the name and
+price it was added with, so editing or deleting the product later never changes a deal.
+
+While a deal has lines, its **Amount** is their sum: it changes with every line edit, the
+timeline shows the old and new value as for any change of amount, and the deal form locks
+the amount and currency. Removing every line leaves the last amount in place, typed by
+hand again from then on. A role barred from reading a deal's amount sees the lines without
+their prices. Over the API: `GET`/`PUT /api/deals/{id}/lines`, `/api/products`, GraphQL
+`Deal.lines`, `products` and `setDealLines`, MCP `list_products` and `set_deal_lines`.
+
 ## The weighted forecast
 
 The forecast is deterministic: each open deal contributes `amount × stage

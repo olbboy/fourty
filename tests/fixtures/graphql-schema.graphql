@@ -23,6 +23,11 @@ type Query {
     fieldValue: String
   ): [Deal!]!
   deal(id: ID!): Deal
+
+  """
+  The product catalogue by name; state: "all" adds products no longer sold.
+  """
+  products(q: String, state: String): [Product!]!
   tasks(
     limit: Int
     state: String
@@ -123,6 +128,11 @@ type Deal {
   The primary contact first, then the other Deal contacts with their roles.
   """
   contacts: [DealContact!]!
+
+  """
+  The deal's line items in order. When there are any, amount is their sum.
+  """
+  lines: [DealLine!]!
   stage: DealStage
   tasks: [Task!]!
   notes: [Note!]!
@@ -138,6 +148,15 @@ type DealContact {
   role: String
   primary: Boolean!
   contact: Contact
+}
+
+type DealLine {
+  id: ID!
+  productId: String
+  name: String!
+  quantity: Float!
+  unitPrice: Float
+  total: Float
 }
 
 type DealStage {
@@ -230,6 +249,15 @@ type RecordFact {
   company: Company
   deal: Deal
   record: Record
+}
+
+type Product {
+  id: ID!
+  name: String!
+  code: String
+  unitPrice: Float!
+  currency: String!
+  active: Boolean!
 }
 
 type CustomObjectDef {
@@ -389,6 +417,11 @@ type Mutation {
   createDeal(input: JSON!): Deal!
   updateDeal(id: ID!, input: JSON!): Deal!
   deleteDeal(id: ID!): Boolean!
+
+  """
+  Replace a deal's line items: [{ productId?, name?, quantity, unitPrice? }]. The deal's amount becomes their sum; [] clears them.
+  """
+  setDealLines(id: ID!, lines: JSON!): [DealLine!]!
 
   """
   Replace the people on a deal besides its primary contact: [{ contactId, role }].

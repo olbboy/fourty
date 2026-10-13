@@ -333,6 +333,40 @@ export const dealContacts = pgTable(
   ],
 );
 
+// Products and Line items (0025). A line keeps its own name and unit price
+// (in the deal's currency), so editing the catalogue never rewrites a deal.
+export const products = pgTable(
+  "products",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    name: text("name").notNull(),
+    code: text("code"),
+    unitPrice: doublePrecision("unit_price").notNull(),
+    currency: text("currency").notNull(),
+    active: integer("active").notNull().default(1),
+    createdAt: millis("created_at").notNull(),
+    updatedAt: millis("updated_at").notNull(),
+  },
+  (t) => [index("products_ws_name_idx").on(t.workspaceId, t.name)],
+);
+
+export const dealLines = pgTable(
+  "deal_lines",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    dealId: text("deal_id").notNull(),
+    productId: text("product_id"),
+    name: text("name").notNull(),
+    quantity: doublePrecision("quantity").notNull(),
+    unitPrice: doublePrecision("unit_price").notNull(),
+    position: integer("position").notNull().default(0),
+    createdAt: millis("created_at").notNull(),
+  },
+  (t) => [index("deal_lines_deal_idx").on(t.workspaceId, t.dealId)],
+);
+
 // The Trash (0023): a deleted contact, company, deal or task with its notes,
 // timeline and detached links, kept 30 days for restore. See src/lib/trash.ts.
 export const trash = pgTable(

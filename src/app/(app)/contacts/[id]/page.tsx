@@ -1,3 +1,4 @@
+import { mailEnabled } from "@/lib/mail";
 import { ContactDetail } from "./contact-detail";
 
 export const dynamic = "force-dynamic";
@@ -5,5 +6,5 @@ export const metadata = { title: "Contact" };
 
 export default async function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <ContactDetail id={id} />;
+  return <ContactDetail id={id} mailReady={mailEnabled()} />;
 }

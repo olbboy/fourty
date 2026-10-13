@@ -12,10 +12,13 @@ error shapes.
 |---|---|
 | Contacts | `/api/contacts`, `/api/contacts/{id}` |
 | Companies | `/api/companies`, `/api/companies/{id}` |
-| Deals | `/api/deals` (filters `ownerId` = member id or `none`, `closeQuarter` = `2026-Q4`, `fieldKey` + `fieldValue`), `/api/deals/{id}` (`ownerId` assigns a member; `currency` must be one of the [12 supported codes](../guides/pipeline.md#multi-currency)), `POST /api/deals/reassign` (`{ ids, ownerId }`, all or nothing) |
+| Deals | `/api/deals` (filters `ownerId` = member id or `none`, `closeQuarter` = `2026-Q4`, `fieldKey` + `fieldValue`), `/api/deals/{id}` (`ownerId` assigns a member; `currency` must be one of the [12 supported codes](../guides/pipeline.md#multi-currency)), `POST /api/deals/reassign` (`{ ids, ownerId }`, all or nothing); `/api/deals/{id}/contacts` (GET the people on a deal, primary first; PUT `{ contacts: [{ contactId, role }] }` replaces the others); `/api/deals/{id}/lines` (GET the line items and their `total`; PUT `{ lines: [{ productId?, name?, quantity, unitPrice? }] }` replaces them and makes the deal's `amount` their sum; while a deal has lines, a PATCH that changes `amount` or `currency` is refused with `400`) |
+| Products | `/api/products` (GET by name, `q`, `state=all` adds products no longer sold; POST `{ name, code?, unitPrice, currency }`), `/api/products/{id}` (PATCH, including `active`; DELETE). A deal line keeps the name and price it was added with |
 | Tasks | `/api/tasks` (filter `ownerId` = member id or `none`), `/api/tasks/{id}` (`ownerId` assigns a member), `POST /api/tasks/reassign` (`{ ids, ownerId }`); `/api/tasks/assignees` lists who can own a task or deal (GraphQL `assignees`, MCP `list_assignees`), `?all=1` adds members who left, each with `active` |
 | Notes | `/api/notes` (GET list + POST create), `/api/notes/{id}` (PATCH `{ body }`, DELETE; author or admin only) |
 | Activities (timeline) | `/api/activities` |
+| Email | `POST /api/email` `{ entityType: "contact" \| "deal", entityId, contactId, subject, body }`: a signed-in member (not an API key) writes to the contact, or to someone on the deal; sent under the member's name with replies to their address, written on the timeline. `503` when this server has no mail set up, `429` after 30 in an hour |
+| Trash | `/api/trash` (what was deleted in the last 30 days), `POST /api/trash/{id}/restore` (needs create on that kind of record; `409` when a contact's email was taken meanwhile), `DELETE /api/trash/{id}` (admins, for good). Deleting a contact, company, deal or task moves it here with its notes and timeline |
 | Pipelines | `/api/pipelines` (GET, POST), `/api/pipelines/{id}` (PATCH name; DELETE when empty and not the last) |
 | Stages | `/api/stages` (POST name, winProbability, color), `/api/stages/{id}` (PATCH name, winProbability, order, color; DELETE open stages with no deals) |
 | Search | `/api/search?q=…` (contacts + companies + deals + custom-object records) |
@@ -33,8 +36,8 @@ error shapes.
 | Import | `/api/import/contacts` |
 | API keys | `/api/api-keys` |
 | Audit log | `/api/audit` |
-| Members | `/api/members` (with `twoFactor` per member and `canRescue`), `/api/members/{userId}` (role, remove); account rescue for admins of the instance owner's workspace, signed in (not an API key): `PATCH /api/members/{userId}/email`, `POST /api/members/{userId}/reset-link` (24-hour one-time link), `DELETE /api/members/{userId}/2fa` |
-| My account | `PATCH /api/me` (`{ name }`), `POST /api/me/password` (`{ currentPassword, newPassword }`; signs out other sessions) |
+| Members | `/api/members` (with `twoFactor`, `lastLoginAt` and `access: { keys, mailboxes }` per member, and `canRescue`), `/api/members/{userId}` (role, remove; `DELETE ?revokeAccess=1` also revokes the API keys they made and disconnects the mailboxes they connected); `DELETE /api/members/{userId}/sessions` signs a member out everywhere (signed-in admin of the instance owner's workspace); account rescue for admins of the instance owner's workspace, signed in (not an API key): `PATCH /api/members/{userId}/email`, `POST /api/members/{userId}/reset-link` (24-hour one-time link), `DELETE /api/members/{userId}/2fa` |
+| My account | `PATCH /api/me` (`{ name }`), `POST /api/me/password` (`{ currentPassword, newPassword }`; signs out other sessions), `GET /api/me/sessions` (your signed-in devices, `current` marks this one), `DELETE /api/me/sessions` (sign out all the others), `DELETE /api/me/sessions/{id}` |
 | Invites (admin) | `GET` pending / `POST` `/api/members/invite`, `DELETE /api/members/invite/{id}` (revoke); inviting an address again replaces its pending invite; `/api/members/accept` |
 | Field permissions | `/api/field-permissions` (admin), `/api/field-permissions/me` (own) |
 | Workflows | `/api/workflows` |
@@ -92,7 +95,8 @@ curl -H "Authorization: Bearer frty_..." \
 ## Validation & errors
 
 Writes are validated with zod. A bad field returns `400 {"error": "field: message"}`;
-RBAC denials return `403`; unknown/other-workspace records return `404` (RLS). See the
+RBAC denials return `403`; unknown/other-workspace records return `404` (RLS); `429` means
+try again later and `503` that a service the call needs (mail) is not set up here. See the
 [API overview](./overview.md#error-shapes).
 
 ## Related

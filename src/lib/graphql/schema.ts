@@ -17,7 +17,18 @@ import { can } from "@/lib/permissions";
 import { toResolver } from "@/lib/actions/adapters/graphql";
 import { contactsCreate, contactsDelete, contactsGet, contactsList, contactsUpdate } from "@/lib/actions/contacts";
 import { companiesCreate, companiesDelete, companiesGet, companiesList, companiesUpdate } from "@/lib/actions/companies";
-import { dealsCreate, dealsDelete, dealsGet, dealsList, dealsReassign, dealsSetContacts, dealsUpdate } from "@/lib/actions/deals";
+import {
+  dealsCreate,
+  dealsDelete,
+  dealsGet,
+  dealsLines,
+  dealsList,
+  dealsReassign,
+  dealsSetContacts,
+  dealsSetLines,
+  dealsUpdate,
+} from "@/lib/actions/deals";
+import { productsList } from "@/lib/actions/products";
 import { dealContactsOf } from "@/lib/actions/deals/contacts";
 import { dealStageClock } from "@/lib/actions/deals/shared";
 import { tasksCreate, tasksDelete, tasksGet, tasksList, tasksReassign, tasksUpdate } from "@/lib/actions/tasks";
@@ -259,6 +270,35 @@ const DealContact: GraphQLObjectType = new GraphQLObjectType({
   }),
 });
 
+/** A Line item on a deal (CONTEXT.md). Prices are null for a role that cannot read the deal's amount. */
+const DealLine: GraphQLObjectType = new GraphQLObjectType({
+  name: "DealLine",
+  fields: () => ({
+    id: { type: new GraphQLNonNull(GraphQLID) },
+    productId: { type: S },
+    name: { type: new GraphQLNonNull(S) },
+    quantity: { type: new GraphQLNonNull(GraphQLFloat) },
+    unitPrice: { type: GraphQLFloat },
+    total: { type: GraphQLFloat },
+  }),
+});
+
+// Built once at load, so the adapter records that deals.lines is served here.
+const dealLinesOf = toResolver(dealsLines, { map: (out) => (out as { lines: unknown }).lines });
+
+/** A Product in the catalogue (CONTEXT.md), with its list price. */
+const Product: GraphQLObjectType = new GraphQLObjectType({
+  name: "Product",
+  fields: () => ({
+    id: { type: new GraphQLNonNull(GraphQLID) },
+    name: { type: new GraphQLNonNull(S) },
+    code: { type: S },
+    unitPrice: { type: new GraphQLNonNull(GraphQLFloat) },
+    currency: { type: new GraphQLNonNull(S) },
+    active: { type: new GraphQLNonNull(GraphQLBoolean) },
+  }),
+});
+
 const Deal: GraphQLObjectType = new GraphQLObjectType({
   name: "Deal",
   fields: () => ({
@@ -304,6 +344,11 @@ const Deal: GraphQLObjectType = new GraphQLObjectType({
         requireRbac(ctx, "contacts", "read");
         return dealContactsOf(row.id, row.contactId ?? null);
       },
+    },
+    lines: {
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(DealLine))),
+      description: "The deal's line items in order. When there are any, amount is their sum.",
+      resolve: (row: DealRow & { id: string }, _args: unknown, ctx: GqlContext) => dealLinesOf(row, { id: row.id }, ctx),
     },
     stage: {
       type: DealStage,
@@ -773,6 +818,12 @@ const queryFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
     args: { id: { type: new GraphQLNonNull(GraphQLID) } },
     resolve: toResolver(dealsGet, { onNotFound: () => null }),
   },
+  products: {
+    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Product))),
+    description: "The product catalogue by name; state: \"all\" adds products no longer sold.",
+    args: { q: { type: GraphQLString }, state: { type: GraphQLString } },
+    resolve: toResolver(productsList),
+  },
   tasks: {
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Task))),
     args: {
@@ -977,6 +1028,13 @@ const mutationFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
     type: new GraphQLNonNull(GraphQLBoolean),
     args: { id: { type: new GraphQLNonNull(GraphQLID) } },
     resolve: toResolver(dealsDelete, { onNotFound: () => false, map: () => true }),
+  },
+  setDealLines: {
+    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(DealLine))),
+    description:
+      "Replace a deal's line items: [{ productId?, name?, quantity, unitPrice? }]. The deal's amount becomes their sum; [] clears them.",
+    args: { id: { type: new GraphQLNonNull(GraphQLID) }, lines: { type: new GraphQLNonNull(JSONScalar) } },
+    resolve: toResolver(dealsSetLines, { map: (out) => (out as { lines: unknown }).lines }),
   },
   setDealContacts: {
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(DealContact))),

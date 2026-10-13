@@ -7,6 +7,8 @@ const CODE: Record<ActionError["kind"], string> = {
   forbidden: "FORBIDDEN",
   invalid: "BAD_USER_INPUT",
   not_found: "NOT_FOUND",
+  unavailable: "SERVICE_UNAVAILABLE",
+  rate_limited: "RATE_LIMITED",
 };
 
 /**

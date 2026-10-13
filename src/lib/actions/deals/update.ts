@@ -6,6 +6,7 @@ import { recomputeDealScore } from "@/lib/services/deal-score";
 import { lockPipelineWorkspace } from "@/lib/services/pipelines";
 import { customFieldDefsOf, encodeCustom } from "@/lib/custom-fields";
 import { loadReportingSettings } from "@/lib/reporting";
+import { linesTotal } from "@/lib/deal-lines";
 import { resolveOwner } from "../assignees";
 import type { EventContext } from "@/lib/workflows/types";
 import { defineAction } from "../define";
@@ -56,6 +57,15 @@ export const dealsUpdate = defineAction({
     // pipelineId is accepted by the patch schema but deals cannot move pipelines.
     const { custom, stageId, pipelineId: _ignored, ownerId: requestedOwner, ...fields } = patch;
     void _ignored;
+    // A deal with Line items has their sum as its Amount, in its own currency:
+    // both are changed through the lines, never typed over them.
+    const currencyChanged = fields.currency !== undefined && fields.currency !== existing.currency;
+    if (fields.amount !== undefined || currencyChanged) {
+      const total = await linesTotal(id);
+      if (total !== null && (currencyChanged || fields.amount !== total)) {
+        throw new ActionError("invalid", "amount: this deal's line items set its amount and currency; change the line items instead");
+      }
+    }
     const ownerPatch = requestedOwner !== undefined ? { ownerId: await resolveOwner(requestedOwner, ctx) } : {};
     const ownerChange: OwnerChange | null =
       ownerPatch.ownerId !== undefined && ownerPatch.ownerId !== existing.ownerId

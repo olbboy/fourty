@@ -6,6 +6,7 @@ import { dealsUpdate } from "./update";
 import { dealsDelete } from "./delete";
 import { dealsReassign } from "./reassign";
 import { dealsContacts, dealsSetContacts } from "./contacts";
+import { dealsLines, dealsSetLines } from "./lines";
 
 register(dealsList);
 register(dealsGet);
@@ -15,5 +16,7 @@ register(dealsDelete);
 register(dealsReassign);
 register(dealsContacts);
 register(dealsSetContacts);
+register(dealsLines);
+register(dealsSetLines);
 
-export { dealsList, dealsGet, dealsCreate, dealsUpdate, dealsDelete, dealsReassign, dealsContacts, dealsSetContacts };
+export { dealsList, dealsGet, dealsCreate, dealsUpdate, dealsDelete, dealsReassign, dealsContacts, dealsSetContacts, dealsLines, dealsSetLines };

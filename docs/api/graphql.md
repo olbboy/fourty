@@ -32,7 +32,11 @@ Typed queries for every object, plus custom-object records:
 - `deals`, `deal(id)` — `deals(stageId:, pipelineId:, companyId:, contactId:)` matches REST/MCP;
   `Deal.company` / `Deal.contact` nest like `Contact.company`; `Deal.owner` nests the owner like `Task.owner`;
   `Deal.stage` is the MCP stage clock (name, days in stage);
+  `Deal.contacts` lists the primary contact and the other Deal contacts with their `role`;
+  `Deal.lines` lists the line items (`name`, `quantity`, `unitPrice`, `total`; prices are null
+  for a role that cannot read the deal's amount);
   `Deal.tasks` / `Deal.notes` / `Deal.activities` likewise
+- `products(q:, state:)` — the product catalogue by name, with list prices; `state: "all"` adds products no longer sold
 - `tasks`, `task(id)` — `tasks(entityType:, entityId:, state:)` matches REST/MCP;
   `Task.owner` nests the assignee (`id` + `name`); `Task.contact` / `Task.company` /
   `Task.deal` nest a CRM pin (MCP `get_task` neighbours); `Task.record` nests a
@@ -70,6 +74,11 @@ Typed queries for every object, plus custom-object records:
 - `createCompany` / `updateCompany` / `deleteCompany`
 - `createDeal` / `updateDeal` / `deleteDeal` — same stage-change and won/lost
   side effects as REST (`deal.stage_changed`, `deal.won`, `deal.lost`)
+- `setDealContacts(id, contacts)` — replace the people on a deal besides its primary
+  contact: `[{ contactId, role }]`
+- `setDealLines(id, lines)` — replace a deal's line items:
+  `[{ productId?, name?, quantity, unitPrice? }]`; the deal's amount becomes their sum,
+  recorded on its timeline like any change of value
 - `createTask` / `updateTask` / `deleteTask` — `updateTask(completed: true)`
   fires `task.completed` and logs on the linked record, same as REST
 - `createNote` — pins a note to a contact, company, deal, or custom-object

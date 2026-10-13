@@ -16,7 +16,8 @@ export type ActionContext = {
 };
 
 /** Failure kinds every surface knows how to express in its own idiom. */
-export type ActionErrorKind = "forbidden" | "invalid" | "not_found";
+/** `unavailable`: a service this action needs is not set up here (mail). `rate_limited`: try again later. */
+export type ActionErrorKind = "forbidden" | "invalid" | "not_found" | "unavailable" | "rate_limited";
 
 export class ActionError extends Error {
   constructor(

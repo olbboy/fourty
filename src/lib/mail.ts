@@ -23,7 +23,23 @@ export type MailMessage = {
   /** Plain-text body. Always sent — some clients never render the HTML part. */
   text: string;
   html?: string;
+  /** Where a reply goes: a member writing from the CRM gets the answers in their own mailbox. */
+  replyTo?: string;
+  /** Shown as the sender's name, on the configured From address. */
+  fromName?: string;
 };
+
+/**
+ * The From header for a message: the configured address, under the writer's
+ * name when there is one. The name is stripped of what could end the header
+ * or the display-name quoting.
+ */
+export function fromHeader(configured: string, name?: string): string {
+  const clean = name?.replace(/["<>\r\n\\]/g, "").trim();
+  if (!clean) return configured;
+  const address = /<([^>]+)>/.exec(configured)?.[1] ?? configured.trim();
+  return `"${clean}" <${address}>`;
+}
 
 export type Mailer = {
   /** How mail leaves — `smtp:<host>` or `resend` — for logs and diagnostics. */
@@ -129,11 +145,12 @@ async function smtpSend(cfg: SmtpConfig, msg: MailMessage): Promise<void> {
   }
 
   await cached.transport.sendMail({
-    from: cfg.from,
+    from: fromHeader(cfg.from, msg.fromName),
     to: msg.to,
     subject: msg.subject,
     text: msg.text,
     html: msg.html,
+    ...(msg.replyTo ? { replyTo: msg.replyTo } : {}),
   });
   // Recipient is logged; the body is not — invite mail carries a live token.
   log().info({ to: msg.to, transport: `smtp:${cfg.host}` }, "mail sent");
@@ -144,11 +161,12 @@ async function resendSend(apiKey: string, from: string, msg: MailMessage): Promi
     method: "POST",
     headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
     body: JSON.stringify({
-      from,
+      from: fromHeader(from, msg.fromName),
       to: msg.to,
       subject: msg.subject,
       text: msg.text,
       html: msg.html,
+      ...(msg.replyTo ? { reply_to: msg.replyTo } : {}),
     }),
   });
 
