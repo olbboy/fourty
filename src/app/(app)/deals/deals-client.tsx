@@ -119,6 +119,9 @@ export function DealsClient() {
   const [fieldFilter, setFieldFilter] = useState("");
   const [choiceFields, setChoiceFields] = useState<ChoiceField[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // A drop onto a lost stage that still needs the workspace's lost reason.
+  const [lostAsk, setLostAsk] = useState<{ dealId: string; stageId: string; field: ChoiceField } | null>(null);
+  const [lostReason, setLostReason] = useState("");
   const [view, setView] = useState<"kanban" | "list">("kanban");
   const [activeView, setActiveView] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(searchParams.get("new") === "1");
@@ -336,14 +339,24 @@ export function DealsClient() {
   const selectedShown = pipelineDeals.filter((deal) => selected.has(deal.id));
   const allShownSelected = pipelineDeals.length > 0 && selectedShown.length === pipelineDeals.length;
 
-  async function moveDeal(dealId: string, stageId: string): Promise<void> {
+  async function moveDeal(dealId: string, stageId: string, custom?: Record<string, string>): Promise<void> {
     if (!canMoveStage) return;
+    // Closing as lost asks for the reason the workspace requires, first.
+    const target = pipeline?.stages.find((stage) => stage.id === stageId);
+    const reasonField = choiceFields.find((field) => field.key === reporting.lostReasonField);
+    const moving = deals?.find((deal) => deal.id === dealId);
+    if (!custom && target?.type === "lost" && reasonField && !moving?.custom?.[reasonField.key]) {
+      setDragId(null);
+      setLostReason("");
+      setLostAsk({ dealId, stageId, field: reasonField });
+      return;
+    }
     const previousDeals = deals;
     withViewTransition(() => {
       setDeals((current) =>
         current
           ? current.map((deal) =>
-              deal.id === dealId ? { ...deal, stageId } : deal,
+              deal.id === dealId ? { ...deal, stageId, ...(custom ? { custom: { ...deal.custom, ...custom } } : {}) } : deal,
             )
           : current,
       );
@@ -354,7 +367,7 @@ export function DealsClient() {
       const response = await fetch(`/api/deals/${dealId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ stageId }),
+        body: JSON.stringify({ stageId, ...(custom ? { custom } : {}) }),
       });
       if (!response.ok) throw new Error("Deal move failed");
     } catch {
@@ -777,6 +790,48 @@ export function DealsClient() {
         </Card>
         </>
       )}
+
+      <Modal
+        title={t("page.deals.lostReasonTitle")}
+        open={lostAsk !== null}
+        onClose={() => setLostAsk(null)}
+      >
+        {lostAsk && (
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!lostReason) return;
+              const ask = lostAsk;
+              setLostAsk(null);
+              void moveDeal(ask.dealId, ask.stageId, { [ask.field.key]: lostReason });
+            }}
+          >
+            <p className="text-sm text-ink-muted">{t("page.deals.lostReasonHint", { field: lostAsk.field.label })}</p>
+            <NativeSelect
+              value={lostReason}
+              onChange={(event) => setLostReason(event.target.value)}
+              aria-label={lostAsk.field.label}
+              required
+            >
+              <option value="">{t("page.deals.lostReasonChoose")}</option>
+              {lostAsk.field.options.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </NativeSelect>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setLostAsk(null)}>
+                {t("action.cancel")}
+              </Button>
+              <Button type="submit" disabled={!lostReason}>
+                {t("page.deals.lostReasonConfirm")}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Modal>
 
       <Modal
         title={t("page.deals.newModal")}

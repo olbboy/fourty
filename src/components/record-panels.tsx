@@ -10,8 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
 import { useLocale, useT } from "@/lib/i18n/provider";
-import type { MessageKey } from "@/lib/i18n";
-import { formatActivityDetail, formatOwnerChange } from "@/lib/activity-display";
+import type { Locale, MessageKey } from "@/lib/i18n";
+import { formatActivityDetail, formatOwnerChange, formatValueChanges } from "@/lib/activity-display";
 import { ownerLabel } from "@/lib/owner-display";
 import { useOwnerPeople } from "./owner-controls";
 
@@ -54,12 +54,22 @@ const ACTIVITY_DOT: Record<string, string> = {
   workflow: "bg-accent-500", // written by the system, not by a person
 };
 
-function describe(a: Activity, t: TFn): string {
+/** Fields whose old → new value `meta.changes` already spells out. */
+const VALUE_FIELDS = new Set(["amount", "currency", "expectedCloseDate"]);
+
+function describe(a: Activity, t: TFn, locale: Locale): string {
   const label = ACTIVITY_KEYS[a.type] ? t(ACTIVITY_KEYS[a.type]) : a.type;
+  // A deal write can carry value changes on whichever entry it produced.
+  const changes = formatValueChanges(a.meta.changes, t, locale);
+  const withChanges = (text: string) => (changes ? `${text} · ${changes}` : text);
   if (a.type === "stage_changed" && a.meta.from && a.meta.to) {
-    return t("activity.stageChangedDetail", { from: String(a.meta.from), to: String(a.meta.to) });
+    return withChanges(t("activity.stageChangedDetail", { from: String(a.meta.from), to: String(a.meta.to) }));
   }
-  if (a.type === "owner_changed") return formatOwnerChange(a.meta, t);
+  if (a.type === "owner_changed") return withChanges(formatOwnerChange(a.meta, t));
+  if (a.type === "updated" && changes) {
+    const others = Array.isArray(a.meta.fields) ? (a.meta.fields as string[]).filter((f) => !VALUE_FIELDS.has(f)) : [];
+    return t("activity.updatedFields", { fields: [changes, ...others].join("; ") });
+  }
   if (a.type === "updated" && Array.isArray(a.meta.fields) && a.meta.fields.length) {
     return t("activity.updatedFields", { fields: (a.meta.fields as string[]).join(", ") });
   }
@@ -130,7 +140,7 @@ export function Timeline({ entityType, entityId, refreshKey }: EntityRef & { ref
           <span
             className={`absolute -left-[26px] top-1.5 h-2.5 w-2.5 rounded-full ${ACTIVITY_DOT[a.type] ?? "bg-ink-muted/50"}`}
           />
-          <p className="text-sm">{describe(a, t)}</p>
+          <p className="text-sm">{describe(a, t, locale)}</p>
           <p className="text-xs text-ink-muted">{timeAgo(a.createdAt, locale)}</p>
         </li>
       ))}

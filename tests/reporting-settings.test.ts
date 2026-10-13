@@ -55,7 +55,7 @@ describe("reporting currency settings", () => {
   it("defaults to USD at the built-in rates", async () => {
     const res = await settingsRoute.GET(req(MEMBER, "/api/settings/reporting"));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ currency: "USD", perUsd: {}, deliveryField: null, breakdownField: null });
+    expect(await res.json()).toEqual({ currency: "USD", perUsd: {}, deliveryField: null, breakdownField: null, lostReasonField: null });
 
     const stats = await dashboard();
     expect(stats.currency).toBe("USD");

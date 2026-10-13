@@ -39,6 +39,22 @@ You can change an open stage's win probability; Fourty recalculates the stored
 scores of deals in that stage immediately. The API keeps closed-state history
 consistent by rejecting stage-type changes.
 
+### Lost reason
+
+An admin can name one single-choice deal field as the **lost reason field**
+(**Settings → Pipelines**, below the stages). From then on a deal moves into a lost
+stage only with that field filled: dragging it there on the board asks for the
+reason first, and the API answers `400` to a stage move that leaves it empty (send
+the reason in `custom` with the same request). With no field named, closing as lost
+works as before.
+
+### What changed, on the timeline
+
+When an edit changes a deal's **Amount**, **Expected close date** or **Delivery date**
+(the date field chosen in Settings → Reporting), the timeline shows the old and the
+new value, for example *Amount: ₫80B → ₫60B*. A stage move or an owner change made in
+the same edit carries the value changes on the same line.
+
 ## The weighted forecast
 
 The forecast is deterministic: each open deal contributes `amount × stage

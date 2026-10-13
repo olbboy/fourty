@@ -6,7 +6,9 @@ import { customFieldDefsOf } from "@/lib/custom-fields";
 
 /**
  * Workspace reporting settings (CONTEXT.md: Reporting currency, Exchange rate,
- * Delivery date, Breakdown field), stored as one JSON value in `settings`.
+ * Delivery date, Breakdown field), stored as one JSON value in `settings`. The
+ * lost-reason field lives here too: it is the same "pick a deal field" choice,
+ * though the app offers it under Settings → Pipelines.
  * A workspace that never saved them reports in USD at the built-in rates.
  */
 export type ReportingSettings = ReportingRates & {
@@ -14,17 +16,25 @@ export type ReportingSettings = ReportingRates & {
   deliveryField: string | null;
   /** Key of the deal custom select field that splits forecasts into columns. */
   breakdownField: string | null;
+  /** Key of the deal custom select field a deal must fill to close as lost. */
+  lostReasonField: string | null;
 };
 
 const SETTINGS_KEY = "reporting";
 
-export const DEFAULT_REPORTING: ReportingSettings = { ...DEFAULT_REPORTING_RATES, deliveryField: null, breakdownField: null };
+export const DEFAULT_REPORTING: ReportingSettings = {
+  ...DEFAULT_REPORTING_RATES,
+  deliveryField: null,
+  breakdownField: null,
+  lostReasonField: null,
+};
 
 export const reportingPatch = z.object({
   currency: z.enum(SUPPORTED_CURRENCIES).optional(),
   perUsd: z.record(z.enum(SUPPORTED_CURRENCIES), z.number().positive().finite()).optional(),
   deliveryField: z.string().min(1).nullable().optional(),
   breakdownField: z.string().min(1).nullable().optional(),
+  lostReasonField: z.string().min(1).nullable().optional(),
 });
 
 export async function loadReportingSettings(): Promise<ReportingSettings> {
@@ -53,6 +63,9 @@ export async function saveReportingSettings(
   }
   if (patch.breakdownField && !isField(patch.breakdownField, "select")) {
     return { ok: false, error: "breakdownField: not a deal select field" };
+  }
+  if (patch.lostReasonField && !isField(patch.lostReasonField, "select")) {
+    return { ok: false, error: "lostReasonField: not a deal select field" };
   }
 
   const current = await loadReportingSettings();

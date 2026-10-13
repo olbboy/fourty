@@ -16,6 +16,20 @@ export async function dragCardToColumn(
   card: Locator,
   targetColumn: Locator,
 ): Promise<Response> {
+  const [response] = await Promise.all([
+    page.waitForResponse(
+      (r) => /\/api\/deals\/[^/]+$/.test(r.url()) && r.request().method() === "PATCH",
+    ),
+    dropCard(page, card, targetColumn),
+  ]);
+  return response;
+}
+
+/**
+ * The drag and drop alone, for a drop that does not save straight away: a move
+ * into a lost stage first asks for the lost reason.
+ */
+export async function dropCard(page: Page, card: Locator, targetColumn: Locator): Promise<void> {
   // A DataTransfer is required to construct a valid drag event, even though the
   // app reads component state rather than the transfer payload.
   const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
@@ -27,13 +41,6 @@ export async function dragCardToColumn(
   await expect(card).toHaveClass(/opacity-40/);
 
   await targetColumn.dispatchEvent("dragover", init);
-  const [response] = await Promise.all([
-    page.waitForResponse(
-      (r) => /\/api\/deals\/[^/]+$/.test(r.url()) && r.request().method() === "PATCH",
-    ),
-    targetColumn.dispatchEvent("drop", init),
-  ]);
-
+  await targetColumn.dispatchEvent("drop", init);
   await dataTransfer.dispose();
-  return response;
 }
