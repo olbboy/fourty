@@ -21,7 +21,7 @@ vi.mock("next/headers", () => ({
 
 describe("invite acceptance", () => {
   let accept: typeof import("@/app/api/members/accept/route");
-  let invite: (opts: { email: string; expiresAt: number; role?: string }) => Promise<string>;
+  let invite: (opts: { email: string; expiresAt: number; role?: string; revokedAt?: number }) => Promise<string>;
   let ws: string;
 
   const post = (body: Record<string, unknown>) =>
@@ -41,11 +41,11 @@ describe("invite acceptance", () => {
     const { newId } = await import("@/lib/id");
     accept = await import("@/app/api/members/accept/route");
     ws = await createWorkspace();
-    invite = async ({ email, expiresAt, role = "member" }) => {
+    invite = async ({ email, expiresAt, role = "member", revokedAt }) => {
       const token = `${ws}.${newId()}${newId()}`;
       await withWorkspace(ws, () =>
         db.insert(tables.invites).values({
-          id: newId(), workspaceId: ws, email, role, tokenHash: sha256(token), expiresAt, createdAt: Date.now(),
+          id: newId(), workspaceId: ws, email, role, tokenHash: sha256(token), expiresAt, revokedAt, createdAt: Date.now(),
         }),
       );
       return token;
@@ -122,6 +122,14 @@ describe("invite acceptance", () => {
     const again = await invite({ email: "linh@test.dev", expiresAt: Date.now() + 86_400_000 });
     expect((await post({ token: again })).status).toBe(200);
     expect((await getSessionUser())!.workspaceId).toBe(ws);
+  });
+
+  it("refuses an invite the admin took back, like an expired one", async () => {
+    const token = await invite({ email: "revoked@test.dev", expiresAt: Date.now() + 86_400_000, revokedAt: Date.now() });
+    jar.clear();
+    const res = await post({ token, name: "Revoked", password: "correcthorse" });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("Invite is invalid or expired");
   });
 
   it("still reports an unused invite past its date as expired", async () => {

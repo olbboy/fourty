@@ -35,6 +35,7 @@ const ACTION_KEYS: Record<string, MessageKey> = {
   "field_permission.cleared": "audit.action.field_permission.cleared",
   "field_permission.set": "audit.action.field_permission.set",
   "member.invited": "audit.action.member.invited",
+  "member.invite_revoked": "audit.action.member.invite_revoked",
   "member.role_changed": "audit.action.member.role_changed",
   "member.removed": "audit.action.member.removed",
   "member.joined": "audit.action.member.joined",

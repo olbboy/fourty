@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { db, tables, withWorkspace } from "@/db";
 import { json, apiError, parseBody } from "@/lib/api";
 import { createSession, createUser, getSessionUser, roleInWorkspace, setSessionWorkspace } from "@/lib/auth";
-import { parseInviteToken } from "@/lib/invites";
+import { inviteState, parseInviteToken } from "@/lib/invites";
 import { newId } from "@/lib/id";
 import { audit } from "@/lib/audit";
 
@@ -45,10 +45,9 @@ export async function POST(req: Request) {
     )[0];
     // A link opened again after joining is not an error to the person holding
     // it: say it was used, so the page can send them to sign in.
-    if (invite?.acceptedAt) return apiError("Invite already accepted", 409);
-    if (!invite || invite.expiresAt < Date.now()) {
-      return apiError("Invite is invalid or expired", 400);
-    }
+    const state = invite ? inviteState(invite) : "dead";
+    if (state === "used") return apiError("Invite already accepted", 409);
+    if (!invite || state === "dead") return apiError("Invite is invalid or expired", 400);
 
     // Resolve which user is joining.
     let userId: string;

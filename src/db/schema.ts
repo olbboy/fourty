@@ -63,6 +63,7 @@ export const invites = pgTable(
     tokenHash: text("token_hash").notNull(), // sha256 of the invite token
     expiresAt: millis("expires_at").notNull(),
     acceptedAt: millis("accepted_at"),
+    revokedAt: millis("revoked_at"), // taken back by an admin, or replaced by a newer invite
     invitedBy: text("invited_by"),
     createdAt: millis("created_at").notNull(),
   },

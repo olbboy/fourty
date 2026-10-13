@@ -134,6 +134,13 @@
       "when": 1784019000000,
       "tag": "0018_password_resets",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1784020000000,
+      "tag": "0019_invite_revoked",
+      "breakpoints": true
     }
   ]
 }

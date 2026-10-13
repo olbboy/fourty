@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { timeAgo } from "@/lib/format";
+import { formatDate, timeAgo } from "@/lib/format";
 import { Spinner, LoadError, useConfirm } from "@/components/ui";
 import { IconPlus, IconTrash } from "@/components/icons";
 import { ROLES } from "@/lib/permissions";
@@ -17,6 +17,7 @@ import { roleLabel } from "@/lib/role-display";
 function memberError(t: (key: MessageKey) => string, error: unknown, fallback: MessageKey): string {
   if (error === "Cannot demote the last admin") return t("settings.inviteLastAdminDemote");
   if (error === "Cannot remove the last admin") return t("settings.inviteLastAdminRemove");
+  if (error === "Already a member of this workspace") return t("settings.inviteAlreadyMember");
   return t(fallback);
 }
 
@@ -29,11 +30,21 @@ type Member = {
   name: string;
 };
 
+/** An invite nobody has used yet; resending replaces its link. */
+type PendingInvite = {
+  id: string;
+  email: string;
+  role: string;
+  expiresAt: number;
+  invitedByName: string | null;
+};
+
 export function MembersSection() {
   const t = useT();
   const locale = useLocale();
   const [askConfirm, confirmDialog] = useConfirm();
   const [members, setMembers] = useState<Member[] | null>(null);
+  const [pending, setPending] = useState<PendingInvite[]>([]);
   const [failed, setFailed] = useState(false);
   const [adminOnly, setAdminOnly] = useState(false);
   const [email, setEmail] = useState("");
@@ -46,13 +57,14 @@ export function MembersSection() {
   const load = useCallback(async () => {
     setFailed(false);
     try {
-      const res = await fetch("/api/members");
+      const [res, invites] = await Promise.all([fetch("/api/members"), fetch("/api/members/invite")]);
       if (res.status === 403) {
         setAdminOnly(true);
         return;
       }
-      if (!res.ok) throw new Error("members");
+      if (!res.ok || !invites.ok) throw new Error("members");
       setMembers((await res.json()).members);
+      setPending((await invites.json()).invites);
     } catch {
       setFailed(true);
     }
@@ -61,14 +73,14 @@ export function MembersSection() {
     load();
   }, [load]);
 
-  async function sendInvite() {
-    const to = email.trim();
-    if (!to) return;
+  // Inviting an address again replaces its pending link, so "resend" is the
+  // same call with the invite's own email and role.
+  async function issueInvite(to: string, inviteRole: string): Promise<boolean> {
     setError(null);
     const res = await fetch("/api/members/invite", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: to, role }),
+      body: JSON.stringify({ email: to, role: inviteRole }),
     });
     if (res.ok) {
       const data = await res.json();
@@ -77,12 +89,31 @@ export function MembersSection() {
         to,
         emailed: Boolean(data.emailed),
       });
-      setEmail("");
       load();
-    } else {
-      const body = await res.json().catch(() => ({}));
-      setError(memberError(t, body.error, "settings.inviteFailed"));
+      return true;
     }
+    const body = await res.json().catch(() => ({}));
+    setError(memberError(t, body.error, "settings.inviteFailed"));
+    return false;
+  }
+
+  async function sendInvite() {
+    const to = email.trim();
+    if (!to) return;
+    if (await issueInvite(to, role)) setEmail("");
+  }
+
+  async function revoke(inv: PendingInvite) {
+    const ok = await askConfirm({
+      title: t("settings.inviteRevokeTitle", { email: inv.email }),
+      body: t("settings.inviteRevokeBody"),
+      confirmLabel: t("settings.inviteRevoke"),
+    });
+    if (!ok) return;
+    setError(null);
+    const res = await fetch(`/api/members/invite/${inv.id}`, { method: "DELETE" });
+    if (!res.ok) setError(t("settings.inviteFailedRevoke"));
+    load();
   }
 
   async function changeRole(m: Member, next: string) {
@@ -216,6 +247,43 @@ export function MembersSection() {
               )}
             </div>
           ))}
+        </div>
+      )}
+      {pending.length > 0 && (
+        <div className="mt-4">
+          <h3 className="mb-1 text-xs font-semibold text-ink-muted">{t("settings.invitePending")}</h3>
+          <div className="divide-y divide-line/60">
+            {pending.map((inv) => (
+              <div key={inv.id} className="flex items-center gap-3 py-2.5">
+                <div className="flex-1">
+                  <p className="text-sm font-medium">{inv.email}</p>
+                  <p className="text-xs text-ink-muted">
+                    {roleLabel(inv.role, t)}
+                    {inv.invitedByName && ` · ${t("settings.inviteBy", { name: inv.invitedByName })}`}
+                    {" · "}
+                    {inv.expiresAt < Date.now() ? (
+                      <span className="text-feedback-warn">
+                        {t("settings.inviteExpired", { date: formatDate(inv.expiresAt, locale) })}
+                      </span>
+                    ) : (
+                      t("settings.inviteExpires", { date: formatDate(inv.expiresAt, locale) })
+                    )}
+                  </p>
+                </div>
+                <Button
+                  onClick={() => void issueInvite(inv.email, inv.role)}
+                  aria-label={t("settings.inviteResendAria", { email: inv.email })} variant="outline" size="sm">
+                  {t("settings.inviteResend")}
+                </Button>
+                <Button
+                  onClick={() => revoke(inv)}
+                  aria-label={t("settings.inviteRevokeAria", { email: inv.email })} variant="outline" size="sm"
+                  className="text-feedback-error">
+                  {t("settings.inviteRevoke")}
+                </Button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
       {confirmDialog}
