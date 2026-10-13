@@ -173,7 +173,10 @@ describe("static guard: every API route authenticates", () => {
       const mutates = /export (async function|const) (POST|PATCH|DELETE)\b/.test(src);
       // An action declares the object and verb it needs, and the kernel refuses
       // the call before running it — the same can() predicate authorize() wraps.
-      if (mutates && !src.includes("authorize(") && !src.includes("toRouteHandler(")) missing.push(rel);
+      // authorizeSso() (src/lib/sso/authorize.ts) calls authorize() first, then
+      // adds the instance-owner check SSO connections need.
+      const authorizes = src.includes("authorize(") || src.includes("authorizeSso(");
+      if (mutates && !authorizes && !src.includes("toRouteHandler(")) missing.push(rel);
     }
     expect(missing, `mutating routes missing authorize(): ${missing.join(", ")}`).toEqual([]);
   });

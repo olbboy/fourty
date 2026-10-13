@@ -1,6 +1,6 @@
 import { scryptSync, timingSafeEqual, randomBytes, createHash } from "node:crypto";
 import { cookies } from "next/headers";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { newId, newToken } from "./id";
 
@@ -175,12 +175,16 @@ export async function createWorkspace(name: string, ownerId: string): Promise<st
 
 export type Membership = { workspaceId: string; role: string };
 
-/** All workspaces a user belongs to, with their role in each. */
+/**
+ * Workspaces a user is still an active member of, with their role in each,
+ * the one they joined first first. Sign-in opens a session in the first entry.
+ */
 export async function membershipsOf(userId: string): Promise<Membership[]> {
   const rows = await db
     .select({ workspaceId: tables.workspaceMembers.workspaceId, role: tables.workspaceMembers.role })
     .from(tables.workspaceMembers)
-    .where(eq(tables.workspaceMembers.userId, userId));
+    .where(and(eq(tables.workspaceMembers.userId, userId), isNull(tables.workspaceMembers.deactivatedAt)))
+    .orderBy(asc(tables.workspaceMembers.createdAt), asc(tables.workspaceMembers.workspaceId));
   return rows;
 }
 

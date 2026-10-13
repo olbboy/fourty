@@ -87,7 +87,9 @@ server itself — it is not an escalation, but it is a reason to keep server acc
 - **Signed webhooks** — per-workspace HMAC-SHA256 ([ADR-013](../adr/013-webhook-signatures.md)).
 - **SSO** — OIDC Authorization Code + PKCE, real JWKS/RS256 verification, JIT
   provisioning ([ADR-014](../adr/014-sso-oidc.md)). Providers are managed from
-  **Settings → Single sign-on** (admins only); the client secret is write-only —
+  **Settings → Single sign-on** by admins of the instance owner's workspace (the
+  first one created, at setup) — providers apply to the whole instance, so admins
+  of later workspaces cannot see or change them. The client secret is write-only —
   the API reports whether one is set and never returns it.
 - **SSRF protection** — workflow webhooks can't reach private/loopback addresses unless
   you explicitly opt in.

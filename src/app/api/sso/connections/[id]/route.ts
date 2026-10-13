@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db, tables } from "@/db";
-import { withAuth, authorize, json, apiError, parseBody } from "@/lib/api";
+import { withAuth, json, apiError, parseBody } from "@/lib/api";
+import { authorizeSso } from "@/lib/sso/authorize";
 import { audit } from "@/lib/audit";
 import { redactConnection } from "@/lib/sso/connection-view";
 
@@ -16,7 +17,7 @@ async function load(id: string) {
 
 export async function GET(req: Request, { params }: Params) {
   return withAuth(req, async (auth) => {
-    const denied = authorize(auth, "sso", "read");
+    const denied = await authorizeSso(auth, "read");
     if (denied) return denied;
     const { id } = await params;
     const row = await load(id);
@@ -40,7 +41,7 @@ const updateSchema = z
 
 export async function PATCH(req: Request, { params }: Params) {
   return withAuth(req, async (auth) => {
-    const denied = authorize(auth, "sso", "update");
+    const denied = await authorizeSso(auth, "update");
     if (denied) return denied;
     const { id } = await params;
     const existing = await load(id);
@@ -74,7 +75,7 @@ export async function PATCH(req: Request, { params }: Params) {
 
 export async function DELETE(req: Request, { params }: Params) {
   return withAuth(req, async (auth) => {
-    const denied = authorize(auth, "sso", "delete");
+    const denied = await authorizeSso(auth, "delete");
     if (denied) return denied;
     const { id } = await params;
     const existing = await load(id);
