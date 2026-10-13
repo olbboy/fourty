@@ -4,6 +4,24 @@ Fourty is a self-hosted CRM for one sales team per workspace: it tracks who the 
 
 ## Language
 
+### Team
+
+**Workspace**:
+The space one sales team's records live in; every Deal, contact and company belongs to exactly one Workspace.
+_Avoid_: Tenant, organization, account
+
+**Account**:
+One person known to a Fourty installation, identified by the email address they sign in with; it exists once, however many Workspaces it belongs to.
+_Avoid_: User, login, profile
+
+**Member**:
+An Account's place in one Workspace, carrying a role (admin, member or viewer); removing a Member ends their access to that Workspace but keeps the Account and its history.
+_Avoid_: User, teammate, seat
+
+**Invite**:
+A single-use link that lets whoever holds it join one Workspace as a Member with a set role; it lapses after seven days.
+_Avoid_: Invitation code, join link
+
 ### Selling
 
 **Deal**:

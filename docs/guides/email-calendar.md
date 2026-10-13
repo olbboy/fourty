@@ -12,7 +12,7 @@ OAuth (Authorization Code + PKCE, **read-only** scopes — Gmail `gmail.readonly
 - **Matches participants to contacts** by email address.
 - **Dedupes** messages so re-syncs don't double-post.
 - **Threads** each message onto the [activity timeline](./records.md) of the contacts
-  and deals it concerns.
+  it concerns. Messages are not linked to deals.
 
 ## It pulls by itself
 
