@@ -12,8 +12,8 @@ error shapes.
 |---|---|
 | Contacts | `/api/contacts`, `/api/contacts/{id}` |
 | Companies | `/api/companies`, `/api/companies/{id}` |
-| Deals | `/api/deals`, `/api/deals/{id}` (`ownerId` assigns a member; `currency` must be one of the [12 supported codes](../guides/pipeline.md#multi-currency)) |
-| Tasks | `/api/tasks`, `/api/tasks/{id}` (`ownerId` assigns a member); `/api/tasks/assignees` lists who can own a task or deal (GraphQL `assignees`, MCP `list_assignees`) |
+| Deals | `/api/deals` (filters `ownerId` = member id or `none`, `closeQuarter` = `2026-Q4`, `fieldKey` + `fieldValue`), `/api/deals/{id}` (`ownerId` assigns a member; `currency` must be one of the [12 supported codes](../guides/pipeline.md#multi-currency)), `POST /api/deals/reassign` (`{ ids, ownerId }`, all or nothing) |
+| Tasks | `/api/tasks` (filter `ownerId` = member id or `none`), `/api/tasks/{id}` (`ownerId` assigns a member), `POST /api/tasks/reassign` (`{ ids, ownerId }`); `/api/tasks/assignees` lists who can own a task or deal (GraphQL `assignees`, MCP `list_assignees`), `?all=1` adds members who left, each with `active` |
 | Notes | `/api/notes` (GET list + POST create; append-only) |
 | Activities (timeline) | `/api/activities` |
 | Pipelines | `/api/pipelines` (GET, POST), `/api/pipelines/{id}` (PATCH name; DELETE when empty and not the last) |

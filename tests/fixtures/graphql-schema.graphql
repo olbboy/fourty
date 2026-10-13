@@ -4,9 +4,35 @@ type Query {
   factSuggestions(entityType: String, entityId: ID, status: String, limit: Int): [RecordFact!]!
   companies(limit: Int, q: String, industry: String, sort: String): [Company!]!
   company(id: ID!): Company
-  deals(limit: Int, q: String, stageId: String, pipelineId: String, companyId: String, contactId: String): [Deal!]!
+  deals(
+    limit: Int
+    q: String
+    stageId: String
+    pipelineId: String
+    companyId: String
+    contactId: String
+
+    """A member id, or "none" for unowned deals."""
+    ownerId: String
+
+    """Expected close date quarter, e.g. "2026-Q4"."""
+    closeQuarter: String
+
+    """Custom field key; pair with fieldValue."""
+    fieldKey: String
+    fieldValue: String
+  ): [Deal!]!
   deal(id: ID!): Deal
-  tasks(limit: Int, state: String, entityType: String, entityId: String, sort: String): [Task!]!
+  tasks(
+    limit: Int
+    state: String
+    entityType: String
+    entityId: String
+    sort: String
+
+    """A member id, or "none" for unowned tasks."""
+    ownerId: String
+  ): [Task!]!
   task(id: ID!): Task
   assignees: [Assignee!]!
   notes(limit: Int, entityType: String, entityId: String): [Note!]!
@@ -349,7 +375,17 @@ type Mutation {
   createDeal(input: JSON!): Deal!
   updateDeal(id: ID!, input: JSON!): Deal!
   deleteDeal(id: ID!): Boolean!
+
+  """
+  Give many deals one owner (null = unassigned); all or nothing. Returns how many moved.
+  """
+  reassignDeals(ids: [ID!]!, ownerId: ID): Int!
   createTask(input: JSON!): Task!
+
+  """
+  Give many tasks one owner (null = unassigned); all or nothing. Returns how many moved.
+  """
+  reassignTasks(ids: [ID!]!, ownerId: ID): Int!
   updateTask(id: ID!, input: JSON!): Task!
   deleteTask(id: ID!): Boolean!
   createNote(input: JSON!): Note!

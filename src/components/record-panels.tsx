@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { useLocale, useT } from "@/lib/i18n/provider";
 import type { MessageKey } from "@/lib/i18n";
 import { formatActivityDetail, formatOwnerChange } from "@/lib/activity-display";
+import { ownerLabel } from "@/lib/owner-display";
+import { useOwnerPeople } from "./owner-controls";
 
 type EntityRef = { entityType: string; entityId: string };
 type TFn = (key: MessageKey, vars?: Record<string, string | number>) => string;
@@ -295,6 +297,8 @@ export function TasksPanel({ entityType, entityId, onChanged }: EntityRef & { on
   const locale = useLocale();
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const [assignees, setAssignees] = useState<{ id: string; name: string }[]>([]);
+  // Everyone who has been a member, so a task of someone who left keeps their name.
+  const people = useOwnerPeople();
   const [draft, setDraft] = useState("");
   const [ownerId, setOwnerId] = useState("");
   const [failed, setFailed] = useState(false);
@@ -387,8 +391,6 @@ export function TasksPanel({ entityType, entityId, onChanged }: EntityRef & { on
 
   const open = (tasks ?? []).filter((t) => !t.completedAt);
   const done = (tasks ?? []).filter((t) => t.completedAt);
-  const ownerName = (id: string | null) => assignees.find((a) => a.id === id)?.name;
-
   return (
     <div className="space-y-3">
       <div className="flex gap-2">
@@ -454,9 +456,7 @@ export function TasksPanel({ entityType, entityId, onChanged }: EntityRef & { on
                       {formatDate(task.dueDate, locale)}
                     </span>
                   )}
-                  <span className="text-xs text-ink-muted">
-                    {ownerName(task.ownerId) ?? t("common.unassigned")}
-                  </span>
+                  <span className="text-xs text-ink-muted">{ownerLabel(task.ownerId, people, t)}</span>
                 </span>
               </span>
             </label>
