@@ -1,7 +1,7 @@
 ---
 title: "Trang Thành viên và các tính năng CRM cơ bản còn thiếu"
 date: 2026-10-13
-status: "Phase 3, 4 đã deploy (PR #30, #31); Phase 5 chờ merge (PR #32); Phase 6 xong trên máy (nhánh feat/forecast-by-owner); Phase 7–9 chưa bắt đầu"
+status: "Phase 3, 4, 5 đã deploy (PR #30, #31, #32); Phase 6 chờ merge (PR #33); Phase 7 xong trên máy (nhánh feat/edit-notes); Phase 8–9 chưa bắt đầu"
 nguon:
   - "plans/reports/research-261013-1649-user-administration.md (quyết định Q63–Q65)"
   - "plans/reports/research-261013-1649-crm-baseline-feature-gaps.md (quyết định Q66–Q68)"
@@ -81,6 +81,13 @@ Kết quả Phase 6 (13/10/2026):
 
 - Sửa, xoá ghi chú; ghi chú đã sửa có dấu "đã sửa". Ai được làm: Q76.
 - Seam dự kiến: action `notes.update`, `notes.delete` (REST, GraphQL, MCP cùng có).
+
+Kết quả Phase 7 (13/10/2026):
+
+- Q87 = A. Action `notes.update`, `notes.delete` (REST `/api/notes/{id}`, GraphQL `updateNote`/`deleteNote`, MCP `update_note`/`delete_note`, MCP 43 công cụ). Chỉ người viết hoặc admin (`mayChange`); `notes.list` trả `canChange` cho người đang xem để giao diện chỉ hiện nút khi được phép.
+- Cột `notes.edited_at` (migration 0020) đánh dấu "đã sửa". Dòng `note_added` trên dòng thời gian nay mang `noteId`; sửa thì đổi đoạn trích, xoá thì xoá dòng đó (dòng cũ không có `noteId` được tìm theo đoạn trích).
+- Nút sửa và xoá ghi chú có tên riêng "Sửa ghi chú", "Xoá ghi chú", tách khỏi nút sửa và xoá của chính bản ghi trên cùng trang.
+- Test mới: `tests/notes-edit.test.ts` (5), e2e `notes-edit`. Toàn bộ unit và 112 e2e đạt.
 
 ## Phase 8 — Hồ sơ và cứu tài khoản (nhóm 3 và 4 của Q65)
 

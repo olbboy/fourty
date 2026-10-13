@@ -21,7 +21,7 @@ import { dealsCreate, dealsDelete, dealsGet, dealsList, dealsReassign, dealsUpda
 import { dealStageClock } from "@/lib/actions/deals/shared";
 import { tasksCreate, tasksDelete, tasksGet, tasksList, tasksReassign, tasksUpdate } from "@/lib/actions/tasks";
 import { getAssignee, listAssignees } from "@/lib/actions/assignees";
-import { notesCreate, notesList } from "@/lib/actions/notes";
+import { notesCreate, notesDelete, notesList, notesUpdate } from "@/lib/actions/notes";
 import { activitiesCreate, activitiesList } from "@/lib/actions/activities";
 import { factsDecide, factsList, factsRecord } from "@/lib/actions/facts";
 import { searchCrm } from "@/lib/services/search";
@@ -379,6 +379,7 @@ const Note: GraphQLObjectType = new GraphQLObjectType({
     entityType: { type: S },
     entityId: { type: S },
     authorId: { type: S },
+    editedAt: { type: GraphQLFloat, description: "Set once the author or an admin corrected the note." },
     ...pinFields(),
   }),
 });
@@ -985,6 +986,18 @@ const mutationFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
     type: new GraphQLNonNull(Note),
     args: { input: { type: new GraphQLNonNull(JSONScalar) } },
     resolve: toResolver(notesCreate),
+  },
+  updateNote: {
+    type: new GraphQLNonNull(Note),
+    description: "Correct a note's text. Author or admin only.",
+    args: { id: { type: new GraphQLNonNull(GraphQLID) }, body: { type: new GraphQLNonNull(GraphQLString) } },
+    resolve: toResolver(notesUpdate),
+  },
+  deleteNote: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: "Delete a note and its timeline line. Author or admin only.",
+    args: { id: { type: new GraphQLNonNull(GraphQLID) } },
+    resolve: toResolver(notesDelete, { onNotFound: () => false, map: () => true }),
   },
   logActivity: {
     type: new GraphQLNonNull(Activity),

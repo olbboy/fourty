@@ -175,6 +175,9 @@ type Note {
   entityType: String
   entityId: String
   authorId: String
+
+  """Set once the author or an admin corrected the note."""
+  editedAt: Float
   contact: Contact
   company: Company
   deal: Deal
@@ -389,6 +392,12 @@ type Mutation {
   updateTask(id: ID!, input: JSON!): Task!
   deleteTask(id: ID!): Boolean!
   createNote(input: JSON!): Note!
+
+  """Correct a note's text. Author or admin only."""
+  updateNote(id: ID!, body: String!): Note!
+
+  """Delete a note and its timeline line. Author or admin only."""
+  deleteNote(id: ID!): Boolean!
   logActivity(input: JSON!): Activity!
   createRecord(object: String!, data: JSON!): Record!
   updateRecord(object: String!, id: ID!, data: JSON!): Record!

@@ -71,6 +71,9 @@ export const noteInput = z.object({
   entityId: z.string().min(1),
 });
 
+/** A note's text is the only thing an edit changes; where it hangs stays put. */
+export const notePatch = z.object({ id: z.string().min(1), body: noteInput.shape.body });
+
 export const activityLogInput = z.object({
   type: z.enum(["email", "call", "meeting"]),
   entityType,

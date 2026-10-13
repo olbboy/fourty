@@ -132,6 +132,10 @@ export type Note = {
   entityId: string;
   authorId: string | null;
   createdAt: number;
+  /** Set once the author or an admin corrected it. */
+  editedAt?: number | null;
+  /** Whether the reader may edit or delete it (author or admin). */
+  canChange?: boolean;
 };
 
 export type Activity = {

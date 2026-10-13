@@ -57,8 +57,10 @@ const UP = [
   "drizzle/0017_stage_colour_default.sql",
   "drizzle/0018_password_resets.sql",
   "drizzle/0019_invite_revoked.sql",
+  "drizzle/0020_note_edited.sql",
 ];
 const DOWN = [
+  "drizzle/down/0020_note_edited.down.sql",
   "drizzle/down/0019_invite_revoked.down.sql",
   "drizzle/down/0018_password_resets.down.sql",
   "drizzle/down/0017_stage_colour_default.down.sql",
