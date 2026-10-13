@@ -1,7 +1,7 @@
 ---
 title: "Trang Thành viên và các tính năng CRM cơ bản còn thiếu"
 date: 2026-10-13
-status: "Phase 3, 4, 5 đã deploy (PR #30, #31, #32); Phase 6 chờ merge (PR #33); Phase 7 xong trên máy (nhánh feat/edit-notes); Phase 8–9 chưa bắt đầu"
+status: "Phase 3–6 đã deploy (PR #30–#33); Phase 7 chờ merge (PR #34); Phase 8 xong trên máy (nhánh feat/account-rescue); Phase 9 chưa bắt đầu"
 nguon:
   - "plans/reports/research-261013-1649-user-administration.md (quyết định Q63–Q65)"
   - "plans/reports/research-261013-1649-crm-baseline-feature-gaps.md (quyết định Q66–Q68)"
@@ -95,6 +95,14 @@ Kết quả Phase 7 (13/10/2026):
 - Admin, trên dòng của một thành viên: sửa email; tạo link đặt lại mật khẩu dùng một lần (hạn 24 giờ) để tự gửi; tắt 2FA cho người mất điện thoại. Mọi thao tác ghi nhật ký.
 - Các thao tác này đụng tới **Tài khoản**, thứ dùng chung cho cả hệ thống, nên cần ranh giới quyền: Q77.
 - Seam dự kiến: REST `/api/me`, các route mới dưới `/api/members/:userId`; e2e `settings`, `two-factor`.
+
+Kết quả Phase 8 (14/10/2026):
+
+- Q88 = A. Tự phục vụ: `PATCH /api/me` (tên), `POST /api/me/password` (cần mật khẩu hiện tại, giới hạn số lần thử như đăng nhập; các phiên khác bị đăng xuất, phiên này vẫn giữ). Giao diện: "Tài khoản của tôi" trong menu tài khoản.
+- Cứu tài khoản (Q77): `PATCH /api/members/{id}/email`, `POST /api/members/{id}/reset-link` (link một lần, 24 giờ, dùng chung bộ máy với "Quên mật khẩu" qua `issueResetToken`), `DELETE /api/members/{id}/2fa`. Chỉ admin của workspace tạo đầu tiên (`authorizeInstanceOwner`, dùng chung với SSO), và phải là người đăng nhập, không nhận API key (tự quyết thêm: key lộ không đủ để chiếm tài khoản). Mỗi thao tác ghi nhật ký. Giao diện: menu "Tài khoản" trên từng dòng thành viên.
+- `GET /api/members` thêm `twoFactor` từng người và `canRescue`.
+- Sửa chú thích cũ "không có quên mật khẩu" ở `src/lib/auth.ts`, `scripts/reset-password.ts`; ADR-014 và `docs/self-hosting/operations.md` ghi quy tắc mới.
+- Test mới: `tests/account-rescue.test.ts` (7), e2e `account-rescue`. Toàn bộ unit và 113 e2e đạt.
 
 ## Phase 9 — Email nhắc việc mỗi sáng (việc 5 của Q70)
 

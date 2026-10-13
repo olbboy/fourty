@@ -32,7 +32,8 @@ error shapes.
 | Import | `/api/import/contacts` |
 | API keys | `/api/api-keys` |
 | Audit log | `/api/audit` |
-| Members | `/api/members`, `/api/members/{userId}` (role, remove) |
+| Members | `/api/members` (with `twoFactor` per member and `canRescue`), `/api/members/{userId}` (role, remove); account rescue for admins of the instance owner's workspace, signed in (not an API key): `PATCH /api/members/{userId}/email`, `POST /api/members/{userId}/reset-link` (24-hour one-time link), `DELETE /api/members/{userId}/2fa` |
+| My account | `PATCH /api/me` (`{ name }`), `POST /api/me/password` (`{ currentPassword, newPassword }`; signs out other sessions) |
 | Invites (admin) | `GET` pending / `POST` `/api/members/invite`, `DELETE /api/members/invite/{id}` (revoke); inviting an address again replaces its pending invite; `/api/members/accept` |
 | Field permissions | `/api/field-permissions` (admin), `/api/field-permissions/me` (own) |
 | Workflows | `/api/workflows` |

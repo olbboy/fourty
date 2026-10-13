@@ -53,6 +53,11 @@ GraphQL choices. Discovery/JWKS caching and SAML are deliberately deferred (YAGN
   403 and the Settings panel hides itself). A `workspace_id` scope column remains a
   forward-compatible add for deployments where unrelated organisations share one
   instance.
+- The same rule, for the same reason, guards account rescue (amended 2026-10-14):
+  changing a member's sign-in email, making a password reset link for them, and
+  turning off their two-factor sign-in act on an account every workspace shares, so
+  only admins of the instance owner's workspace may, signed in as a person rather than
+  through an API key (`src/lib/instance-owner.ts`).
 - Client secrets are stored plaintext in `sso_connections` (like IMAP passwords in
   `sync_accounts.config`) and redacted on read. Encrypting secrets at rest is a
   follow-up.

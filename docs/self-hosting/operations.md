@@ -46,8 +46,17 @@ offers **Forgot your password?** — a one-hour, single-use reset link by email,
 server access needed. Requesting a new link retires the old one, and a completed reset
 signs out every session.
 
-Without a mail transport there is nowhere to send the link (the first account on a
-fresh install exists before mail does), so reset from the server instead:
+Without mail, or when the mail does not arrive, an admin of the instance owner's
+workspace (the first one created) can make the link instead: **Settings → Team members
+→ Account → Make a password reset link**. It works once, for 24 hours, and the admin
+hands it over by chat or phone. The same menu changes a member's sign-in email and turns
+off two-factor sign-in for someone who lost both their phone and their backup codes.
+These three need a signed-in admin, not an API key, and each is written to the audit
+log. Anyone signed in can rename themselves and change their own password under **My
+account** in the account menu; changing it signs out their other devices.
+
+When no admin can sign in either (the first account on a fresh install exists before
+mail does), reset from the server instead:
 
 ```bash
 npm run reset-password -- admin@example.com

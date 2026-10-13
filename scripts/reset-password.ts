@@ -1,11 +1,11 @@
 /**
  * reset-password — set a user's password from the server.
  *
- * The way back in when an admin password is lost. Fourty has no forgot-password
- * flow: on a fresh self-hosted install there is nowhere to send a reset link,
- * and the first account exists before any mail is configured. Whoever can reach
- * the database can reset a password, which is the same trust boundary as the
- * server itself.
+ * The way back in when no admin can sign in: the emailed forgot-password link
+ * needs mail, and the admin-made link (Settings → Team members) needs an admin.
+ * On a fresh self-hosted install the first account exists before any mail is
+ * configured. Whoever can reach the database can reset a password, which is the
+ * same trust boundary as the server itself.
  *
  *   npm run reset-password -- admin@example.com
  *
