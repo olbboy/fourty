@@ -2,7 +2,7 @@ import { z } from "zod";
 import { and, eq } from "drizzle-orm";
 import { db, tables, withWorkspace } from "@/db";
 import { json, apiError, parseBody } from "@/lib/api";
-import { createSession, createUser, getSessionUser } from "@/lib/auth";
+import { createSession, createUser, getSessionUser, roleInWorkspace, setSessionWorkspace } from "@/lib/auth";
 import { parseInviteToken } from "@/lib/invites";
 import { newId } from "@/lib/id";
 import { audit } from "@/lib/audit";
@@ -25,6 +25,11 @@ const schema = z.object({
  *   - a brand-new account created from the invite's email (name + password in
  *     the body) — the token authorizes that signup.
  * If the invite's email already has an account, the holder must sign in first.
+ *
+ * Someone already active in the workspace cannot use the link: it would change
+ * their role (an admin opening the link they made for a new hire would demote
+ * themselves) and spend a link meant for someone else. A signed-in joiner's
+ * session moves to the workspace they joined.
  */
 export async function POST(req: Request) {
   const body = await parseBody(req, schema);
@@ -49,6 +54,9 @@ export async function POST(req: Request) {
     let userId: string;
     if (sessionUser) {
       userId = sessionUser.id;
+      if (await roleInWorkspace(userId, workspaceId)) {
+        return apiError("Already a member of this workspace", 409);
+      }
     } else {
       const existing = (
         await db.select().from(tables.users).where(eq(tables.users.email, invite.email)).limit(1)
@@ -92,6 +100,7 @@ export async function POST(req: Request) {
     }
     await db.update(tables.invites).set({ acceptedAt: Date.now() }).where(eq(tables.invites.id, invite.id));
     await audit(userId, "member.joined", { objectType: "user", objectId: userId, meta: { role: invite.role } });
+    if (sessionUser) await setSessionWorkspace(workspaceId);
     return json({ ok: true, workspaceId, role: invite.role });
   });
 }

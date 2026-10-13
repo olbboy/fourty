@@ -24,7 +24,15 @@ function acceptError(t: (key: MessageKey) => string, error: unknown): string {
  * account. The invite's email is authoritative either way — it comes from the
  * token, never from this form.
  */
-export function AcceptForm({ token, signedInAs }: { token: string; signedInAs: string | null }) {
+export function AcceptForm({
+  token,
+  signedInAs,
+  alreadyMember: memberOnLoad = false,
+}: {
+  token: string;
+  signedInAs: string | null;
+  alreadyMember?: boolean;
+}) {
   const t = useT();
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +41,9 @@ export function AcceptForm({ token, signedInAs }: { token: string; signedInAs: s
   const [needsSignIn, setNeedsSignIn] = useState(false);
   // 409: this link was already used to join. Same way out as 401, different words.
   const [alreadyJoined, setAlreadyJoined] = useState(false);
+  // 409 for someone already in the workspace: nothing to join, and the link
+  // stays open for the person it was made for.
+  const [alreadyMember, setAlreadyMember] = useState(memberOnLoad);
   const [busy, setBusy] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -57,15 +68,31 @@ export function AcceptForm({ token, signedInAs }: { token: string; signedInAs: s
       router.refresh();
       return;
     }
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 409 && data.error === "Already a member of this workspace") {
+      setAlreadyMember(true);
+      setBusy(false);
+      return;
+    }
     if (res.status === 401 || res.status === 409) {
       if (res.status === 409) setAlreadyJoined(true);
       setNeedsSignIn(true);
       setBusy(false);
       return;
     }
-    const data = await res.json().catch(() => ({}));
     setError(acceptError(t, data.error));
     setBusy(false);
+  }
+
+  if (alreadyMember) {
+    return (
+      <Card className="space-y-4 p-6">
+        <p className="text-sm">{t("accept.alreadyMember")}</p>
+        <a href="/dashboard" className="block">
+          <Button className="w-full">{t("accept.openWorkspace")}</Button>
+        </a>
+      </Card>
+    );
   }
 
   if (needsSignIn) {

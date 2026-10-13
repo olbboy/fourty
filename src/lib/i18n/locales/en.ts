@@ -1178,6 +1178,8 @@ export const en = {
   "accept.alreadyHasAccount":
     "That email already has a Fourty account. Sign in and you'll come straight back to this invite.",
   "accept.goToSignIn": "Go to sign in",
+  "accept.alreadyMember": "You're already in this workspace. This invite stays open for the person it was sent to.",
+  "accept.openWorkspace": "Open workspace",
   "accept.alreadyAccepted": "This invite has already been used. If you joined with it, sign in to open the workspace.",
   "accept.signedInAs":
     "You're signed in as {email}. Accepting adds this workspace to your account.",

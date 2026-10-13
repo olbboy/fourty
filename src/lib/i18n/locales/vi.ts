@@ -1180,6 +1180,8 @@ export const vi: Record<MessageKey, string> = {
   "accept.alreadyHasAccount":
     "Email này đã có tài khoản Fourty. Đăng nhập rồi bạn sẽ quay lại lời mời này.",
   "accept.goToSignIn": "Đến trang đăng nhập",
+  "accept.alreadyMember": "Bạn đã ở trong workspace này. Lời mời vẫn để dành cho người được mời.",
+  "accept.openWorkspace": "Mở workspace",
   "accept.alreadyAccepted": "Lời mời này đã được dùng. Nếu bạn đã tham gia bằng lời mời này, hãy đăng nhập để vào workspace.",
   "accept.signedInAs":
     "Bạn đang đăng nhập với {email}. Chấp nhận sẽ thêm workspace này vào tài khoản.",
