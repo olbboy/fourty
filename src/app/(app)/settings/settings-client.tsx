@@ -60,9 +60,17 @@ export function SettingsClient({
       <Card size="flush" className="p-4">
         <h2 className="mb-1 text-sm font-semibold">{t("page.settings.dataImport")}</h2>
         <p className="mb-3 text-sm text-ink-muted">{t("page.settings.dataImportHint")}</p>
-        <Link href="/settings/import" className={cn(buttonVariants())}>
-          <IconUpload width={15} height={15} /> {t("page.settings.importCsv")}
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/settings/import" className={cn(buttonVariants())}>
+            <IconUpload width={15} height={15} /> {t("page.settings.importCsv")}
+          </Link>
+          <a href="/api/export/tasks" className={cn(buttonVariants({ variant: "outline" }))}>
+            {t("page.settings.exportTasks")}
+          </a>
+          <a href="/api/export/notes" className={cn(buttonVariants({ variant: "outline" }))}>
+            {t("page.settings.exportNotes")}
+          </a>
+        </div>
       </Card>
       <Card size="flush" className="p-4">
         <h2 className="mb-1 text-sm font-semibold">{t("page.settings.restApi")}</h2>

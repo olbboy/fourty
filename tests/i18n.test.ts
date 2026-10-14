@@ -186,7 +186,7 @@ describe("t() translation + interpolation", () => {
     expect(t("en", "health.healthy")).toBe("healthy");
     expect(t("vi", "health.stalled")).toBe("đình trệ");
     expect(t("vi", "score.hot")).toBe("nóng");
-    expect(t("en", "page.import.title")).toBe("Import contacts");
+    expect(t("en", "page.import.title")).toBe("Import from CSV");
     expect(t("en", "page.import.drop")).toBe("Drop a CSV here or click to browse");
     expect(t("en", "page.import.empty")).toBe("The file is empty");
     expect(t("vi", "page.import.tooMany", { max: 5000 })).toBe("Quá nhiều dòng (tối đa 5000)");
@@ -197,7 +197,7 @@ describe("t() translation + interpolation", () => {
     expect(t("en", "settings.cap.webhooks.from")).not.toMatch(/Automations/);
     expect(t("vi", "settings.cap.webhooks.from")).toMatch(/Tự động hóa →/);
     expect(t("en", "settings.customObjects")).toBe("Custom objects");
-    expect(t("vi", "page.import.title")).toBe("Nhập liên hệ");
+    expect(t("vi", "page.import.title")).toBe("Nhập từ CSV");
     expect(t("en", "cmd.title")).toBe("Command palette");
     expect(t("en", "cmd.goTo", { name: "Settings" })).toBe("Go to Settings");
     expect(t("en", "shell.signOut")).toBe("Sign out");
