@@ -7,6 +7,8 @@ import { IconUpload } from "@/components/icons";
 import { Card } from "@/components/ui/card";
 import { useT } from "@/lib/i18n/provider";
 import { formatImportError } from "@/lib/import-display";
+import { looksLikeDeals } from "@/lib/import-deals";
+import { parseCsv } from "@/lib/csv";
 import { DealImport } from "@/components/deal-import";
 import { Button } from "@/components/ui/button";
 
@@ -19,12 +21,24 @@ export function ImportClient() {
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [kind, setKind] = useState<"contacts" | "deals">("contacts");
+  // A deals file dropped here (Q102): held until the person says where it goes.
+  const [dealsFile, setDealsFile] = useState<string | null>(null);
+  const [handedOver, setHandedOver] = useState<string | null>(null);
 
   async function upload(file: File) {
-    setBusy(true);
     setError(null);
     setResult(null);
     const text = await file.text();
+    if (looksLikeDeals(parseCsv(text)[0] ?? [])) {
+      setDealsFile(text);
+      return;
+    }
+    await importContacts(text);
+  }
+
+  async function importContacts(text: string) {
+    setDealsFile(null);
+    setBusy(true);
     const res = await fetch("/api/import/contacts", {
       method: "POST",
       headers: { "content-type": "text/csv" },
@@ -40,13 +54,23 @@ export function ImportClient() {
       <PageHeader title={t("page.import.title")} subtitle={t("page.import.subtitle")} />
       <div role="group" aria-label={t("dealImport.kindAria")} className="mb-4 flex gap-1">
         {(["contacts", "deals"] as const).map((k) => (
-          <Button key={k} size="sm" variant={kind === k ? "default" : "outline"} aria-pressed={kind === k} onClick={() => setKind(k)}>
+          <Button
+            key={k}
+            size="sm"
+            variant={kind === k ? "default" : "outline"}
+            aria-pressed={kind === k}
+            onClick={() => {
+              setKind(k);
+              setDealsFile(null);
+              setHandedOver(null);
+            }}
+          >
             {k === "contacts" ? t("nav.contacts") : t("nav.deals")}
           </Button>
         ))}
       </div>
       {kind === "deals" ? (
-        <DealImport />
+        <DealImport initialCsv={handedOver} />
       ) : (
       <>
 
@@ -79,6 +103,7 @@ export function ImportClient() {
         <input
           type="file"
           accept=".csv,text/csv"
+          aria-label={t("page.import.fileAria")}
           className="hidden"
           disabled={busy}
           onChange={(e) => {
@@ -88,6 +113,26 @@ export function ImportClient() {
           }}
         />
       </Card>
+
+      {dealsFile && (
+        <Card size="flush" role="alert" className="mt-4 space-y-3 p-4">
+          <p className="text-sm">{t("page.import.looksLikeDeals")}</p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={() => {
+                setHandedOver(dealsFile);
+                setDealsFile(null);
+                setKind("deals");
+              }}
+            >
+              {t("page.import.switchToDeals")}
+            </Button>
+            <Button variant="outline" disabled={busy} onClick={() => void importContacts(dealsFile)}>
+              {t("page.import.importAsContacts")}
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {error && <p className="mt-4 text-sm text-feedback-error">{error}</p>}
       {result && (

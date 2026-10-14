@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { formatMoney } from "@/lib/currency";
@@ -28,7 +28,7 @@ type Preview = { rows: Row[]; valid: number; invalid: number; companiesToCreate:
  * would be stored, with what is wrong; only a file with no wrong row imports,
  * all of it at once.
  */
-export function DealImport() {
+export function DealImport({ initialCsv = null }: { initialCsv?: string | null }) {
   const t = useT();
   const locale = useLocale();
   const [csv, setCsv] = useState<string | null>(null);
@@ -36,6 +36,15 @@ export function DealImport() {
   const [done, setDone] = useState<{ created: number; companiesCreated: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // A file handed over from the contacts import is previewed straight away, once.
+  const handled = useRef<string | null>(null);
+  useEffect(() => {
+    if (!initialCsv || handled.current === initialCsv) return;
+    handled.current = initialCsv;
+    setCsv(initialCsv);
+    void send(initialCsv, true);
+  }, [initialCsv]);
 
   async function send(text: string, dryRun: boolean) {
     setBusy(true);
