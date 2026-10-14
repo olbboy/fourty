@@ -1,6 +1,6 @@
 import { PgBoss } from "pg-boss";
 import { lt } from "drizzle-orm";
-import { db, tables } from "@/db";
+import { db, deferUntilCommit, tables } from "@/db";
 import { log } from "@/lib/logger";
 import type { EventContext } from "@/lib/workflows/types";
 
@@ -12,9 +12,13 @@ import type { EventContext } from "@/lib/workflows/types";
  *    and processed by the standalone worker (`npm run worker`) with retry,
  *    exponential backoff and a dead-letter queue.
  *  - `inline` (default under NODE_ENV=test, and a valid single-process dev mode):
- *    `enqueue()` runs the handler immediately, in the caller's async context.
+ *    `enqueue()` runs the handler in-process, before the request answers.
  *    This keeps the existing synchronous behaviour (and tests) intact while the
  *    call sites migrate to the queue API.
+ *
+ * Either way, a job asked for inside a transaction is sent only once that
+ * transaction commits, and never if it (or the savepoint that asked) is rolled
+ * back (`deferUntilCommit`, Q94).
  *
  * Exactly-once: delivery is at-least-once (a worker killed after a side effect
  * but before ack is redelivered), so every handler first claims its idempotency
@@ -181,8 +185,18 @@ export async function enqueue<N extends JobName>(
   const idempotencyKey = opts.idempotencyKey ?? `${name}:${cryptoRandom()}`;
   const envelope: JobEnvelope<N> = { workspaceId: opts.workspaceId, idempotencyKey, data };
 
+  // Asked for inside a transaction, the job waits for it to commit: a write
+  // that is taken back sends no workflow, webhook or email (ADR-017). By then
+  // the request has its answer, so a failure is logged, not thrown at it.
+  const held = deferUntilCommit(() =>
+    send(name, envelope).catch((err) => log().error({ err, job: name }, "job failed after its write committed")),
+  );
+  if (!held) await send(name, envelope);
+}
+
+async function send<N extends JobName>(name: N, envelope: JobEnvelope<N>): Promise<void> {
   if (queueDriver() === "inline") {
-    // Run in the caller's ambient withWorkspace() context (already RLS-scoped).
+    // Run in the caller's withWorkspace() context (already RLS-scoped).
     const { runJob } = await import("@/worker/handlers");
     await runJob(name, envelope);
     return;
@@ -191,7 +205,7 @@ export async function enqueue<N extends JobName>(
   try {
     const boss = await getBoss();
     await boss.send(name, envelope, {
-      singletonKey: idempotencyKey, // dedupe concurrent enqueues of the same job
+      singletonKey: envelope.idempotencyKey, // dedupe concurrent enqueues of the same job
       retryLimit: QUEUE_CONFIG[name].retryLimit,
       retryBackoff: true,
       retryDelay: 1,

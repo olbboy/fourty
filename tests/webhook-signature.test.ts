@@ -86,7 +86,10 @@ describe("signed webhook delivery (real engine + inline queue)", () => {
         entityId: newId(),
         snapshot: { firstName: "Ada" },
       });
-
+      // The webhook goes out once the write that started it has committed.
+      expect(captured).toBeNull();
+    });
+    await withWorkspace(ws, async () => {
       expect(captured).not.toBeNull();
       expect(captured!.url).toBe("https://hooks.example.test/endpoint");
       const secret = await getOrCreateSigningSecret();

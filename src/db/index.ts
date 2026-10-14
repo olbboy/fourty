@@ -38,6 +38,8 @@ export type RequestStore = {
   tx?: Tx;
   requestId?: string;
   workspaceId?: string;
+  /** Work held until this transaction commits (deferUntilCommit). */
+  held?: (() => Promise<void>)[];
 };
 
 // Survive Next.js dev-mode HMR without leaking pools.
@@ -97,7 +99,14 @@ export const db: Db = new Proxy({} as Db, {
 export async function withSavepoint<T>(fn: () => Promise<T>): Promise<T> {
   const store = currentStore();
   if (!store.tx) return fn();
-  return store.tx.transaction((inner) => als.run({ ...store, tx: inner }, fn));
+  const heldBefore = store.held?.length ?? 0;
+  try {
+    return await store.tx.transaction((inner) => als.run({ ...store, tx: inner }, fn));
+  } catch (err) {
+    // What the savepoint wrote is undone, and so is the work it asked for.
+    store.held?.splice(heldBefore);
+    throw err;
+  }
 }
 
 /**
@@ -110,10 +119,27 @@ export async function withSavepoint<T>(fn: () => Promise<T>): Promise<T> {
 export async function withWorkspace<T>(workspaceId: string, fn: () => Promise<T>): Promise<T> {
   if (!workspaceId) throw new Error("withWorkspace: workspaceId is required");
   const prev = currentStore();
-  return baseDb.transaction(async (tx) => {
+  const held: (() => Promise<void>)[] = [];
+  const result = await baseDb.transaction(async (tx) => {
     await tx.execute(sql`select set_config('app.workspace_id', ${workspaceId}, true)`);
-    return als.run({ ...prev, tx, workspaceId }, fn);
+    return als.run({ ...prev, tx, workspaceId, held }, fn);
   });
+  // Committed: now the work it asked for, each in a transaction of its own.
+  for (const job of held) await withWorkspace(workspaceId, job);
+  return result;
+}
+
+/**
+ * Hold `job` until the current transaction commits, then run it in a
+ * transaction of the same workspace. It never runs if that transaction, or
+ * the savepoint it was asked for in, is rolled back. Returns false outside a
+ * transaction: there is nothing to wait for, and the caller runs it now.
+ */
+export function deferUntilCommit(job: () => Promise<void>): boolean {
+  const held = currentStore().held;
+  if (!currentStore().tx || !held) return false;
+  held.push(job);
+  return true;
 }
 
 export * as tables from "./schema";

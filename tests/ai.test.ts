@@ -94,7 +94,9 @@ describe("optional generative AI (Tier 3)", () => {
         entityId: "ai-c1",
         snapshot: { firstName: "Neo" },
       });
-
+    });
+    // Workflows run once the write that started them has committed.
+    await withWorkspace(ws, async () => {
       const draft = (await db.select().from(tables.notes)).find((n) => n.entityId === "ai-c1");
       expect(draft).toBeTruthy();
       expect(draft!.body).toContain("🤖 AI draft");
@@ -108,8 +110,9 @@ describe("optional generative AI (Tier 3)", () => {
 
   it("ai_draft is a clean no-op when AI is disabled", async () => {
     __setAiClient(null); // force "disabled"
+    let before = 0;
     await withWorkspace(ws, async () => {
-      const before = (await db.select().from(tables.notes)).length;
+      before = (await db.select().from(tables.notes)).length;
       await db.insert(tables.workflows).values({
         id: "wf-ai-off",
         name: "AI off",
@@ -125,6 +128,9 @@ describe("optional generative AI (Tier 3)", () => {
         entityId: "ai-co1",
         snapshot: {},
       });
+    });
+    // Workflows run once the write that started them has committed.
+    await withWorkspace(ws, async () => {
       expect((await db.select().from(tables.notes)).length).toBe(before);
       const run = (await db.select().from(tables.workflowRuns)).find((r) => r.entityId === "ai-co1");
       expect(run?.log).toContain("skipped ai_draft: AI disabled");

@@ -161,6 +161,19 @@ a test to accommodate the refactor is treated as a failed migration.
   back, the workflow job still runs against a record that no longer exists. This
   is pre-existing behaviour, inherited unchanged — the kernel neither worsens nor
   fixes it. Closing it means an outbox pattern, which is its own decision.
+
+  *Update, batch 3 (Q94).* Closed without an outbox. A job asked for inside a
+  transaction (`enqueue` → `deferUntilCommit` in `src/db`) is held in memory
+  until `withWorkspace()` commits, then sent, each in a transaction of its own;
+  a savepoint that rolls back drops the jobs it asked for. A write that is taken
+  back therefore starts no workflow, webhook or email — e.g. a deal import
+  refused on its second row no longer posts `deal.created` for the first. The
+  trade: a process that dies between the commit and the send loses those jobs
+  (at most once). The queue already degraded the same way when pg-boss was
+  unreachable, so this was judged better than sending for writes that never
+  happened; an outbox table remains the route to crash-safe delivery. The
+  inline driver follows the same rule, so a test reads a workflow's result
+  after the transaction that started it, not inside it.
 - **The kernel normalises an ordering the REST handlers disagree on.** Today
   `create` audits before recomputing a score and `update` does the reverse. The
   kernel always runs activity → audit → rescore → events. The two steps are
