@@ -21,6 +21,7 @@ const OBJECT_KEYS: Record<string, MessageKey> = {
   sso_connection: "audit.object.sso_connection",
   sync_account: "audit.object.sync_account",
   product: "audit.object.product",
+  email_template: "audit.object.email_template",
   settings: "nav.settings",
 };
 
@@ -45,6 +46,9 @@ const ACTION_KEYS: Record<string, MessageKey> = {
   "member.2fa_disabled": "audit.action.member.2fa_disabled",
   "member.signed_out": "audit.action.member.signed_out",
   "email.sent": "audit.action.email.sent",
+  "deals.imported": "audit.action.deals.imported",
+  "contact.merged": "audit.action.contact.merged",
+  "company.merged": "audit.action.company.merged",
   "account.renamed": "audit.action.account.renamed",
   "account.password_changed": "audit.action.account.password_changed",
   "member.role_changed": "audit.action.member.role_changed",

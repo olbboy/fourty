@@ -367,6 +367,22 @@ export const dealLines = pgTable(
   (t) => [index("deal_lines_deal_idx").on(t.workspaceId, t.dealId)],
 );
 
+/** Email templates (D15): a reusable subject and body with {{blanks}}. */
+export const emailTemplates = pgTable(
+  "email_templates",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    name: text("name").notNull(),
+    subject: text("subject").notNull(),
+    body: text("body").notNull(),
+    createdBy: text("created_by"),
+    createdAt: millis("created_at").notNull(),
+    updatedAt: millis("updated_at").notNull(),
+  },
+  (t) => [index("email_templates_ws_name_idx").on(t.workspaceId, t.name)],
+);
+
 // The Trash (0023): a deleted contact, company, deal or task with its notes,
 // timeline and detached links, kept 30 days for restore. See src/lib/trash.ts.
 export const trash = pgTable(

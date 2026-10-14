@@ -18,6 +18,7 @@ import { LostReasonSection } from "./sections/lost-reason";
 import { RemindersSection } from "./sections/reminders";
 import { TrashSection } from "./sections/trash";
 import { ProductsSection } from "./sections/products";
+import { EmailTemplatesSection } from "./sections/email-templates";
 import { ApiKeysSection } from "./sections/api-keys";
 import { WebhooksSection } from "./sections/webhooks";
 import { DiagnosticsSection } from "./sections/diagnostics";
@@ -44,6 +45,7 @@ export function SettingsClient({
       <MailboxSection />
       <PipelinesSection canManagePipelines={canManagePipelines} />
       <ProductsSection canEdit={canManageProducts} />
+      <EmailTemplatesSection canEdit={canManageProducts} />
       {isAdmin && <LostReasonSection />}
       {isAdmin && <ReportingSection />}
       {isAdmin && <RemindersSection />}

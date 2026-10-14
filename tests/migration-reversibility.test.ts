@@ -63,8 +63,10 @@ const UP = [
   "drizzle/0023_trash.sql",
   "drizzle/0024_deal_contacts.sql",
   "drizzle/0025_products_lines.sql",
+  "drizzle/0026_email_templates.sql",
 ];
 const DOWN = [
+  "drizzle/down/0026_email_templates.down.sql",
   "drizzle/down/0025_products_lines.down.sql",
   "drizzle/down/0024_deal_contacts.down.sql",
   "drizzle/down/0023_trash.down.sql",
@@ -154,8 +156,8 @@ describe("migration reversibility (full chain, real Postgres)", () => {
       await runFiles(client, UP);
       const before = await schemaFingerprint(client);
       const up1 = await counts(client);
-      expect(up1.tables).toBe(39); // 34 + password_resets (0018, identity plane — no policy) + trash (0023) + deal_contacts + products + deal_lines
-      expect(up1.policies).toBe(31); // 23 + ai_conversations_tenant + ai_messages_tenant + record_facts_tenant + agent_tasks_tenant + trash_tenant + deal_contacts_tenant + products_tenant + deal_lines_tenant
+      expect(up1.tables).toBe(40); // 34 + password_resets (0018, identity plane — no policy) + trash (0023) + deal_contacts + products + deal_lines + email_templates
+      expect(up1.policies).toBe(32); // 23 + ai_conversations_tenant + ai_messages_tenant + record_facts_tenant + agent_tasks_tenant + trash_tenant + deal_contacts_tenant + products_tenant + deal_lines_tenant + email_templates_tenant
 
       // Roll the whole chain back → empty schema
       await runFiles(client, DOWN);
@@ -167,8 +169,8 @@ describe("migration reversibility (full chain, real Postgres)", () => {
       await runFiles(client, UP);
       const after = await schemaFingerprint(client);
       const up2 = await counts(client);
-      expect(up2.tables).toBe(39);
-      expect(up2.policies).toBe(31);
+      expect(up2.tables).toBe(40);
+      expect(up2.policies).toBe(32);
       expect(after).toBe(before);
     } finally {
       await client.end();

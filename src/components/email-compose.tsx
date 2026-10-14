@@ -39,6 +39,7 @@ export function EmailCompose({
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<{ id: string; name: string }[]>([]);
 
   async function start() {
     setError(null);
@@ -47,6 +48,22 @@ export function EmailCompose({
     const reachable = list.filter((r) => r.email);
     setRecipients(reachable);
     setTo((current) => (reachable.some((r) => r.contactId === current) ? current : (reachable[0]?.contactId ?? "")));
+    const res = await fetch("/api/email-templates").catch(() => null);
+    if (res?.ok) setTemplates(((await res.json()) as { templates: { id: string; name: string }[] }).templates);
+  }
+
+  /** Fill subject and message from a template, for the contact chosen; still editable. */
+  async function applyTemplate(templateId: string) {
+    if (!templateId || !to) return;
+    const res = await fetch(`/api/email-templates/${templateId}/render`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ entityType, entityId, contactId: to }),
+    }).catch(() => null);
+    if (!res?.ok) return;
+    const filled = (await res.json()) as { subject: string; body: string };
+    setSubject(filled.subject);
+    setBody(filled.body);
   }
 
   async function send(e: React.FormEvent) {
@@ -98,6 +115,16 @@ export function EmailCompose({
                 ))}
               </NativeSelect>
             </label>
+            {templates.length > 0 && (
+              <NativeSelect value="" onChange={(e) => void applyTemplate(e.target.value)} aria-label={t("email.useTemplateAria")} className="w-full">
+                <option value="">{t("email.useTemplate")}</option>
+                {templates.map((tpl) => (
+                  <option key={tpl.id} value={tpl.id}>
+                    {tpl.name}
+                  </option>
+                ))}
+              </NativeSelect>
+            )}
             <Input value={subject} onChange={(e) => setSubject(e.target.value)} aria-label={t("email.subject")} placeholder={t("email.subject")} maxLength={200} />
             <Textarea
               value={body}

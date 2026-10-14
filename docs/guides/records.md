@@ -151,7 +151,11 @@ the deal with an email address. The message leaves through this server's
 [outbound email](../self-hosting/configuration.md#outbound-email) under your name, and
 replies come straight to your own address. It is written on the contact's timeline, and on
 the deal's when sent from one, as *emailed Lan Trần: "subject"*, and counts as a touch for the
-lead score. Viewers and API keys cannot send. Each member can send 30 an hour. Without mail
+lead score. Viewers and API keys cannot send. Each member can send 30 an hour. **Use a template…** fills
+the subject and message from an email template, kept in **Settings → Email templates**, where
+`{{contact.firstName}}`, `{{contact.lastName}}`, `{{company.name}}`, `{{deal.name}}` and
+`{{sender.name}}` are filled for the contact you write to; you can still edit before sending
+(`/api/email-templates`, `POST /api/email-templates/{id}/render`). Without mail
 set up on the server, the dialog says so. Sending from your own Gmail or Microsoft mailbox
 is not offered yet.
 

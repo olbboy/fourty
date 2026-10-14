@@ -19,6 +19,7 @@ error shapes.
 | Notes | `/api/notes` (GET list + POST create), `/api/notes/{id}` (PATCH `{ body }`, DELETE; author or admin only) |
 | Activities (timeline) | `/api/activities` |
 | Email | `POST /api/email` `{ entityType: "contact" \| "deal", entityId, contactId, subject, body }`: a signed-in member (not an API key) writes to the contact, or to someone on the deal; sent under the member's name with replies to their address, written on the timeline. `503` when this server has no mail set up, `429` after 30 in an hour |
+| Email templates | `/api/email-templates` (GET, POST `{ name, subject, body }`), `/api/email-templates/{id}` (PATCH, DELETE), `POST /api/email-templates/{id}/render` (`{ entityType, entityId, contactId }` → `{ subject, body }` with the blanks filled) |
 | Trash | `/api/trash` (what was deleted in the last 30 days), `POST /api/trash/{id}/restore` (needs create on that kind of record; `409` when a contact's email was taken meanwhile), `DELETE /api/trash/{id}` (admins, for good). Deleting a contact, company, deal or task moves it here with its notes and timeline |
 | Pipelines | `/api/pipelines` (GET, POST), `/api/pipelines/{id}` (PATCH name; DELETE when empty and not the last) |
 | Stages | `/api/stages` (POST name, winProbability, color), `/api/stages/{id}` (PATCH name, winProbability, order, color; DELETE open stages with no deals) |
