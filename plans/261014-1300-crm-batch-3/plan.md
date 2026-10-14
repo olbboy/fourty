@@ -1,7 +1,7 @@
 ---
 title: "Đợt 3: các tính năng CRM còn lại"
 date: 2026-10-14
-status: "Đang làm"
+status: "Xong"
 nguon:
   - "plans/reports/research-261013-1649-crm-baseline-feature-gaps.md (mục 4.1, 4.2, 5)"
   - "plans/reports/research-261013-1649-user-administration.md (T9–T14)"
@@ -169,4 +169,17 @@ Giữ nguyên, có lý do:
 - **`/api/audit` trả 400 khi bộ lọc sai.** Bỏ qua bộ lọc sai sẽ cho ra cả nhật ký mà người xem tưởng đã lọc.
 - **Một thư chỉ gắn một liên hệ.** Có từ trước (ADR-009); D21 không đổi điều đó.
 - **Tên migration `0029_user_profile`.** Tên tệp, không phải chữ người dùng thấy; đổi journal rủi ro hơn lợi.
+
+## Đã deploy (14/10/2026)
+
+- Lượt 1: PR #39 (7106b7f). Lượt 2 và 3: PR #40 (7d0c485), deploy lúc 16:23.
+- Trước deploy: backup `fourty-2026-10-14-0923.dump` (296K).
+- Sau deploy:
+  - 30 migration.
+  - `email_templates`, `quotes`, `targets` bật RLS bắt buộc, mỗi bảng một policy.
+  - `users` có `title`, `phone`.
+  - `/api/health` trả 200; app healthy; log app và worker không có lỗi.
+  - Các route mới trả 401 khi chưa đăng nhập (đã có), route giả trả 404.
+- Test trước khi merge: unit 1.303 đạt, 6 bỏ qua; e2e 133 đạt.
+- Việc tách riêng: gửi sự kiện workflow sau khi giao dịch commit (ADR-017).
 
