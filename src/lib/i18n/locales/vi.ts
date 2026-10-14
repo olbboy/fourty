@@ -896,6 +896,13 @@ export const vi: Record<MessageKey, string> = {
   "activity.addTask": "Thêm việc",
   "activity.noTasks": "Không có việc.",
   "activity.failedWrite": "Không lưu được",
+  "activity.when": "Thời điểm diễn ra",
+  "activity.minutesAria": "Thời lượng, tính bằng phút",
+  "activity.minutesPlaceholder": "Phút",
+  "activity.minutes": "{n} phút",
+  "activity.noteAria": "Nội dung trao đổi",
+  "activity.touchpointNotePlaceholder": "Nội dung trao đổi (không bắt buộc)",
+  "activity.save": "Ghi lại",
 
   "field.jobTitle": "Chức danh",
   "field.company": "Công ty",

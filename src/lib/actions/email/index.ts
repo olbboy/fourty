@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { logActivity } from "@/lib/activity";
 import { displayName } from "@/lib/format";
@@ -72,10 +72,6 @@ export const emailSend = defineAction({
     if (input.entityType === "deal") {
       await logActivity({ type: "email", entityType: "deal", entityId: input.entityId, actorId: ctx.userId, meta });
     }
-    await db
-      .update(tables.contacts)
-      .set({ lastActivityAt: sql`GREATEST(COALESCE(${tables.contacts.lastActivityAt}, 0), ${Date.now()})` })
-      .where(eq(tables.contacts.id, contact.id));
     // Last, after every write that could still fail: the queue commits on its own.
     await enqueue(
       "mail.send",

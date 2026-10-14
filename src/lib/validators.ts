@@ -81,4 +81,7 @@ export const activityLogInput = z.object({
   entityType,
   entityId: z.string().min(1),
   note: z.string().max(2000).optional(),
+  /** When it happened, epoch ms; now when left out, never more than a day ahead. */
+  occurredAt: z.number().int().positive().optional(),
+  durationMinutes: z.number().int().min(1).max(1440).optional(),
 });

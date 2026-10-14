@@ -895,6 +895,13 @@ export const en = {
   "activity.addTask": "Add task",
   "activity.noTasks": "No tasks.",
   "activity.failedWrite": "Couldn’t save this",
+  "activity.when": "When it happened",
+  "activity.minutesAria": "How long, in minutes",
+  "activity.minutesPlaceholder": "Minutes",
+  "activity.minutes": "{n} min",
+  "activity.noteAria": "What was said",
+  "activity.touchpointNotePlaceholder": "What was said (optional)",
+  "activity.save": "Log it",
 
   "field.jobTitle": "Job title",
   "field.company": "Company",
