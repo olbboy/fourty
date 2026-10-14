@@ -29,6 +29,7 @@ const ACTIVITY_KEYS: Record<string, MessageKey> = {
   call: "activity.call",
   meeting: "activity.meeting",
   workflow: "activity.workflow",
+  merged: "activity.merged",
 };
 
 /**
@@ -51,6 +52,7 @@ const ACTIVITY_DOT: Record<string, string> = {
   stage_changed: "bg-ink", // the record moved
   owner_changed: "bg-ink", // the record changed hands
   created: "bg-ink",
+  merged: "bg-ink", // two records became one
   workflow: "bg-accent-500", // written by the system, not by a person
 };
 
@@ -77,6 +79,7 @@ function describe(a: Activity, t: TFn, locale: Locale): string {
   if (a.type === "email" && a.meta.sent && a.meta.subject) {
     return t("activity.emailSent", { to: String(a.meta.toName ?? ""), subject: String(a.meta.subject) });
   }
+  if (a.type === "merged" && a.meta.from) return t("activity.mergedFrom", { from: String(a.meta.from) });
   if (a.type === "task_completed" && a.meta.title) {
     return t("activity.taskCompletedTitle", { title: String(a.meta.title) });
   }

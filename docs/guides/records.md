@@ -122,6 +122,17 @@ and `POST /api/contacts/reassign` / `POST /api/companies/reassign` with `{ "ids"
 "ownerId": "…" | null }` (GraphQL `reassignContacts`, `reassignCompanies`; MCP
 `reassign_contacts`, `reassign_companies`).
 
+## Merging duplicates
+
+When the same person or company was entered twice, **Merge…** on the record that should stay
+(or **Merge here** next to a flagged duplicate on a contact page) folds the other one in. Its
+deals, roles on deals, tasks, notes, timeline and synced mail move over; fields that are empty
+on the record that stays take the duplicate's values (an email moves rather than repeats); and
+the duplicate goes to the [Trash](#trash). The timeline of the record that stays says *merged
+Lan Tran into this record*. Merging needs the right to delete; a field you may not write is not
+filled. Over the API: `POST /api/contacts/{id}/merge` or `POST /api/companies/{id}/merge` with
+`{ "duplicateId": "…" }`, where `id` is the record that stays.
+
 ## Trash
 
 Deleting a contact, company, deal or task moves it to **Settings → Trash** with its notes
