@@ -61,7 +61,10 @@ was last seen, and signs out any one of them or all the others at once.
 its CSV names who acted by name and email (`GET /api/audit?actorId=…&action=deal.&from=…&to=…`,
 times in epoch ms, `action` exact or a prefix ending in `.`).
 
-**Settings → Team members** shows when each member last signed in. The same admin can sign
+**Settings → Team members** shows each member's job title and phone (written by each person
+under **My account**) and when they last signed in. A removed member comes back with
+**Reactivate**, keeping the role they had (`PATCH /api/members/{userId}` with
+`{ "reactivate": true }`, audited). The same admin can sign
 a member out on every device (**Account → Sign out everywhere**), and removing a member offers to revoke the API keys they made
 and disconnect the mailboxes they connected (ticked by default).
 

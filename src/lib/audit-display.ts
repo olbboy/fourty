@@ -53,6 +53,8 @@ const ACTION_KEYS: Record<string, MessageKey> = {
   "contact.merged": "audit.action.contact.merged",
   "company.merged": "audit.action.company.merged",
   "account.renamed": "audit.action.account.renamed",
+  "account.profile_changed": "audit.action.account.profile_changed",
+  "member.reactivated": "audit.action.member.reactivated",
   "account.password_changed": "audit.action.account.password_changed",
   "member.role_changed": "audit.action.member.role_changed",
   "member.removed": "audit.action.member.removed",

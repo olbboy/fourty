@@ -66,8 +66,10 @@ const UP = [
   "drizzle/0026_email_templates.sql",
   "drizzle/0027_quotes.sql",
   "drizzle/0028_targets.sql",
+  "drizzle/0029_user_profile.sql",
 ];
 const DOWN = [
+  "drizzle/down/0029_user_profile.down.sql",
   "drizzle/down/0028_targets.down.sql",
   "drizzle/down/0027_quotes.down.sql",
   "drizzle/down/0026_email_templates.down.sql",

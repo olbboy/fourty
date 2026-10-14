@@ -44,6 +44,22 @@ export function AccountDialog({
     void loadSessions();
   }, [loadSessions]);
 
+  // Job title and phone (D19), loaded once the dialog opens.
+  const [title, setTitle] = useState("");
+  const [phone, setPhone] = useState("");
+  const [profile, setProfile] = useState<{ title: string; phone: string } | null>(null);
+  useEffect(() => {
+    fetch("/api/me")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((me: { title: string | null; phone: string | null } | null) => {
+        if (!me) return;
+        setProfile({ title: me.title ?? "", phone: me.phone ?? "" });
+        setTitle(me.title ?? "");
+        setPhone(me.phone ?? "");
+      })
+      .catch(() => {});
+  }, []);
+
   async function endSession(url: string) {
     const res = await fetch(url, { method: "DELETE" }).catch(() => null);
     if (!res?.ok) setStatus({ kind: "error", text: t("account.failed") });
@@ -92,6 +108,34 @@ export function AccountDialog({
           </Button>
         </div>
       </form>
+
+      {profile && (
+        <form
+          className="mt-6 space-y-2"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (await send("/api/me", "PATCH", { title: title.trim() || null, phone: phone.trim() || null }, t("account.profileSaved"))) {
+              setProfile({ title: title.trim(), phone: phone.trim() });
+            }
+          }}
+        >
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <label className="block text-sm font-medium">
+              {t("account.jobTitle")}
+              <Input className="mt-1" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} />
+            </label>
+            <label className="block text-sm font-medium">
+              {t("account.phone")}
+              <Input className="mt-1" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={60} />
+            </label>
+          </div>
+          <div className="flex justify-end">
+            <Button type="submit" disabled={busy || (title.trim() === profile.title && phone.trim() === profile.phone)}>
+              {t("account.saveProfile")}
+            </Button>
+          </div>
+        </form>
+      )}
 
       <form
         className="mt-6 space-y-2"

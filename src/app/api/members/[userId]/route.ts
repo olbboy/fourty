@@ -6,7 +6,8 @@ import { withAuth, authorize, json, apiError, parseBody } from "@/lib/api";
 import { audit } from "@/lib/audit";
 
 type Params = { params: Promise<{ userId: string }> };
-const patchSchema = z.object({ role: z.enum(["admin", "member", "viewer"]) });
+/** A new role for an active member, or `reactivate` for a removed one (D19). */
+const patchSchema = z.union([z.object({ role: z.enum(["admin", "member", "viewer"]) }), z.object({ reactivate: z.literal(true) })]);
 
 /** Number of active admins in a workspace — used to protect the last admin. */
 async function activeAdminCount(workspaceId: string): Promise<number> {
@@ -47,6 +48,14 @@ export async function PATCH(req: Request, { params }: Params) {
     if (!body.ok) return body.response;
 
     const member = await activeMember(auth.workspaceId, userId);
+    if ("reactivate" in body.data) {
+      // Back in one step, with the role they had; their sessions start afresh.
+      if (!member) return apiError("Member not found", 404);
+      if (!member.deactivatedAt) return apiError("This member is active", 400);
+      await db.update(tables.workspaceMembers).set({ deactivatedAt: null }).where(eq(tables.workspaceMembers.id, member.id));
+      await audit(auth.user?.id, "member.reactivated", { objectType: "user", objectId: userId, meta: { role: member.role } });
+      return json({ ok: true });
+    }
     if (!member || member.deactivatedAt) return apiError("Member not found", 404);
     // Never leave a workspace without an admin.
     if (

@@ -109,6 +109,8 @@ export const users = pgTable("users", {
   backupCodes: text("backup_codes").notNull().default("[]"),
   createdAt: millis("created_at").notNull(),
   lastLoginAt: millis("last_login_at"), // set whenever a session starts
+  title: text("title"), // job title, written by the person themselves (0029)
+  phone: text("phone"),
 });
 
 export const sessions = pgTable("sessions", {
