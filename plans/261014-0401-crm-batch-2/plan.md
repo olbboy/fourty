@@ -1,7 +1,7 @@
 ---
 title: "Đợt 2: phiên đăng nhập, key theo người, thùng rác, nhiều liên hệ, dòng sản phẩm, gửi email"
 date: 2026-10-14
-status: "Đang làm"
+status: "Xong, đã deploy 14/10/2026 (PR #37, 67ced2a)"
 nguon:
   - "plans/261013-1808-team-and-crm-basics/plan.md, mục 'Ngoài phạm vi (đợt sau)'"
   - "plans/reports/research-261013-1649-user-administration.md (T5, T6, T8; U5, U8)"
@@ -70,5 +70,17 @@ Giữ nguyên, có lý do:
 - Khôi phục deal hay liên hệ vẫn giữ id công ty hoặc liên hệ đã bị xoá. Xoá liên hệ xưa nay cũng để nguyên `contactId` trên deal, nên khi bên kia được khôi phục thì liên kết tự nối lại.
 - Đưa `setDealLines`, `setDealContacts` và `list_products` lên GraphQL, MCP và AI: repo đưa mọi thao tác CRM lên mọi cổng. Mọi lệnh ghi của AI đều phải người dùng xác nhận.
 - Khoá đổi tiền tệ khi deal có dòng: đơn giá các dòng tính theo tiền của deal, đổi tiền tệ mà không đổi giá thì sai.
-- Xoá hết dòng thì Amount giữ số cuối, rồi lại nhập tay. Đưa Leo xác nhận.
+- Xoá hết dòng thì Amount giữ số cuối, rồi lại nhập tay (Leo xác nhận, Q90).
 - Giới hạn 30 email/giờ đếm trong bộ nhớ: đúng kiến trúc một tiến trình đã ghi trong `ratelimit.ts`.
+
+## Leo xác nhận sau deploy (14/10/2026)
+
+| # | Câu hỏi | Trả lời |
+|---|---|---|
+| Q90 | Xoá hết dòng sản phẩm thì Amount ra sao | A: giữ số cuối, rồi lại nhập tay |
+| Q91 | Ai sửa và xoá danh mục sản phẩm | A: thành viên và admin; dòng trên deal giữ giá lúc thêm, nhật ký ghi mọi lần sửa |
+| Q92 | AI có được đặt dòng sản phẩm và người liên hệ trên deal | A: được, mỗi lệnh ghi vẫn cần người dùng xác nhận |
+| Q93 | Thử gửi email thật trên production | A: Leo tự thử từ tài khoản của mình |
+
+Cả bốn khớp cách đã làm, không đổi code.
+
