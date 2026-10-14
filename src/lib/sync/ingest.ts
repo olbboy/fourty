@@ -1,4 +1,4 @@
-import { eq, ilike, or, sql, type SQL } from "drizzle-orm";
+import { and, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { newId } from "@/lib/id";
 import { logActivity } from "@/lib/activity";
@@ -39,6 +39,21 @@ export async function matchContact(emails: string[]): Promise<string | null> {
       .limit(1)
   )[0];
   return row?.id ?? null;
+}
+
+/**
+ * The open deals a contact is on, as primary contact or as a Deal contact: a
+ * synced email shows on their timelines too (D21). Closed deals keep their
+ * history as it was.
+ */
+async function openDealsOf(contactId: string): Promise<string[]> {
+  const asRole = db.select({ id: tables.dealContacts.dealId }).from(tables.dealContacts).where(eq(tables.dealContacts.contactId, contactId));
+  const rows = await db
+    .select({ id: tables.deals.id })
+    .from(tables.deals)
+    .innerJoin(tables.stages, eq(tables.stages.id, tables.deals.stageId))
+    .where(and(eq(tables.stages.type, "open"), or(eq(tables.deals.contactId, contactId), inArray(tables.deals.id, asRole))));
+  return rows.map((r) => r.id);
 }
 
 async function touchContact(contactId: string, at: number | null): Promise<void> {
@@ -94,12 +109,11 @@ export async function ingestEmails(accountId: string, rawMessages: string[]): Pr
     if (contactId) {
       result.linked += 1;
       touched.add(contactId);
-      await logActivity({
-        type: "email",
-        entityType: "contact",
-        entityId: contactId,
-        meta: { subject: msg.subject, from: msg.from, messageId: msg.messageId },
-      });
+      const meta = { subject: msg.subject, from: msg.from, messageId: msg.messageId };
+      await logActivity({ type: "email", entityType: "contact", entityId: contactId, meta });
+      for (const dealId of await openDealsOf(contactId)) {
+        await logActivity({ type: "email", entityType: "deal", entityId: dealId, meta: { ...meta, contactId } });
+      }
       await touchContact(contactId, msg.sentAt);
     }
   }

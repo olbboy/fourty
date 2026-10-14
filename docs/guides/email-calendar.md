@@ -12,7 +12,13 @@ OAuth (Authorization Code + PKCE, **read-only** scopes — Gmail `gmail.readonly
 - **Matches participants to contacts** by email address.
 - **Dedupes** messages so re-syncs don't double-post.
 - **Threads** each message onto the [activity timeline](./records.md) of the contacts
-  it concerns. Messages are not linked to deals.
+  it concerns, and of their open deals (below).
+
+## On deals too
+
+A synced email lands on the contact's timeline and on the timeline of every **open** deal that
+contact is on, as primary contact or as one of the other people on the deal. Closed deals keep
+their history as it was.
 
 ## It pulls by itself
 
