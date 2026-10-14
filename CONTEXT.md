@@ -54,8 +54,24 @@ One Product, or a typed-in item, on a Deal with a quantity and a unit price in t
 _Avoid_: Order line, position
 
 **Owner**:
-The one workspace member accountable for a Deal right now; ownership can be handed to another member.
+The one workspace member accountable for a Deal, contact or company right now; ownership can be handed to another member.
 _Avoid_: Creator, rep, assignee
+
+**Touchpoint**:
+An email, call or meeting with a contact, logged by hand or synced from a mailbox, with when it happened.
+_Avoid_: Interaction, engagement, activity (the timeline also holds system events)
+
+**Merge**:
+Folding a duplicate contact or company into the one that stays: its Deals, tasks, notes and timeline move over, and the duplicate goes to the Trash.
+_Avoid_: Dedupe, combine, link
+
+**Quote**:
+A priced offer made from a Deal's line items at one moment, with a number and a date it is valid until; it does not change when the Deal changes later.
+_Avoid_: Proposal, estimate, invoice
+
+**Email template**:
+A reusable subject and body whose blanks are filled from the contact, Deal and sender when an email is written.
+_Avoid_: Snippet, canned response
 
 **Pipeline**:
 The ordered sequence of Stages a Deal moves through; a Deal belongs to one Pipeline for its whole life.
@@ -74,6 +90,10 @@ The day the goods or service of a Deal are expected to be handed over; the date 
 _Avoid_: Ship date, invoice date
 
 ### Reporting
+
+**Target**:
+The Amount a Member is expected to win in one calendar quarter, in the Reporting currency.
+_Avoid_: Quota, goal, objective
 
 **Reporting currency**:
 The single currency a workspace shows its totals and forecasts in, chosen per workspace.
