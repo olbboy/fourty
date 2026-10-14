@@ -79,10 +79,12 @@ function describe(node: z.ZodTypeAny, nullable: boolean): Record<string, unknown
   }
 
   if (node instanceof z.ZodNumber) {
-    const out: Record<string, unknown> = withNull("number");
+    const whole = (node._def.checks ?? []).some((check: { kind: string }) => check.kind === "int");
+    const out: Record<string, unknown> = withNull(whole ? "integer" : "number");
     for (const check of node._def.checks ?? []) {
       if (check.kind === "min") out.minimum = check.value;
       else if (check.kind === "max") out.maximum = check.value;
+      else if (check.kind === "int") continue;
       else throw new Error(`toJsonSchema: unsupported number check "${check.kind}"`);
     }
     return out;

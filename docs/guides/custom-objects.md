@@ -9,6 +9,12 @@ From **Settings → Custom fields**, add, edit, or delete fields on Contacts,
 Companies, and Deals (the key is fixed after create). Supported types:
 
 - **Text**, **Number**, **Date**, **Select** (single choice), **Checkbox**, **URL**.
+- **Tags** (choose several), on Contacts, Companies and Deals only: a record holds any
+  number of its choices, stored as a list (`["Surveyed", "Legal pending"]`; a single
+  choice sent as text counts as one). The deals list filters by one choice
+  (`?fieldKey=…&fieldValue=…`) and finds every deal holding it; CSV export joins the
+  choices with `; `. A Select field can be changed into Tags without touching its
+  values. The forecast's breakdown field and the lost-reason field stay single choice.
 
 New fields appear on the record forms, are validated on write (the same type /
 required / select checks as no-code objects — a `url` field rejects a

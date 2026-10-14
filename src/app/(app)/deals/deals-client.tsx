@@ -299,7 +299,7 @@ export function DealsClient() {
         if (!Array.isArray(fields)) return;
         setChoiceFields(
           (fields as { key: string; label: string; type: string; options: string[] }[])
-            .filter((field) => field.type === "select" && field.options.length > 0)
+            .filter((field) => (field.type === "select" || field.type === "multiselect") && field.options.length > 0)
             .map(({ key, label, options }) => ({ key, label, options })),
         );
       })

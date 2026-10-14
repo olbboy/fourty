@@ -48,6 +48,7 @@ function customCsvCell(type: string, value: unknown): string | number {
     const n = typeof value === "number" ? value : Number(value);
     return Number.isFinite(n) ? n : "";
   }
+  if (Array.isArray(value)) return value.join("; ");
   return String(value);
 }
 

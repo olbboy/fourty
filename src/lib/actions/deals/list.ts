@@ -44,7 +44,10 @@ export const dealsList = defineAction({
       where.push(gte(tables.deals.expectedCloseDate, quarter.start), lt(tables.deals.expectedCloseDate, quarter.end));
     }
     if (input.fieldKey && input.fieldValue !== undefined) {
-      where.push(sql`(${tables.deals.custom})::jsonb ->> ${input.fieldKey} = ${input.fieldValue}`);
+      // A single choice is stored as text, several as a list: match either.
+      where.push(
+        sql`((${tables.deals.custom})::jsonb ->> ${input.fieldKey} = ${input.fieldValue} or (${tables.deals.custom})::jsonb -> ${input.fieldKey} @> jsonb_build_array(${input.fieldValue}::text))`,
+      );
     }
 
     const rows = await db

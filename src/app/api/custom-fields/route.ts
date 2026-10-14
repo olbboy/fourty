@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CUSTOM_FIELD_TYPES } from "@/lib/field-type-display";
 import { asc, eq } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { withAuth, authorize, json, parseBody } from "@/lib/api";
@@ -15,7 +16,7 @@ const input = z.object({
     .max(60)
     .regex(/^[a-z][a-z0-9_]*$/, "lowercase letters, digits, underscores; must start with a letter"),
   label: z.string().min(1).max(120),
-  type: z.enum(["text", "number", "date", "select", "checkbox", "url"]).default("text"),
+  type: z.enum(CUSTOM_FIELD_TYPES).default("text"),
   options: z.array(z.string()).optional().default([]),
   required: z.boolean().optional().default(false),
 });

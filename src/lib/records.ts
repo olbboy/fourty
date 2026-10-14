@@ -6,7 +6,8 @@
  * a fixed object — closing the "custom fields not validated on write" gap.
  */
 
-export type FieldType = "text" | "number" | "date" | "select" | "checkbox" | "url";
+/** `multiselect` (tags) exists on contacts, companies and deals only, not on custom objects. */
+export type FieldType = "text" | "number" | "date" | "select" | "multiselect" | "checkbox" | "url";
 
 export type FieldDef = {
   key: string;
@@ -21,7 +22,7 @@ export type ValidateResult =
   | { ok: false; error: string };
 
 function isBlank(v: unknown): boolean {
-  return v === undefined || v === null || v === "";
+  return v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0);
 }
 
 /**
@@ -60,6 +61,21 @@ export function validateRecord(fields: FieldDef[], input: Record<string, unknown
           return { ok: false, error: `${f.label} must be one of: ${f.options.join(", ")}` };
         }
         out[f.key] = s;
+        break;
+      }
+      case "multiselect": {
+        // A single choice written as text is one choice: a select field
+        // retyped to multiselect keeps its values valid.
+        const list = Array.isArray(raw) ? raw : [raw];
+        if (list.some((v) => typeof v === "object")) return { ok: false, error: `${f.label} must be a list of choices` };
+        const choices = [...new Set(list.map((v) => String(v).trim()).filter(Boolean))];
+        const unknown = f.options.length > 0 ? choices.filter((c) => !f.options.includes(c)) : [];
+        if (unknown.length) return { ok: false, error: `${f.label} must be among: ${f.options.join(", ")}` };
+        if (choices.length === 0) {
+          if (f.required) return { ok: false, error: `${f.label} is required` };
+          continue;
+        }
+        out[f.key] = choices;
         break;
       }
       case "url": {

@@ -69,6 +69,13 @@ describe("zod → JSON Schema", () => {
     expect(out.properties.email).toMatchObject({ format: "email" });
   });
 
+  it("tells an agent a whole number is an integer", () => {
+    const schema = toJsonSchema(z.object({ minutes: z.number().int().min(1).max(1440).optional() })) as {
+      properties: Record<string, unknown>;
+    };
+    expect(schema.properties.minutes).toEqual({ type: "integer", minimum: 1, maximum: 1440 });
+  });
+
   it("carries number bounds across", () => {
     const out = toJsonSchema(validators.dealInput) as { properties: Record<string, Record<string, unknown>> };
     expect(out.properties.amount).toMatchObject({ type: "number", minimum: 0 });

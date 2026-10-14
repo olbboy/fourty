@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CUSTOM_FIELD_TYPES } from "@/lib/field-type-display";
 import { eq } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { withAuth, authorize, json, apiError, parseBody } from "@/lib/api";
@@ -15,7 +16,7 @@ type Params = { params: Promise<{ id: string }> };
 
 const patch = z.object({
   label: z.string().min(1).max(120).optional(),
-  type: z.enum(["text", "number", "date", "select", "checkbox", "url"]).optional(),
+  type: z.enum(CUSTOM_FIELD_TYPES).optional(),
   options: z.array(z.string()).optional(),
   required: z.boolean().optional(),
   order: z.number().int().optional(),

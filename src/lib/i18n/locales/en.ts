@@ -596,6 +596,7 @@ export const en = {
   "settings.fieldTypeNumber": "Number",
   "settings.fieldTypeDate": "Date",
   "settings.fieldTypeSelect": "Select",
+  "settings.fieldTypeMultiselect": "Tags (choose several)",
   "settings.fieldTypeCheckbox": "Checkbox",
   "settings.fieldTypeUrl": "URL",
   "settings.fieldOptions": "Options (comma separated)",

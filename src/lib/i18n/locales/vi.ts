@@ -597,6 +597,7 @@ export const vi: Record<MessageKey, string> = {
   "settings.fieldTypeNumber": "Số",
   "settings.fieldTypeDate": "Ngày",
   "settings.fieldTypeSelect": "Chọn",
+  "settings.fieldTypeMultiselect": "Nhãn (chọn nhiều)",
   "settings.fieldTypeCheckbox": "Ô chọn",
   "settings.fieldTypeUrl": "URL",
   "settings.fieldOptions": "Tuỳ chọn (phân tách bằng dấu phẩy)",
