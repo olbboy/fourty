@@ -195,4 +195,5 @@ Giữ nguyên, có lý do:
 | Q99 | A | Sau 8 giờ sáng 15/10 Leo nhắn "kiểm nhắc việc"; Claude đọc log worker và báo thư đã gửi cho ai. |
 | Q100 | A | Leo mời lại trước khi hết hạn: btduc@example.com (hết hạn 20/10 11:51), lthoa@example.com (21/10 16:03). |
 | Q101 | A | Dừng sau đợt 3; dùng thật một thời gian rồi mới chọn đợt tiếp theo. |
+| Q102 | A | Trang nhập ở chế độ Liên hệ nhận ra file deal (không có cột tên liên hệ, có cột tên deal hoặc giá trị), không nhập mà hỏi "Chuyển sang Cơ hội" hay "Vẫn nhập thành liên hệ"; chuyển thì file được xem trước ngay bên nhập deal. Lý do: 18:05 ngày 14/10 file 2 deal của LTHoa vào nhầm chế độ Liên hệ, bị bỏ qua cả 2 dòng mà trông như đã xong. |
 

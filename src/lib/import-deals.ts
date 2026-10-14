@@ -40,6 +40,20 @@ function cell(row: Record<string, string>, column: Column): string {
 
 const BUILTIN = new Set<string>(Object.values(COLUMNS).flat());
 
+/** Headers the contacts import takes a contact's name from (/api/import/contacts); without one it skips every row. */
+const CONTACT_NAME_HEADERS = ["firstname", "first", "name", "fullname"];
+
+/**
+ * A deals file dropped on the contacts import (Q102): no column a contact's
+ * name comes from, and a deal's name or value. The page asks before importing.
+ */
+export function looksLikeDeals(headers: string[]): boolean {
+  const norms = headers.map(normText);
+  if (norms.some((h) => CONTACT_NAME_HEADERS.includes(h))) return false;
+  const dealHints: readonly string[] = [...COLUMNS.name, ...COLUMNS.amount];
+  return norms.some((h) => dealHints.includes(h));
+}
+
 /**
  * An amount as people type it: "20.000.000.000" and "20,000,000,000" are
  * twenty billion; "1500.5" and "1500,5" a decimal. undefined when empty,

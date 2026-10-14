@@ -18,6 +18,10 @@ The importer is built to handle messy real-world files:
   label) writes that field. Invalid values (a `javascript:` URL, a bad date) are
   skipped; the rest of the row still imports. A new row missing a required custom
   field is skipped, matching REST create.
+- **A deals file dropped here is caught** — a file with no column a contact's name
+  comes from, but with a deal's name or value, is not imported as contacts (every
+  row would be skipped). The page says so and offers **Switch to Deals**, which
+  previews the same file in the deals import.
 
 The parser is a dependency-free RFC-4180 implementation (`src/lib/csv.ts`), so quoted
 fields, embedded commas, and newlines are handled correctly.

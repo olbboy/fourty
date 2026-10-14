@@ -1328,6 +1328,10 @@ export const en = {
     "CSV with a header row. Column names are matched flexibly — firstName/first_name/First Name all work.",
   "page.import.drop": "Drop a CSV here or click to browse",
   "page.import.busy": "Importing…",
+  "page.import.fileAria": "CSV file of contacts",
+  "page.import.looksLikeDeals": "This file looks like a list of deals: it has a deal name or value and no contact name, so importing it as contacts would skip every row. Nothing has been imported.",
+  "page.import.switchToDeals": "Switch to Deals",
+  "page.import.importAsContacts": "Import as contacts anyway",
   "page.import.columns":
     "Recognized columns: name / first / last, email, phone, title, company, status, source, linkedin, city, country, plus custom field keys or labels",
   "page.import.failed": "Import failed",

@@ -1330,6 +1330,10 @@ export const vi: Record<MessageKey, string> = {
     "CSV có hàng tiêu đề. Tên cột khớp linh hoạt — firstName/first_name/First Name đều được.",
   "page.import.drop": "Thả CSV vào đây hoặc bấm để chọn file",
   "page.import.busy": "Đang nhập…",
+  "page.import.fileAria": "Tệp CSV liên hệ",
+  "page.import.looksLikeDeals": "Tệp này trông như danh sách cơ hội: có tên deal hoặc giá trị nhưng không có tên liên hệ, nên nhập thành liên hệ sẽ bỏ qua mọi dòng. Chưa nhập gì.",
+  "page.import.switchToDeals": "Chuyển sang Cơ hội",
+  "page.import.importAsContacts": "Vẫn nhập thành liên hệ",
   "page.import.columns":
     "Cột nhận diện: name / first / last, email, phone, title, company, status, source, linkedin, city, country, cộng key hoặc nhãn custom field",
   "page.import.failed": "Nhập thất bại",
