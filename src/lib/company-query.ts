@@ -116,6 +116,10 @@ export function companyQueryPolicy(query: CompanyQuery, policy: FieldPolicy | nu
   if (query.industry && !canReadField(policy, "companies", "industry")) {
     return { ok: false, status: 403, message: "Forbidden: company query is not readable" };
   }
+  // Filtering by a hidden owner would tell, by what comes back, who owns what.
+  if (query.ownerId && !canReadField(policy, "companies", "ownerId")) {
+    return { ok: false, status: 403, message: "Forbidden: company query is not readable" };
+  }
 
   const requestedField = sortField(query.sort);
   if (!canReadField(policy, "companies", requestedField)) {

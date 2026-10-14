@@ -45,6 +45,8 @@ describe("search by phone and in notes", () => {
       expect((await palette(q)).map((r) => r.id), q).toContain(ids.khoi);
     }
     expect((await palette("0911 222 333")).map((r) => r.id)).not.toContain(ids.khoi);
+    // Zeros alone are not a number: they must not match every phone.
+    expect((await palette("0000")).map((r) => r.id)).not.toContain(ids.khoi);
   });
 
   it("finds a record by what its notes say, showing the words that matched", async () => {

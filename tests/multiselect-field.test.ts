@@ -63,4 +63,16 @@ describe("multi-select custom field", () => {
     const res = await reporting.PATCH(req("/api/settings/reporting", { method: "PATCH", body: JSON.stringify({ lostReasonField: "tags" }) }));
     expect(res.status).toBe(400);
   });
+
+  it("keeps the forecast breakdown field a single choice", async () => {
+    const created = await post("custom-fields", { entity: "deal", key: "sales_motion", label: "Loại hình", type: "select", options: ["Dự án", "Bán lẻ"] });
+    const id = (await created.json()).field.id as string;
+    const reporting = await import("@/app/api/settings/reporting/route");
+    await reporting.PATCH(req("/api/settings/reporting", { method: "PATCH", body: JSON.stringify({ breakdownField: "sales_motion" }) }));
+    const route = await import("@/app/api/custom-fields/[id]/route");
+    const res = await route.PATCH(req(`/api/custom-fields/${id}`, { method: "PATCH", body: JSON.stringify({ type: "multiselect" }) }), {
+      params: Promise.resolve({ id }),
+    });
+    expect(res.status).toBe(409);
+  });
 });

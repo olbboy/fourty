@@ -127,6 +127,15 @@ const timestamps = {
   updatedAt: { type: GraphQLFloat },
 };
 
+/** `ownerId` and the nested `owner` of a contact or company, resolved like Deal.owner. */
+const ownerFields = () => ({
+  ownerId: { type: S },
+  owner: {
+    type: Assignee,
+    resolve: async (row: { id: string; ownerId?: string | null }) => (row.ownerId ? ((await getAssignee(row.ownerId)) ?? null) : null),
+  },
+});
+
 const Contact: GraphQLObjectType = new GraphQLObjectType({
   name: "Contact",
   fields: () => ({
@@ -140,11 +149,7 @@ const Contact: GraphQLObjectType = new GraphQLObjectType({
     status: { type: S },
     source: { type: S },
     score: { type: GraphQLInt },
-    ownerId: { type: S },
-    owner: {
-      type: Assignee,
-      resolve: async (row: { id: string; ownerId?: string | null }) => (row.ownerId ? ((await getAssignee(row.ownerId)) ?? null) : null),
-    },
+    ...ownerFields(),
     linkedin: { type: S },
     city: { type: S },
     country: { type: S },
@@ -189,11 +194,7 @@ const Company: GraphQLObjectType = new GraphQLObjectType({
     city: { type: S },
     country: { type: S },
     annualRevenue: { type: GraphQLFloat },
-    ownerId: { type: S },
-    owner: {
-      type: Assignee,
-      resolve: async (row: { id: string; ownerId?: string | null }) => (row.ownerId ? ((await getAssignee(row.ownerId)) ?? null) : null),
-    },
+    ...ownerFields(),
     custom: { type: JSONScalar, resolve: (r: { id: string; custom?: unknown }) => parseCustom(r.custom) },
     contacts: {
       type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Contact))),

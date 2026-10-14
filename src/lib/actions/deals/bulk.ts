@@ -33,7 +33,8 @@ export const dealsBulkMove = defineAction({
     }
     const { lostReasonField } = await loadReportingSettings();
     if (stage.type === "lost" && lostReasonField) {
-      const missing = deals.filter((d) => {
+      // Only the deals that actually move must carry a reason; one already there stays as it is.
+      const missing = deals.filter((d) => d.stageId !== stageId).filter((d) => {
         const reason = (JSON.parse(d.custom) as Record<string, unknown>)[lostReasonField];
         return reason === undefined || reason === null || reason === "";
       });

@@ -53,7 +53,9 @@ export function phoneCandidates(term: string): string[] | null {
   const digits = term.replace(/\D/g, "");
   if (digits.length < 4) return null;
   const forms = new Set([digits]);
-  if (digits.startsWith("0")) forms.add(`84${digits.replace(/^0+/, "")}`);
+  const national = digits.replace(/^0+/, "");
+  // Only real numbers get the other form: "0000" is not "84" plus nothing.
+  if (digits.startsWith("0") && national.length >= 4) forms.add(`84${national}`);
   if (digits.startsWith("84") && digits.length >= 9) forms.add(`0${digits.slice(2)}`);
   return [...forms];
 }
@@ -64,7 +66,11 @@ function phoneWhere(term: string, mode: SearchMode): SQL | null {
   const stored = sql`regexp_replace(coalesce(${tables.contacts.phone}, ''), '[^0-9]', '', 'g')`;
   // Contains: the number without its leading zeros may sit anywhere in a
   // stored "+84 …"; prefix keeps MCP's rule that a hit starts where you typed.
-  const patterns = mode === "prefix" ? forms.map((f) => `${f}%`) : forms.map((f) => `%${f.replace(/^0+/, "")}%`);
+  const patterns =
+    mode === "prefix"
+      ? forms.map((f) => `${f}%`)
+      : forms.map((f) => f.replace(/^0+/, "")).filter((f) => f.length >= 4).map((f) => `%${f}%`);
+  if (patterns.length === 0) return null;
   return or(...patterns.map((p) => sql`${stored} like ${p}`))!;
 }
 

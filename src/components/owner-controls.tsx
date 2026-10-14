@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { useT } from "@/lib/i18n/provider";
 import { ownerLabel, type OwnerPerson } from "@/lib/owner-display";
+import type { BulkObject } from "@/lib/actions/bulk";
 
 /**
  * Everyone who has been a member of the workspace, with whether they still are.
@@ -108,7 +109,7 @@ export function OwnerFilter({
 
 /** Give many records one owner; true when every one of them moved. */
 export async function reassignOwner(
-  kind: "deals" | "tasks" | "contacts" | "companies",
+  kind: BulkObject,
   ids: string[],
   ownerId: string | null,
 ): Promise<boolean> {
@@ -125,7 +126,7 @@ export async function reassignOwner(
 }
 
 /** Delete many records into the Trash; true when every one of them went. */
-export async function bulkDelete(kind: "deals" | "tasks" | "contacts" | "companies", ids: string[]): Promise<boolean> {
+export async function bulkDelete(kind: BulkObject, ids: string[]): Promise<boolean> {
   try {
     const res = await fetch(`/api/${kind}/bulk-delete`, {
       method: "POST",
@@ -151,6 +152,7 @@ export function BulkBar({
   onDelete,
   onClear,
   label,
+  actions = [],
   children,
 }: {
   count: number;
@@ -163,6 +165,8 @@ export function BulkBar({
   onClear?: () => void;
   /** Overrides "N selected", e.g. "N shown"; "" when the list already says it. */
   label?: string;
+  /** More one-click changes, e.g. "Mark done"; they share the bar's busy and failure state. */
+  actions?: { label: string; run: () => Promise<boolean> }[];
   children?: React.ReactNode;
 }) {
   const t = useT();
@@ -210,6 +214,11 @@ export function BulkBar({
           </Button>
         </>
       )}
+      {actions.map((action) => (
+        <Button key={action.label} size="sm" variant="outline" disabled={busy} onClick={() => void run(action.run)}>
+          {action.label}
+        </Button>
+      ))}
       {children}
       {onDelete && (
         <Button

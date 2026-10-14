@@ -272,7 +272,9 @@ export function ContactForm({
           />
         </Field>
       )}
-      <OwnerField initialOwnerId={contact?.ownerId ?? ""} isNew={!contact} />
+      {!access.hidden.has("ownerId") && (
+        <OwnerField initialOwnerId={contact?.ownerId ?? ""} isNew={!contact} disabled={access.blockedWrites.has("ownerId")} />
+      )}
       {!access.hidden.has("custom") && (
         <CustomFieldsInputs
           defs={defs}

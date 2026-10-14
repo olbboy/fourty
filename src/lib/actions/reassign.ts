@@ -2,7 +2,8 @@ import { z } from "zod";
 import { defineAction } from "./define";
 import { execute } from "./execute";
 import { resolveOwner } from "./assignees";
-import { ActionError, type ActionDef } from "./types";
+import { existingOrThrow, type BulkObject } from "./bulk";
+import { type ActionDef } from "./types";
 
 export const reassignInput = z.object({
   ids: z.array(z.string().min(1)).min(1).max(500),
@@ -17,11 +18,9 @@ export const reassignInput = z.object({
  */
 export function reassignAction(opts: {
   name: string;
-  object: "deals" | "tasks" | "contacts" | "companies";
+  object: BulkObject;
   noun: string;
   update: ActionDef<any, any>;
-  /** How many of these ids exist in the current workspace. */
-  countExisting: (ids: string[]) => Promise<number>;
 }) {
   return defineAction({
     name: opts.name,
@@ -31,10 +30,7 @@ export function reassignAction(opts: {
     input: reassignInput,
     expose: { rest: true, graphql: true, mcp: true, ai: true },
     run: async ({ ids, ownerId }, ctx): Promise<{ updated: number }> => {
-      const unique = [...new Set(ids)];
-      if ((await opts.countExisting(unique)) !== unique.length) {
-        throw new ActionError("not_found", `Some ${opts.noun} were not found`);
-      }
+      const unique = await existingOrThrow(opts.object, ids, opts.noun);
       await resolveOwner(ownerId, ctx);
       for (const id of unique) await execute(opts.update, { id, ownerId }, ctx);
       return { updated: unique.length };

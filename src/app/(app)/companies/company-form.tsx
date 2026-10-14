@@ -195,7 +195,9 @@ export function CompanyForm({
           />
         </Field>
       )}
-      <OwnerField initialOwnerId={company?.ownerId ?? ""} isNew={!company} />
+      {!access.hidden.has("ownerId") && (
+        <OwnerField initialOwnerId={company?.ownerId ?? ""} isNew={!company} disabled={access.blockedWrites.has("ownerId")} />
+      )}
       {!access.hidden.has("custom") && (
         <CustomFieldsInputs
           defs={defs}

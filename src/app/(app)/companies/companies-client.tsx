@@ -38,8 +38,9 @@ import {
   toCompanyApiParams,
 } from "@/lib/company-list-query";
 import { useT } from "@/lib/i18n/provider";
+import { useFieldAccess } from "@/hooks/use-field-access";
 import { BulkBar, OwnerFilter, bulkDelete, reassignOwner, useOwnerPeople } from "@/components/owner-controls";
-import { ownerLabel } from "@/lib/owner-display";
+import { ownerOf } from "@/lib/owner-display";
 import type { MessageKey } from "@/lib/i18n";
 import { CompaniesTable } from "./companies-table";
 import { CompanyForm } from "./company-form";
@@ -122,6 +123,8 @@ export function CompaniesClient({
   const [showNew, setShowNew] = useState(searchParams.get("new") === "1");
   const [reloadVersion, setReloadVersion] = useState(0);
   const people = useOwnerPeople();
+  const access = useFieldAccess("companies");
+  const canBulkAssign = access.canUpdate && !access.hidden.has("ownerId") && !access.blockedWrites.has("ownerId");
   const requestGeneration = useRef(0);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousListKey = useRef(listKey);
@@ -572,29 +575,38 @@ export function CompaniesClient({
           {companies.length > 0 ? (
             <>
             <BulkBar
-              count={selectedOnPage.length}
+              // The selection itself is for export too; the bar only for a role that may change them.
+              count={canBulkAssign || access.canDelete ? selectedOnPage.length : 0}
               // The selection count is already announced above the table.
               label=""
               people={people}
               onClear={() => setSelectedIds(new Set())}
-              onReassign={async (ownerId) => {
-                const ok = await reassignOwner("companies", selectedOnPage, ownerId);
-                if (ok) reload();
-                return ok;
-              }}
-              onDelete={async () => {
-                const ok = await bulkDelete("companies", selectedOnPage);
-                if (ok) {
-                  setSelectedIds(new Set());
-                  reload();
-                }
-                return ok;
-              }}
+              onReassign={
+                canBulkAssign
+                  ? async (ownerId) => {
+                      const ok = await reassignOwner("companies", selectedOnPage, ownerId);
+                      if (ok) reload();
+                      return ok;
+                    }
+                  : undefined
+              }
+              onDelete={
+                access.canDelete
+                  ? async () => {
+                      const ok = await bulkDelete("companies", selectedOnPage);
+                      if (ok) {
+                        setSelectedIds(new Set());
+                        reload();
+                      }
+                      return ok;
+                    }
+                  : undefined
+              }
             />
             <CompaniesTable
               companies={companies}
               selectedIds={selectedIds}
-              ownerName={(ownerId) => ownerLabel(ownerId, people, t)}
+              ownerName={(company) => ownerOf(company, people, t)}
               onPreview={openPreview}
               onToggle={(id, checked) =>
                 setSelectedIds((current) => {

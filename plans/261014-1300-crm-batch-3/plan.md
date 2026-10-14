@@ -22,8 +22,8 @@ Cách làm như đợt 2: mỗi phase viết test trước ở seam của nó, t
 |---|---|---|---|
 | D7 | Owner của liên hệ và công ty | Sửa được owner của liên hệ và công ty sau khi tạo (form, REST, GraphQL, MCP), lọc danh sách theo owner, đổi owner hàng loạt như deal. Đổi owner ghi "changed owner: A → B" lên dòng thời gian | Bàn giao khi có người nghỉ (T7) mới làm xong cho deal và việc |
 | D8 | Thao tác hàng loạt | Tick chọn nhiều trên danh sách deal, liên hệ và công ty. Deal: chuyển stage, đổi owner, xoá. Liên hệ và công ty: đổi owner, xoá. Việc: mỗi dòng đã có ô tick "xong", thêm ô chọn thứ hai dễ nhầm, nên giữ cách đợt 1: lọc theo owner rồi đổi owner, đánh dấu xong hoặc xoá mọi việc đang hiện. Xoá đưa vào Thùng rác. Tất cả hoặc không: một bản ghi không hợp lệ (vào stage thua mà thiếu lý do, khác pipeline) thì không bản ghi nào đổi | Mục 15 của báo cáo (4/5 nguồn); tất cả hoặc không như đổi owner hàng loạt đã có |
-| D9 | Tìm kiếm | Tìm liên hệ theo số điện thoại (bỏ dấu cách, chấm, gạch khi so) và tìm trong nội dung ghi chú (trả về bản ghi có ghi chú đó) ở ⌘K và `/api/search`. `search` của MCP giữ nguyên quy tắc khớp chính xác hoặc tiền tố, cũng áp cho số điện thoại | Mục 13; MCP cố ý không khớp mờ (docs/api/mcp.md) |
-| D10 | Ghi cuộc gọi, cuộc họp | Ghi một cuộc gọi, cuộc họp hay email kèm nội dung, thời điểm diễn ra (mặc định bây giờ, không quá 1 ngày tới tương lai) và thời lượng phút. Dòng thời gian xếp theo thời điểm diễn ra | Mục q; trường `note` đã có trong API, chỉ giao diện chưa dùng |
+| D9 | Tìm kiếm | Tìm liên hệ theo số điện thoại (bỏ dấu cách, chấm, gạch, ngoặc, dấu cộng khi so; số Việt Nam viết 0903… hay +84 903… là một) và tìm trong nội dung ghi chú (trả về bản ghi có ghi chú đó) ở ⌘K và `/api/search`. `search` của MCP giữ nguyên quy tắc khớp chính xác hoặc tiền tố, cũng áp cho số điện thoại | Mục 13; MCP cố ý không khớp mờ (docs/api/mcp.md) |
+| D10 | Ghi cuộc gọi, cuộc họp | Ghi một cuộc gọi, cuộc họp hay email kèm nội dung, thời điểm diễn ra (mặc định bây giờ, không quá 1 ngày tới tương lai) và thời lượng phút (cho cuộc gọi và cuộc họp; email không có thời lượng). Dòng thời gian xếp theo thời điểm diễn ra | Mục q; trường `note` đã có trong API, chỉ giao diện chưa dùng |
 | D11 | Trường chọn nhiều | Kiểu custom field mới "chọn nhiều" (nhãn) cho liên hệ, công ty, deal. Lọc theo một lựa chọn thì khớp bản ghi có lựa chọn đó. Trường tách cột của dự báo vẫn chỉ nhận trường chọn một | Mục c; trường tách cột cần mỗi deal đúng một cột |
 | D12 | Việc theo lịch | Trang Việc có thêm dạng lịch tháng: việc nằm ở ngày đến hạn, quá hạn tô đỏ, bấm mở việc; lọc theo owner và trạng thái như dạng danh sách | Mục h |
 | D13 | Gộp trùng | Gộp hai liên hệ, hoặc hai công ty: chọn bản giữ lại; deal, người liên hệ trên deal, việc, ghi chú, dòng thời gian và thư của bản kia chuyển sang; ô trống của bản giữ lại lấy giá trị bản kia; bản kia vào Thùng rác. Ghi một dòng "đã gộp" trên dòng thời gian | Mục 7 (4/5 nguồn); vào Thùng rác để gộp nhầm còn đường lui |
@@ -69,3 +69,33 @@ Cách làm như đợt 2: mỗi phase viết test trước ở seam của nó, t
 - **Phase 28 (D19)**: seam `PATCH /api/members/{id}` (`reactivate`), `PATCH /api/me` (title, phone). E2E: kích hoạt lại một thành viên.
 - **Phase 29 (D20)**: seam các action cập nhật và xoá phát sự kiện; danh sách sự kiện của workflow.
 - **Phase 30 (D21)**: seam `ingestEmails`.
+
+## Review lượt 1 (14/10/2026)
+
+Hai chiều review chạy song song trên `5b6bb14...HEAD`. Đã sửa:
+- **Tất cả hoặc không, đúng nhờ giao dịch.** Mỗi lần chạy một action là một savepoint (`withSavepoint` trong `execute`). Một lời từ chối ở bất cứ đâu bên trong, kể cả trong action lồng nhau, sẽ huỷ mọi thứ action đã ghi, dù giao dịch của request vẫn commit để trả lời. Có test riêng. Vì vậy bỏ bước kiểm quyền ghi Amount trước khi ghi trong `deals.setLines`.
+- Chuyển hàng loạt vào stage thua: chỉ deal thật sự đổi stage mới cần lý do.
+- Đánh dấu xong hàng loạt bỏ qua việc đã xong, giữ nguyên ngày xong cũ.
+- Tìm "0000" từng khớp mọi số điện thoại. Giờ không còn; có test.
+- Quyền theo trường cho owner:
+  - Lọc theo owner bị từ chối khi trường owner bị ẩn.
+  - Owner bị ẩn hiện "—" chứ không hiện "Chưa giao".
+  - Ô owner trong form liên hệ và công ty theo quyền trường như form deal.
+- Viewer không còn thấy ô chọn và thanh thao tác hàng loạt: `/api/field-permissions/me` trả thêm quyền sửa và xoá theo vai trò.
+- Thanh thao tác của danh sách việc chỉ hiện ở dạng danh sách. "Đánh dấu xong" đi qua thanh nên báo lỗi như các nút khác.
+- Trường đang làm cột dự báo hoặc lý do thua không đổi được sang kiểu khác "chọn một" (409); có test.
+- Thời điểm diễn ra phải từ năm 2000 trở đi. Ô nhập có giới hạn; lỗi từ server hiện đúng chữ.
+- E2E: ⌘K tìm theo số điện thoại. Tài liệu cho ghi cuộc gọi; công cụ `search` của MCP nhắc số điện thoại.
+- Gọn code:
+  - `reassign` dùng chung bước kiểm tồn tại của thao tác hàng loạt.
+  - Resolver owner của GraphQL dùng chung.
+  - `DATE_TAGS` dùng chung.
+  - `today` đổi tên thành `startOfToday`.
+  - Kiểu `BulkObject` dùng chung.
+
+Giữ nguyên, có lý do:
+- **Khớp 0903… với +84 903… ở MCP.** Đó là cùng một số, viết theo hai cách; số vẫn khớp từ đầu. Đã ghi vào D9.
+- **Email không có thời lượng.** Không có nghĩa; đã ghi vào D10.
+- **Lọc theo lựa chọn chỉ có ở danh sách deal.** Liên hệ và công ty chưa bao giờ có bộ lọc theo custom field; D11 nói về bộ lọc đang có.
+- **`ActionDef<any, any>` trong `bulk.ts` và `reassign.ts`.** Một factory nhận action của nhiều đối tượng; tiền lệ có sẵn ở `reassign.ts`.
+- **N+1 khi chạy hàng loạt** (`loadFieldPolicy` mỗi bản ghi). Tối đa 500 bản ghi một lần, đội 5 người; đo trước khi tối ưu.

@@ -101,6 +101,10 @@ export function DealsClient() {
   const access = useFieldAccess("deals");
   const canMoveStage = canEditField(access, "stageId");
   const canAssign = canEditField(access, "ownerId");
+  // Bulk changes are offered only to a role that may make them.
+  const canBulkAssign = canAssign && access.canUpdate;
+  const canBulkMove = canMoveStage && access.canUpdate;
+  const canSelect = canBulkAssign || canBulkMove || access.canDelete;
   const people = useOwnerPeople();
   const [deals, setDeals] = useState<Deal[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -687,7 +691,7 @@ export function DealsClient() {
           people={people}
           onClear={() => setSelected(new Set())}
           onReassign={
-            canAssign
+            canBulkAssign
               ? async (ownerId) => {
                   const ok = await reassignOwner("deals", selectedShown.map((deal) => deal.id), ownerId);
                   if (ok) void load();
@@ -695,16 +699,20 @@ export function DealsClient() {
                 }
               : undefined
           }
-          onDelete={async () => {
-            const ok = await bulkDelete("deals", selectedShown.map((deal) => deal.id));
-            if (ok) {
-              setSelected(new Set());
-              void load();
-            }
-            return ok;
-          }}
+          onDelete={
+            access.canDelete
+              ? async () => {
+                  const ok = await bulkDelete("deals", selectedShown.map((deal) => deal.id));
+                  if (ok) {
+                    setSelected(new Set());
+                    void load();
+                  }
+                  return ok;
+                }
+              : undefined
+          }
         >
-          {canMoveStage && (
+          {canBulkMove && (
             <BulkStageMove
               stages={pipeline.stages}
               ids={selectedShown.map((deal) => deal.id)}
@@ -716,6 +724,7 @@ export function DealsClient() {
           <Table className="min-w-[820px]">
             <TableHeader>
               <TableRow>
+                {canSelect && (
                 <TableHead className="w-10">
                   <Checkbox
                     checked={allShownSelected}
@@ -724,6 +733,7 @@ export function DealsClient() {
                     aria-label={t("owner.selectAll")}
                   />
                 </TableHead>
+                )}
                 <TableHead>{t("col.deal")}</TableHead>
                 <TableHead>{t("col.amount")}</TableHead>
                 <TableHead>{t("col.health")}</TableHead>
@@ -746,6 +756,7 @@ export function DealsClient() {
                     onClick={() => router.push(`/deals/${deal.id}`)}
                     className="cursor-pointer transition hover:bg-surface-2"
                   >
+                    {canSelect && (
                     <TableCell onClick={(event) => event.stopPropagation()}>
                       <Checkbox
                         checked={selected.has(deal.id)}
@@ -753,6 +764,7 @@ export function DealsClient() {
                         aria-label={t("owner.selectRow", { name: displayName(deal.name) })}
                       />
                     </TableCell>
+                    )}
                     <TableCell className="font-medium">
                       <Link
                         href={`/deals/${deal.id}`}

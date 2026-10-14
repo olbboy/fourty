@@ -23,7 +23,7 @@ import { EmailCompose } from "@/components/email-compose";
 import { Card } from "@/components/ui/card";
 import { useLocale, useT } from "@/lib/i18n/provider";
 import { useOwnerPeople } from "@/components/owner-controls";
-import { ownerLabel } from "@/lib/owner-display";
+import { ownerOf } from "@/lib/owner-display";
 
 export function ContactDetail({ id, mailReady = false }: { id: string; mailReady?: boolean }) {
   const t = useT();
@@ -249,7 +249,7 @@ export function ContactDetail({ id, mailReady = false }: { id: string; mailReady
               { label: t("field.jobTitle"), value: contact.jobTitle, field: "job_title" },
               { label: t("field.company"), value: company?.name, field: "company_id" },
               { label: t("field.email"), value: contact.email },
-              { label: t("field.owner"), value: ownerLabel(contact.ownerId ?? null, people, t) },
+              { label: t("field.owner"), value: ownerOf(contact, people, t) },
               { label: t("field.phone"), value: contact.phone },
               { label: t("field.source"), value: contact.source },
               { label: t("field.linkedin"), value: contact.linkedin, field: "linkedin" },

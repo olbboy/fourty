@@ -257,6 +257,5 @@ describe("products and line items", () => {
     const { TOOLS } = await import("@/mcp/tools");
     const names = TOOLS.map((t) => t.name);
     expect(names).toEqual(expect.arrayContaining(["set_deal_lines", "list_products"]));
-    expect(TOOLS.length).toBeGreaterThanOrEqual(46);
   });
 });

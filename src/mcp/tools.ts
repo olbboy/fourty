@@ -170,7 +170,7 @@ export const TOOLS: Tool[] = [
     name: "search",
     mutates: false,
     description:
-      "Search contacts, companies, deals, and custom-object records by name, email, company domain, or record title. EXACT or PREFIX match only — this is not a fuzzy search, so a misspelling returns nothing rather than the nearest name. Surname-only and domain prefixes work. Returns the top matches per type.",
+      "Search contacts, companies, deals, and custom-object records by name, email, contact phone, company domain, or record title. EXACT or PREFIX match only — this is not a fuzzy search, so a misspelling returns nothing rather than the nearest name. Surname-only and domain prefixes work; a phone number matches from its start however it is punctuated, and 0903… finds +84 903…. Returns the top matches per type.",
     inputSchema: {
       type: "object",
       properties: { query: { type: "string", description: "Search text" }, limit: { type: "number" } },

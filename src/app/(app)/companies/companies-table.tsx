@@ -23,8 +23,8 @@ type CompaniesTableProps = {
   onToggle: (id: string, checked: boolean) => void;
   onToggleAll: (checked: boolean) => void;
   onPreview: (id: string) => void;
-  /** The Owner's display name, "Unassigned", or "Name (left)". */
-  ownerName: (ownerId: string | null) => string;
+  /** The Owner's display name, "Unassigned", "Name (left)", or "—" when hidden. */
+  ownerName: (company: CompanyRead) => string;
 };
 
 function displayName(company: CompanyRead, fallback: string): string {
@@ -154,7 +154,7 @@ export function CompaniesTable({
                     {displayText(company.size)}
                   </TableCell>
                   <TableCell className="text-ink-muted">
-                    {ownerName(typeof company.ownerId === "string" ? company.ownerId : null)}
+                    {ownerName(company)}
                   </TableCell>
                   <TableCell className="hidden text-ink-muted lg:table-cell">
                     {[company.city, company.country]

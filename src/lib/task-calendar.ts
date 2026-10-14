@@ -35,7 +35,7 @@ export function tasksByDay<T extends { dueDate: number | null }>(tasks: readonly
 export const inMonth = (day: number, month: number) => new Date(day).getMonth() === month;
 
 /** Today's local midnight. */
-export const today = () => {
+export const startOfToday = () => {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 };

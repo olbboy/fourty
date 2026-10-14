@@ -6,11 +6,18 @@ export type ObjectFieldAccess = {
   failed: boolean;
   hidden: Set<string>;
   blockedWrites: Set<string>;
+  /** The role may change, or delete, records of this object (false until loaded). */
+  canUpdate: boolean;
+  canDelete: boolean;
 };
+
+/** What a role may do on each list, for offering bulk changes. */
+export type ListAllowed = Record<FieldAccessObject | "tasks", { update: boolean; delete: boolean }>;
 
 export type FieldAccessResponse = {
   hidden?: Partial<Record<FieldAccessObject, string[]>>;
   blockedWrites?: Partial<Record<FieldAccessObject, string[]>>;
+  allowed?: Partial<ListAllowed>;
 };
 
 /** Drop keys the role may not write so a defaulted form value is not a write. */

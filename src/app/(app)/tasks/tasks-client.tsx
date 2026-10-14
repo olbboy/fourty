@@ -24,6 +24,7 @@ import { useLocale, useT } from "@/lib/i18n/provider";
 import { BulkBar, OwnerFilter, bulkDelete, reassignOwner, useOwnerPeople } from "@/components/owner-controls";
 import { ownerLabel } from "@/lib/owner-display";
 import { TaskCalendar } from "@/components/task-calendar";
+import { useTasksAllowed } from "@/hooks/use-field-access";
 
 const ENTITY_PATH: Record<string, string> = {
   contact: "/contacts/",
@@ -67,6 +68,7 @@ export function TasksClient() {
   const [failed, setFailed] = useState(false);
   const [state, setState] = useState<"open" | "done" | "all">("open");
   const [view, setView] = useState<"list" | "calendar">("list");
+  const allowed = useTasksAllowed();
   // "" = any; "none" = unowned; otherwise a member id.
   const [ownerFilter, setOwnerFilter] = useState("");
   const people = useOwnerPeople();
@@ -166,13 +168,14 @@ export function TasksClient() {
   }
 
   /** Mark the open tasks shown done in one go; all or none. */
-  async function completeShown(ids: string[]) {
+  async function completeShown(ids: string[]): Promise<boolean> {
     const res = await fetch("/api/tasks/bulk-complete", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ ids }),
     }).catch(() => null);
     if (res?.ok) void load();
+    return Boolean(res?.ok);
   }
 
   async function remove(task: Task): Promise<void> {
@@ -326,28 +329,37 @@ export function TasksClient() {
 
       {/* Handing over: narrow to one owner, then give every task shown to
           someone else, mark them done or delete them, in one go. */}
-      {ownerFilter && tasks && tasks.length > 0 && (
+      {/* The bar acts on every task loaded, so it stays with the list view,
+          where "shown" means exactly those. */}
+      {view === "list" && ownerFilter && tasks && tasks.length > 0 && (allowed.update || allowed.delete) && (
         <BulkBar
           count={tasks.length}
           label={t("owner.bulkShown", { count: tasks.length })}
           people={people}
-          onReassign={async (ownerId) => {
-            const ok = await reassignOwner("tasks", tasks.map((task) => task.id), ownerId);
-            if (ok) void load();
-            return ok;
-          }}
-          onDelete={async () => {
-            const ok = await bulkDelete("tasks", tasks.map((task) => task.id));
-            if (ok) void load();
-            return ok;
-          }}
-        >
-          {tasks.some((task) => !task.completedAt) && (
-            <Button size="sm" variant="outline" onClick={() => void completeShown(tasks.filter((task) => !task.completedAt).map((task) => task.id))}>
-              {t("bulk.complete")}
-            </Button>
-          )}
-        </BulkBar>
+          onReassign={
+            allowed.update
+              ? async (ownerId) => {
+                  const ok = await reassignOwner("tasks", tasks.map((task) => task.id), ownerId);
+                  if (ok) void load();
+                  return ok;
+                }
+              : undefined
+          }
+          onDelete={
+            allowed.delete
+              ? async () => {
+                  const ok = await bulkDelete("tasks", tasks.map((task) => task.id));
+                  if (ok) void load();
+                  return ok;
+                }
+              : undefined
+          }
+          actions={
+            allowed.update && tasks.some((task) => !task.completedAt)
+              ? [{ label: t("bulk.complete"), run: () => completeShown(tasks.filter((task) => !task.completedAt).map((task) => task.id)) }]
+              : []
+          }
+        />
       )}
 
       {failed ? (

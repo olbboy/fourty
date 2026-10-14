@@ -18,7 +18,8 @@ import { IconPlus, IconDownload, IconUpload } from "@/components/icons";
 import { SavedViewsBar, type SavedView } from "@/components/saved-views";
 import { BulkBar, OwnerFilter, bulkDelete, reassignOwner, useOwnerPeople } from "@/components/owner-controls";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ownerLabel } from "@/lib/owner-display";
+import { useFieldAccess } from "@/hooks/use-field-access";
+import { ownerOf } from "@/lib/owner-display";
 import { ContactForm } from "./contact-form";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -67,6 +68,9 @@ export function ContactsClient() {
   const [status, setStatus] = useState("");
   const [ownerFilter, setOwnerFilter] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const access = useFieldAccess("contacts");
+  const canBulkAssign = access.canUpdate && !access.hidden.has("ownerId") && !access.blockedWrites.has("ownerId");
+  const canSelect = canBulkAssign || access.canDelete;
   const people = useOwnerPeople();
   const [sort, setSort] = useState("updatedAt");
   const [activeView, setActiveView] = useState<string | null>(null);
@@ -302,24 +306,33 @@ export function ContactsClient() {
           count={contacts.filter((c) => selected.has(c.id)).length}
           people={people}
           onClear={() => setSelected(new Set())}
-          onReassign={async (ownerId) => {
-            const ok = await reassignOwner("contacts", contacts.filter((c) => selected.has(c.id)).map((c) => c.id), ownerId);
-            if (ok) void load();
-            return ok;
-          }}
-          onDelete={async () => {
-            const ok = await bulkDelete("contacts", contacts.filter((c) => selected.has(c.id)).map((c) => c.id));
-            if (ok) {
-              setSelected(new Set());
-              void load();
-            }
-            return ok;
-          }}
+          onReassign={
+            canBulkAssign
+              ? async (ownerId) => {
+                  const ok = await reassignOwner("contacts", contacts.filter((c) => selected.has(c.id)).map((c) => c.id), ownerId);
+                  if (ok) void load();
+                  return ok;
+                }
+              : undefined
+          }
+          onDelete={
+            access.canDelete
+              ? async () => {
+                  const ok = await bulkDelete("contacts", contacts.filter((c) => selected.has(c.id)).map((c) => c.id));
+                  if (ok) {
+                    setSelected(new Set());
+                    void load();
+                  }
+                  return ok;
+                }
+              : undefined
+          }
         />
         <Card size="flush">
           <Table className="min-w-[720px]">
             <TableHeader>
               <TableRow>
+                {canSelect && (
                 <TableHead className="w-10">
                   <Checkbox
                     checked={contacts.length > 0 && contacts.every((c) => selected.has(c.id))}
@@ -328,6 +341,7 @@ export function ContactsClient() {
                     aria-label={t("owner.selectAll")}
                   />
                 </TableHead>
+                )}
                 <TableHead>{t("col.name")}</TableHead>
                 <TableHead>{t("col.company")}</TableHead>
                 <TableHead>{t("col.status")}</TableHead>
@@ -356,6 +370,7 @@ export function ContactsClient() {
                   }}
                   className="cursor-pointer hover:bg-surface-2"
                 >
+                  {canSelect && (
                   <TableCell onClick={(event) => event.stopPropagation()}>
                     <Checkbox
                       checked={selected.has(c.id)}
@@ -370,6 +385,7 @@ export function ContactsClient() {
                       aria-label={t("owner.selectRow", { name: displayName(c.firstName, c.lastName) })}
                     />
                   </TableCell>
+                  )}
                   <TableCell className="font-medium">
                     <Link
                       href={`/contacts/${c.id}`}
@@ -389,7 +405,7 @@ export function ContactsClient() {
                   <TableCell>
                     <StatusChip status={c.status} />
                   </TableCell>
-                  <TableCell className="text-ink-muted">{ownerLabel(c.ownerId ?? null, people, t)}</TableCell>
+                  <TableCell className="text-ink-muted">{ownerOf(c, people, t)}</TableCell>
                   <TableCell>
                     <ScoreBadge score={c.score} />
                   </TableCell>

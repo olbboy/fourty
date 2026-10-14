@@ -4,11 +4,10 @@ import { useMemo, useState } from "react";
 import type { Task } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { inMonth, monthGrid, tasksByDay, today } from "@/lib/task-calendar";
-import { toDateInputValue } from "@/lib/format";
+import { inMonth, monthGrid, startOfToday, tasksByDay } from "@/lib/task-calendar";
+import { DATE_TAGS, toDateInputValue } from "@/lib/format";
 import { useLocale, useT } from "@/lib/i18n/provider";
 
-const DATE_TAGS = { en: "en-US", vi: "vi-VN" } as const;
 
 /**
  * Tasks on a month calendar (D12): each on the day it is due, overdue open
@@ -17,7 +16,7 @@ const DATE_TAGS = { en: "en-US", vi: "vi-VN" } as const;
 export function TaskCalendar({ tasks, onOpen }: { tasks: Task[]; onOpen: (task: Task) => void }) {
   const t = useT();
   const locale = useLocale();
-  const tag = DATE_TAGS[locale as keyof typeof DATE_TAGS] ?? "en-US";
+  const tag = DATE_TAGS[locale] ?? "en-US";
   const [cursor, setCursor] = useState(() => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
@@ -25,7 +24,7 @@ export function TaskCalendar({ tasks, onOpen }: { tasks: Task[]; onOpen: (task: 
   const grid = useMemo(() => monthGrid(cursor.year, cursor.month), [cursor]);
   const byDay = useMemo(() => tasksByDay(tasks), [tasks]);
   const undated = tasks.filter((task) => task.dueDate === null).length;
-  const todayMs = today();
+  const todayMs = startOfToday();
   const title = new Date(cursor.year, cursor.month, 1).toLocaleDateString(tag, { month: "long", year: "numeric" });
   const weekdays = grid[0]!.map((day) => new Date(day).toLocaleDateString(tag, { weekday: "short" }));
   const shift = (months: number) =>

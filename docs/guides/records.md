@@ -26,7 +26,12 @@ with this account?" without leaving the record.
 Timeline entries are also queryable over the API — `GET /api/activities`,
 GraphQL `activities`, MCP `list_activities` — and a human (or a confirmed agent
 write) can log an email, call, or meeting (`POST /api/activities`, GraphQL
-`logActivity`, MCP `log_activity`). The list is empty without `entityType` and
+`logActivity`, MCP `log_activity`). On a record page, **Email**, **Call** and
+**Meeting** open a small form: when it happened (now unless changed, at most a day
+ahead), how many minutes a call or meeting took, and what was said. Over the API these
+are `occurredAt` (epoch ms), `durationMinutes` and `note`. The timeline places a
+touchpoint at the time it happened, so a call logged the next morning sits where it
+belongs, and the contact's last activity and score follow it. The list is empty without `entityType` and
 `entityId`: the timeline lives on a record, not the workspace.
 
 ## Working with records

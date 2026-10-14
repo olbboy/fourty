@@ -31,6 +31,9 @@ export const companiesList = defineAction({
     if (industry && !canReadField(policy, "companies", "industry")) {
       throw new ActionError("forbidden", "Forbidden: company query is not readable");
     }
+    if (input.ownerId && !canReadField(policy, "companies", "ownerId")) {
+      throw new ActionError("forbidden", "Forbidden: company query is not readable");
+    }
 
     const requestedSort = input.sort;
     const sort = requestedSort === "name" ? "name" : requestedSort === "createdAt" ? "createdAt" : "updatedAt";

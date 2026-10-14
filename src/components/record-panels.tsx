@@ -209,7 +209,9 @@ export function LogTouchpoint({
         }),
       });
       if (!res.ok) {
-        setError(t("activity.failedWrite"));
+        // The server says what was wrong ("occurredAt: at most a day ahead").
+        const message = ((await res.json().catch(() => ({}))) as { error?: string }).error;
+        setError(message ?? t("activity.failedWrite"));
         return;
       }
       setOpen(null);
@@ -249,6 +251,8 @@ export function LogTouchpoint({
             <Input
               type="datetime-local"
               value={when}
+              min="2000-01-01T00:00"
+              max={localDateTime(Date.now() + 86_400_000)}
               onChange={(e) => setWhen(e.target.value)}
               aria-label={t("activity.when")}
               className="h-8 min-w-0 flex-1"
