@@ -30,6 +30,7 @@ const ACTIVITY_KEYS: Record<string, MessageKey> = {
   meeting: "activity.meeting",
   workflow: "activity.workflow",
   merged: "activity.merged",
+  quote: "activity.quote",
 };
 
 /**
@@ -80,6 +81,7 @@ function describe(a: Activity, t: TFn, locale: Locale): string {
     return t("activity.emailSent", { to: String(a.meta.toName ?? ""), subject: String(a.meta.subject) });
   }
   if (a.type === "merged" && a.meta.from) return t("activity.mergedFrom", { from: String(a.meta.from) });
+  if (a.type === "quote" && a.meta.number) return t("activity.quoteMade", { number: String(a.meta.number) });
   if (a.type === "task_completed" && a.meta.title) {
     return t("activity.taskCompletedTitle", { title: String(a.meta.title) });
   }

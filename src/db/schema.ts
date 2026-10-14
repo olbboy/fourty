@@ -367,6 +367,29 @@ export const dealLines = pgTable(
   (t) => [index("deal_lines_deal_idx").on(t.workspaceId, t.dealId)],
 );
 
+/**
+ * Quotes (D16): a priced offer from a deal's line items, numbered per workspace
+ * and year, kept as a snapshot (`snapshot` JSON: buyer, seller, lines).
+ */
+export const quotes = pgTable(
+  "quotes",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    dealId: text("deal_id").notNull(),
+    number: text("number").notNull(),
+    issuedAt: millis("issued_at").notNull(),
+    validUntil: millis("valid_until").notNull(),
+    currency: text("currency").notNull(),
+    total: doublePrecision("total").notNull(),
+    snapshot: text("snapshot").notNull(),
+    terms: text("terms"),
+    createdBy: text("created_by"),
+    createdAt: millis("created_at").notNull(),
+  },
+  (t) => [uniqueIndex("quotes_ws_number_idx").on(t.workspaceId, t.number), index("quotes_deal_idx").on(t.workspaceId, t.dealId)],
+);
+
 /** Email templates (D15): a reusable subject and body with {{blanks}}. */
 export const emailTemplates = pgTable(
   "email_templates",

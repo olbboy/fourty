@@ -82,6 +82,17 @@ hand again from then on. A role barred from reading a deal's amount sees the lin
 their prices. Over the API: `GET`/`PUT /api/deals/{id}/lines`, `/api/products`, GraphQL
 `Deal.lines`, `products` and `setDealLines`, MCP `list_products` and `set_deal_lines`.
 
+## Quotes
+
+On a deal with products, **Quotes → Make a quote** makes a quote from its line items as they
+are now: numbered per year (`BG-2026-0001`, `BG-2026-0002`, …), dated, valid for a number of
+days you choose (30 unless changed), with the buyer (the deal's company and primary contact),
+the lines, the total and any terms you add. It opens as a page to print or save as PDF from
+the browser. A quote is a snapshot: changing the deal's products later does not change a quote
+already made, so make another. The deal's timeline records each one, and quotes go to the
+Trash and come back with their deal. A role that may not see a deal's amount sees no quote.
+Over the API: `GET`/`POST /api/deals/{id}/quotes` (`{ validDays?, terms? }`), `GET /api/quotes/{id}`.
+
 ## The weighted forecast
 
 The forecast is deterministic: each open deal contributes `amount × stage
