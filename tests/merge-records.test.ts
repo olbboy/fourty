@@ -108,6 +108,26 @@ describe("merging duplicates", () => {
     expect(await get("companies", dupe)).toBeNull();
   });
 
+  it("does not keep the one that stays as both primary contact and one of the deal's other people", async () => {
+    const keep = await create("contacts", { firstName: "Hà" });
+    const dupe = await create("contacts", { firstName: "Ha" });
+    const deal = await create("deals", { name: "Kho lạnh", contactId: dupe });
+    const roles = await import("@/app/api/deals/[id]/contacts/route");
+    await roles.PUT(req(`/api/deals/${deal}/contacts`, { method: "PUT", body: JSON.stringify({ contacts: [{ contactId: keep, role: "Kỹ thuật" }] }) }), params({ id: deal }));
+    expect((await merge("contacts", keep, dupe)).status).toBe(200);
+    const people = (await (await roles.GET(req(`/api/deals/${deal}/contacts`), params({ id: deal }))).json()).contacts as { contactId: string; primary: boolean }[];
+    expect(people).toEqual([expect.objectContaining({ contactId: keep, primary: true })]);
+  });
+
+  it("joins the tags of both records", async () => {
+    const field = await import("@/app/api/custom-fields/route");
+    await field.POST(req("/api/custom-fields", { method: "POST", body: JSON.stringify({ entity: "contact", key: "tags", label: "Nhãn", type: "multiselect", options: ["VIP", "Hội chợ"] }) }));
+    const keep = await create("contacts", { firstName: "Tag", custom: { tags: ["VIP"] } });
+    const dupe = await create("contacts", { firstName: "Tag2", custom: { tags: ["Hội chợ"] } });
+    expect((await merge("contacts", keep, dupe)).status).toBe(200);
+    expect(((await get("contacts", keep))!.custom as { tags: string[] }).tags.sort()).toEqual(["Hội chợ", "VIP"]);
+  });
+
   it("refuses a record merged into itself, an unknown duplicate, and a viewer", async () => {
     const a = await create("contacts", { firstName: "A" });
     const b = await create("contacts", { firstName: "B" });

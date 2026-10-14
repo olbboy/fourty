@@ -5,7 +5,7 @@ import { parseCsvObjects } from "@/lib/csv";
 import { audit } from "@/lib/audit";
 import { customFieldDefsOf } from "@/lib/custom-fields";
 import { loadReportingSettings } from "@/lib/reporting";
-import { planDealImport, type ImportLookups } from "@/lib/import-deals";
+import { normText, planDealImport, type ImportLookups } from "@/lib/import-deals";
 import { execute } from "@/lib/actions/execute";
 import { dealsCreate } from "@/lib/actions/deals";
 import { companiesCreate } from "@/lib/actions/companies";
@@ -31,7 +31,8 @@ export async function POST(req: Request) {
     if (rows.length === 0) return apiError("No data rows found — is the first row a header?");
     if (rows.length > MAX_ROWS) return apiError(`Too many rows (max ${MAX_ROWS})`);
 
-    const plan = planDealImport(rows, await lookups());
+    // A row with no owner goes to whoever imports it, as a deal made by hand does.
+    const plan = planDealImport(rows, await lookups()).map((row) => (row.owner === null && auth.user ? { ...row, owner: auth.user.name } : row));
     const invalid = plan.filter((row) => row.error).length;
     const dryRun = new URL(req.url).searchParams.get("dryRun") === "1";
     if (dryRun) {
@@ -46,7 +47,8 @@ export async function POST(req: Request) {
         for (const row of plan) {
           let companyId = row.companyId;
           if (row.newCompany && row.company) {
-            const key = row.company.toLowerCase();
+            // Same rule as the preview: "Công ty A" and "Cong ty A" are one company.
+            const key = normText(row.company);
             if (!made.has(key)) made.set(key, ((await execute(companiesCreate, { name: row.company }, ctx)) as { id: string }).id);
             companyId = made.get(key)!;
           }

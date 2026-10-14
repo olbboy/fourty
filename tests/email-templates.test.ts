@@ -15,6 +15,7 @@ describe("email templates", () => {
   });
 
   describe("over the API", () => {
+    const ADMIN = "frty_templates_admin";
     const MEMBER = "frty_templates_member";
     const VIEWER = "frty_templates_viewer";
     let ws: string;
@@ -35,6 +36,7 @@ describe("email templates", () => {
       await withWorkspace(ws, () =>
         db.insert(tables.apiKeys).values(
           [
+            [ADMIN, "admin"],
             [MEMBER, "member"],
             [VIEWER, "viewer"],
           ].map(([key, role]) => ({ id: newId(), workspaceId: ws, name: role, prefix: key.slice(0, 8), keyHash: sha256(key), role, createdAt: Date.now() })),
@@ -73,6 +75,25 @@ describe("email templates", () => {
       );
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual({ subject: "Báo giá Pin kho lạnh", body: "Chào Lan," });
+    });
+
+    it("leaves a blank empty when the reader may not see that field", async () => {
+      const perms = await import("@/app/api/field-permissions/route");
+      const set = await perms.POST(
+        req("/api/field-permissions", { method: "POST", body: JSON.stringify({ object: "contacts", field: "firstName", role: "viewer", canRead: false, canWrite: false }) }, ADMIN),
+      );
+      expect(set.status).toBeLessThan(300);
+      const route = await import("@/app/api/email-templates/route");
+      const template = ((await (await route.GET(req("/api/email-templates", {}, VIEWER))).json()).templates as { id: string; name: string }[]).find(
+        (t) => t.name === "Theo dõi báo giá",
+      )!;
+      const render = await import("@/app/api/email-templates/[id]/render/route");
+      const res = await render.POST(
+        req(`/api/email-templates/${template.id}/render`, { method: "POST", body: JSON.stringify({ entityType: "deal", entityId: ids.deal, contactId: ids.lan }) }, VIEWER),
+        { params: Promise.resolve({ id: template.id }) },
+      );
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ subject: "Báo giá Pin kho lạnh", body: "Chào ," });
     });
   });
 });

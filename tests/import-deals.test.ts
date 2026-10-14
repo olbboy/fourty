@@ -64,6 +64,13 @@ describe("importing deals, exporting tasks and notes", () => {
     expect(await deals()).toEqual([]);
   });
 
+  it("flags in the preview a row the import itself would refuse", async () => {
+    const res = await importDeals([header, `${"Dài".repeat(100)},1,VND,,,,,`].join("\n"), true);
+    const body = await res.json();
+    expect(body.rows[0].error).toMatch(/name/);
+    expect(body).toMatchObject({ valid: 0, invalid: 1 });
+  });
+
   it("imports nothing while one row is wrong", async () => {
     const csv = [header, `Một,1,VND,,,,,`, `Hai,2,VND,,,không-ai@đâu.test,,`].join("\n");
     const res = await importDeals(csv, false);
@@ -105,5 +112,31 @@ describe("importing deals, exporting tasks and notes", () => {
     const noteCsv = await get("notes");
     expect(noteCsv).toContain("Khách muốn giao trước Tết");
     expect(noteCsv).toContain("Fiesta");
+  });
+
+  it("takes back the rows already written when a later row is refused", async () => {
+    // Members may not set a deal's amount here: the second row is refused only
+    // once the first deal and its new company are already written.
+    const MEMBER = "frty_import_member";
+    const { db, tables, withWorkspace } = await import("@/db");
+    const auth = await import("@/lib/auth");
+    const { newId } = await import("@/lib/id");
+    await withWorkspace(ws, () =>
+      db.insert(tables.apiKeys).values({ id: newId(), workspaceId: ws, name: "member", prefix: MEMBER.slice(0, 8), keyHash: auth.sha256(MEMBER), role: "member", createdAt: Date.now() }),
+    );
+    const perms = await import("@/app/api/field-permissions/route");
+    const set = await perms.POST(json("/api/field-permissions", { object: "deals", field: "amount", role: "member", canRead: true, canWrite: false }));
+    expect(set.status).toBeLessThan(300);
+
+    const route = await import("@/app/api/import/deals/route");
+    const csv = [header, `Trước,,VND,,,,Công ty Rollback,`, `Sau,"1.000.000",VND,,,,,`].join("\n");
+    const res = await route.POST(
+      new Request("http://localhost/api/import/deals", { method: "POST", body: csv, headers: { Authorization: `Bearer ${MEMBER}`, "content-type": "text/csv" } }),
+    );
+    expect(res.status).toBe(403);
+    expect((await deals()).map((d) => d.name)).not.toContain("Trước");
+    const companies = await import("@/app/api/companies/route");
+    const list = (await (await companies.GET(req("/api/companies"))).json()).companies as { name: string }[];
+    expect(list.map((c) => c.name)).not.toContain("Công ty Rollback");
   });
 });

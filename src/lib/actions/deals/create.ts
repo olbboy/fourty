@@ -25,6 +25,7 @@ export const dealsCreate = defineAction({
     await lockPipelineWorkspace(ctx.workspaceId);
     const pipelineId = data.pipelineId ?? (await ensureSelectedPipeline());
     let stageId = data.stageId;
+    let stageType = "open";
     if (!stageId) {
       const first = (
         await db
@@ -36,11 +37,13 @@ export const dealsCreate = defineAction({
       )[0];
       if (!first) throw new ActionError("invalid", "Pipeline has no stages");
       stageId = first.id;
+      stageType = first.type;
     } else {
       const stage = (await db.select().from(tables.stages).where(eq(tables.stages.id, stageId)).limit(1))[0];
       if (!stage || stage.pipelineId !== pipelineId) {
         throw new ActionError("invalid", "Invalid stage for pipeline");
       }
+      stageType = stage.type;
     }
 
     const now = Date.now();
@@ -56,6 +59,9 @@ export const dealsCreate = defineAction({
       stageId,
       ownerId,
       stageEnteredAt: now,
+      // Created already won or lost (an import, a late entry): closed today,
+      // so reports that count closings by day see it.
+      closedAt: stageType === "open" ? null : now,
       custom: blob.json,
       createdAt: now,
       updatedAt: now,

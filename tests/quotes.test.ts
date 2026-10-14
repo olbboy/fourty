@@ -10,7 +10,8 @@ import { resetDb, createWorkspace } from "./pg-setup";
 describe("quotes", () => {
   const ADMIN = "frty_quotes_admin";
   const VIEWER = "frty_quotes_viewer";
-  const year = new Date().getFullYear();
+  // The workspace's own calendar (Asia/Ho_Chi_Minh unless changed), as the numbering uses.
+  const year = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh", year: "numeric" }).format(new Date());
   let ws: string;
   let dealId = "";
 
@@ -105,14 +106,22 @@ describe("quotes", () => {
     expect(list.status).toBe(200);
     const id = ((await list.json()).quotes as { id: string }[])[0]!.id;
     const perms = await import("@/app/api/field-permissions/route");
+    // A contact's hidden email stays hidden inside a quote too.
+    await perms.POST(req("/api/field-permissions", { method: "POST", body: JSON.stringify({ object: "contacts", field: "email", role: "viewer", canRead: false, canWrite: false }) }));
+    expect((await (await getQuote(id, VIEWER)).json()).quote.buyer).toMatchObject({ email: null, contact: "Lan Trần" });
     await perms.POST(req("/api/field-permissions", { method: "POST", body: JSON.stringify({ object: "deals", field: "amount", role: "viewer", canRead: false, canWrite: false }) }));
     expect((await getQuote(id, VIEWER)).status).toBe(403);
     expect((await listQuotes(dealId, VIEWER)).status).toBe(403);
   });
 
-  it("goes to the Trash with its deal and comes back with it", async () => {
+  it("keeps its number while its deal is in the Trash, and is there when the deal comes back", async () => {
     const dealRoute = await import("@/app/api/deals/[id]/route");
     await dealRoute.DELETE(req(`/api/deals/${dealId}`, { method: "DELETE" }), params({ id: dealId }));
+    // Another deal's next quote does not take a number already used.
+    const other = (await post("deals", { name: "Khác", currency: "VND" })).id;
+    const lines = await import("@/app/api/deals/[id]/lines/route");
+    await lines.PUT(req(`/api/deals/${other}/lines`, { method: "PUT", body: JSON.stringify({ lines: [{ name: "X", quantity: 1, unitPrice: 1 }] }) }), params({ id: other }));
+    expect((await (await makeQuote(other)).json()).quote.number).toBe(`BG-${year}-0003`);
     const trash = await import("@/app/api/trash/route");
     const item = ((await (await trash.GET(req("/api/trash"))).json()).items as { id: string; entityId: string }[]).find((i) => i.entityId === dealId)!;
     const restore = await import("@/app/api/trash/[id]/restore/route");

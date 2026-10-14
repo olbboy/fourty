@@ -4,7 +4,7 @@ import { db, tables } from "@/db";
 import { newId } from "@/lib/id";
 import { displayName } from "@/lib/format";
 import { linesOf, sumLines, type DealLine } from "@/lib/deal-lines";
-import { canReadField, loadFieldPolicy } from "@/lib/field-permissions";
+import { canReadField, loadFieldPolicy, type FieldPolicy } from "@/lib/field-permissions";
 import { localDay } from "@/lib/reminders";
 import { loadReminderSettings } from "@/lib/services/reminders";
 import { defineAction } from "./define";
@@ -35,10 +35,22 @@ const summary = (r: Row): QuoteSummary => ({
 const toQuote = (r: Row): Quote => ({ ...summary(r), ...(JSON.parse(r.snapshot) as QuoteSnapshot), terms: r.terms });
 
 /** A quote is the Amount in parts: a role that cannot read a deal's amount sees no quote. */
-async function requireAmount(ctx: ActionContext): Promise<void> {
-  if (!canReadField(await loadFieldPolicy(ctx.role), "deals", "amount")) {
+async function requireAmount(ctx: ActionContext): Promise<FieldPolicy | null> {
+  const policy = await loadFieldPolicy(ctx.role);
+  if (!canReadField(policy, "deals", "amount")) {
     throw new ActionError("forbidden", "Forbidden: cannot read deals field(s): amount");
   }
+  return policy;
+}
+
+/** The buyer as this reader may see them: hidden contact and company fields stay hidden in a quote too. */
+function forReader(quote: Quote, policy: FieldPolicy | null): Quote {
+  const buyer = {
+    company: canReadField(policy, "companies", "name") ? quote.buyer.company : null,
+    contact: canReadField(policy, "contacts", "firstName") && canReadField(policy, "contacts", "lastName") ? quote.buyer.contact : null,
+    email: canReadField(policy, "contacts", "email") ? quote.buyer.email : null,
+  };
+  return { ...quote, buyer };
 }
 
 const DAY = 86_400_000;
@@ -60,7 +72,7 @@ export const quotesCreate = defineAction({
   }),
   expose: { rest: true },
   run: async ({ id, validDays = 30, terms }, ctx): Promise<Quote> => {
-    await requireAmount(ctx);
+    const policy = await requireAmount(ctx);
     const deal = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0];
     if (!deal) throw new ActionError("not_found", "Deal not found");
     const lines = await linesOf(id);
@@ -69,16 +81,18 @@ export const quotesCreate = defineAction({
     const contact = deal.contactId ? (await db.select().from(tables.contacts).where(eq(tables.contacts.id, deal.contactId)).limit(1))[0] : undefined;
     const company = deal.companyId ? (await db.select().from(tables.companies).where(eq(tables.companies.id, deal.companyId)).limit(1))[0] : undefined;
     const workspace = (await db.select({ name: tables.workspaces.name }).from(tables.workspaces).where(eq(tables.workspaces.id, ctx.workspaceId)).limit(1))[0];
-    const by = ctx.userId ? (await db.select().from(tables.users).where(eq(tables.users.id, ctx.userId)).limit(1))[0] : undefined;
+    const by = ctx.userId
+      ? (await db.select({ name: tables.users.name, email: tables.users.email }).from(tables.users).where(eq(tables.users.id, ctx.userId)).limit(1))[0]
+      : undefined;
 
     const now = Date.now();
     const year = localDay(now, (await loadReminderSettings()).timeZone).slice(0, 4);
     await db.execute(sql`select pg_advisory_xact_lock(hashtext(current_setting('app.workspace_id', true) || ':quotes'))`);
     const prefix = `BG-${year}-`;
-    const last = (
-      await db.select({ number: tables.quotes.number }).from(tables.quotes).where(like(tables.quotes.number, `${prefix}%`)).orderBy(desc(tables.quotes.number)).limit(1)
-    )[0];
-    const number = `${prefix}${String((last ? Number(last.number.slice(prefix.length)) : 0) + 1).padStart(4, "0")}`;
+    // By value, not by text: BG-2026-10000 comes after BG-2026-9999.
+    const taken = await db.select({ number: tables.quotes.number }).from(tables.quotes).where(like(tables.quotes.number, `${prefix}%`));
+    const last = Math.max(0, ...taken.map((q) => Number(q.number.slice(prefix.length)) || 0));
+    const number = `${prefix}${String(last + 1).padStart(4, "0")}`;
 
     const snapshot: QuoteSnapshot = {
       deal: deal.name,
@@ -104,7 +118,7 @@ export const quotesCreate = defineAction({
       createdBy: ctx.userId,
       createdAt: now,
     });
-    return toQuote((await db.select().from(tables.quotes).where(eq(tables.quotes.id, quoteId)).limit(1))[0]!);
+    return forReader(toQuote((await db.select().from(tables.quotes).where(eq(tables.quotes.id, quoteId)).limit(1))[0]!), policy);
   },
   effects: {
     activity: (_i, out, ctx) => ({
@@ -139,10 +153,10 @@ export const quotesGet = defineAction({
   input: z.object({ id: z.string().min(1) }),
   expose: { rest: true },
   run: async ({ id }, ctx): Promise<Quote> => {
-    await requireAmount(ctx);
+    const policy = await requireAmount(ctx);
     const row = (await db.select().from(tables.quotes).where(eq(tables.quotes.id, id)).limit(1))[0];
     if (!row) throw new ActionError("not_found", "Quote not found");
-    return toQuote(row);
+    return forReader(toQuote(row), policy);
   },
 });
 

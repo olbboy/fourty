@@ -34,8 +34,6 @@ type Payload = {
   dealContacts?: Row[];
   /** A deal's Line items. */
   dealLines?: Row[];
-  /** A deal's Quotes. */
-  quotes?: Row[];
   /** Ids this record was unhooked from on delete, re-hooked on restore when still free. */
   detached: { contacts?: string[]; deals?: string[] };
 };
@@ -77,14 +75,13 @@ export async function trashRecord(kind: TrashKind, id: string, deletedBy: string
   const linkColumn = kind === "deal" ? tables.dealContacts.dealId : kind === "contact" ? tables.dealContacts.contactId : null;
   const dealContacts = linkColumn ? await db.select().from(tables.dealContacts).where(eq(linkColumn, id)) : [];
   const dealLines = kind === "deal" ? await db.select().from(tables.dealLines).where(eq(tables.dealLines.dealId, id)) : [];
-  const quotes = kind === "deal" ? await db.select().from(tables.quotes).where(eq(tables.quotes.dealId, id)) : [];
   const detached: Payload["detached"] = {};
   if (kind === "company") {
     detached.contacts = (await db.select({ id: tables.contacts.id }).from(tables.contacts).where(eq(tables.contacts.companyId, id))).map((r) => r.id);
     detached.deals = (await db.select({ id: tables.deals.id }).from(tables.deals).where(eq(tables.deals.companyId, id))).map((r) => r.id);
   }
 
-  const payload: Payload = { record, notes, activities, dealContacts, dealLines, quotes, detached };
+  const payload: Payload = { record, notes, activities, dealContacts, dealLines, detached };
   await db.insert(tables.trash).values({
     id: newId(),
     entityType: kind,
@@ -97,10 +94,9 @@ export async function trashRecord(kind: TrashKind, id: string, deletedBy: string
 
   await db.delete(table).where(eq(table.id, id));
   if (linkColumn) await db.delete(tables.dealContacts).where(eq(linkColumn, id));
-  if (kind === "deal") {
-    await db.delete(tables.dealLines).where(eq(tables.dealLines.dealId, id));
-    await db.delete(tables.quotes).where(eq(tables.quotes.dealId, id));
-  }
+  // Quotes stay where they are: their numbers are never reused, and a restored
+  // deal finds them again. Purging the deal for good drops them (below).
+  if (kind === "deal") await db.delete(tables.dealLines).where(eq(tables.dealLines.dealId, id));
   if (kind === "company") {
     await db.update(tables.contacts).set({ companyId: null }).where(eq(tables.contacts.companyId, id));
     await db.update(tables.deals).set({ companyId: null }).where(eq(tables.deals.companyId, id));
@@ -114,6 +110,12 @@ export async function trashRecord(kind: TrashKind, id: string, deletedBy: string
   return true;
 }
 
+/** A deal gone for good takes its quotes with it. */
+async function dropQuotesOf(items: { entityType: string; entityId: string }[]): Promise<void> {
+  const deals = items.filter((i) => i.entityType === "deal").map((i) => i.entityId);
+  if (deals.length) await db.delete(tables.quotes).where(inArray(tables.quotes.dealId, deals));
+}
+
 /**
  * Drop what has waited longer than 30 days. The worker runs it for every
  * workspace each minute, so a deleted record's copy does not outlive its 30
@@ -121,7 +123,11 @@ export async function trashRecord(kind: TrashKind, id: string, deletedBy: string
  * too, so nothing expired shows while the worker lags.
  */
 export async function purgeExpiredTrash(now = Date.now()): Promise<void> {
-  await db.delete(tables.trash).where(lt(tables.trash.deletedAt, now - TRASH_MS));
+  const gone = await db
+    .delete(tables.trash)
+    .where(lt(tables.trash.deletedAt, now - TRASH_MS))
+    .returning({ entityType: tables.trash.entityType, entityId: tables.trash.entityId });
+  await dropQuotesOf(gone);
 }
 
 /** What is in the Trash, most recently deleted first. */
@@ -173,7 +179,6 @@ export async function restoreTrash(trashId: string): Promise<RestoreResult> {
   if (payload.activities.length) await db.insert(tables.activities).values(payload.activities as never).onConflictDoNothing();
   await restoreDealContacts(payload.dealContacts ?? []);
   if (payload.dealLines?.length) await db.insert(tables.dealLines).values(payload.dealLines as never).onConflictDoNothing();
-  if (payload.quotes?.length) await db.insert(tables.quotes).values(payload.quotes as never).onConflictDoNothing();
   if (kind === "company") {
     const id = item.entityId;
     if (payload.detached.contacts?.length) {
@@ -231,6 +236,10 @@ async function placeForDeal(record: Row): Promise<Row> {
 
 /** Remove a trashed record for good. */
 export async function purgeTrash(trashId: string): Promise<boolean> {
-  const gone = await db.delete(tables.trash).where(eq(tables.trash.id, trashId)).returning({ id: tables.trash.id });
+  const gone = await db
+    .delete(tables.trash)
+    .where(eq(tables.trash.id, trashId))
+    .returning({ entityType: tables.trash.entityType, entityId: tables.trash.entityId });
+  await dropQuotesOf(gone);
   return gone.length > 0;
 }

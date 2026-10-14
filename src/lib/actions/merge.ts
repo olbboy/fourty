@@ -32,8 +32,12 @@ function mergeAction(kind: "contact" | "company") {
       if (!can(ctx.role, object, "delete")) throw new ActionError("forbidden", `Forbidden: ${ctx.role} cannot delete ${object}`);
       if (id === duplicateId) throw new ActionError("invalid", "duplicateId: a record cannot be merged into itself");
       const t = table as typeof tables.companies;
-      const keep = (await db.select().from(t).where(eq(t.id, id)).limit(1))[0] as Record<string, unknown> | undefined;
-      const dupe = (await db.select().from(t).where(eq(t.id, duplicateId)).limit(1))[0] as Record<string, unknown> | undefined;
+      // Both rows locked, in id order, so two merges over the same records take turns.
+      const [first, second] = [id, duplicateId].sort();
+      const lockedFirst = (await db.select().from(t).where(eq(t.id, first!)).limit(1).for("update"))[0] as Record<string, unknown> | undefined;
+      const lockedSecond = (await db.select().from(t).where(eq(t.id, second!)).limit(1).for("update"))[0] as Record<string, unknown> | undefined;
+      const keep = first === id ? lockedFirst : lockedSecond;
+      const dupe = first === id ? lockedSecond : lockedFirst;
       if (!keep || !dupe) throw new ActionError("not_found", `${kind === "contact" ? "Contact" : "Company"} not found`);
       const from = kind === "contact" ? displayName(dupe.firstName as string, dupe.lastName as string) : String(dupe.name);
       const policy = await loadFieldPolicy(ctx.role);

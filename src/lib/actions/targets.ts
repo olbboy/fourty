@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
+import { and, eq, gte, lt, or } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { newId } from "@/lib/id";
 import { convertAt } from "@/lib/currency";
@@ -66,7 +66,14 @@ export const ownerStats = defineAction({
           closedAt: tables.deals.closedAt,
           expectedCloseDate: tables.deals.expectedCloseDate,
         })
-        .from(tables.deals),
+        .from(tables.deals)
+        // Only deals that can count in this quarter: closed in it, or expected to close in it.
+        .where(
+          or(
+            and(gte(tables.deals.closedAt, range.start), lt(tables.deals.closedAt, range.end)),
+            and(gte(tables.deals.expectedCloseDate, range.start), lt(tables.deals.expectedCloseDate, range.end)),
+          ),
+        ),
       db.select({ id: tables.stages.id, type: tables.stages.type, winProbability: tables.stages.winProbability }).from(tables.stages),
       db.select().from(tables.targets).where(eq(tables.targets.period, label)),
       listMembersForDisplay(),

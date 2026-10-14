@@ -1,5 +1,6 @@
 import { applyCustomFieldValues, type FieldDef } from "@/lib/records";
 import { SUPPORTED_CURRENCIES } from "@/lib/currency";
+import { dealInput } from "@/lib/validators";
 
 /**
  * Reading deals out of a spreadsheet (D14): which column is which, what a cell
@@ -105,7 +106,20 @@ export type PlannedDeal = {
 
 /** What each row would become; `line` counts the header as line 1. */
 export function planDealImport(rows: Record<string, string>[], lookups: ImportLookups): PlannedDeal[] {
-  const byName = <T extends { name: string }>(list: T[], name: string) => list.find((x) => normText(x.name) === normText(name));
+  // Indexed once: a thousand rows each looking through every contact add up.
+  const index = <T>(list: T[], key: (x: T) => string | null) => {
+    const map = new Map<string, T>();
+    for (const x of list) {
+      const k = key(x);
+      if (k && !map.has(k)) map.set(k, x);
+    }
+    return map;
+  };
+  const pipelinesByName = index(lookups.pipelines, (p) => normText(p.name));
+  const companiesByName = index(lookups.companies, (c) => normText(c.name));
+  const contactsByEmail = index(lookups.contacts, (c) => c.email?.toLowerCase() ?? null);
+  const membersByEmail = index(lookups.members, (m) => m.email.toLowerCase());
+  const membersByName = index(lookups.members, (m) => normText(m.name));
   return rows.map((row, index) => {
     const errors: string[] = [];
     const name = cell(row, "name");
@@ -118,27 +132,25 @@ export function planDealImport(rows: Record<string, string>[], lookups: ImportLo
     if (!(SUPPORTED_CURRENCIES as readonly string[]).includes(currency)) errors.push(`currency: ${currency} is not supported`);
 
     const pipelineName = cell(row, "pipeline");
-    const pipeline = pipelineName ? byName(lookups.pipelines, pipelineName) : lookups.pipelines[0];
+    const pipeline = pipelineName ? pipelinesByName.get(normText(pipelineName)) : lookups.pipelines[0];
     if (!pipeline) errors.push(`pipeline: no pipeline named "${pipelineName}"`);
 
     const stageName = cell(row, "stage");
-    const stage = stageName && pipeline ? byName(pipeline.stages, stageName) : undefined;
+    const stage = stageName && pipeline ? pipeline.stages.find((s) => normText(s.name) === normText(stageName)) : undefined;
     if (stageName && pipeline && !stage) errors.push(`stage: no stage named "${stageName}" in ${pipeline.name}`);
 
     const close = parseDay(cell(row, "close"));
     if (Number.isNaN(close)) errors.push(`expected close date: "${cell(row, "close")}" is not a date (use 2026-12-31 or 31/12/2026)`);
 
     const ownerText = cell(row, "owner");
-    const owner = ownerText
-      ? lookups.members.find((m) => m.email.toLowerCase() === ownerText.toLowerCase() || normText(m.name) === normText(ownerText))
-      : undefined;
+    const owner = ownerText ? (membersByEmail.get(ownerText.toLowerCase()) ?? membersByName.get(normText(ownerText))) : undefined;
     if (ownerText && !owner) errors.push(`owner: no member "${ownerText}"`);
 
     const companyName = cell(row, "company");
-    const company = companyName ? byName(lookups.companies, companyName) : undefined;
+    const company = companyName ? companiesByName.get(normText(companyName)) : undefined;
 
     const contactText = cell(row, "contact");
-    const contact = contactText ? lookups.contacts.find((c) => c.email?.toLowerCase() === contactText.toLowerCase()) : undefined;
+    const contact = contactText ? contactsByEmail.get(contactText.toLowerCase()) : undefined;
     if (contactText && !contact) errors.push(`contact: no contact with the email "${contactText}"`);
 
     const custom: Record<string, unknown> = {};
@@ -150,6 +162,16 @@ export function planDealImport(rows: Record<string, string>[], lookups: ImportLo
       const checked = applyCustomFieldValues([def], { [def.key]: raw });
       if (!checked.ok) errors.push(checked.error);
       else if (def.key in checked.data) custom[def.key] = checked.data[def.key];
+    }
+
+    // What deals.create will check, checked now, so a file that previews
+    // clean does not stop half-way when imported.
+    if (name) {
+      const checked = dealInput.safeParse({ name, ...(amount !== undefined && !Number.isNaN(amount) ? { amount } : {}) });
+      if (!checked.success) {
+        const issue = checked.error.issues[0]!;
+        errors.push(`${issue.path.join(".")}: ${issue.message}`);
+      }
     }
 
     return {

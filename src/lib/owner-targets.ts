@@ -62,11 +62,14 @@ export function ownerTable(input: {
     const stage = stageOf.get(deal.stageId);
     if (!stage) continue;
     const value = toReporting(deal.amount, deal.currency);
-    if (stage.type === "won" && within(deal.closedAt)) {
+    // A closed deal with no closing day (made before closings were dated)
+    // counts by its expected close, as the forecast does.
+    const closed = deal.closedAt ?? deal.expectedCloseDate;
+    if (stage.type === "won" && within(closed)) {
       const r = row(deal.ownerId);
       r.won += value;
       r.wonCount += 1;
-    } else if (stage.type === "lost" && within(deal.closedAt)) {
+    } else if (stage.type === "lost" && within(closed)) {
       row(deal.ownerId).lostCount += 1;
     } else if (stage.type === "open" && within(deal.expectedCloseDate)) {
       const r = row(deal.ownerId);

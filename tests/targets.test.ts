@@ -91,6 +91,12 @@ describe("targets per owner", () => {
     });
   });
 
+  it("counts a deal made straight in a won stage as won in the quarter", async () => {
+    await deal({ name: "Thắng ngay", amount: 200_000_000, currency: "VND", ownerId: binh, stageId: stages.won });
+    const row = ((await (await report()).json()).owners as Record<string, unknown>[]).find((o) => o.ownerId === binh)!;
+    expect(row).toMatchObject({ won: 500_000_000, wonCount: 2, attainment: 0.5 });
+  });
+
   it("clears a target", async () => {
     expect((await setTarget({ userId: binh, period, amount: null })).status).toBe(200);
     const row = ((await (await report()).json()).owners as Record<string, unknown>[]).find((o) => o.ownerId === binh)!;

@@ -3,6 +3,7 @@ import { asc, eq } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { newId } from "@/lib/id";
 import { renderTemplate, type TemplateBlank } from "@/lib/email-template";
+import { canReadField, loadFieldPolicy } from "@/lib/field-permissions";
 import { defineAction } from "./define";
 import { register } from "./registry";
 import { ActionError } from "./types";
@@ -102,12 +103,15 @@ export const emailTemplatesRender = defineAction({
     if (entityType === "deal" && !deal) throw new ActionError("not_found", "Deal not found");
     const companyId = deal?.companyId ?? contact.companyId;
     const company = companyId ? (await db.select().from(tables.companies).where(eq(tables.companies.id, companyId)).limit(1))[0] : undefined;
-    const sender = ctx.userId ? (await db.select().from(tables.users).where(eq(tables.users.id, ctx.userId)).limit(1))[0] : undefined;
+    const sender = ctx.userId ? (await db.select({ name: tables.users.name }).from(tables.users).where(eq(tables.users.id, ctx.userId)).limit(1))[0] : undefined;
+    // A field the reader may not see fills its blank with nothing.
+    const policy = await loadFieldPolicy(ctx.role);
+    const seen = (object: string, field: string, value: string | null | undefined) => (canReadField(policy, object, field) ? (value ?? "") : "");
     const values: Partial<Record<TemplateBlank, string>> = {
-      "contact.firstName": contact.firstName,
-      "contact.lastName": contact.lastName,
-      "company.name": company?.name ?? "",
-      "deal.name": deal?.name ?? "",
+      "contact.firstName": seen("contacts", "firstName", contact.firstName),
+      "contact.lastName": seen("contacts", "lastName", contact.lastName),
+      "company.name": seen("companies", "name", company?.name),
+      "deal.name": seen("deals", "name", deal?.name),
       "sender.name": sender?.name ?? "",
     };
     return { subject: renderTemplate(template.subject, values), body: renderTemplate(template.body, values) };

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { formatCompact } from "@/lib/currency";
 import { quarterChoices, quarterOf } from "@/lib/forecast";
+import { parseAmount } from "@/lib/import-deals";
 import { useLocale, useT } from "@/lib/i18n/provider";
 
 type Row = {
@@ -43,7 +44,8 @@ export function OwnerTargetsCard({ isAdmin }: { isAdmin: boolean }) {
 
   async function saveTarget(row: Row, raw: string) {
     if (!row.ownerId) return;
-    const amount = raw.trim() === "" ? null : Number(raw.replace(/[.,\s]/g, ""));
+    // "1.000.000.000" and "1500.5" both read as people mean them.
+    const amount = raw.trim() === "" ? null : (parseAmount(raw) ?? null);
     if (amount !== null && !(amount >= 0)) return;
     if (amount === (row.target ?? null)) return;
     setError(null);
@@ -91,7 +93,7 @@ export function OwnerTargetsCard({ isAdmin }: { isAdmin: boolean }) {
                     <Input
                       key={`${period}-${row.ownerId}-${row.target ?? ""}`}
                       defaultValue={row.target ?? ""}
-                      inputMode="numeric"
+                      inputMode="decimal"
                       aria-label={t("targets.setAria", { name: row.name ?? "" })}
                       className="ml-auto h-7 w-32 text-right"
                       onBlur={(e) => void saveTarget(row, e.currentTarget.value)}
