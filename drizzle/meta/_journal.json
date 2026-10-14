@@ -197,6 +197,13 @@
       "when": 1784026200000,
       "tag": "0027_quotes",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1784026300000,
+      "tag": "0028_targets",
+      "breakpoints": true
     }
   ]
 }

@@ -21,6 +21,7 @@ import { useLocale, useT } from "@/lib/i18n/provider";
 import { NativeSelect } from "@/components/ui/native-select";
 import { useOwnerPeople } from "@/components/owner-controls";
 import { ownerLabel, type OwnerPerson } from "@/lib/owner-display";
+import { OwnerTargetsCard } from "@/components/owner-targets-card";
 
 /** Which split the forecast columns show: the Breakdown field, or the Owner. */
 type Split = "field" | "owner";
@@ -46,7 +47,7 @@ type Reports = {
   statusBreakdown: { status: string; count: number }[];
 };
 
-export function ReportsClient() {
+export function ReportsClient({ isAdmin = false }: { isAdmin?: boolean } = {}) {
   const t = useT();
   const locale = useLocale();
   const [data, setData] = useState<Reports | null>(null);
@@ -181,6 +182,8 @@ export function ReportsClient() {
           </section>
         </Card>
       )}
+
+      <OwnerTargetsCard isAdmin={isAdmin} />
 
       <Card size="flush" className="p-4">
         <h2 className="mb-1 text-sm font-semibold">{t("reports.aging")}</h2>

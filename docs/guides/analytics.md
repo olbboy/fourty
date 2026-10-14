@@ -55,6 +55,18 @@ person, largest first, then deals nobody owns. Someone who has left the workspac
 keeps their column under their name, marked *(left)*. A role that cannot read the
 owner field sees no owner columns.
 
+## By owner and targets
+
+**Reports → By owner** shows, for a quarter (this one unless you pick another), one row per
+owner: their **target**, what they **won** (deals in a won stage closed in the quarter), the
+share of the target that is, what is **open** with an expected close date in the quarter and
+its **weighted** forecast, and how many deals they won and lost in it. Every active member has
+a row; deals nobody owns have their own. Amounts are in the reporting currency, converted the
+same way as the forecast. An admin types a member's target straight into the table (an empty
+box clears it); targets are per member and quarter. A role that may not see deal amounts sees
+the counts only. Over the API: `GET /api/stats/owners?period=2026-Q4`, and for admins
+`PUT /api/targets` with `{ "userId": "…", "period": "2026-Q4", "amount": 1000000000 | null }`.
+
 ## Currency handling
 
 Every monetary figure is converted into the workspace's **reporting currency** before

@@ -25,7 +25,8 @@ error shapes.
 | Stages | `/api/stages` (POST name, winProbability, color), `/api/stages/{id}` (PATCH name, winProbability, order, color; DELETE open stages with no deals) |
 | Search | `/api/search?q=…` (contacts by name, email or phone in any format; companies; deals; custom-object records; and any of the first three by the words of their notes) |
 | Dashboard stats | `/api/stats/dashboard` (amounts in the reporting `currency` it names) |
-| Reports | `/api/stats/reports` (adds `forecast.byClose` / `forecast.byDelivery` quarter tables) |
+| Reports | `/api/stats/reports` (adds `forecast.byClose` / `forecast.byDelivery` quarter tables), `/api/stats/owners?period=2026-Q4` (per owner: target, won, attainment, open, weighted, won/lost counts) |
+| Targets (admin) | `PUT /api/targets` (`{ userId, period, amount \| null }`) |
 | Reporting settings | `/api/settings/reporting` (GET for any member; PATCH `currency`, `perUsd`, `deliveryField`, `breakdownField`, `lostReasonField` for admins) |
 | Reminder settings | `/api/settings/reminders` (admins; GET, PATCH `enabled`, `timeZone`, `locale`) |
 | Custom fields | `/api/custom-fields` |

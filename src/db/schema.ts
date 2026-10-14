@@ -390,6 +390,21 @@ export const quotes = pgTable(
   (t) => [uniqueIndex("quotes_ws_number_idx").on(t.workspaceId, t.number), index("quotes_deal_idx").on(t.workspaceId, t.dealId)],
 );
 
+/** Targets (D17): what a member is expected to win in a quarter, in the reporting currency. */
+export const targets = pgTable(
+  "targets",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    userId: text("user_id").notNull(),
+    period: text("period").notNull(), // "2026-Q4"
+    amount: doublePrecision("amount").notNull(),
+    updatedBy: text("updated_by"),
+    updatedAt: millis("updated_at").notNull(),
+  },
+  (t) => [uniqueIndex("targets_ws_user_period_idx").on(t.workspaceId, t.userId, t.period)],
+);
+
 /** Email templates (D15): a reusable subject and body with {{blanks}}. */
 export const emailTemplates = pgTable(
   "email_templates",
