@@ -4,6 +4,7 @@ import { newId } from "@/lib/id";
 import { companyInput } from "@/lib/validators";
 import { encodeCustom } from "@/lib/custom-fields";
 import { defineAction } from "../define";
+import { resolveOwner } from "../assignees";
 import { ActionError } from "../types";
 import { auditMeta, toCompany, type Company } from "./shared";
 
@@ -17,13 +18,14 @@ export const companiesCreate = defineAction({
   run: async (data, ctx): Promise<Company> => {
     const now = Date.now();
     const id = newId();
-    const { custom, ...fields } = data;
+    const { custom, ownerId: requestedOwner, ...fields } = data;
+    const ownerId = await resolveOwner(requestedOwner, ctx);
     const blob = await encodeCustom("company", custom ?? {});
     if (!blob.ok) throw new ActionError("invalid", blob.error);
     await db.insert(tables.companies).values({
       id,
       ...fields,
-      ownerId: ctx.userId,
+      ownerId,
       custom: blob.json,
       createdAt: now,
       updatedAt: now,

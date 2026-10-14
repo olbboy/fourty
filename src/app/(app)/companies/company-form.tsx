@@ -12,6 +12,7 @@ import { useFieldAccess } from "@/hooks/use-field-access";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
+import { OwnerField, ownerFromForm } from "@/components/owner-controls";
 import { useT } from "@/lib/i18n/provider";
 
 export function CompanyForm({
@@ -30,6 +31,12 @@ export function CompanyForm({
     company?.custom ?? {},
   );
   const submittingRef = useRef(false);
+
+  /** `ownerId` only when the Owner choice changed. */
+  const ownerPatch = (f: FormData) => {
+    const owner = ownerFromForm(f, company?.ownerId ?? "");
+    return owner !== undefined ? { ownerId: owner } : {};
+  };
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -53,6 +60,7 @@ export function CompanyForm({
         country: val("country"),
         annualRevenue: revenue ? Number(revenue) : null,
         custom,
+        ...ownerPatch(f),
       };
       const res = await fetch(
         company ? `/api/companies/${company.id}` : "/api/companies",
@@ -186,6 +194,9 @@ export function CompanyForm({
             defaultValue={company?.country ?? ""}
           />
         </Field>
+      )}
+      {!access.hidden.has("ownerId") && (
+        <OwnerField initialOwnerId={company?.ownerId ?? ""} isNew={!company} disabled={access.blockedWrites.has("ownerId")} />
       )}
       {!access.hidden.has("custom") && (
         <CustomFieldsInputs

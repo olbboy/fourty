@@ -69,6 +69,13 @@ describe("zod → JSON Schema", () => {
     expect(out.properties.email).toMatchObject({ format: "email" });
   });
 
+  it("tells an agent a whole number is an integer", () => {
+    const schema = toJsonSchema(z.object({ minutes: z.number().int().min(1).max(1440).optional() })) as {
+      properties: Record<string, unknown>;
+    };
+    expect(schema.properties.minutes).toEqual({ type: "integer", minimum: 1, maximum: 1440 });
+  });
+
   it("carries number bounds across", () => {
     const out = toJsonSchema(validators.dealInput) as { properties: Record<string, Record<string, unknown>> };
     expect(out.properties.amount).toMatchObject({ type: "number", minimum: 0 });
@@ -232,7 +239,7 @@ const PUBLISHED: Record<string, { properties: Record<string, { type?: string; en
     const generated = toJsonSchema(validators.contactInput) as { properties: Record<string, unknown> };
     const hand = PUBLISHED.create_contact;
     const added = Object.keys(generated.properties).filter((f) => !(f in hand.properties));
-    expect(added.sort()).toEqual(["city", "country", "custom", "linkedin", "source"]);
+    expect(added.sort()).toEqual(["city", "country", "custom", "linkedin", "ownerId", "source"]);
   });
 
   it("still advertises every argument clients were already sending", () => {
@@ -262,7 +269,7 @@ const PUBLISHED: Record<string, { properties: Record<string, { type?: string; en
     };
     // Everything about a list is optional — it has usable defaults.
     expect(list.required ?? []).toEqual([]);
-    expect(Object.keys(list.properties).sort()).toEqual(["companyId", "limit", "q", "sort", "status"]);
+    expect(Object.keys(list.properties).sort()).toEqual(["companyId", "limit", "ownerId", "q", "sort", "status"]);
     // `limit` and `sort` carry no bounds or enum on purpose: the REST list
     // clamps an oversized limit and ignores an unknown sort rather than
     // rejecting either, and validating them here would turn calls that work

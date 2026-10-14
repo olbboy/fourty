@@ -15,8 +15,15 @@ import {
 } from "graphql";
 import { can } from "@/lib/permissions";
 import { toResolver } from "@/lib/actions/adapters/graphql";
-import { contactsCreate, contactsDelete, contactsGet, contactsList, contactsUpdate } from "@/lib/actions/contacts";
-import { companiesCreate, companiesDelete, companiesGet, companiesList, companiesUpdate } from "@/lib/actions/companies";
+import { contactsCreate, contactsDelete, contactsGet, contactsList, contactsReassign, contactsUpdate } from "@/lib/actions/contacts";
+import {
+  companiesCreate,
+  companiesDelete,
+  companiesGet,
+  companiesList,
+  companiesReassign,
+  companiesUpdate,
+} from "@/lib/actions/companies";
 import {
   dealsCreate,
   dealsDelete,
@@ -120,6 +127,15 @@ const timestamps = {
   updatedAt: { type: GraphQLFloat },
 };
 
+/** `ownerId` and the nested `owner` of a contact or company, resolved like Deal.owner. */
+const ownerFields = () => ({
+  ownerId: { type: S },
+  owner: {
+    type: Assignee,
+    resolve: async (row: { id: string; ownerId?: string | null }) => (row.ownerId ? ((await getAssignee(row.ownerId)) ?? null) : null),
+  },
+});
+
 const Contact: GraphQLObjectType = new GraphQLObjectType({
   name: "Contact",
   fields: () => ({
@@ -133,6 +149,7 @@ const Contact: GraphQLObjectType = new GraphQLObjectType({
     status: { type: S },
     source: { type: S },
     score: { type: GraphQLInt },
+    ...ownerFields(),
     linkedin: { type: S },
     city: { type: S },
     country: { type: S },
@@ -177,6 +194,7 @@ const Company: GraphQLObjectType = new GraphQLObjectType({
     city: { type: S },
     country: { type: S },
     annualRevenue: { type: GraphQLFloat },
+    ...ownerFields(),
     custom: { type: JSONScalar, resolve: (r: { id: string; custom?: unknown }) => parseCustom(r.custom) },
     contacts: {
       type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Contact))),
@@ -764,6 +782,7 @@ const queryFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
       sort: { type: GraphQLString },
       status: { type: GraphQLString },
       companyId: { type: GraphQLString },
+      ownerId: { type: GraphQLString, description: 'A member id, or "none" for unowned contacts.' },
     },
     resolve: toResolver(contactsList),
   },
@@ -789,6 +808,7 @@ const queryFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
       q: { type: GraphQLString },
       industry: { type: GraphQLString },
       sort: { type: GraphQLString },
+      ownerId: { type: GraphQLString, description: 'A member id, or "none" for unowned companies.' },
     },
     resolve: toResolver(companiesList),
   },
@@ -1041,6 +1061,18 @@ const mutationFields: GraphQLFieldConfigMap<unknown, GqlContext> = {
     description: "Replace the people on a deal besides its primary contact: [{ contactId, role }].",
     args: { id: { type: new GraphQLNonNull(GraphQLID) }, contacts: { type: new GraphQLNonNull(JSONScalar) } },
     resolve: toResolver(dealsSetContacts, { map: (out) => (out as { contacts: unknown }).contacts }),
+  },
+  reassignContacts: {
+    type: new GraphQLNonNull(GraphQLInt),
+    description: "Give many contacts one owner (null = unassigned); all or nothing. Returns how many moved.",
+    args: { ids: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLID))) }, ownerId: { type: GraphQLID } },
+    resolve: toResolver(contactsReassign, { map: (out) => (out as { updated: number }).updated }),
+  },
+  reassignCompanies: {
+    type: new GraphQLNonNull(GraphQLInt),
+    description: "Give many companies one owner (null = unassigned); all or nothing. Returns how many moved.",
+    args: { ids: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLID))) }, ownerId: { type: GraphQLID } },
+    resolve: toResolver(companiesReassign, { map: (out) => (out as { updated: number }).updated }),
   },
   reassignDeals: {
     type: new GraphQLNonNull(GraphQLInt),

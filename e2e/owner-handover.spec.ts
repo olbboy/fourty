@@ -55,7 +55,7 @@ test("a departed member's deals and tasks are found and handed over", async ({ p
   await expect(rows).toHaveCount(2);
   await expect(rows.first()).toContainText(gone);
   await page.getByRole("checkbox", { name: "Select all shown" }).click();
-  const bar = page.getByRole("region", { name: "Change the owner of the selected rows" });
+  const bar = page.getByRole("region", { name: "Bulk actions on the selected rows" });
   await expect(bar).toContainText("2 selected");
   await bar.getByRole("combobox", { name: "New owner" }).selectOption({ label: ADMIN.name });
   await bar.getByRole("button", { name: "Apply" }).click();
@@ -67,7 +67,7 @@ test("a departed member's deals and tasks are found and handed over", async ({ p
   await page.goto("/tasks");
   await page.getByRole("combobox", { name: "Filter by owner" }).selectOption({ label: gone });
   await expect(page.getByText(`Handover task A ${stamp}`)).toBeVisible();
-  const taskBar = page.getByRole("region", { name: "Change the owner of the selected rows" });
+  const taskBar = page.getByRole("region", { name: "Bulk actions on the selected rows" });
   await expect(taskBar).toContainText("2 shown");
   await taskBar.getByRole("combobox", { name: "New owner" }).selectOption({ label: ADMIN.name });
   await taskBar.getByRole("button", { name: "Apply" }).click();

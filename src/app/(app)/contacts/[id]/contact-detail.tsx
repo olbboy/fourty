@@ -22,9 +22,12 @@ import { Button } from "@/components/ui/button";
 import { EmailCompose } from "@/components/email-compose";
 import { Card } from "@/components/ui/card";
 import { useLocale, useT } from "@/lib/i18n/provider";
+import { useOwnerPeople } from "@/components/owner-controls";
+import { ownerOf } from "@/lib/owner-display";
 
 export function ContactDetail({ id, mailReady = false }: { id: string; mailReady?: boolean }) {
   const t = useT();
+  const people = useOwnerPeople();
   const locale = useLocale();
   const [askConfirm, confirmDialog] = useConfirm();
   const router = useRouter();
@@ -246,6 +249,7 @@ export function ContactDetail({ id, mailReady = false }: { id: string; mailReady
               { label: t("field.jobTitle"), value: contact.jobTitle, field: "job_title" },
               { label: t("field.company"), value: company?.name, field: "company_id" },
               { label: t("field.email"), value: contact.email },
+              { label: t("field.owner"), value: ownerOf(contact, people, t) },
               { label: t("field.phone"), value: contact.phone },
               { label: t("field.source"), value: contact.source },
               { label: t("field.linkedin"), value: contact.linkedin, field: "linkedin" },

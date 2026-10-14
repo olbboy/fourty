@@ -71,6 +71,23 @@ export function CustomFieldsInputs({
                 </option>
               ))}
             </NativeSelect>
+          ) : def.type === "multiselect" ? (
+            <div role="group" aria-label={def.label} className="flex flex-wrap gap-x-4 gap-y-1.5 pt-1">
+              {def.options.map((o) => {
+                const chosen = choicesOf(values[def.key]);
+                return (
+                  <label key={o} className="flex items-center gap-1.5 text-sm">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-indigo-600"
+                      checked={chosen.includes(o)}
+                      onChange={(e) => set(def.key, e.target.checked ? [...chosen, o] : chosen.filter((c) => c !== o))}
+                    />
+                    {o}
+                  </label>
+                );
+              })}
+            </div>
           ) : def.type === "checkbox" ? (
             <input
               type="checkbox"
@@ -100,6 +117,12 @@ export function CustomFieldsInputs({
   );
 }
 
+/** The choices a tags value holds; a single choice may be stored as text. */
+function choicesOf(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String);
+  return typeof value === "string" && value ? [value] : [];
+}
+
 /** Read-only display of custom values on detail pages. */
 export function CustomFieldsDisplay({
   defs,
@@ -124,9 +147,11 @@ export function CustomFieldsDisplay({
               {def.label}
             </p>
             <p className="mt-0.5 text-sm">
-              {v === null || v === undefined || v === ""
+              {v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0)
                 ? "—"
-                : def.type === "checkbox"
+                : Array.isArray(v)
+                  ? v.join(", ")
+                  : def.type === "checkbox"
                   ? v
                     ? "Yes"
                     : "No"

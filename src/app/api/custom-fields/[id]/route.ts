@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CUSTOM_FIELD_TYPES } from "@/lib/field-type-display";
 import { eq } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { withAuth, authorize, json, apiError, parseBody } from "@/lib/api";
@@ -10,12 +11,13 @@ import {
   isCustomEntity,
 } from "@/lib/custom-fields";
 import { fieldChangeInvalidMessage, patchedFieldDefs } from "@/lib/field-def-guard";
+import { loadReportingSettings } from "@/lib/reporting";
 
 type Params = { params: Promise<{ id: string }> };
 
 const patch = z.object({
   label: z.string().min(1).max(120).optional(),
-  type: z.enum(["text", "number", "date", "select", "checkbox", "url"]).optional(),
+  type: z.enum(CUSTOM_FIELD_TYPES).optional(),
   options: z.array(z.string()).optional(),
   required: z.boolean().optional(),
   order: z.number().int().optional(),
@@ -32,6 +34,15 @@ export async function PATCH(req: Request, { params }: Params) {
     const body = await parseBody(req, patch);
     if (!body.ok) return body.response;
     const { options, order, required, ...rest } = body.data;
+
+    // The forecast breakdown and the lost reason need exactly one choice per
+    // deal: the field chosen for either stays a single-choice select.
+    if (field.entity === "deal" && body.data.type !== undefined && body.data.type !== "select") {
+      const { breakdownField, lostReasonField } = await loadReportingSettings();
+      if (field.key === breakdownField || field.key === lostReasonField) {
+        return json({ error: "type: this field splits the forecast or records the lost reason; choose another field there first" }, { status: 409 });
+      }
+    }
 
     // Changing how a field validates must not leave existing custom blobs
     // invalid — including a javascript: value stranded in a text field being

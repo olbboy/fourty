@@ -73,11 +73,15 @@ export async function GET(req: Request) {
     const policy = await loadFieldPolicy(auth.role);
     const hits = await searchCrm(q, { mode: "contains", limit: RESULT_LIMIT, role: auth.role });
 
+    // A record found by its notes shows the words that matched instead of its usual subtitle.
+    const fromNote = new Map((hits.notes ?? []).map((n) => [n.entityId, `“${n.excerpt}”`]));
+    const withNote = (row: SearchResult | null): SearchResult | null =>
+      row && fromNote.has(row.id) ? { ...row, subtitle: fromNote.get(row.id)! } : row;
     return json({
       results: [
-        ...hits.contacts.map((row) => contactResult(policy, row)).filter((row): row is SearchResult => row !== null),
-        ...hits.companies.map((row) => companyResult(policy, row)).filter((row): row is SearchResult => row !== null),
-        ...hits.deals.map((row) => dealResult(policy, row)).filter((row): row is SearchResult => row !== null),
+        ...hits.contacts.map((row) => withNote(contactResult(policy, row))).filter((row): row is SearchResult => row !== null),
+        ...hits.companies.map((row) => withNote(companyResult(policy, row))).filter((row): row is SearchResult => row !== null),
+        ...hits.deals.map((row) => withNote(dealResult(policy, row))).filter((row): row is SearchResult => row !== null),
         ...hits.records.map((record) => ({
           type: record.object,
           id: record.id,

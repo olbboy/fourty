@@ -6,6 +6,7 @@ import type { Contact, Company } from "@/lib/types";
 import { unackedNameCompanyDuplicate } from "@/lib/duplicates";
 import { stripBlockedWrites } from "@/lib/field-access";
 import { useFieldAccess } from "@/hooks/use-field-access";
+import { OwnerField, ownerFromForm } from "@/components/owner-controls";
 import { Field, LoadError } from "@/components/ui";
 import {
   CustomFieldsInputs,
@@ -38,6 +39,12 @@ export function ContactForm({
   );
   const submittingRef = useRef(false);
 
+  /** `ownerId` only when the Owner choice changed. */
+  const ownerPatch = (f: FormData) => {
+    const owner = ownerFromForm(f, contact?.ownerId ?? "");
+    return owner !== undefined ? { ownerId: owner } : {};
+  };
+
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (submittingRef.current) return;
@@ -61,6 +68,7 @@ export function ContactForm({
         city: val("city"),
         country: val("country"),
         custom,
+        ...ownerPatch(f),
       };
 
       if (body.companyId && body.firstName && body.lastName) {
@@ -263,6 +271,9 @@ export function ContactForm({
             defaultValue={contact?.country ?? ""}
           />
         </Field>
+      )}
+      {!access.hidden.has("ownerId") && (
+        <OwnerField initialOwnerId={contact?.ownerId ?? ""} isNew={!contact} disabled={access.blockedWrites.has("ownerId")} />
       )}
       {!access.hidden.has("custom") && (
         <CustomFieldsInputs

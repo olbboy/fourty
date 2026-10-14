@@ -26,7 +26,12 @@ with this account?" without leaving the record.
 Timeline entries are also queryable over the API — `GET /api/activities`,
 GraphQL `activities`, MCP `list_activities` — and a human (or a confirmed agent
 write) can log an email, call, or meeting (`POST /api/activities`, GraphQL
-`logActivity`, MCP `log_activity`). The list is empty without `entityType` and
+`logActivity`, MCP `log_activity`). On a record page, **Email**, **Call** and
+**Meeting** open a small form: when it happened (now unless changed, at most a day
+ahead), how many minutes a call or meeting took, and what was said. Over the API these
+are `occurredAt` (epoch ms), `durationMinutes` and `note`. The timeline places a
+touchpoint at the time it happened, so a call logged the next morning sits where it
+belongs, and the contact's last activity and score follow it. The list is empty without `entityType` and
 `entityId`: the timeline lives on a record, not the workspace.
 
 ## Working with records
@@ -41,7 +46,16 @@ write) can log an email, call, or meeting (`POST /api/activities`, GraphQL
   note left is updated or removed with it. Writes are validated with zod; a bad
   field returns `400 {"error": "field: message"}`.
 - **Search** across contacts, companies, deals, and custom-object records from the **⌘K command palette** or
-  `GET /api/search?q=…`.
+  `GET /api/search?q=…`. A contact is found by phone however the number is written (`0903 123 456`,
+  `0903.123.456` and `+84 903 123 456` are the same number), and a contact, company or deal is found by
+  the words of its notes, shown under the result. MCP and GraphQL `search` keep their exact-or-prefix
+  rule: a phone number matches from its start, and notes are not searched.
+- **Bulk changes**: tick rows on the deals, contacts or companies list to give them all one owner or
+  delete them into the Trash; deals can also move to one stage together. Every record is checked first,
+  and if one cannot change (say, a lost stage needs a reason it lacks) nothing changes. On the tasks
+  list, filter by owner and act on every task shown: hand them over, mark them done, or delete them.
+  Over the API: `POST /api/{deals,contacts,companies,tasks}/bulk-delete`, `POST /api/deals/bulk-move`
+  (`{ ids, stageId }`), `POST /api/tasks/bulk-complete`.
 - **Bulk-load** with [CSV import](./import-export.md), which updates on email match
   and auto-links companies. Creating a contact with an email that already exists
   is refused; the record page flags leftover duplicates (same email, or the same
@@ -96,6 +110,17 @@ The worker sends it once a day: if it was down at 8:00 it sends when it comes ba
 until noon, and never twice. The email is written in the language picked next to the
 switch (the admin's language when they first turn it on), and links to the address
 the app had when the settings were last saved.
+
+## Owner
+
+Contacts and companies have an **owner** like deals: the member accountable for them now.
+It starts as whoever created the record (unassigned when an API key did) and can be handed
+to another member in the record's form; the timeline shows *changed owner: A → B*. The
+contacts and companies lists filter by owner and show it in a column, and saved views keep
+that filter. Over the API: `ownerId` on create and update, `?ownerId=…|none` on the lists,
+and `POST /api/contacts/reassign` / `POST /api/companies/reassign` with `{ "ids": [...],
+"ownerId": "…" | null }` (GraphQL `reassignContacts`, `reassignCompanies`; MCP
+`reassign_contacts`, `reassign_companies`).
 
 ## Trash
 

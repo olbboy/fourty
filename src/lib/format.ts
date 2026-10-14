@@ -25,7 +25,8 @@ export function timeAgo(
   return t(future ? "time.yearsIn" : "time.yearsAgo", { n: y });
 }
 
-const DATE_TAGS: Record<Locale, string> = { en: "en-US", vi: "vi-VN" };
+/** The BCP 47 tag Intl formats each app language with. */
+export const DATE_TAGS: Record<Locale, string> = { en: "en-US", vi: "vi-VN" };
 
 export function formatDate(ts: number | null | undefined, locale: Locale = DEFAULT_LOCALE): string {
   if (!ts) return "—";

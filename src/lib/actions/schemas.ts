@@ -38,6 +38,8 @@ export const listContactsInput = z.object({
   limit: z.coerce.number().optional().catch(undefined),
   status: z.string().optional(),
   companyId: z.string().optional(),
+  /** A member id, or "none" for contacts nobody owns. */
+  ownerId: z.string().optional(),
   sort: z.string().optional(),
 });
 
@@ -46,6 +48,8 @@ export const listCompaniesInput = z.object({
   q: z.string().optional(),
   limit: z.coerce.number().optional().catch(undefined),
   industry: z.string().optional(),
+  /** A member id, or "none" for companies nobody owns. */
+  ownerId: z.string().optional(),
   sort: z.string().optional(),
 });
 

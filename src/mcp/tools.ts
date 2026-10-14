@@ -3,8 +3,8 @@ import { db, tables } from "@/db";
 import { can } from "@/lib/permissions";
 import { toMcpTool } from "@/lib/actions/adapters/mcp";
 import { searchCrm } from "@/lib/services/search";
-import { contactsCreate, contactsDelete, contactsGet, contactsList, contactsUpdate } from "@/lib/actions/contacts";
-import { companiesCreate, companiesDelete, companiesGet, companiesList, companiesUpdate } from "@/lib/actions/companies";
+import { contactsCreate, contactsDelete, contactsGet, contactsList, contactsReassign, contactsUpdate } from "@/lib/actions/contacts";
+import { companiesCreate, companiesDelete, companiesGet, companiesList, companiesReassign, companiesUpdate } from "@/lib/actions/companies";
 import { dealsCreate, dealsDelete, dealsGet, dealsList, dealsReassign, dealsSetContacts, dealsSetLines, dealsUpdate } from "@/lib/actions/deals";
 import { visibleLinesOf } from "@/lib/actions/deals/lines";
 import { productsList } from "@/lib/actions/products";
@@ -170,7 +170,7 @@ export const TOOLS: Tool[] = [
     name: "search",
     mutates: false,
     description:
-      "Search contacts, companies, deals, and custom-object records by name, email, company domain, or record title. EXACT or PREFIX match only — this is not a fuzzy search, so a misspelling returns nothing rather than the nearest name. Surname-only and domain prefixes work. Returns the top matches per type.",
+      "Search contacts, companies, deals, and custom-object records by name, email, contact phone, company domain, or record title. EXACT or PREFIX match only — this is not a fuzzy search, so a misspelling returns nothing rather than the nearest name. Surname-only and domain prefixes work; a phone number matches from its start however it is punctuated, and 0903… finds +84 903…. Returns the top matches per type.",
     inputSchema: {
       type: "object",
       properties: { query: { type: "string", description: "Search text" }, limit: { type: "number" } },
@@ -472,6 +472,8 @@ export const TOOLS: Tool[] = [
   }),
   toMcpTool(tasksCreate, { name: "create_task" }),
   toMcpTool(tasksUpdate, { name: "update_task" }),
+  toMcpTool(contactsReassign, { name: "reassign_contacts" }),
+  toMcpTool(companiesReassign, { name: "reassign_companies" }),
   toMcpTool(dealsReassign, { name: "reassign_deals" }),
   toMcpTool(dealsSetContacts, { name: "set_deal_contacts" }),
   toMcpTool(dealsSetLines, { name: "set_deal_lines" }),

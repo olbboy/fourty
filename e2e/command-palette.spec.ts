@@ -117,3 +117,18 @@ test("restricted search does not expose hidden company fields or deal amount", a
     await context.close();
   }
 });
+
+test("the command palette finds a contact by phone however it is written", async ({ page }) => {
+  // Phase 18: saved with the country code and dots, found by the national form.
+  const stamp = Date.now();
+  const tail = String(stamp).slice(-6);
+  const res = await page.request.post("/api/contacts", {
+    data: { firstName: "Phone", lastName: `${stamp}`, phone: `+84 903.${tail.slice(0, 3)}.${tail.slice(3)}` },
+  });
+  expect(res.status()).toBe(201);
+
+  await page.goto("/dashboard");
+  await openPalette(page);
+  await page.getByRole("combobox").fill(`0903 ${tail.slice(0, 3)} ${tail.slice(3)}`);
+  await expect(page.getByRole("option", { name: new RegExp(`Phone ${stamp}`) })).toBeVisible();
+});

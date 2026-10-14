@@ -4,6 +4,7 @@ import { logActivity } from "@/lib/activity";
 import { audit } from "@/lib/audit";
 import { dispatchEvent } from "@/lib/workflows/engine";
 import { ActionError, type ActionContext, type ActionDef } from "./types";
+import { withSavepoint } from "@/db";
 
 /**
  * Run an action's guard and side-effect chain. This is the single place those
@@ -28,6 +29,14 @@ export async function execute<I, O>(
   rawInput: unknown,
   ctx: ActionContext,
 ): Promise<unknown> {
+  // An action is all or nothing. The surfaces answer an ActionError inside the
+  // request's transaction, which then commits; the savepoint makes sure that
+  // whatever the action wrote before refusing (a bulk change, a nested
+  // deals.update) is undone first.
+  return withSavepoint(() => run(action, rawInput, ctx));
+}
+
+async function run<I, O>(action: ActionDef<I, O>, rawInput: unknown, ctx: ActionContext): Promise<unknown> {
   if (!can(ctx.role, action.object, action.verb as Action)) {
     throw new ActionError("forbidden", `Forbidden: ${ctx.role} cannot ${action.verb} ${action.object}`);
   }

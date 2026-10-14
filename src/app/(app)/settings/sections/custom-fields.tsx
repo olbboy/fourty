@@ -11,7 +11,10 @@ import { Card } from "@/components/ui/card";
 import { useT } from "@/lib/i18n/provider";
 import type { MessageKey } from "@/lib/i18n";
 import { formatCustomObjectError } from "@/lib/custom-object-display";
-import { FIELD_TYPES, fieldTypeLabel } from "@/lib/field-type-display";
+import { CUSTOM_FIELD_TYPES, fieldTypeLabel } from "@/lib/field-type-display";
+
+/** Field types that offer a list of choices. */
+const hasChoices = (type: unknown) => type === "select" || type === "multiselect";
 
 function sameOptions(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((v, i) => v === b[i]);
@@ -76,7 +79,7 @@ export function CustomFieldsSection() {
         type: f.get("type"),
         required: f.get("required") === "on",
         options:
-          f.get("type") === "select"
+          hasChoices(f.get("type"))
             ? ((f.get("options") as string) ?? "")
                 .split(",")
                 .map((s) => s.trim())
@@ -110,7 +113,7 @@ export function CustomFieldsSection() {
     const type = editType;
     const required = editRequired;
     const options =
-      type === "select"
+      hasChoices(type)
         ? editOptions
             .split(",")
             .map((s) => s.trim())
@@ -120,7 +123,7 @@ export function CustomFieldsSection() {
     if (label !== editing.label) body.label = label;
     if (type !== editing.type) body.type = type;
     if (required !== (editing.required === 1)) body.required = required;
-    if (type === "select" && !sameOptions(options, editing.options ?? [])) body.options = options;
+    if (hasChoices(type) && !sameOptions(options, editing.options ?? [])) body.options = options;
     if (Object.keys(body).length === 0) {
       setEditing(null);
       return;
@@ -212,7 +215,7 @@ export function CustomFieldsSection() {
                 <p className="text-xs text-ink-muted">
                   {f.key} · {fieldTypeLabel(f.type, t)}
                   {f.required ? t("settings.requiredSuffix") : ""}
-                  {f.type === "select" && f.options.length > 0 && ` (${f.options.join(", ")})`}
+                  {hasChoices(f.type) && f.options.length > 0 && ` (${f.options.join(", ")})`}
                 </p>
               </div>
               <Button
@@ -254,14 +257,14 @@ export function CustomFieldsSection() {
           </Field>
           <Field label={t("settings.fieldType")}>
             <NativeSelect name="type" value={type} onChange={(e) => setType(e.target.value)} className="w-full">
-              {FIELD_TYPES.map((ft) => (
+              {CUSTOM_FIELD_TYPES.map((ft) => (
                 <option key={ft} value={ft}>
                   {fieldTypeLabel(ft, t)}
                 </option>
               ))}
             </NativeSelect>
           </Field>
-          {type === "select" && (
+          {hasChoices(type) && (
             <Field label={t("settings.fieldOptions")}>
               <Input name="options" placeholder={t("settings.fieldOptionsPlaceholder")} />
             </Field>
@@ -297,14 +300,14 @@ export function CustomFieldsSection() {
               onChange={(e) => setEditType(e.target.value)}
               className="w-full"
             >
-              {FIELD_TYPES.map((ft) => (
+              {CUSTOM_FIELD_TYPES.map((ft) => (
                 <option key={ft} value={ft}>
                   {fieldTypeLabel(ft, t)}
                 </option>
               ))}
             </NativeSelect>
           </Field>
-          {editType === "select" && (
+          {hasChoices(editType) && (
             <Field label={t("settings.fieldOptions")}>
               <Input
                 name="options"

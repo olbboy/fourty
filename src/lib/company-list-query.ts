@@ -22,6 +22,7 @@ export function parseCompanyListQuery(params: URLSearchParams): CompanyListQuery
   return {
     q: params.get("q")?.trim() ?? "",
     industry: params.get("industry")?.trim() ?? "",
+    ownerId: params.get("ownerId")?.trim() ?? "",
     sort: rawSort && COMPANY_SORTS.has(rawSort as CompanySort) ? (rawSort as CompanySort) : null,
     offset: nonNegativeInteger(params.get("offset")),
     // The list surface owns a fixed page size. Keep arbitrary deep-link limits
@@ -34,6 +35,7 @@ export function toCompanyApiParams(query: CompanyListQuery, includePaging = true
   const params = new URLSearchParams();
   if (query.q) params.set("q", query.q);
   if (query.industry) params.set("industry", query.industry);
+  if (query.ownerId) params.set("ownerId", query.ownerId);
   if (query.sort) params.set("sort", query.sort);
   if (includePaging) {
     if (query.offset > 0) params.set("offset", String(query.offset));

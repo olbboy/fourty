@@ -89,6 +89,18 @@ export const db: Db = new Proxy({} as Db, {
 });
 
 /**
+ * Run `fn` in a savepoint of the current transaction: if it throws, what it
+ * wrote is undone and the transaction carries on, so a caller can turn the
+ * error into an answer without committing half the work. Outside a
+ * transaction it simply runs `fn`.
+ */
+export async function withSavepoint<T>(fn: () => Promise<T>): Promise<T> {
+  const store = currentStore();
+  if (!store.tx) return fn();
+  return store.tx.transaction((inner) => als.run({ ...store, tx: inner }, fn));
+}
+
+/**
  * Run `fn` inside a transaction whose `app.workspace_id` GUC is set to
  * `workspaceId`. Postgres RLS policies (USING/WITH CHECK on
  * current_setting('app.workspace_id')) then confine every query in `fn` to that

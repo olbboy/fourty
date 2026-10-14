@@ -5,7 +5,7 @@ import { newId } from "@/lib/id";
 import { convertAt } from "@/lib/currency";
 import { linesOf, roundMoney, sumLines, type DealLine } from "@/lib/deal-lines";
 import { loadReportingSettings } from "@/lib/reporting";
-import { blockedWrites, canReadField, loadFieldPolicy } from "@/lib/field-permissions";
+import { canReadField, loadFieldPolicy } from "@/lib/field-permissions";
 import { defineAction } from "../define";
 import { execute } from "../execute";
 import { ActionError, type ActionContext } from "../types";
@@ -97,16 +97,11 @@ export const dealsSetLines = defineAction({
       return { id: keep(line.id), dealId: id, productId: product?.id ?? null, name, quantity: line.quantity, unitPrice, position, createdAt: Date.now() };
     });
 
-    // Lines that would move the Amount need the right to write it, checked
-    // before anything is written. A refusal from the nested deals.update would
-    // come too late: REST answers it inside the same transaction, which then
-    // commits, leaving new lines beside the old Amount.
     const total = sumLines(resolved.map((l) => ({ ...l, total: roundMoney(l.quantity * l.unitPrice) })));
     const amountChanged = total !== null && total !== deal.amount;
-    if (amountChanged && blockedWrites(await loadFieldPolicy(ctx.role), "deals", ["amount"]).length) {
-      throw new ActionError("forbidden", "Forbidden: cannot write deals field(s): amount");
-    }
 
+    // A refusal from the nested deals.update (a role that may not write the
+    // Amount) undoes these lines too: execute runs each action in a savepoint.
     await db.delete(tables.dealLines).where(eq(tables.dealLines.dealId, id));
     if (resolved.length) await db.insert(tables.dealLines).values(resolved);
     if (amountChanged) await execute(dealsUpdate, { id, amount: total }, ctx);

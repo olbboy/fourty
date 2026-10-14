@@ -80,7 +80,10 @@ function describe(a: Activity, t: TFn, locale: Locale): string {
   if (a.type === "task_completed" && a.meta.title) {
     return t("activity.taskCompletedTitle", { title: String(a.meta.title) });
   }
-  if (a.meta.note) return t("activity.withNote", { label, note: String(a.meta.note) });
+  // A hand-logged call or meeting says how long it took.
+  const timed = typeof a.meta.durationMinutes === "number" ? `${label} (${t("activity.minutes", { n: a.meta.durationMinutes })})` : label;
+  if (a.meta.note) return t("activity.withNote", { label: timed, note: String(a.meta.note) });
+  if (timed !== label) return timed;
   if (a.meta.detail) return formatActivityDetail(String(a.meta.detail), t);
   return label;
 }
@@ -152,52 +155,139 @@ export function Timeline({ entityType, entityId, refreshKey }: EntityRef & { ref
   );
 }
 
+/** "YYYY-MM-DDTHH:mm" in local time, the value a datetime-local input takes. */
+function localDateTime(ms: number): string {
+  const d = new Date(ms);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+type TouchpointType = "email" | "call" | "meeting";
+
+/**
+ * Log an email, call or meeting by hand (D10): pick the kind, then say when it
+ * happened (now unless changed), for how long, and what was said.
+ */
 export function LogTouchpoint({
   entityType,
   entityId,
   onLogged,
 }: EntityRef & { onLogged: () => void }) {
   const t = useT();
-  const [busy, setBusy] = useState<string | null>(null);
+  const [open, setOpen] = useState<TouchpointType | null>(null);
+  const [when, setWhen] = useState("");
+  const [minutes, setMinutes] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  async function log(type: "email" | "call" | "meeting") {
-    setBusy(type);
+
+  function start(type: TouchpointType) {
+    setOpen(type);
+    setWhen(localDateTime(Date.now()));
+    setMinutes("");
+    setNote("");
     setError(null);
+  }
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (!open) return;
+    setBusy(true);
+    setError(null);
+    const occurredAt = when ? new Date(when).getTime() : undefined;
     try {
       const res = await fetch("/api/activities", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ type, entityType, entityId }),
+        body: JSON.stringify({
+          type: open,
+          entityType,
+          entityId,
+          ...(note.trim() ? { note: note.trim() } : {}),
+          ...(occurredAt && Number.isFinite(occurredAt) ? { occurredAt } : {}),
+          ...(minutes ? { durationMinutes: Number(minutes) } : {}),
+        }),
       });
       if (!res.ok) {
-        setError(t("activity.failedWrite"));
+        // The server says what was wrong ("occurredAt: at most a day ahead").
+        const message = ((await res.json().catch(() => ({}))) as { error?: string }).error;
+        setError(message ?? t("activity.failedWrite"));
         return;
       }
+      setOpen(null);
       onLogged();
     } catch {
       setError(t("activity.failedWrite"));
     } finally {
-      setBusy(null);
+      setBusy(false);
     }
   }
+
   const buttons = [
     { type: "email" as const, icon: IconMail, label: t("activity.emailBtn"), title: t("activity.logEmail") },
     { type: "call" as const, icon: IconPhone, label: t("activity.callBtn"), title: t("activity.logCall") },
     { type: "meeting" as const, icon: IconCalendar, label: t("activity.meetingBtn"), title: t("activity.logMeeting") },
   ];
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       <div className="flex gap-2">
         {buttons.map(({ type, icon: Icon, label, title }) => (
           <Button
             key={type}
-            onClick={() => log(type)}
-            disabled={busy !== null}
-            title={title} variant="outline" size="sm" className="flex-1 text-xs">
+            onClick={() => start(type)}
+            aria-pressed={open === type}
+            title={title}
+            variant={open === type ? "default" : "outline"}
+            size="sm"
+            className="flex-1 text-xs"
+          >
             <Icon width={14} height={14} /> {label}
           </Button>
         ))}
       </div>
+      {open && (
+        <form className="space-y-2" onSubmit={save} aria-label={buttons.find((b) => b.type === open)!.title}>
+          <div className="flex gap-2">
+            <Input
+              type="datetime-local"
+              value={when}
+              min="2000-01-01T00:00"
+              max={localDateTime(Date.now() + 86_400_000)}
+              onChange={(e) => setWhen(e.target.value)}
+              aria-label={t("activity.when")}
+              className="h-8 min-w-0 flex-1"
+            />
+            {open !== "email" && (
+              <Input
+                type="number"
+                min={1}
+                max={1440}
+                value={minutes}
+                onChange={(e) => setMinutes(e.target.value)}
+                aria-label={t("activity.minutesAria")}
+                placeholder={t("activity.minutesPlaceholder")}
+                className="h-8 w-24"
+              />
+            )}
+          </div>
+          <Textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            aria-label={t("activity.noteAria")}
+            placeholder={t("activity.touchpointNotePlaceholder")}
+            rows={2}
+            maxLength={2000}
+          />
+          <div className="flex justify-end gap-2">
+            <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(null)}>
+              {t("action.cancel")}
+            </Button>
+            <Button type="submit" size="sm" disabled={busy}>
+              {t("activity.save")}
+            </Button>
+          </div>
+        </form>
+      )}
       {error && (
         <p role="alert" className="text-xs text-feedback-error">
           {error}

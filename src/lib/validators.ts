@@ -16,6 +16,7 @@ export const contactInput = z.object({
   linkedin: z.string().max(200).nullable().optional(),
   city: z.string().max(120).nullable().optional(),
   country: z.string().max(120).nullable().optional(),
+  ownerId: z.string().min(1).max(64).nullable().optional(),
   custom: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -31,6 +32,7 @@ export const companyInput = z.object({
   city: z.string().max(120).nullable().optional(),
   country: z.string().max(120).nullable().optional(),
   annualRevenue: z.number().nullable().optional(),
+  ownerId: z.string().min(1).max(64).nullable().optional(),
   custom: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -79,4 +81,11 @@ export const activityLogInput = z.object({
   entityType,
   entityId: z.string().min(1),
   note: z.string().max(2000).optional(),
+  /**
+   * When it happened, epoch ms, from 2000 on; now when left out. The upper
+   * bound (a day ahead of now) moves with the clock, so activities.create
+   * checks it rather than this schema.
+   */
+  occurredAt: z.number().int().min(946_684_800_000).optional(),
+  durationMinutes: z.number().int().min(1).max(1440).optional(),
 });

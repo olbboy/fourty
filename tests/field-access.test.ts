@@ -20,14 +20,16 @@ describe("canEditField", () => {
     failed: false,
     hidden: over.hidden ?? new Set(),
     blockedWrites: over.blockedWrites ?? new Set(),
+    canUpdate: true,
+    canDelete: true,
   });
 
   it("is false until the /me payload has loaded", () => {
-    expect(canEditField({ ready: false, failed: false, hidden: new Set(), blockedWrites: new Set() }, "stageId")).toBe(false);
+    expect(canEditField({ ready: false, failed: false, hidden: new Set(), blockedWrites: new Set(), canUpdate: false, canDelete: false }, "stageId")).toBe(false);
   });
 
   it("is false when /me failed rather than treating missing rules as allow-all", () => {
-    expect(canEditField({ ready: false, failed: true, hidden: new Set(), blockedWrites: new Set() }, "stageId")).toBe(false);
+    expect(canEditField({ ready: false, failed: true, hidden: new Set(), blockedWrites: new Set(), canUpdate: false, canDelete: false }, "stageId")).toBe(false);
   });
 
   it("is false when the field is hidden or write-blocked", () => {
