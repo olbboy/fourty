@@ -23,6 +23,7 @@ import { Card } from "@/components/ui/card";
 import { useLocale, useT } from "@/lib/i18n/provider";
 import { BulkBar, OwnerFilter, bulkDelete, reassignOwner, useOwnerPeople } from "@/components/owner-controls";
 import { ownerLabel } from "@/lib/owner-display";
+import { TaskCalendar } from "@/components/task-calendar";
 
 const ENTITY_PATH: Record<string, string> = {
   contact: "/contacts/",
@@ -65,6 +66,7 @@ export function TasksClient() {
   );
   const [failed, setFailed] = useState(false);
   const [state, setState] = useState<"open" | "done" | "all">("open");
+  const [view, setView] = useState<"list" | "calendar">("list");
   // "" = any; "none" = unowned; otherwise a member id.
   const [ownerFilter, setOwnerFilter] = useState("");
   const people = useOwnerPeople();
@@ -313,6 +315,13 @@ export function TasksClient() {
             setActiveView(null);
           }}
         />
+        <div role="group" aria-label={t("calendar.viewAria")} className="ml-auto flex gap-1">
+          {(["list", "calendar"] as const).map((mode) => (
+            <Button key={mode} size="sm" variant={view === mode ? "default" : "outline"} aria-pressed={view === mode} onClick={() => setView(mode)}>
+              {mode === "list" ? t("calendar.listView") : t("calendar.calendarView")}
+            </Button>
+          ))}
+        </div>
       </div>
 
       {/* Handing over: narrow to one owner, then give every task shown to
@@ -350,6 +359,8 @@ export function TasksClient() {
         />
       ) : !tasks ? (
         <Spinner label="Loading tasks" />
+      ) : view === "calendar" ? (
+        <TaskCalendar tasks={tasks} onOpen={(task) => openEditor(task)} />
       ) : tasks.length === 0 ? (
         <EmptyState
           title={t("page.tasks.empty")}

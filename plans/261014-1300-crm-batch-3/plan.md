@@ -21,7 +21,7 @@ Cách làm như đợt 2: mỗi phase viết test trước ở seam của nó, t
 | # | Việc | Quyết định | Vì sao |
 |---|---|---|---|
 | D7 | Owner của liên hệ và công ty | Sửa được owner của liên hệ và công ty sau khi tạo (form, REST, GraphQL, MCP), lọc danh sách theo owner, đổi owner hàng loạt như deal. Đổi owner ghi "changed owner: A → B" lên dòng thời gian | Bàn giao khi có người nghỉ (T7) mới làm xong cho deal và việc |
-| D8 | Thao tác hàng loạt | Tick chọn nhiều trên danh sách deal, liên hệ, công ty và việc. Deal: chuyển stage, đổi owner, xoá. Liên hệ và công ty: đổi owner, xoá. Việc: đổi owner, đánh dấu xong, xoá. Xoá đưa vào Thùng rác. Tất cả hoặc không: một bản ghi không hợp lệ (vào stage thua mà thiếu lý do, khác pipeline) thì không bản ghi nào đổi | Mục 15 của báo cáo (4/5 nguồn); tất cả hoặc không như đổi owner hàng loạt đã có |
+| D8 | Thao tác hàng loạt | Tick chọn nhiều trên danh sách deal, liên hệ và công ty. Deal: chuyển stage, đổi owner, xoá. Liên hệ và công ty: đổi owner, xoá. Việc: mỗi dòng đã có ô tick "xong", thêm ô chọn thứ hai dễ nhầm, nên giữ cách đợt 1: lọc theo owner rồi đổi owner, đánh dấu xong hoặc xoá mọi việc đang hiện. Xoá đưa vào Thùng rác. Tất cả hoặc không: một bản ghi không hợp lệ (vào stage thua mà thiếu lý do, khác pipeline) thì không bản ghi nào đổi | Mục 15 của báo cáo (4/5 nguồn); tất cả hoặc không như đổi owner hàng loạt đã có |
 | D9 | Tìm kiếm | Tìm liên hệ theo số điện thoại (bỏ dấu cách, chấm, gạch khi so) và tìm trong nội dung ghi chú (trả về bản ghi có ghi chú đó) ở ⌘K và `/api/search`. `search` của MCP giữ nguyên quy tắc khớp chính xác hoặc tiền tố, cũng áp cho số điện thoại | Mục 13; MCP cố ý không khớp mờ (docs/api/mcp.md) |
 | D10 | Ghi cuộc gọi, cuộc họp | Ghi một cuộc gọi, cuộc họp hay email kèm nội dung, thời điểm diễn ra (mặc định bây giờ, không quá 1 ngày tới tương lai) và thời lượng phút. Dòng thời gian xếp theo thời điểm diễn ra | Mục q; trường `note` đã có trong API, chỉ giao diện chưa dùng |
 | D11 | Trường chọn nhiều | Kiểu custom field mới "chọn nhiều" (nhãn) cho liên hệ, công ty, deal. Lọc theo một lựa chọn thì khớp bản ghi có lựa chọn đó. Trường tách cột của dự báo vẫn chỉ nhận trường chọn một | Mục c; trường tách cột cần mỗi deal đúng một cột |
@@ -49,7 +49,7 @@ Cách làm như đợt 2: mỗi phase viết test trước ở seam của nó, t
 ## Lượt 1 — việc hằng ngày
 
 - **Phase 16 (D7)**: seam `contacts.update`, `companies.update` (ownerId), `contacts.list`/`companies.list` (ownerId), `POST /api/contacts/reassign`, `POST /api/companies/reassign`. E2E: đổi owner một liên hệ trên form.
-- **Phase 17 (D8)**: seam `POST /api/deals/bulk` (`move`, `delete`), `POST /api/contacts/bulk`, `/api/companies/bulk`, `/api/tasks/bulk` (`delete`, `complete`, `reassign`). E2E: chọn hai deal, chuyển stage.
+- **Phase 17 (D8)**: seam `POST /api/deals/bulk-move`, `POST /api/{deals,contacts,companies,tasks}/bulk-delete`, `POST /api/tasks/bulk-complete` (mỗi route một action, như `reassign`). E2E: chọn hai deal, chuyển stage rồi xoá.
 - **Phase 18 (D9)**: seam `searchCrm` qua `/api/search` và MCP `search`. E2E: ⌘K tìm theo số điện thoại.
 - **Phase 19 (D10)**: seam `POST /api/activities` (occurredAt, durationMinutes, note). E2E: ghi một cuộc gọi có nội dung.
 - **Phase 20 (D11)**: seam `POST /api/custom-fields` (multiselect), ghi và đọc trên bản ghi, lọc `fieldKey`/`fieldValue`. E2E: tạo trường nhãn, gắn hai nhãn.
