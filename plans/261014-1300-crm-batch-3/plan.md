@@ -133,3 +133,40 @@ Giữ nguyên, có lý do:
 - **Khôi phục bản ghi đã gộp không tách lại các liên kết.** Việc, ghi chú, deal đã chuyển sang bản ghi giữ lại; tách lại phải đoán, nên để người dùng tự làm.
 - **Không có e2e gửi thư bằng mẫu.** Máy test không có hộp thư gửi đi; có test cho hàm điền mẫu và cho route.
 - **`dispatchEvent` chạy ngoài giao dịch.** Theo ADR-017: sự kiện chỉ đi khi dữ liệu đã ghi xong.
+
+## Review lượt 3 (14/10/2026)
+
+Hai chiều review chạy song song trên `8009952...f337f64` (Phase 27–30). Đã sửa:
+- **Nhật ký (D18):**
+  - Lọc theo tiền tố có dấu `_` (`api_key.`, `custom_field.`, `email_template.`) từng không bao giờ ra dòng nào. Giờ ký tự đặc biệt được giữ nguyên nghĩa chữ; có test.
+  - CSV dùng cách ghi an toàn cho bảng tính: một người tự đặt tên `=HYPERLINK(…)` không thành công thức trên máy admin; có test.
+  - Lọc theo loại hành động: ô mới "Làm gì" (tạo, sửa, xoá, khôi phục, xoá hẳn), API nhận `.deleted`. Ô "Trên cái gì" liệt kê mọi loại bản ghi nhật ký biết, thay vì 12 mục gõ tay.
+  - `contact.` và `deal.` gồm cả `contacts.imported`, `deals.imported`.
+  - `limit` quá lớn lấy 1.000 như trước; nút CSV lấy tối đa 1.000 dòng.
+  - Câu trả lời cũ không ghi đè kết quả lọc mới.
+  - E2E lọc theo người, rồi theo "deal được tạo".
+- **Thành viên (D19):**
+  - Comment sai ("phiên đăng nhập bắt đầu lại") đã sửa cho đúng việc code làm.
+  - Kích hoạt lại thất bại thì báo lỗi.
+  - Dùng chữ của từ điển: "account details", không "profile".
+  - Từ điển ghi admin kích hoạt lại được Member.
+- **Sự kiện (D20):**
+  - Gộp bản ghi phát `contact.deleted` / `company.deleted` cho bản bị gộp, kèm `mergedInto`; có test.
+  - Xoá hàng loạt phát một sự kiện cho mỗi bản ghi; có test.
+  - Danh sách việc còn chạy sau khi xoá đổi thành danh sách cho phép (webhook, log): loại việc mới thêm sau này mặc định không chạy trên bản ghi đã xoá.
+  - Ba action xoá dùng chung một chỗ tạo sự kiện xoá.
+- **Thư đồng bộ (D21):**
+  - Thư nằm trên dòng thời gian của liên hệ và deal theo giờ gửi, không theo giờ kéo về; có test.
+  - Deal đang mở của một liên hệ chỉ tra một lần cho cả lô thư.
+  - ADR-009 ghi thêm chuyện thư lên deal.
+- **Tài liệu:** nhật ký trong `records.md` và `rest.md`; nhập deal, xuất việc và ghi chú trong `import-export.md`; gộp bản ghi trong `workflows.md`.
+- Một e2e cũ (account-rescue) tìm nút "Save" không chính xác sau khi hộp thoại tài khoản có thêm nút "Save title and phone"; đã sửa locator.
+
+Giữ nguyên, có lý do:
+- **Sự kiện đi trước khi giao dịch commit (ADR-017).** Khi xoá hàng loạt hay nhập deal bị huỷ giữa chừng, webhook "đã xoá" hoặc "đã tạo" của những dòng trước vẫn có thể đã gửi. Sửa tận gốc phải đổi lõi action: gom sự kiện, chỉ gửi sau khi commit. Đã tách thành việc riêng; trường hợp này hiếm vì các thao tác hàng loạt kiểm tồn tại trước khi ghi.
+- **Việc, ghi chú, trường, nháp AI không chạy trên bản ghi đã xoá.** Chúng sẽ treo vào bản ghi trong Thùng rác. Nhắc owner thì dùng webhook.
+- **Phiên đăng nhập khi kích hoạt lại để nguyên.** Phiên là của người, dùng chung mọi workspace; ngắt nó sẽ đăng xuất họ ở workspace khác. Admin muốn họ đăng nhập lại thì bấm "đăng xuất mọi nơi".
+- **`/api/audit` trả 400 khi bộ lọc sai.** Bỏ qua bộ lọc sai sẽ cho ra cả nhật ký mà người xem tưởng đã lọc.
+- **Một thư chỉ gắn một liên hệ.** Có từ trước (ADR-009); D21 không đổi điều đó.
+- **Tên migration `0029_user_profile`.** Tên tệp, không phải chữ người dùng thấy; đổi journal rủi ro hơn lợi.
+

@@ -47,13 +47,13 @@ export function AccountDialog({
   // Job title and phone (D19), loaded once the dialog opens.
   const [title, setTitle] = useState("");
   const [phone, setPhone] = useState("");
-  const [profile, setProfile] = useState<{ title: string; phone: string } | null>(null);
+  const [details, setDetails] = useState<{ title: string; phone: string } | null>(null);
   useEffect(() => {
     fetch("/api/me")
       .then((res) => (res.ok ? res.json() : null))
       .then((me: { title: string | null; phone: string | null } | null) => {
         if (!me) return;
-        setProfile({ title: me.title ?? "", phone: me.phone ?? "" });
+        setDetails({ title: me.title ?? "", phone: me.phone ?? "" });
         setTitle(me.title ?? "");
         setPhone(me.phone ?? "");
       })
@@ -109,13 +109,13 @@ export function AccountDialog({
         </div>
       </form>
 
-      {profile && (
+      {details && (
         <form
           className="mt-6 space-y-2"
           onSubmit={async (e) => {
             e.preventDefault();
-            if (await send("/api/me", "PATCH", { title: title.trim() || null, phone: phone.trim() || null }, t("account.profileSaved"))) {
-              setProfile({ title: title.trim(), phone: phone.trim() });
+            if (await send("/api/me", "PATCH", { title: title.trim() || null, phone: phone.trim() || null }, t("account.detailsSaved"))) {
+              setDetails({ title: title.trim(), phone: phone.trim() });
             }
           }}
         >
@@ -130,7 +130,7 @@ export function AccountDialog({
             </label>
           </div>
           <div className="flex justify-end">
-            <Button type="submit" disabled={busy || (title.trim() === profile.title && phone.trim() === profile.phone)}>
+            <Button type="submit" disabled={busy || (title.trim() === details.title && phone.trim() === details.phone)}>
               {t("account.saveProfile")}
             </Button>
           </div>

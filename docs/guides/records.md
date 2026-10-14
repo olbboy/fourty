@@ -173,7 +173,10 @@ Who can see and change a record is governed by:
   not per-field restricted this tier.
 
 Every write is recorded in the **immutable audit log**. Admins read it from
-**Settings → Audit log** (or `GET /api/audit`, including `?format=csv`).
+**Settings → Audit log** (or `GET /api/audit`, including `?format=csv`), and narrow
+it to one person, one kind of record (deals, members, API keys…), one kind of action
+(created, updated, deleted, restored, deleted for good) and a span of days. The CSV
+keeps those filters, holds up to 1,000 entries and names who acted by name and email.
 Entries cannot be edited or deleted.
 
 ## Related

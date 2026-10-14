@@ -24,7 +24,8 @@ async function activeAdminCount(workspaceId: string): Promise<number> {
   return rows.length;
 }
 
-async function activeMember(workspaceId: string, userId: string) {
+/** Their place in this workspace, removed or not. */
+async function membershipOf(workspaceId: string, userId: string) {
   return (
     await db
       .select()
@@ -47,9 +48,12 @@ export async function PATCH(req: Request, { params }: Params) {
     const body = await parseBody(req, patchSchema);
     if (!body.ok) return body.response;
 
-    const member = await activeMember(auth.workspaceId, userId);
+    const member = await membershipOf(auth.workspaceId, userId);
     if ("reactivate" in body.data) {
-      // Back in one step, with the role they had; their sessions start afresh.
+      // Back in one step, with the role they had. Sessions are the person's,
+      // across workspaces, and are left as they are: one still signed in is back
+      // in at once. An admin who wants them to sign in again signs them out
+      // (DELETE …/sessions) once they are back.
       if (!member) return apiError("Member not found", 404);
       if (!member.deactivatedAt) return apiError("This member is active", 400);
       await db.update(tables.workspaceMembers).set({ deactivatedAt: null }).where(eq(tables.workspaceMembers.id, member.id));
@@ -84,7 +88,7 @@ export async function DELETE(req: Request, { params }: Params) {
     if (denied) return denied;
     const { userId } = await params;
 
-    const member = await activeMember(auth.workspaceId, userId);
+    const member = await membershipOf(auth.workspaceId, userId);
     if (!member || member.deactivatedAt) return apiError("Member not found", 404);
     if (member.role === "admin" && (await activeAdminCount(auth.workspaceId)) <= 1) {
       return apiError("Cannot remove the last admin", 400);

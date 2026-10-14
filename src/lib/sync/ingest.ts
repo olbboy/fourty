@@ -71,6 +71,8 @@ export async function ingestEmails(accountId: string, rawMessages: string[]): Pr
   // not merely the facts derived from it. Off means the four signature columns
   // are never written at all.
   const research = await isKeylessResearchEnabled();
+  // A batch often holds a thread with one contact: look up their deals once.
+  const dealsOf = new Map<string, string[]>();
   for (const raw of rawMessages) {
     const msg = parseEmail(raw);
     if (!msg.messageId) continue; // can't dedupe without an id — skip
@@ -109,10 +111,15 @@ export async function ingestEmails(accountId: string, rawMessages: string[]): Pr
     if (contactId) {
       result.linked += 1;
       touched.add(contactId);
-      const meta = { subject: msg.subject, from: msg.from, messageId: msg.messageId };
-      await logActivity({ type: "email", entityType: "contact", entityId: contactId, meta });
-      for (const dealId of await openDealsOf(contactId)) {
-        await logActivity({ type: "email", entityType: "deal", entityId: dealId, meta: { ...meta, contactId } });
+      // On the timeline when it was sent (an old thread pulled today stays in
+      // its place), as a logged call is; never ahead of now.
+      const now = Date.now();
+      const at = msg.sentAt && msg.sentAt < now ? msg.sentAt : now;
+      const meta = { subject: msg.subject, from: msg.from, messageId: msg.messageId, ...(at !== now ? { loggedAt: now } : {}) };
+      await logActivity({ type: "email", entityType: "contact", entityId: contactId, meta, at });
+      if (!dealsOf.has(contactId)) dealsOf.set(contactId, await openDealsOf(contactId));
+      for (const dealId of dealsOf.get(contactId)!) {
+        await logActivity({ type: "email", entityType: "deal", entityId: dealId, meta: { ...meta, contactId }, at });
       }
       await touchContact(contactId, msg.sentAt);
     }

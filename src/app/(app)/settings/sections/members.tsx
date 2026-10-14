@@ -208,12 +208,14 @@ export function MembersSection() {
 
   /** Bring a removed member back with the role they had (D19). */
   async function reactivate(m: Member) {
+    setError(null);
     const res = await fetch(`/api/members/${m.userId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ reactivate: true }),
     }).catch(() => null);
-    if (res?.ok) await load();
+    if (!res?.ok) setError(t("settings.reactivateFailed", { name: m.name }));
+    await load();
   }
 
   async function remove(m: Member) {

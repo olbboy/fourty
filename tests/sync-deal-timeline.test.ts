@@ -67,4 +67,19 @@ describe("synced email on deals", () => {
     expect(await emailsOn(ids.won)).toEqual([]);
     expect(await emailsOn(ids.other)).toEqual([]);
   });
+
+  it("places the email on both timelines when it was sent, not when it was pulled", async () => {
+    const route = await import("@/app/api/activities/route");
+    const sent = Date.UTC(2026, 6, 8, 10);
+    for (const [entityType, entityId] of [
+      ["contact", ids.alice],
+      ["deal", ids.primary],
+    ]) {
+      const entries = (await (await route.GET(req(`/api/activities?entityType=${entityType}&entityId=${entityId}`))).json()).activities as {
+        type: string;
+        createdAt: number;
+      }[];
+      expect(entries.find((a) => a.type === "email")?.createdAt).toBe(sent);
+    }
+  });
 });

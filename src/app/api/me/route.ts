@@ -12,6 +12,11 @@ const schema = z
   })
   .refine((body) => Object.keys(body).length > 0, "nothing to change");
 
+/** The name, job title and phone of one account. */
+async function ownAccount(userId: string) {
+  return (await db.select({ name: tables.users.name, title: tables.users.title, phone: tables.users.phone }).from(tables.users).where(eq(tables.users.id, userId)).limit(1))[0];
+}
+
 /**
  * Your own account: the name every list, owner picker and timeline shows, and
  * the job title and phone the member list shows (D19).
@@ -29,8 +34,8 @@ export async function PATCH(req: Request) {
     };
     await db.update(tables.users).set(patch).where(eq(tables.users.id, auth.user.id));
     if (name !== undefined) await audit(auth.user.id, "account.renamed", { objectType: "user", objectId: auth.user.id });
-    if (title !== undefined || phone !== undefined) await audit(auth.user.id, "account.profile_changed", { objectType: "user", objectId: auth.user.id });
-    const row = (await db.select({ name: tables.users.name, title: tables.users.title, phone: tables.users.phone }).from(tables.users).where(eq(tables.users.id, auth.user.id)).limit(1))[0]!;
+    if (title !== undefined || phone !== undefined) await audit(auth.user.id, "account.details_changed", { objectType: "user", objectId: auth.user.id });
+    const row = (await ownAccount(auth.user.id))!;
     return json(row);
   });
 }
@@ -39,7 +44,7 @@ export async function PATCH(req: Request) {
 export async function GET(req: Request) {
   return withAuth(req, async (auth) => {
     if (!auth.user) return apiError("Sign in as a person to see your account", 403);
-    const row = (await db.select({ name: tables.users.name, title: tables.users.title, phone: tables.users.phone }).from(tables.users).where(eq(tables.users.id, auth.user.id)).limit(1))[0];
+    const row = await ownAccount(auth.user.id);
     return json(row ?? { name: auth.user.name, title: null, phone: null });
   });
 }

@@ -7,6 +7,8 @@ export type ActivityInput = {
   entityId: string;
   actorId?: string | null;
   meta?: Record<string, unknown>;
+  /** When it happened, where the timeline places it; now when not given. */
+  at?: number;
 };
 
 export async function logActivity(input: ActivityInput): Promise<void> {
@@ -17,6 +19,6 @@ export async function logActivity(input: ActivityInput): Promise<void> {
     entityId: input.entityId,
     actorId: input.actorId ?? null,
     meta: JSON.stringify(input.meta ?? {}),
-    createdAt: Date.now(),
+    createdAt: input.at ?? Date.now(),
   });
 }

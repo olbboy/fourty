@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { timeAgo } from "@/lib/format";
 import { Spinner, LoadError } from "@/components/ui";
 import { IconDownload } from "@/components/icons";
@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { cn } from "@/lib/utils";
 import { useLocale, useT } from "@/lib/i18n/provider";
-import { auditActionLabel, auditActorLabel, auditObjectLabel, formatAuditVia } from "@/lib/audit-display";
+import { AUDIT_OBJECTS, AUDIT_VERBS, auditActionLabel, auditActorLabel, auditObjectLabel, formatAuditVia } from "@/lib/audit-display";
+import type { MessageKey } from "@/lib/i18n";
 
 type Entry = {
   id: string;
@@ -22,8 +23,6 @@ type Entry = {
   createdAt: number;
 };
 
-/** The kinds of record the log can be narrowed to, by the prefix of their actions. */
-const AUDIT_GROUPS = ["contact", "company", "deal", "task", "note", "member", "account", "api_key", "email_template", "product", "custom_field", "workflow"];
 
 // Admin-only (Gate B3). A non-admin gets a 403 from the list and sees nothing,
 // the same contract SSO and field permissions use — the API stays the source of
@@ -36,9 +35,12 @@ export function AuditLogSection() {
   const [actors, setActors] = useState<Record<string, string>>({});
   const [membersFailed, setMembersFailed] = useState(false);
   const [adminOnly, setAdminOnly] = useState(false);
-  // Filters (D18): one person, one kind of record, a span of days.
+  // Filters (D18): one person, one kind of record ("deal."), one kind of
+  // action ("deleted"), a span of days.
   const [actorId, setActorId] = useState("");
-  const [action, setAction] = useState("");
+  const [kind, setKind] = useState("");
+  const [verb, setVerb] = useState("");
+  const action = kind && verb ? `${kind}${verb}` : kind || (verb ? `.${verb}` : "");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const query = useMemo(() => {
@@ -68,18 +70,23 @@ export function AuditLogSection() {
       .catch(() => setMembersFailed(true));
   }, []);
 
+  // Only the answer to the latest filters is shown, however the replies race.
+  const latest = useRef(0);
   const load = useCallback(async () => {
+    const mine = ++latest.current;
     setFailed(false);
     try {
       const res = await fetch(`/api/audit${query ? `?${query}` : ""}`);
+      if (mine !== latest.current) return;
       if (res.status === 403) {
         setAdminOnly(true);
         return;
       }
       if (!res.ok) throw new Error("audit");
-      setEntries((await res.json()).entries ?? []);
+      const body = await res.json();
+      if (mine === latest.current) setEntries(body.entries ?? []);
     } catch {
-      setFailed(true);
+      if (mine === latest.current) setFailed(true);
     }
   }, [query]);
 
@@ -103,7 +110,7 @@ export function AuditLogSection() {
           <p className="text-sm text-ink-muted">{t("settings.auditHint")}</p>
         </div>
         <a
-          href={`/api/audit?format=csv${query ? `&${query}` : ""}`}
+          href={`/api/audit?format=csv&limit=1000${query ? `&${query}` : ""}`}
           className={cn(buttonVariants({ variant: "outline", size: "sm" }), "text-xs")}
         >
           <IconDownload width={15} height={15} /> {t("page.contacts.exportTitle")}
@@ -118,11 +125,19 @@ export function AuditLogSection() {
             </option>
           ))}
         </NativeSelect>
-        <NativeSelect value={action} onChange={(e) => setAction(e.target.value)} aria-label={t("auditFilter.actionAria")} size="sm">
+        <NativeSelect value={kind} onChange={(e) => setKind(e.target.value)} aria-label={t("auditFilter.actionAria")} size="sm">
           <option value="">{t("auditFilter.everything")}</option>
-          {AUDIT_GROUPS.map((group) => (
-            <option key={group} value={`${group}.`}>
-              {auditObjectLabel(group, t)}
+          {AUDIT_OBJECTS.map((object) => (
+            <option key={object} value={`${object}.`}>
+              {auditObjectLabel(object, t)}
+            </option>
+          ))}
+        </NativeSelect>
+        <NativeSelect value={verb} onChange={(e) => setVerb(e.target.value)} aria-label={t("auditFilter.verbAria")} size="sm">
+          <option value="">{t("auditFilter.anyVerb")}</option>
+          {AUDIT_VERBS.map((v) => (
+            <option key={v} value={v}>
+              {t(`auditFilter.verb.${v}` as MessageKey)}
             </option>
           ))}
         </NativeSelect>
@@ -146,7 +161,7 @@ export function AuditLogSection() {
           {entries.map((e) => {
             const via = viaOf(e.meta);
             return (
-              <div key={e.id} data-testid="audit-entry" data-action={e.action} className="py-2">
+              <div key={e.id} data-testid="audit-entry" data-action={e.action} data-actor={e.actorId ?? ""} className="py-2">
                 <p className="text-sm">{auditActionLabel(e.action, t)}</p>
                 <p className="text-xs text-ink-muted">
                   {timeAgo(e.createdAt, locale)} · {auditActorLabel(e.actorId, actors, t)}

@@ -13,6 +13,8 @@ A workflow is **trigger → conditions → actions**:
    carries `changedValues`, e.g. `amount,expectedCloseDate`), and `contact.deleted`,
    `company.deleted`, `deal.deleted` (the record as it was; it is in the Trash, so only
    **webhook** and **log** act on it, and task, note, field and AI-draft actions are skipped).
+   Deleting many at once starts it once per record. A contact or company merged into
+   another is deleted too: its record carries `mergedInto`, the id of the one that stayed.
 2. **Conditions** *(optional)* — only run when the record matches (e.g. amount > 50000).
 3. **Actions** — one or more of the six types below (AI draft is optional).
 

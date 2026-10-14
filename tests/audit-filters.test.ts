@@ -8,7 +8,7 @@ import { resetDb, createWorkspace } from "./pg-setup";
 describe("audit log filters", () => {
   const KEY = "frty_audit_filters";
   let ws: string;
-  const people = { binh: "", lan: "" };
+  const people = { binh: "", lan: "", mallory: "" };
   const day = 86_400_000;
   const now = Date.now();
 
@@ -28,6 +28,8 @@ describe("audit log filters", () => {
     ws = await createWorkspace();
     people.binh = await auth.createUser("binh@team.test", "DVHai", "binh-password-1");
     people.lan = await auth.createUser("lan@team.test", "LTHoa", "lan-password-1");
+    // Anyone may name themselves; the CSV must not run it as a formula.
+    people.mallory = await auth.createUser("mallory@team.test", '=HYPERLINK("http://evil.test","x")', "mallory-password-1");
     await withWorkspace(ws, async () => {
       await db.insert(tables.apiKeys).values({ id: newId(), workspaceId: ws, name: "admin", prefix: KEY.slice(0, 8), keyHash: auth.sha256(KEY), role: "admin", createdAt: now });
       const row = (actorId: string, action: string, createdAt: number) => ({ id: newId(), actorId, action, objectType: action.split(".")[0], objectId: "x", meta: "{}", createdAt });
@@ -36,6 +38,8 @@ describe("audit log filters", () => {
         row(people.binh, "deal.deleted", now - 10 * day),
         row(people.binh, "contact.created", now - 2 * day),
         row(people.lan, "deal.updated", now - 1 * day),
+        row(people.mallory, "api_key.revoked", now - 3 * day),
+        row(people.mallory, "contacts.imported", now - 3 * day),
       ]);
     });
   });
@@ -48,6 +52,15 @@ describe("audit log filters", () => {
   it("narrows to one kind of action, or a whole object's actions", async () => {
     expect((await entries("action=deal.updated")).map((r) => r.actorId).sort()).toEqual([people.binh, people.lan].sort());
     expect((await entries(`action=deal.&actorId=${people.binh}`)).map((r) => r.action)).toEqual(["deal.updated", "deal.deleted"]);
+  });
+
+  it("narrows to an object whose name has an underscore, and takes in its plural actions", async () => {
+    expect((await entries("action=api_key.")).map((r) => r.action)).toEqual(["api_key.revoked"]);
+    expect((await entries(`action=contact.&actorId=${people.mallory}`)).map((r) => r.action)).toEqual(["contacts.imported"]);
+  });
+
+  it("narrows to one kind of action on any object", async () => {
+    expect((await entries("action=.deleted")).map((r) => r.action)).toEqual(["deal.deleted"]);
   });
 
   it("narrows to a span of days", async () => {
@@ -63,5 +76,12 @@ describe("audit log filters", () => {
     expect(header).toContain("actor_email");
     expect(first).toContain("DVHai");
     expect(first).toContain("binh@team.test");
+  });
+
+  it("does not hand a spreadsheet a formula someone typed as their name", async () => {
+    const route = await import("@/app/api/audit/route");
+    const csv = await (await route.GET(req(`/api/audit?format=csv&actorId=${people.mallory}`))).text();
+    expect(csv).toContain(`'=HYPERLINK`);
+    expect(csv).not.toMatch(/(^|,)"?=HYPERLINK/m);
   });
 });

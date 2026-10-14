@@ -13,9 +13,9 @@ describe("workflow events: value changed, deleted", () => {
   const req = (url: string, init: RequestInit = {}) =>
     new Request(`http://localhost${url}`, { ...init, headers: { Authorization: `Bearer ${KEY}`, "content-type": "application/json" } });
   const params = <T extends Record<string, string>>(p: T) => ({ params: Promise.resolve(p) });
-  const workflow = async (event: string, actions: Record<string, unknown>[]) => {
+  const workflow = async (event: string, actions: Record<string, unknown>[], name = event) => {
     const route = await import("@/app/api/workflows/route");
-    const res = await route.POST(req("/api/workflows", { method: "POST", body: JSON.stringify({ name: event, trigger: { event }, actions }) }));
+    const res = await route.POST(req("/api/workflows", { method: "POST", body: JSON.stringify({ name, trigger: { event }, actions }) }));
     expect(res.status).toBe(201);
   };
   const runs = async (name: string) => {
@@ -71,5 +71,28 @@ describe("workflow events: value changed, deleted", () => {
     const tasks = await import("@/app/api/tasks/route");
     const all = (await (await tasks.GET(req("/api/tasks?state=all"))).json()).tasks as { title: string }[];
     expect(all.map((t) => t.title)).not.toContain("should not be created");
+  });
+
+  it("runs for each record deleted together, and for a duplicate merged away, saying where it went", async () => {
+    await workflow("contact.deleted", [{ type: "log", message: "into {{mergedInto}}" }], "merged into");
+    const one = await create("deals", { name: "Một" });
+    const two = await create("deals", { name: "Hai" });
+    const bulk = await import("@/app/api/deals/bulk-delete/route");
+    expect((await bulk.POST(req("/api/deals/bulk-delete", { method: "POST", body: JSON.stringify({ ids: [one.id, two.id] }) }))).status).toBe(200);
+    expect(await runs("deal.deleted")).toBe(3);
+
+    const keep = await create("contacts", { firstName: "Lan", email: "lan@khach.test" });
+    const dupe = await create("contacts", { firstName: "Lan", lastName: "Trần" });
+    const merge = await import("@/app/api/contacts/[id]/merge/route");
+    const merged = await merge.POST(req(`/api/contacts/${keep.id}/merge`, { method: "POST", body: JSON.stringify({ duplicateId: dupe.id }) }), params({ id: keep.id }));
+    expect(merged.status).toBe(200);
+    expect(await runs("contact.deleted")).toBe(2);
+
+    const list = await import("@/app/api/workflows/route");
+    const id = ((await (await list.GET(req("/api/workflows"))).json()).workflows as { id: string; name: string }[]).find((w) => w.name === "merged into")!.id;
+    const detail = await import("@/app/api/workflows/[id]/route");
+    const latest = ((await (await detail.GET(req(`/api/workflows/${id}`), params({ id }))).json()).runs as { entityId: string; log: unknown }[])[0]!;
+    expect(latest.entityId).toBe(dupe.id);
+    expect(JSON.stringify(latest.log)).toContain(`into ${keep.id}`);
   });
 });

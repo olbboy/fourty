@@ -15,7 +15,7 @@ One person known to a Fourty installation, identified by the email address they 
 _Avoid_: User, login, profile
 
 **Member**:
-An Account's place in one Workspace, carrying a role (admin, member or viewer); removing a Member ends their access to that Workspace but keeps the Account and its history.
+An Account's place in one Workspace, carrying a role (admin, member or viewer); removing a Member ends their access to that Workspace but keeps the Account and its history, and an admin can reactivate them with the role they had.
 _Avoid_: User, teammate, seat
 
 **Invite**:

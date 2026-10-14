@@ -35,10 +35,10 @@ error shapes.
 | Suggestions (evidence ledger) | `/api/facts`, `/api/facts/{id}` |
 | Background agent queue (read-only) | `/api/agent-tasks?entityType=&entityId=` |
 | Saved views | `/api/saved-views` |
-| Export | `/api/export/{contacts,companies,deals}` |
-| Import | `/api/import/contacts` |
+| Export | `/api/export/{contacts,companies,deals,tasks,notes}` |
+| Import | `/api/import/contacts`, `/api/import/deals` (`?dryRun=1` previews every row; otherwise all rows or none) |
 | API keys | `/api/api-keys` |
-| Audit log | `/api/audit` |
+| Audit log | `/api/audit` (admin): `actorId`, `action` (`deal.updated` exactly, `deal.` for one kind of record, `.deleted` for one kind of action), `from`/`to` (epoch ms), `limit` (≤ 1000), `format=csv` (who acted by name and email) |
 | Members | `/api/members` (with `twoFactor`, `lastLoginAt` and `access: { keys, mailboxes }` per member, and `canRescue`), `/api/members/{userId}` (role, `{ reactivate: true }` for a removed member, remove; `DELETE ?revokeAccess=1` also revokes the API keys they made and disconnects the mailboxes they connected); `DELETE /api/members/{userId}/sessions` signs a member out everywhere (signed-in admin of the instance owner's workspace); account rescue for admins of the instance owner's workspace, signed in (not an API key): `PATCH /api/members/{userId}/email`, `POST /api/members/{userId}/reset-link` (24-hour one-time link), `DELETE /api/members/{userId}/2fa` |
 | My account | `GET /api/me` (`{ name, title, phone }`), `PATCH /api/me` (`{ name?, title?, phone? }`), `POST /api/me/password` (`{ currentPassword, newPassword }`; signs out other sessions), `GET /api/me/sessions` (your signed-in devices, `current` marks this one), `DELETE /api/me/sessions` (sign out all the others), `DELETE /api/me/sessions/{id}` |
 | Invites (admin) | `GET` pending / `POST` `/api/members/invite`, `DELETE /api/members/invite/{id}` (revoke); inviting an address again replaces its pending invite; `/api/members/accept` |

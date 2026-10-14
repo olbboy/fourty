@@ -48,7 +48,7 @@ test("an admin's reset link lets a member back in, and they rename themselves", 
     await guestPage.getByRole("button", { name: "Account menu" }).click();
     await guestPage.getByRole("menuitem", { name: "My account" }).click();
     await guestPage.getByLabel("Your name").fill(`${name} (renamed)`);
-    await guestPage.getByRole("dialog").getByRole("button", { name: "Save" }).click();
+    await guestPage.getByRole("dialog").getByRole("button", { name: "Save", exact: true }).click();
     await expect(guestPage.getByText("Name saved.")).toBeVisible();
   } finally {
     await guest.close();
