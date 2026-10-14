@@ -40,6 +40,10 @@ describe("workflowEventLabel", () => {
       "deal.won",
       "deal.lost",
       "task.completed",
+      "deal.value_changed",
+      "contact.deleted",
+      "company.deleted",
+      "deal.deleted",
     ];
     expect(WORKFLOW_EVENTS).toEqual(all);
     for (const event of all) expect(workflowEventLabel(event, en)).not.toBe(event);

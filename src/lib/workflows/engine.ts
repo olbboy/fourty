@@ -81,8 +81,14 @@ export async function runWorkflowsForEvent(ctx: EventContext): Promise<void> {
   }
 }
 
+/** Actions that write to the record itself, which a deleted record cannot take. */
+const WRITES_TO_RECORD = new Set<WorkflowAction["type"]>(["create_task", "add_note", "update_field", "ai_draft"]);
+
 async function runAction(action: WorkflowAction, ctx: EventContext): Promise<string> {
   const now = Date.now();
+  if (ctx.event.endsWith(".deleted") && WRITES_TO_RECORD.has(action.type)) {
+    return `skipped ${action.type}: the ${ctx.entityType} was deleted (it is in the Trash)`;
+  }
   switch (action.type) {
     case "create_task": {
       const title = renderTemplate(action.title, ctx.snapshot);

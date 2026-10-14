@@ -12,6 +12,10 @@ export const EVENT_KEYS: Record<WorkflowEvent, MessageKey> = {
   "deal.won": "event.deal.won",
   "deal.lost": "event.deal.lost",
   "task.completed": "event.task.completed",
+  "deal.value_changed": "event.deal.value_changed",
+  "contact.deleted": "event.contact.deleted",
+  "company.deleted": "event.company.deleted",
+  "deal.deleted": "event.deal.deleted",
 };
 
 export const WORKFLOW_EVENTS = Object.keys(EVENT_KEYS) as WorkflowEvent[];

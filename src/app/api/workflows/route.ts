@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { WORKFLOW_EVENTS } from "@/lib/workflow-field-display";
+import type { WorkflowEvent } from "@/lib/workflows/types";
 import { desc, eq } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { withAuth, authorize, json, parseBody } from "@/lib/api";
@@ -33,16 +35,7 @@ const workflowInput = z.object({
   name: z.string().min(1).max(200),
   enabled: z.boolean().optional().default(true),
   trigger: z.object({
-    event: z.enum([
-      "contact.created",
-      "contact.updated",
-      "company.created",
-      "deal.created",
-      "deal.stage_changed",
-      "deal.won",
-      "deal.lost",
-      "task.completed",
-    ]),
+    event: z.enum(WORKFLOW_EVENTS as [WorkflowEvent, ...WorkflowEvent[]]),
   }),
   conditions: z.array(conditionSchema).max(10).optional().default([]),
   actions: z.array(actionSchema).min(1).max(10),

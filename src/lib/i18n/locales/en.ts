@@ -1295,6 +1295,10 @@ export const en = {
   "event.deal.won": "Deal won",
   "event.deal.lost": "Deal lost",
   "event.task.completed": "Task completed",
+  "event.deal.value_changed": "Deal value or dates changed",
+  "event.contact.deleted": "Contact deleted",
+  "event.company.deleted": "Company deleted",
+  "event.deal.deleted": "Deal deleted",
 
   "page.settings.subtitle":
     "Team, single sign-on, mailboxes, security, field permissions, audit log, custom fields and objects, API access, webhooks, diagnostics, and data tools.",

@@ -7,7 +7,12 @@ visual editor; run it on a durable queue that never drops a job.*
 
 A workflow is **trigger → conditions → actions**:
 
-1. **Trigger** — a CRM event, e.g. `deal.won`, `deal.stage_changed`, `contact.created`.
+1. **Trigger** — a CRM event: `contact.created`, `contact.updated`, `company.created`,
+   `deal.created`, `deal.stage_changed`, `deal.won`, `deal.lost`, `task.completed`,
+   `deal.value_changed` (the amount, expected close date or delivery date changed; the record
+   carries `changedValues`, e.g. `amount,expectedCloseDate`), and `contact.deleted`,
+   `company.deleted`, `deal.deleted` (the record as it was; it is in the Trash, so only
+   **webhook** and **log** act on it, and task, note, field and AI-draft actions are skipped).
 2. **Conditions** *(optional)* — only run when the record matches (e.g. amount > 50000).
 3. **Actions** — one or more of the six types below (AI draft is optional).
 

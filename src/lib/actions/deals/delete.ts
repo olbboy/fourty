@@ -2,7 +2,8 @@ import { eq } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { defineAction } from "../define";
 import { deleteInput } from "../schemas";
-import { ActionError } from "../types";
+import { ActionError, type PayloadEnvelope } from "../types";
+import type { EventContext } from "@/lib/workflows/types";
 import { auditMeta } from "./shared";
 import { trashRecord } from "@/lib/trash";
 
@@ -23,24 +24,30 @@ export const dealsDelete = defineAction({
   description: "Delete a deal by id. Call with confirm=true to actually delete.",
   input: deleteInput,
   expose: { rest: true, graphql: true, mcp: true, ai: true },
-  run: async ({ id, confirm }, ctx): Promise<DeleteResult> => {
+  run: async ({ id, confirm }, ctx): Promise<PayloadEnvelope<DeleteResult> & { snapshot: Record<string, unknown> | null }> => {
     const existing = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0];
     if (!existing) throw new ActionError("not_found", "Deal not found");
 
     if (confirm !== true) {
       return {
+        snapshot: null,
+        payload: {
         dryRun: true,
         wouldDelete: { type: "deal", id, name: existing.name, amount: existing.amount },
         hint: "Re-call with confirm=true to delete. It moves to the Trash with its notes and timeline for 30 days, where it can be restored.",
+        },
       };
     }
     await trashRecord("deal", id, ctx.userId);
-    return { deleted: true, type: "deal", id };
+    // What the record was, for the workflows and webhooks that start on its deletion.
+    return { payload: { deleted: true, type: "deal", id }, snapshot: { ...existing, custom: undefined } };
   },
   effects: {
     audit: (_i, out, ctx) =>
-      "dryRun" in out
+      "dryRun" in out.payload
         ? null
-        : { key: "deal.deleted", objectType: "deal", objectId: out.id, meta: auditMeta(ctx) },
+        : { key: "deal.deleted", objectType: "deal", objectId: out.payload.id, meta: auditMeta(ctx) },
+    events: (_i, out): EventContext[] =>
+      out.snapshot ? [{ event: "deal.deleted", entityType: "deal", entityId: String(out.snapshot.id), snapshot: out.snapshot }] : [],
   },
 });

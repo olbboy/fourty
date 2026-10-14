@@ -1297,6 +1297,10 @@ export const vi: Record<MessageKey, string> = {
   "event.deal.won": "Cơ hội thắng",
   "event.deal.lost": "Cơ hội thua",
   "event.task.completed": "Việc hoàn thành",
+  "event.deal.value_changed": "Giá trị hoặc ngày của deal đổi",
+  "event.contact.deleted": "Liên hệ bị xoá",
+  "event.company.deleted": "Công ty bị xoá",
+  "event.deal.deleted": "Deal bị xoá",
 
   "page.settings.subtitle":
     "Nhóm, đăng nhập SSO, hộp thư, bảo mật, quyền theo trường, nhật ký audit, trường và đối tượng tùy chỉnh, API, webhook, chẩn đoán, và công cụ dữ liệu.",
