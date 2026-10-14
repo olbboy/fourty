@@ -19,10 +19,10 @@ import { withSavepoint } from "@/db";
  * update after). They are independent — audit never reads a score — so the
  * kernel picks one order and a test pins it.
  *
- * Runs inside the caller's `withWorkspace()` transaction; it opens none of its
- * own. Note that `dispatchEvent` hands the job to the queue, which commits
- * outside that transaction — a pre-existing limitation the kernel inherits
- * rather than fixes (ADR-017).
+ * Runs inside the caller's `withWorkspace()` transaction, each action in a
+ * savepoint of it. The jobs `dispatchEvent` asks for wait for that transaction
+ * to commit and are dropped with the savepoint if the action is refused, so a
+ * write that is taken back starts no workflow or webhook (ADR-017, Q94).
  */
 export async function execute<I, O>(
   action: ActionDef<I, O>,

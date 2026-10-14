@@ -51,7 +51,9 @@ describe("workflow engine + scoring integration", () => {
         entityId: "c1",
         snapshot: { firstName: "Ada", status: "lead" },
       });
-
+    });
+    // Workflows run once the write that started them has committed.
+    await withWorkspace(ws, async () => {
       const tasks = await db.select().from(tables.tasks);
       expect(tasks).toHaveLength(1);
       expect(tasks[0].title).toBe("Call Ada");
@@ -65,8 +67,9 @@ describe("workflow engine + scoring integration", () => {
   });
 
   it("disabled workflows never fire", async () => {
+    let before = 0;
     await withWorkspace(ws, async () => {
-      const before = (await db.select().from(tables.tasks)).length;
+      before = (await db.select().from(tables.tasks)).length;
       await db.insert(tables.workflows).values({
         id: "wf2",
         name: "Disabled",
@@ -82,6 +85,9 @@ describe("workflow engine + scoring integration", () => {
         entityId: "c2",
         snapshot: { status: "lead" },
       });
+    });
+    // Workflows run once the write that started them has committed.
+    await withWorkspace(ws, async () => {
       const titles = (await db.select().from(tables.tasks)).map((t) => t.title);
       expect(titles).not.toContain("Nope");
       expect((await db.select().from(tables.tasks)).length).toBe(before + 1);
@@ -112,6 +118,9 @@ describe("workflow engine + scoring integration", () => {
           closedAt: Date.UTC(2026, 7, 31),
         },
       });
+    });
+    // Workflows run once the write that started them has committed.
+    await withWorkspace(ws, async () => {
       const notes = (await db.select().from(tables.notes)).filter((n) => n.entityId === "deal-won-date");
       expect(notes).toHaveLength(1);
       expect(notes[0].body).toBe("Won on 2026-08-31 for 48000 USD");
@@ -153,9 +162,9 @@ describe("workflow engine + scoring integration", () => {
   });
 
   it("update_field writes allowed columns and skips a forbidden one", async () => {
+    const id = newId();
     await withWorkspace(ws, async () => {
       const now = Date.now();
-      const id = newId();
       await db.insert(tables.contacts).values({
         id,
         firstName: "Zoe",
@@ -183,7 +192,9 @@ describe("workflow engine + scoring integration", () => {
         entityId: id,
         snapshot: { firstName: "Zoe", status: "lead" },
       });
-
+    });
+    // Workflows run once the write that started them has committed.
+    await withWorkspace(ws, async () => {
       const row = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)))[0];
       expect(row.status).toBe("qualified");
       expect(row.jobTitle).toBe("Zoe Ops");

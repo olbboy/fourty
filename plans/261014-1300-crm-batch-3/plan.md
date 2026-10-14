@@ -183,3 +183,13 @@ Giữ nguyên, có lý do:
 - Test trước khi merge: unit 1.303 đạt, 6 bỏ qua; e2e 133 đạt.
 - Việc tách riêng: gửi sự kiện workflow sau khi giao dịch commit (ADR-017).
 
+## Quyết định của Leo sau deploy (14/10/2026)
+
+| # | Chọn | Việc đã làm |
+|---|---|---|
+| Q94 | A, làm ngay | Job sinh ra trong giao dịch (workflow, webhook, email) chờ giao dịch commit mới gửi; savepoint bị huỷ thì bỏ job của nó. Có test đầu-cuối: nhập deal hỏng ở dòng 2 không gửi webhook cho dòng 1. ADR-017 cập nhật. |
+| Q95 | A | Gộp bản ghi tiếp tục phát `contact.deleted` / `company.deleted` kèm `mergedInto`. |
+| Q96 | A | Kích hoạt lại thành viên không đụng phiên đăng nhập; admin dùng "đăng xuất mọi nơi" nếu cần. |
+| Q97 | A | Leo tự nhập 2 deal và 1 việc của LTHoa bằng màn hình nhập deal. |
+| Q98 | B | Claude đặt trên production, sau backup `fourty-2026-10-14-0944.dump`, ghi nhật ký với `via: claude`: bật nhắc việc (tiếng Việt, giờ Việt Nam, link `https://crm.example.com`); trường ngày giao `planned_ship_date`, trường chia cột `sales_motion`, trường lý do thua `loss_reason`; tắt workflow "Bổ sung lý do không tiếp tục". |
+
