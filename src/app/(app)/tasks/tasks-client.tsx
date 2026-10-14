@@ -21,7 +21,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { useLocale, useT } from "@/lib/i18n/provider";
-import { BulkOwnerBar, OwnerFilter, reassignOwner, useOwnerPeople } from "@/components/owner-controls";
+import { BulkBar, OwnerFilter, bulkDelete, reassignOwner, useOwnerPeople } from "@/components/owner-controls";
 import { ownerLabel } from "@/lib/owner-display";
 
 const ENTITY_PATH: Record<string, string> = {
@@ -161,6 +161,16 @@ export function TasksClient() {
     } catch {
       setFailed(true);
     }
+  }
+
+  /** Mark the open tasks shown done in one go; all or none. */
+  async function completeShown(ids: string[]) {
+    const res = await fetch("/api/tasks/bulk-complete", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ids }),
+    }).catch(() => null);
+    if (res?.ok) void load();
   }
 
   async function remove(task: Task): Promise<void> {
@@ -306,18 +316,29 @@ export function TasksClient() {
       </div>
 
       {/* Handing over: narrow to one owner, then give every task shown to
-          someone else in one go. */}
+          someone else, mark them done or delete them, in one go. */}
       {ownerFilter && tasks && tasks.length > 0 && (
-        <BulkOwnerBar
+        <BulkBar
           count={tasks.length}
           label={t("owner.bulkShown", { count: tasks.length })}
           people={people}
-          onApply={async (ownerId) => {
+          onReassign={async (ownerId) => {
             const ok = await reassignOwner("tasks", tasks.map((task) => task.id), ownerId);
             if (ok) void load();
             return ok;
           }}
-        />
+          onDelete={async () => {
+            const ok = await bulkDelete("tasks", tasks.map((task) => task.id));
+            if (ok) void load();
+            return ok;
+          }}
+        >
+          {tasks.some((task) => !task.completedAt) && (
+            <Button size="sm" variant="outline" onClick={() => void completeShown(tasks.filter((task) => !task.completedAt).map((task) => task.id))}>
+              {t("bulk.complete")}
+            </Button>
+          )}
+        </BulkBar>
       )}
 
       {failed ? (

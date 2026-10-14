@@ -14,6 +14,7 @@ error shapes.
 | Companies | `/api/companies` (filter `ownerId` = member id or `none`), `/api/companies/{id}` (`ownerId`), `POST /api/companies/reassign` (`{ ids, ownerId }`, all or nothing) |
 | Deals | `/api/deals` (filters `ownerId` = member id or `none`, `closeQuarter` = `2026-Q4`, `fieldKey` + `fieldValue`), `/api/deals/{id}` (`ownerId` assigns a member; `currency` must be one of the [12 supported codes](../guides/pipeline.md#multi-currency)), `POST /api/deals/reassign` (`{ ids, ownerId }`, all or nothing); `/api/deals/{id}/contacts` (GET the people on a deal, primary first; PUT `{ contacts: [{ contactId, role }] }` replaces the others); `/api/deals/{id}/lines` (GET the line items and their `total`; PUT `{ lines: [{ productId?, name?, quantity, unitPrice? }] }` replaces them and makes the deal's `amount` their sum; while a deal has lines, a PATCH that changes `amount` or `currency` is refused with `400`) |
 | Products | `/api/products` (GET by name, `q`, `state=all` adds products no longer sold; POST `{ name, code?, unitPrice, currency }`), `/api/products/{id}` (PATCH, including `active`; DELETE). A deal line keeps the name and price it was added with |
+| Bulk | `POST /api/{deals,contacts,companies,tasks}/bulk-delete` (`{ ids }`, into the Trash), `POST /api/deals/bulk-move` (`{ ids, stageId }`), `POST /api/tasks/bulk-complete` (`{ ids }`); all or nothing |
 | Tasks | `/api/tasks` (filter `ownerId` = member id or `none`), `/api/tasks/{id}` (`ownerId` assigns a member), `POST /api/tasks/reassign` (`{ ids, ownerId }`); `/api/tasks/assignees` lists who can own a task or deal (GraphQL `assignees`, MCP `list_assignees`), `?all=1` adds members who left, each with `active` |
 | Notes | `/api/notes` (GET list + POST create), `/api/notes/{id}` (PATCH `{ body }`, DELETE; author or admin only) |
 | Activities (timeline) | `/api/activities` |
@@ -21,7 +22,7 @@ error shapes.
 | Trash | `/api/trash` (what was deleted in the last 30 days), `POST /api/trash/{id}/restore` (needs create on that kind of record; `409` when a contact's email was taken meanwhile), `DELETE /api/trash/{id}` (admins, for good). Deleting a contact, company, deal or task moves it here with its notes and timeline |
 | Pipelines | `/api/pipelines` (GET, POST), `/api/pipelines/{id}` (PATCH name; DELETE when empty and not the last) |
 | Stages | `/api/stages` (POST name, winProbability, color), `/api/stages/{id}` (PATCH name, winProbability, order, color; DELETE open stages with no deals) |
-| Search | `/api/search?q=…` (contacts + companies + deals + custom-object records) |
+| Search | `/api/search?q=…` (contacts by name, email or phone in any format; companies; deals; custom-object records; and any of the first three by the words of their notes) |
 | Dashboard stats | `/api/stats/dashboard` (amounts in the reporting `currency` it names) |
 | Reports | `/api/stats/reports` (adds `forecast.byClose` / `forecast.byDelivery` quarter tables) |
 | Reporting settings | `/api/settings/reporting` (GET for any member; PATCH `currency`, `perUsd`, `deliveryField`, `breakdownField`, `lostReasonField` for admins) |

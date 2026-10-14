@@ -41,7 +41,16 @@ write) can log an email, call, or meeting (`POST /api/activities`, GraphQL
   note left is updated or removed with it. Writes are validated with zod; a bad
   field returns `400 {"error": "field: message"}`.
 - **Search** across contacts, companies, deals, and custom-object records from the **⌘K command palette** or
-  `GET /api/search?q=…`.
+  `GET /api/search?q=…`. A contact is found by phone however the number is written (`0903 123 456`,
+  `0903.123.456` and `+84 903 123 456` are the same number), and a contact, company or deal is found by
+  the words of its notes, shown under the result. MCP and GraphQL `search` keep their exact-or-prefix
+  rule: a phone number matches from its start, and notes are not searched.
+- **Bulk changes**: tick rows on the deals, contacts or companies list to give them all one owner or
+  delete them into the Trash; deals can also move to one stage together. Every record is checked first,
+  and if one cannot change (say, a lost stage needs a reason it lacks) nothing changes. On the tasks
+  list, filter by owner and act on every task shown: hand them over, mark them done, or delete them.
+  Over the API: `POST /api/{deals,contacts,companies,tasks}/bulk-delete`, `POST /api/deals/bulk-move`
+  (`{ ids, stageId }`), `POST /api/tasks/bulk-complete`.
 - **Bulk-load** with [CSV import](./import-export.md), which updates on email match
   and auto-links companies. Creating a contact with an email that already exists
   is refused; the record page flags leftover duplicates (same email, or the same

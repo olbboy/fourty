@@ -16,7 +16,8 @@ import {
 } from "@/components/ui";
 import { IconPlus, IconDownload, IconUpload } from "@/components/icons";
 import { SavedViewsBar, type SavedView } from "@/components/saved-views";
-import { OwnerFilter, useOwnerPeople } from "@/components/owner-controls";
+import { BulkBar, OwnerFilter, bulkDelete, reassignOwner, useOwnerPeople } from "@/components/owner-controls";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ownerLabel } from "@/lib/owner-display";
 import { ContactForm } from "./contact-form";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -65,6 +66,7 @@ export function ContactsClient() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
   const [ownerFilter, setOwnerFilter] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const people = useOwnerPeople();
   const [sort, setSort] = useState("updatedAt");
   const [activeView, setActiveView] = useState<string | null>(null);
@@ -295,10 +297,37 @@ export function ContactsClient() {
           }
         />
       ) : (
+        <>
+        <BulkBar
+          count={contacts.filter((c) => selected.has(c.id)).length}
+          people={people}
+          onClear={() => setSelected(new Set())}
+          onReassign={async (ownerId) => {
+            const ok = await reassignOwner("contacts", contacts.filter((c) => selected.has(c.id)).map((c) => c.id), ownerId);
+            if (ok) void load();
+            return ok;
+          }}
+          onDelete={async () => {
+            const ok = await bulkDelete("contacts", contacts.filter((c) => selected.has(c.id)).map((c) => c.id));
+            if (ok) {
+              setSelected(new Set());
+              void load();
+            }
+            return ok;
+          }}
+        />
         <Card size="flush">
           <Table className="min-w-[720px]">
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={contacts.length > 0 && contacts.every((c) => selected.has(c.id))}
+                    indeterminate={contacts.some((c) => selected.has(c.id)) && !contacts.every((c) => selected.has(c.id))}
+                    onCheckedChange={(on) => setSelected(on ? new Set(contacts.map((c) => c.id)) : new Set())}
+                    aria-label={t("owner.selectAll")}
+                  />
+                </TableHead>
                 <TableHead>{t("col.name")}</TableHead>
                 <TableHead>{t("col.company")}</TableHead>
                 <TableHead>{t("col.status")}</TableHead>
@@ -327,6 +356,20 @@ export function ContactsClient() {
                   }}
                   className="cursor-pointer hover:bg-surface-2"
                 >
+                  <TableCell onClick={(event) => event.stopPropagation()}>
+                    <Checkbox
+                      checked={selected.has(c.id)}
+                      onCheckedChange={(on) =>
+                        setSelected((current) => {
+                          const next = new Set(current);
+                          if (on) next.add(c.id);
+                          else next.delete(c.id);
+                          return next;
+                        })
+                      }
+                      aria-label={t("owner.selectRow", { name: displayName(c.firstName, c.lastName) })}
+                    />
+                  </TableCell>
                   <TableCell className="font-medium">
                     <Link
                       href={`/contacts/${c.id}`}
@@ -361,6 +404,7 @@ export function ContactsClient() {
             </TableBody>
           </Table>
         </Card>
+        </>
       )}
       {contacts && contacts.length > 0 && (
         <p className="mt-2 text-xs text-ink-muted sm:hidden">

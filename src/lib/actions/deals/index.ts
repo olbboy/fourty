@@ -7,6 +7,7 @@ import { dealsDelete } from "./delete";
 import { dealsReassign } from "./reassign";
 import { dealsContacts, dealsSetContacts } from "./contacts";
 import { dealsLines, dealsSetLines } from "./lines";
+import { dealsBulkDelete, dealsBulkMove } from "./bulk";
 
 register(dealsList);
 register(dealsGet);
@@ -18,5 +19,7 @@ register(dealsContacts);
 register(dealsSetContacts);
 register(dealsLines);
 register(dealsSetLines);
+register(dealsBulkMove);
+register(dealsBulkDelete);
 
-export { dealsList, dealsGet, dealsCreate, dealsUpdate, dealsDelete, dealsReassign, dealsContacts, dealsSetContacts, dealsLines, dealsSetLines };
+export { dealsList, dealsGet, dealsCreate, dealsUpdate, dealsDelete, dealsReassign, dealsContacts, dealsSetContacts, dealsLines, dealsSetLines, dealsBulkMove, dealsBulkDelete };

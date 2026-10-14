@@ -44,7 +44,7 @@ import {
 } from "@/components/ui/table";
 import { useLocale, useT } from "@/lib/i18n/provider";
 import { Checkbox } from "@/components/ui/checkbox";
-import { BulkOwnerBar, OwnerFilter, reassignOwner, useOwnerPeople } from "@/components/owner-controls";
+import { BulkBar, OwnerFilter, bulkDelete, reassignOwner, useOwnerPeople } from "@/components/owner-controls";
 import { ownerLabel } from "@/lib/owner-display";
 import { quarterOf } from "@/lib/forecast";
 
@@ -682,32 +682,48 @@ export function DealsClient() {
         </div>
       ) : (
         <>
-        {canAssign && (
-          <BulkOwnerBar
-            count={selectedShown.length}
-            people={people}
-            onClear={() => setSelected(new Set())}
-            onApply={async (ownerId) => {
-              const ok = await reassignOwner("deals", selectedShown.map((deal) => deal.id), ownerId);
-              if (ok) void load();
-              return ok;
-            }}
-          />
-        )}
+        <BulkBar
+          count={selectedShown.length}
+          people={people}
+          onClear={() => setSelected(new Set())}
+          onReassign={
+            canAssign
+              ? async (ownerId) => {
+                  const ok = await reassignOwner("deals", selectedShown.map((deal) => deal.id), ownerId);
+                  if (ok) void load();
+                  return ok;
+                }
+              : undefined
+          }
+          onDelete={async () => {
+            const ok = await bulkDelete("deals", selectedShown.map((deal) => deal.id));
+            if (ok) {
+              setSelected(new Set());
+              void load();
+            }
+            return ok;
+          }}
+        >
+          {canMoveStage && (
+            <BulkStageMove
+              stages={pipeline.stages}
+              ids={selectedShown.map((deal) => deal.id)}
+              onMoved={() => void load()}
+            />
+          )}
+        </BulkBar>
         <Card size="flush">
           <Table className="min-w-[820px]">
             <TableHeader>
               <TableRow>
-                {canAssign && (
-                  <TableHead className="w-10">
-                    <Checkbox
-                      checked={allShownSelected}
-                      indeterminate={selectedShown.length > 0 && !allShownSelected}
-                      onCheckedChange={(on) => setSelected(on ? new Set(pipelineDeals.map((deal) => deal.id)) : new Set())}
-                      aria-label={t("owner.selectAll")}
-                    />
-                  </TableHead>
-                )}
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={allShownSelected}
+                    indeterminate={selectedShown.length > 0 && !allShownSelected}
+                    onCheckedChange={(on) => setSelected(on ? new Set(pipelineDeals.map((deal) => deal.id)) : new Set())}
+                    aria-label={t("owner.selectAll")}
+                  />
+                </TableHead>
                 <TableHead>{t("col.deal")}</TableHead>
                 <TableHead>{t("col.amount")}</TableHead>
                 <TableHead>{t("col.health")}</TableHead>
@@ -730,15 +746,13 @@ export function DealsClient() {
                     onClick={() => router.push(`/deals/${deal.id}`)}
                     className="cursor-pointer transition hover:bg-surface-2"
                   >
-                    {canAssign && (
-                      <TableCell onClick={(event) => event.stopPropagation()}>
-                        <Checkbox
-                          checked={selected.has(deal.id)}
-                          onCheckedChange={(on) => toggle(deal.id, on)}
-                          aria-label={t("owner.selectRow", { name: displayName(deal.name) })}
-                        />
-                      </TableCell>
-                    )}
+                    <TableCell onClick={(event) => event.stopPropagation()}>
+                      <Checkbox
+                        checked={selected.has(deal.id)}
+                        onCheckedChange={(on) => toggle(deal.id, on)}
+                        aria-label={t("owner.selectRow", { name: displayName(deal.name) })}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">
                       <Link
                         href={`/deals/${deal.id}`}
@@ -865,5 +879,55 @@ export function DealsClient() {
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * Move the selected deals into one stage of their pipeline. The server moves
+ * all or none, and says why when one cannot go (a lost stage needing a reason).
+ */
+function BulkStageMove({ stages, ids, onMoved }: { stages: Pipeline["stages"]; ids: string[]; onMoved: () => void }) {
+  const t = useT();
+  const [stageId, setStageId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function move() {
+    setBusy(true);
+    setError(null);
+    const res = await fetch("/api/deals/bulk-move", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ids, stageId }),
+    }).catch(() => null);
+    setBusy(false);
+    if (res?.ok) {
+      setStageId("");
+      onMoved();
+      return;
+    }
+    const message = res ? ((await res.json().catch(() => ({}))) as { error?: string }).error : undefined;
+    setError(message ?? t("owner.bulkFailed"));
+  }
+
+  return (
+    <>
+      <NativeSelect value={stageId} onChange={(e) => setStageId(e.target.value)} aria-label={t("bulk.moveAria")} size="sm">
+        <option value="">{t("bulk.moveChoose")}</option>
+        {stages.map((stage) => (
+          <option key={stage.id} value={stage.id}>
+            {stage.name}
+          </option>
+        ))}
+      </NativeSelect>
+      <Button size="sm" disabled={!stageId || busy} onClick={() => void move()}>
+        {t("bulk.move")}
+      </Button>
+      {error && (
+        <span role="alert" className="text-feedback-error">
+          {error}
+        </span>
+      )}
+    </>
   );
 }

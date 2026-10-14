@@ -38,7 +38,7 @@ import {
   toCompanyApiParams,
 } from "@/lib/company-list-query";
 import { useT } from "@/lib/i18n/provider";
-import { OwnerFilter, useOwnerPeople } from "@/components/owner-controls";
+import { BulkBar, OwnerFilter, bulkDelete, reassignOwner, useOwnerPeople } from "@/components/owner-controls";
 import { ownerLabel } from "@/lib/owner-display";
 import type { MessageKey } from "@/lib/i18n";
 import { CompaniesTable } from "./companies-table";
@@ -570,6 +570,27 @@ export function CompaniesClient({
             </span>
           </div>
           {companies.length > 0 ? (
+            <>
+            <BulkBar
+              count={selectedOnPage.length}
+              // The selection count is already announced above the table.
+              label=""
+              people={people}
+              onClear={() => setSelectedIds(new Set())}
+              onReassign={async (ownerId) => {
+                const ok = await reassignOwner("companies", selectedOnPage, ownerId);
+                if (ok) reload();
+                return ok;
+              }}
+              onDelete={async () => {
+                const ok = await bulkDelete("companies", selectedOnPage);
+                if (ok) {
+                  setSelectedIds(new Set());
+                  reload();
+                }
+                return ok;
+              }}
+            />
             <CompaniesTable
               companies={companies}
               selectedIds={selectedIds}
@@ -595,6 +616,7 @@ export function CompaniesClient({
                 })
               }
             />
+            </>
           ) : null}
           <div className="mt-4 flex items-center justify-end gap-2">
             <Button

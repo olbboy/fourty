@@ -17,7 +17,7 @@ test("a contact is handed to a teammate and listed under them", async ({ page, b
   await dialog.getByRole("combobox", { name: "Owner" }).selectOption({ label: mate.name });
   await dialog.getByRole("button", { name: "Save changes" }).click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByText(mate.name, { exact: true })).toBeVisible();
+  await expect(page.getByRole("paragraph").filter({ hasText: new RegExp(`^${mate.name}$`) })).toBeVisible();
 
   await page.goto("/contacts");
   await page.getByRole("combobox", { name: "Filter by owner" }).selectOption({ label: mate.name });
