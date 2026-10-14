@@ -18,7 +18,11 @@ test("two selected deals move stage together, then go to the Trash", async ({ pa
 
   await page.goto("/deals");
   await page.getByRole("button", { name: "List view" }).click();
-  await page.getByRole("textbox", { name: "Search deals" }).fill(`Bulk`);
+  // The search reloads the list (and clears any selection) a moment after typing.
+  await Promise.all([
+    page.waitForResponse((res) => res.url().includes("/api/deals?") && res.url().includes(`q=${stamp}`)),
+    page.getByRole("textbox", { name: "Search deals" }).fill(`${stamp}`),
+  ]);
   for (const name of [`Bulk A ${stamp}`, `Bulk B ${stamp}`]) {
     await page.getByRole("checkbox", { name: `Select ${name}` }).click();
   }
@@ -29,7 +33,8 @@ test("two selected deals move stage together, then go to the Trash", async ({ pa
   await expect(page.getByRole("row").filter({ hasText: `Bulk A ${stamp}` })).toContainText(second!.name);
   await expect(page.getByRole("row").filter({ hasText: `Bulk B ${stamp}` })).toContainText(second!.name);
 
-  // A reload clears the selection; pick the two again.
+  // The move reloads the list, which clears the selection; pick the two again.
+  await expect(bar).toBeHidden();
   for (const name of [`Bulk A ${stamp}`, `Bulk B ${stamp}`]) {
     await page.getByRole("checkbox", { name: `Select ${name}` }).click();
   }
