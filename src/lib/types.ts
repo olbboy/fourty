@@ -52,6 +52,8 @@ export type CompanySort =
 export type CompanyListQuery = {
   q: string;
   industry: string;
+  /** A member id, "none" for unowned, or "" for everyone. */
+  ownerId: string;
   sort: CompanySort | null;
   offset: number;
   limit: number;

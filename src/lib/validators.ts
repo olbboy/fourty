@@ -16,6 +16,7 @@ export const contactInput = z.object({
   linkedin: z.string().max(200).nullable().optional(),
   city: z.string().max(120).nullable().optional(),
   country: z.string().max(120).nullable().optional(),
+  ownerId: z.string().min(1).max(64).nullable().optional(),
   custom: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -31,6 +32,7 @@ export const companyInput = z.object({
   city: z.string().max(120).nullable().optional(),
   country: z.string().max(120).nullable().optional(),
   annualRevenue: z.number().nullable().optional(),
+  ownerId: z.string().min(1).max(64).nullable().optional(),
   custom: z.record(z.string(), z.unknown()).optional(),
 });
 

@@ -4,6 +4,7 @@ import { newId } from "@/lib/id";
 import { contactInput } from "@/lib/validators";
 import { recomputeContactScore } from "@/lib/services/contact-score";
 import { defineAction } from "../define";
+import { resolveOwner } from "../assignees";
 import { encodeCustom } from "@/lib/custom-fields";
 import { ActionError } from "../types";
 import { auditMeta, findContactIdByEmail, toContact, type Contact } from "./shared";
@@ -24,13 +25,14 @@ export const contactsCreate = defineAction({
     }
     const now = Date.now();
     const id = newId();
-    const { custom, ...fields } = data;
+    const { custom, ownerId: requestedOwner, ...fields } = data;
+    const ownerId = await resolveOwner(requestedOwner, ctx);
     const blob = await encodeCustom("contact", custom ?? {});
     if (!blob.ok) throw new ActionError("invalid", blob.error);
     await db.insert(tables.contacts).values({
       id,
       ...fields,
-      ownerId: ctx.userId,
+      ownerId,
       custom: blob.json,
       createdAt: now,
       updatedAt: now,

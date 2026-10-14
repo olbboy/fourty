@@ -18,9 +18,12 @@ import { CompanyForm } from "../company-form";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useLocale, useT } from "@/lib/i18n/provider";
+import { useOwnerPeople } from "@/components/owner-controls";
+import { ownerLabel } from "@/lib/owner-display";
 
 export function CompanyDetail({ id }: { id: string }) {
   const t = useT();
+  const people = useOwnerPeople();
   const locale = useLocale();
   const [askConfirm, confirmDialog] = useConfirm();
   const router = useRouter();
@@ -185,6 +188,7 @@ export function CompanyDetail({ id }: { id: string }) {
             {/* `field` names the fact-ledger field, where there is one. */}
             {[
               { label: t("field.domain"), value: company.domain },
+              { label: t("field.owner"), value: ownerLabel(company.ownerId ?? null, people, t) },
               { label: t("field.website"), value: company.website },
               { label: t("field.linkedin"), value: company.linkedin, field: "linkedin" },
               {

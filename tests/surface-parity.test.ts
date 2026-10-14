@@ -368,6 +368,8 @@ describe("side-effect parity across REST / GraphQL / MCP", () => {
     await import("@/app/api/deals/route");
     await import("@/app/api/deals/[id]/route");
     await import("@/app/api/deals/reassign/route");
+    await import("@/app/api/contacts/reassign/route");
+    await import("@/app/api/companies/reassign/route");
     await import("@/app/api/deals/[id]/contacts/route");
     await import("@/app/api/deals/[id]/lines/route");
     await import("@/app/api/products/route");

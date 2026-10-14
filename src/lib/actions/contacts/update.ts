@@ -7,9 +7,10 @@ import { recomputeContactScore } from "@/lib/services/contact-score";
 import { defineAction } from "../define";
 import { encodeCustom } from "@/lib/custom-fields";
 import { ActionError } from "../types";
+import { ownerChange, resolveOwner, type OwnerChange } from "../assignees";
 import { auditMeta, findContactIdByEmail, toContact, type Contact } from "./shared";
 
-type UpdateResult = { payload: Contact; changedFields: string[]; touchedCustom: boolean };
+type UpdateResult = { payload: Contact; changedFields: string[]; touchedCustom: boolean; ownerChange: OwnerChange | null };
 
 export const contactsUpdate = defineAction({
   name: "contacts.update",
@@ -19,18 +20,19 @@ export const contactsUpdate = defineAction({
   input: contactPatch.extend({ id: z.string().min(1) }),
   expose: { rest: true, graphql: true, mcp: true, ai: true },
   run: async ({ id, ...patch }, ctx): Promise<UpdateResult> => {
-    void ctx;
     const existing = (await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0];
     if (!existing) throw new ActionError("not_found", "Contact not found");
 
-    const { custom, ...fields } = patch;
+    const { custom, ownerId: requestedOwner, ...fields } = patch;
+    const ownerPatch = requestedOwner !== undefined ? { ownerId: await resolveOwner(requestedOwner, ctx) } : {};
+    const owner = ownerPatch.ownerId !== undefined ? await ownerChange(existing.ownerId, ownerPatch.ownerId) : null;
     if (fields.email) {
       const other = await findContactIdByEmail(fields.email, id);
       if (other) {
         throw new ActionError("invalid", `A contact with this email already exists (${other})`);
       }
     }
-    const changedFields = changedKeys(fields, existing);
+    const changedFields = [...changedKeys(fields, existing), ...(owner ? ["ownerId"] : [])];
     let customJson: string | undefined;
     if (custom !== undefined) {
       const blob = await encodeCustom("contact", { ...JSON.parse(existing.custom), ...custom });
@@ -41,6 +43,7 @@ export const contactsUpdate = defineAction({
       .update(tables.contacts)
       .set({
         ...fields,
+        ...ownerPatch,
         ...(customJson !== undefined ? { custom: customJson } : {}),
         updatedAt: Date.now(),
       })
@@ -51,12 +54,16 @@ export const contactsUpdate = defineAction({
       payload: toContact((await db.select().from(tables.contacts).where(eq(tables.contacts.id, id)).limit(1))[0]!),
       changedFields,
       touchedCustom: custom !== undefined,
+      ownerChange: owner,
     };
   },
   effects: {
     // An update that changed nothing leaves no trace on the timeline.
     activity: (_i, out, ctx) =>
-      out.changedFields.length === 0 && !out.touchedCustom
+      // One timeline entry per write; a hand-over outranks the field list, as on Deals.
+      out.ownerChange
+        ? { type: "owner_changed", entityType: "contact", entityId: out.payload.id, actorId: ctx.userId, meta: { ...out.ownerChange } }
+        : out.changedFields.length === 0 && !out.touchedCustom
         ? null
         : {
             type: "updated",

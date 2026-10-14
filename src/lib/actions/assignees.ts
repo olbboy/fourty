@@ -48,6 +48,25 @@ export async function getAssignee(id: string): Promise<Assignee | undefined> {
   )[0];
 }
 
+/** An Owner change as the timeline shows it: names at the time, null for unassigned. */
+export type OwnerChange = { from: string | null; to: string | null };
+
+/**
+ * The change from one owner to another, or null when it is no change. Names
+ * are read from accounts, not active memberships: a departed owner keeps their
+ * name in history.
+ */
+export async function ownerChange(fromId: string | null, toId: string | null): Promise<OwnerChange | null> {
+  if (fromId === toId) return null;
+  return { from: await accountName(fromId), to: await accountName(toId) };
+}
+
+async function accountName(id: string | null): Promise<string | null> {
+  if (!id) return null;
+  const row = (await db.select({ name: tables.users.name }).from(tables.users).where(eq(tables.users.id, id)).limit(1))[0];
+  return row?.name ?? null;
+}
+
 /**
  * The owner a write should store. `undefined` keeps the caller as owner (API
  * keys have none). `null` is explicitly unassigned. Anyone else must be an

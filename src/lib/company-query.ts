@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, isNull, or, sql, type SQL } from "drizzle-orm";
 import { tables } from "@/db";
 import { escapeLikeLiteral } from "@/lib/custom-objects";
 import { canReadField, type FieldPolicy } from "@/lib/field-permissions";
@@ -20,6 +20,8 @@ export type CompanySearchField = "name" | "domain" | "industry";
 export type CompanyQuery = {
   q?: string;
   industry?: string;
+  /** A member id, or "none" for companies nobody owns. */
+  ownerId?: string;
   sort: CompanySort;
   sortProvided: boolean;
   offset: number;
@@ -79,11 +81,13 @@ export function normalizeCompanyQuery(params: URLSearchParams): CompanyQueryVali
 
   const q = params.get("q")?.trim() || undefined;
   const industry = params.get("industry")?.trim() || undefined;
+  const ownerId = params.get("ownerId")?.trim() || undefined;
   return {
     ok: true,
     value: {
       q,
       industry,
+      ownerId,
       sort: rawSort as CompanySort,
       sortProvided,
       offset: offset.value,
@@ -149,6 +153,8 @@ export function companyWhere(
     clauses.push(predicates.length ? or(...predicates)! : sql`false`);
   }
   if (query.industry) clauses.push(eq(tables.companies.industry, query.industry));
+  if (query.ownerId === "none") clauses.push(isNull(tables.companies.ownerId));
+  else if (query.ownerId) clauses.push(eq(tables.companies.ownerId, query.ownerId));
   return clauses.length ? and(...clauses) : undefined;
 }
 

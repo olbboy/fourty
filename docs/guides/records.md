@@ -97,6 +97,17 @@ until noon, and never twice. The email is written in the language picked next to
 switch (the admin's language when they first turn it on), and links to the address
 the app had when the settings were last saved.
 
+## Owner
+
+Contacts and companies have an **owner** like deals: the member accountable for them now.
+It starts as whoever created the record (unassigned when an API key did) and can be handed
+to another member in the record's form; the timeline shows *changed owner: A → B*. The
+contacts and companies lists filter by owner and show it in a column, and saved views keep
+that filter. Over the API: `ownerId` on create and update, `?ownerId=…|none` on the lists,
+and `POST /api/contacts/reassign` / `POST /api/companies/reassign` with `{ "ids": [...],
+"ownerId": "…" | null }` (GraphQL `reassignContacts`, `reassignCompanies`; MCP
+`reassign_contacts`, `reassign_companies`).
+
 ## Trash
 
 Deleting a contact, company, deal or task moves it to **Settings → Trash** with its notes

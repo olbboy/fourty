@@ -10,8 +10,8 @@ error shapes.
 
 | Resource | Endpoints |
 |---|---|
-| Contacts | `/api/contacts`, `/api/contacts/{id}` |
-| Companies | `/api/companies`, `/api/companies/{id}` |
+| Contacts | `/api/contacts` (filter `ownerId` = member id or `none`), `/api/contacts/{id}` (`ownerId` hands it to a member, `null` unassigns), `POST /api/contacts/reassign` (`{ ids, ownerId }`, all or nothing) |
+| Companies | `/api/companies` (filter `ownerId` = member id or `none`), `/api/companies/{id}` (`ownerId`), `POST /api/companies/reassign` (`{ ids, ownerId }`, all or nothing) |
 | Deals | `/api/deals` (filters `ownerId` = member id or `none`, `closeQuarter` = `2026-Q4`, `fieldKey` + `fieldValue`), `/api/deals/{id}` (`ownerId` assigns a member; `currency` must be one of the [12 supported codes](../guides/pipeline.md#multi-currency)), `POST /api/deals/reassign` (`{ ids, ownerId }`, all or nothing); `/api/deals/{id}/contacts` (GET the people on a deal, primary first; PUT `{ contacts: [{ contactId, role }] }` replaces the others); `/api/deals/{id}/lines` (GET the line items and their `total`; PUT `{ lines: [{ productId?, name?, quantity, unitPrice? }] }` replaces them and makes the deal's `amount` their sum; while a deal has lines, a PATCH that changes `amount` or `currency` is refused with `400`) |
 | Products | `/api/products` (GET by name, `q`, `state=all` adds products no longer sold; POST `{ name, code?, unitPrice, currency }`), `/api/products/{id}` (PATCH, including `active`; DELETE). A deal line keeps the name and price it was added with |
 | Tasks | `/api/tasks` (filter `ownerId` = member id or `none`), `/api/tasks/{id}` (`ownerId` assigns a member), `POST /api/tasks/reassign` (`{ ids, ownerId }`); `/api/tasks/assignees` lists who can own a task or deal (GraphQL `assignees`, MCP `list_assignees`), `?all=1` adds members who left, each with `active` |

@@ -38,6 +38,8 @@ import {
   toCompanyApiParams,
 } from "@/lib/company-list-query";
 import { useT } from "@/lib/i18n/provider";
+import { OwnerFilter, useOwnerPeople } from "@/components/owner-controls";
+import { ownerLabel } from "@/lib/owner-display";
 import type { MessageKey } from "@/lib/i18n";
 import { CompaniesTable } from "./companies-table";
 import { CompanyForm } from "./company-form";
@@ -100,7 +102,7 @@ export function CompaniesClient({
   );
   const apiQuery = useMemo(
     () => toCompanyApiParams(query).toString(),
-    [query.q, query.industry, query.sort, query.offset, query.limit],
+    [query.q, query.industry, query.ownerId, query.sort, query.offset, query.limit],
   );
   const listKey = companyListQueryKey(query, workspaceKey);
   const previewId = searchParams.get("preview");
@@ -119,6 +121,7 @@ export function CompaniesClient({
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(searchParams.get("new") === "1");
   const [reloadVersion, setReloadVersion] = useState(0);
+  const people = useOwnerPeople();
   const requestGeneration = useRef(0);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousListKey = useRef(listKey);
@@ -134,6 +137,10 @@ export function CompaniesClient({
         if (patch.industry) next.set("industry", patch.industry);
         else next.delete("industry");
       }
+      if ("ownerId" in patch) {
+        if (patch.ownerId) next.set("ownerId", patch.ownerId);
+        else next.delete("ownerId");
+      }
       if ("sort" in patch) {
         if (patch.sort) next.set("sort", patch.sort);
         else next.delete("sort");
@@ -144,7 +151,7 @@ export function CompaniesClient({
         else next.delete("offset");
       }
       if ("limit" in patch) next.set("limit", String(patch.limit));
-      if (["q", "industry", "sort", "offset"].some((key) => key in patch))
+      if (["q", "industry", "ownerId", "sort", "offset"].some((key) => key in patch))
         next.delete("preview");
       const target = `${pathname}${next.toString() ? `?${next.toString()}` : ""}`;
       if (mode === "replace") router.replace(target, { scroll: false });
@@ -257,7 +264,7 @@ export function CompaniesClient({
     total > 0
       ? Math.max(0, Math.floor((total - 1) / query.limit) * query.limit)
       : 0;
-  const hasFilters = Boolean(query.q || query.industry);
+  const hasFilters = Boolean(query.q || query.industry || query.ownerId);
   const industries = useMemo(() => {
     const values = new Set(facets?.industries ?? []);
     if (query.industry) values.add(query.industry);
@@ -276,10 +283,11 @@ export function CompaniesClient({
       filters: {
         q: query.q || undefined,
         industry: query.industry || undefined,
+        ownerId: query.ownerId || undefined,
       },
       sort: query.sort ?? undefined,
     }),
-    [query.q, query.industry, query.sort],
+    [query.q, query.industry, query.ownerId, query.sort],
   );
   const exportUrls = useMemo(
     () => ({
@@ -323,7 +331,7 @@ export function CompaniesClient({
     setQDraft("");
     setActiveViewId(null);
     setMobileFiltersOpen(false);
-    updateUrl({ q: "", industry: "", sort: null, offset: 0 });
+    updateUrl({ q: "", industry: "", ownerId: "", sort: null, offset: 0 });
   };
 
   const applySavedView = (view: SavedView | null) => {
@@ -332,9 +340,10 @@ export function CompaniesClient({
     const q = typeof filters.q === "string" ? filters.q : "";
     const industry =
       typeof filters.industry === "string" ? filters.industry : "";
+    const ownerId = typeof filters.ownerId === "string" ? filters.ownerId : "";
     setQDraft(q);
     setActiveViewId(view?.id ?? null);
-    updateUrl({ q, industry, sort: parseSort(view?.config.sort), offset: 0 });
+    updateUrl({ q, industry, ownerId, sort: parseSort(view?.config.sort), offset: 0 });
   };
 
   const reload = () => setReloadVersion((value) => value + 1);
@@ -468,6 +477,7 @@ export function CompaniesClient({
               "h-9 !w-36",
             )}
           </label>
+          <OwnerFilter value={query.ownerId} people={people} onChange={(value) => applyFilters({ ownerId: value })} />
           <label className="flex items-center gap-2 text-sm text-ink-muted">
             <span>{t("companies.sort")}</span>
             {renderSortSelect(
@@ -490,7 +500,7 @@ export function CompaniesClient({
           >
             {t("companies.filters")}
             {hasFilters
-              ? ` (${Number(Boolean(query.q)) + Number(Boolean(query.industry))})`
+              ? ` (${Number(Boolean(query.q)) + Number(Boolean(query.industry)) + Number(Boolean(query.ownerId))})`
               : ""}
           </Button>
         </div>
@@ -563,6 +573,7 @@ export function CompaniesClient({
             <CompaniesTable
               companies={companies}
               selectedIds={selectedIds}
+              ownerName={(ownerId) => ownerLabel(ownerId, people, t)}
               onPreview={openPreview}
               onToggle={(id, checked) =>
                 setSelectedIds((current) => {

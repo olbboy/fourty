@@ -17,7 +17,7 @@ export const reassignInput = z.object({
  */
 export function reassignAction(opts: {
   name: string;
-  object: "deals" | "tasks";
+  object: "deals" | "tasks" | "contacts" | "companies";
   noun: string;
   update: ActionDef<any, any>;
   /** How many of these ids exist in the current workspace. */

@@ -24,11 +24,12 @@ Typed queries for every object, plus custom-object records:
 - `contacts`, `contact(id)` — `contacts(sort:, status:, companyId:)` matches REST/MCP;
   `Contact.company` / `Contact.deals` / `Contact.colleagues` nest like MCP `get_contact` neighbours;
   `Contact.tasks` / `Contact.notes` / `Contact.activities` are the lists REST already filtered by that contact;
-  `Contact.facts` is the suggestion inbox REST already filtered by that contact
+  `Contact.facts` is the suggestion inbox REST already filtered by that contact;
+  `contacts(ownerId:)` and `Contact.owner` like deals
 - `companies`, `company(id)` — `companies(industry:, sort:)` matches REST/MCP;
   `Company.contacts` / `Company.deals` nest like `Deal.company`;
   `Company.tasks` / `Company.notes` / `Company.activities` likewise;
-  `Company.facts` likewise
+  `Company.facts` likewise; `companies(ownerId:)` and `Company.owner` like deals
 - `deals`, `deal(id)` — `deals(stageId:, pipelineId:, companyId:, contactId:)` matches REST/MCP;
   `Deal.company` / `Deal.contact` nest like `Contact.company`; `Deal.owner` nests the owner like `Task.owner`;
   `Deal.stage` is the MCP stage clock (name, days in stage);
@@ -74,6 +75,7 @@ Typed queries for every object, plus custom-object records:
 - `createCompany` / `updateCompany` / `deleteCompany`
 - `createDeal` / `updateDeal` / `deleteDeal` — same stage-change and won/lost
   side effects as REST (`deal.stage_changed`, `deal.won`, `deal.lost`)
+- `reassignContacts(ids, ownerId)` / `reassignCompanies(ids, ownerId)` — like `reassignDeals`
 - `setDealContacts(id, contacts)` — replace the people on a deal besides its primary
   contact: `[{ contactId, role }]`
 - `setDealLines(id, lines)` — replace a deal's line items:

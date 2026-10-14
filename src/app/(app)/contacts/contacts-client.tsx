@@ -16,6 +16,8 @@ import {
 } from "@/components/ui";
 import { IconPlus, IconDownload, IconUpload } from "@/components/icons";
 import { SavedViewsBar, type SavedView } from "@/components/saved-views";
+import { OwnerFilter, useOwnerPeople } from "@/components/owner-controls";
+import { ownerLabel } from "@/lib/owner-display";
 import { ContactForm } from "./contact-form";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -62,6 +64,8 @@ export function ContactsClient() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
+  const [ownerFilter, setOwnerFilter] = useState("");
+  const people = useOwnerPeople();
   const [sort, setSort] = useState("updatedAt");
   const [activeView, setActiveView] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(searchParams.get("new") === "1");
@@ -77,6 +81,7 @@ export function ContactsClient() {
     setStatus(
       typeof cfg.filters?.status === "string" ? cfg.filters.status : "",
     );
+    setOwnerFilter(typeof cfg.filters?.ownerId === "string" ? cfg.filters.ownerId : "");
     setQ(typeof cfg.filters?.q === "string" ? cfg.filters.q : "");
     setSort(cfg.sort ?? "updatedAt");
   }, []);
@@ -92,6 +97,7 @@ export function ContactsClient() {
     const params = new URLSearchParams();
     if (q) params.set("q", q);
     if (status) params.set("status", status);
+    if (ownerFilter) params.set("ownerId", ownerFilter);
     params.set("sort", sort);
 
     try {
@@ -114,7 +120,7 @@ export function ContactsClient() {
       if (requestRef.current?.generation === generation)
         requestRef.current = null;
     }
-  }, [q, status, sort]);
+  }, [q, status, ownerFilter, sort]);
 
   useEffect(() => {
     const timer = setTimeout(() => void load(), q ? 150 : 0);
@@ -210,6 +216,7 @@ export function ContactsClient() {
         current={{
           filters: {
             ...(status ? { status } : {}),
+            ...(ownerFilter ? { ownerId: ownerFilter } : {}),
             ...(q.trim() ? { q: q.trim() } : {}),
           },
           sort,
@@ -240,6 +247,14 @@ export function ContactsClient() {
           <option value="customer">{t("status.customer")}</option>
           <option value="churned">{t("status.churned")}</option>
         </NativeSelect>
+        <OwnerFilter
+          value={ownerFilter}
+          people={people}
+          onChange={(value) => {
+            setOwnerFilter(value);
+            setActiveView(null);
+          }}
+        />
         <NativeSelect
           value={sort}
           onChange={(e) => {
@@ -287,6 +302,7 @@ export function ContactsClient() {
                 <TableHead>{t("col.name")}</TableHead>
                 <TableHead>{t("col.company")}</TableHead>
                 <TableHead>{t("col.status")}</TableHead>
+                <TableHead>{t("field.owner")}</TableHead>
                 <TableHead>{t("col.score")}</TableHead>
                 <TableHead className="hidden lg:table-cell">
                   {t("col.email")}
@@ -330,6 +346,7 @@ export function ContactsClient() {
                   <TableCell>
                     <StatusChip status={c.status} />
                   </TableCell>
+                  <TableCell className="text-ink-muted">{ownerLabel(c.ownerId ?? null, people, t)}</TableCell>
                   <TableCell>
                     <ScoreBadge score={c.score} />
                   </TableCell>

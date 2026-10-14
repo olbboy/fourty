@@ -6,9 +6,10 @@ import { changedKeys } from "@/lib/changed-fields";
 import { encodeCustom } from "@/lib/custom-fields";
 import { defineAction } from "../define";
 import { ActionError } from "../types";
+import { ownerChange, resolveOwner, type OwnerChange } from "../assignees";
 import { auditMeta, toCompany, type Company } from "./shared";
 
-type UpdateResult = { payload: Company; changedFields: string[]; touchedCustom: boolean };
+type UpdateResult = { payload: Company; changedFields: string[]; touchedCustom: boolean; ownerChange: OwnerChange | null };
 
 export const companiesUpdate = defineAction({
   name: "companies.update",
@@ -17,12 +18,14 @@ export const companiesUpdate = defineAction({
   description: "Update a company by id. Only the fields you pass change.",
   input: companyPatch.extend({ id: z.string().min(1) }),
   expose: { rest: true, graphql: true, mcp: true, ai: true },
-  run: async ({ id, ...patch }): Promise<UpdateResult> => {
+  run: async ({ id, ...patch }, ctx): Promise<UpdateResult> => {
     const existing = (await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1))[0];
     if (!existing) throw new ActionError("not_found", "Company not found");
 
-    const { custom, ...fields } = patch;
-    const changedFields = changedKeys(fields, existing);
+    const { custom, ownerId: requestedOwner, ...fields } = patch;
+    const ownerPatch = requestedOwner !== undefined ? { ownerId: await resolveOwner(requestedOwner, ctx) } : {};
+    const owner = ownerPatch.ownerId !== undefined ? await ownerChange(existing.ownerId, ownerPatch.ownerId) : null;
+    const changedFields = [...changedKeys(fields, existing), ...(owner ? ["ownerId"] : [])];
     let customJson: string | undefined;
     if (custom !== undefined) {
       const blob = await encodeCustom("company", { ...JSON.parse(existing.custom), ...custom });
@@ -33,6 +36,7 @@ export const companiesUpdate = defineAction({
       .update(tables.companies)
       .set({
         ...fields,
+        ...ownerPatch,
         ...(customJson !== undefined ? { custom: customJson } : {}),
         updatedAt: Date.now(),
       })
@@ -41,11 +45,15 @@ export const companiesUpdate = defineAction({
       payload: toCompany((await db.select().from(tables.companies).where(eq(tables.companies.id, id)).limit(1))[0]!),
       changedFields,
       touchedCustom: custom !== undefined,
+      ownerChange: owner,
     };
   },
   effects: {
     activity: (_i, out, ctx) =>
-      out.changedFields.length === 0 && !out.touchedCustom
+      // One timeline entry per write; a hand-over outranks the field list, as on Deals.
+      out.ownerChange
+        ? { type: "owner_changed", entityType: "company", entityId: out.payload.id, actorId: ctx.userId, meta: { ...out.ownerChange } }
+        : out.changedFields.length === 0 && !out.touchedCustom
         ? null
         : {
             type: "updated",

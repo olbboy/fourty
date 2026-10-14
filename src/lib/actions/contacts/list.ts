@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, ilike, isNull, or, sql, type SQL } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { defineAction } from "../define";
 import { listContactsInput } from "../schemas";
@@ -11,7 +11,7 @@ export const contactsList = defineAction({
   name: "contacts.list",
   object: "contacts",
   verb: "read",
-  description: "List contacts, most recently updated first. Optional text filter.",
+  description: 'List contacts, most recently updated first. Optional filters: text, status, companyId, ownerId (a member id, or "none" for unowned).',
   input: listContactsInput,
   expose: { rest: true, graphql: true, mcp: true, ai: true },
   run: async (input): Promise<Contact[]> => {
@@ -29,6 +29,8 @@ export const contactsList = defineAction({
     }
     if (input.status) where.push(eq(tables.contacts.status, input.status));
     if (input.companyId) where.push(eq(tables.contacts.companyId, input.companyId));
+    if (input.ownerId === "none") where.push(isNull(tables.contacts.ownerId));
+    else if (input.ownerId) where.push(eq(tables.contacts.ownerId, input.ownerId));
 
     const rows = await db
       .select()

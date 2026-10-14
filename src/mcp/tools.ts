@@ -3,8 +3,8 @@ import { db, tables } from "@/db";
 import { can } from "@/lib/permissions";
 import { toMcpTool } from "@/lib/actions/adapters/mcp";
 import { searchCrm } from "@/lib/services/search";
-import { contactsCreate, contactsDelete, contactsGet, contactsList, contactsUpdate } from "@/lib/actions/contacts";
-import { companiesCreate, companiesDelete, companiesGet, companiesList, companiesUpdate } from "@/lib/actions/companies";
+import { contactsCreate, contactsDelete, contactsGet, contactsList, contactsReassign, contactsUpdate } from "@/lib/actions/contacts";
+import { companiesCreate, companiesDelete, companiesGet, companiesList, companiesReassign, companiesUpdate } from "@/lib/actions/companies";
 import { dealsCreate, dealsDelete, dealsGet, dealsList, dealsReassign, dealsSetContacts, dealsSetLines, dealsUpdate } from "@/lib/actions/deals";
 import { visibleLinesOf } from "@/lib/actions/deals/lines";
 import { productsList } from "@/lib/actions/products";
@@ -472,6 +472,8 @@ export const TOOLS: Tool[] = [
   }),
   toMcpTool(tasksCreate, { name: "create_task" }),
   toMcpTool(tasksUpdate, { name: "update_task" }),
+  toMcpTool(contactsReassign, { name: "reassign_contacts" }),
+  toMcpTool(companiesReassign, { name: "reassign_companies" }),
   toMcpTool(dealsReassign, { name: "reassign_deals" }),
   toMcpTool(dealsSetContacts, { name: "set_deal_contacts" }),
   toMcpTool(dealsSetLines, { name: "set_deal_lines" }),

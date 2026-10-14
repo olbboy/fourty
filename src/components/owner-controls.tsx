@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Field } from "@/components/ui";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { useT } from "@/lib/i18n/provider";
@@ -28,6 +29,59 @@ export function useOwnerPeople(): OwnerPerson[] {
   return people;
 }
 
+/**
+ * The Owner select of a record form, named `ownerId` for the form to read. A
+ * new record's empty choice means "me"; an existing record's means unassigned.
+ * The form sends `ownerId` only when the choice moves off `initialOwnerId`.
+ */
+export function OwnerField({ initialOwnerId, isNew, disabled }: { initialOwnerId: string; isNew: boolean; disabled?: boolean }) {
+  const t = useT();
+  const [assignees, setAssignees] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/tasks/assignees", { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((payload: unknown) => {
+        const list = (payload as { assignees?: unknown } | null)?.assignees;
+        if (Array.isArray(list)) setAssignees(list as { id: string; name: string }[]);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setAssignees([]);
+      });
+    return () => controller.abort();
+  }, []);
+
+  return (
+    <Field label={t("field.owner")}>
+      <NativeSelect
+        name="ownerId"
+        // Remount once members load so the saved owner can be selected.
+        key={assignees.length}
+        defaultValue={initialOwnerId}
+        className="w-full"
+        disabled={disabled}
+      >
+        <option value="">{isNew ? t("field.ownerMe") : t("common.unassigned")}</option>
+        {initialOwnerId && assignees.length > 0 && !assignees.some((a) => a.id === initialOwnerId) && (
+          <option value={initialOwnerId}>{t("field.ownerInactive")}</option>
+        )}
+        {assignees.map((assignee) => (
+          <option key={assignee.id} value={assignee.id}>
+            {assignee.name}
+          </option>
+        ))}
+      </NativeSelect>
+    </Field>
+  );
+}
+
+/** Reads an OwnerField: undefined when unchanged, null for unassigned. */
+export function ownerFromForm(form: FormData, initialOwnerId: string): string | null | undefined {
+  const owner = form.get("ownerId");
+  if (typeof owner !== "string" || owner === initialOwnerId) return undefined;
+  return owner || null;
+}
+
 /** "All owners", "Unassigned", then everyone by name, people who left marked. */
 export function OwnerFilter({
   value,
@@ -52,8 +106,12 @@ export function OwnerFilter({
   );
 }
 
-/** Give many deals or tasks one owner; true when every one of them moved. */
-export async function reassignOwner(kind: "deals" | "tasks", ids: string[], ownerId: string | null): Promise<boolean> {
+/** Give many records one owner; true when every one of them moved. */
+export async function reassignOwner(
+  kind: "deals" | "tasks" | "contacts" | "companies",
+  ids: string[],
+  ownerId: string | null,
+): Promise<boolean> {
   try {
     const res = await fetch(`/api/${kind}/reassign`, {
       method: "POST",

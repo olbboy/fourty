@@ -7,15 +7,13 @@ import { lockPipelineWorkspace } from "@/lib/services/pipelines";
 import { customFieldDefsOf, encodeCustom } from "@/lib/custom-fields";
 import { loadReportingSettings } from "@/lib/reporting";
 import { linesTotal } from "@/lib/deal-lines";
-import { resolveOwner } from "../assignees";
+import { ownerChange as changeOfOwner, resolveOwner, type OwnerChange } from "../assignees";
 import type { EventContext } from "@/lib/workflows/types";
 import { defineAction } from "../define";
 import { ActionError, type PayloadEnvelope } from "../types";
 import { auditMeta, toDeal, type Deal } from "./shared";
 
 type StageInfo = { name: string; type: string };
-/** Display names at the time of the change; null means unassigned. */
-type OwnerChange = { from: string | null; to: string | null };
 /**
  * What a value was and what it became, for the values a forecast reads: the
  * Amount (with both currencies), the Expected close date and the Delivery date
@@ -68,9 +66,7 @@ export const dealsUpdate = defineAction({
     }
     const ownerPatch = requestedOwner !== undefined ? { ownerId: await resolveOwner(requestedOwner, ctx) } : {};
     const ownerChange: OwnerChange | null =
-      ownerPatch.ownerId !== undefined && ownerPatch.ownerId !== existing.ownerId
-        ? { from: await ownerName(existing.ownerId), to: await ownerName(ownerPatch.ownerId) }
-        : null;
+      ownerPatch.ownerId !== undefined ? await changeOfOwner(existing.ownerId, ownerPatch.ownerId) : null;
 
     const now = Date.now();
     const stageChanged = stageId !== undefined && stageId !== existing.stageId;
@@ -211,9 +207,3 @@ async function changedValues(before: DealRow, after: DealRow, deliveryField: str
   return changes;
 }
 
-/** Read from users, not active memberships: a departed owner keeps their name in history. */
-async function ownerName(id: string | null): Promise<string | null> {
-  if (!id) return null;
-  const row = (await db.select({ name: tables.users.name }).from(tables.users).where(eq(tables.users.id, id)).limit(1))[0];
-  return row?.name ?? null;
-}

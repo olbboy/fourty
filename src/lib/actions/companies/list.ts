@@ -14,7 +14,7 @@ export const companiesList = defineAction({
   name: "companies.list",
   object: "companies",
   verb: "read",
-  description: "List companies, most recently updated first. Optional text filter.",
+  description: 'List companies, most recently updated first. Optional filters: text, industry, ownerId (a member id, or "none" for unowned).',
   input: listCompaniesInput,
   expose: { rest: true, graphql: true, mcp: true, ai: true },
   run: async (input, ctx): Promise<Company[]> => {
@@ -46,6 +46,7 @@ export const companiesList = defineAction({
       {
         q: term,
         industry,
+        ownerId: input.ownerId?.trim() || undefined,
         sort: "updatedAt_desc",
         sortProvided: false,
         offset: 0,

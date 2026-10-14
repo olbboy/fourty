@@ -1,8 +1,25 @@
 type Query {
-  contacts(limit: Int, q: String, sort: String, status: String, companyId: String): [Contact!]!
+  contacts(
+    limit: Int
+    q: String
+    sort: String
+    status: String
+    companyId: String
+
+    """A member id, or "none" for unowned contacts."""
+    ownerId: String
+  ): [Contact!]!
   contact(id: ID!): Contact
   factSuggestions(entityType: String, entityId: ID, status: String, limit: Int): [RecordFact!]!
-  companies(limit: Int, q: String, industry: String, sort: String): [Company!]!
+  companies(
+    limit: Int
+    q: String
+    industry: String
+    sort: String
+
+    """A member id, or "none" for unowned companies."""
+    ownerId: String
+  ): [Company!]!
   company(id: ID!): Company
   deals(
     limit: Int
@@ -66,6 +83,8 @@ type Contact {
   status: String
   source: String
   score: Int
+  ownerId: String
+  owner: Assignee
   linkedin: String
   city: String
   country: String
@@ -77,6 +96,11 @@ type Contact {
   notes: [Note!]!
   activities: [Activity!]!
   facts: [RecordFact!]!
+}
+
+type Assignee {
+  id: ID!
+  name: String!
 }
 
 """Arbitrary JSON value"""
@@ -95,6 +119,8 @@ type Company {
   city: String
   country: String
   annualRevenue: Float
+  ownerId: String
+  owner: Assignee
   custom: JSON
   contacts: [Contact!]!
   deals: [Deal!]!
@@ -137,11 +163,6 @@ type Deal {
   tasks: [Task!]!
   notes: [Note!]!
   activities: [Activity!]!
-}
-
-type Assignee {
-  id: ID!
-  name: String!
 }
 
 type DealContact {
@@ -427,6 +448,16 @@ type Mutation {
   Replace the people on a deal besides its primary contact: [{ contactId, role }].
   """
   setDealContacts(id: ID!, contacts: JSON!): [DealContact!]!
+
+  """
+  Give many contacts one owner (null = unassigned); all or nothing. Returns how many moved.
+  """
+  reassignContacts(ids: [ID!]!, ownerId: ID): Int!
+
+  """
+  Give many companies one owner (null = unassigned); all or nothing. Returns how many moved.
+  """
+  reassignCompanies(ids: [ID!]!, ownerId: ID): Int!
 
   """
   Give many deals one owner (null = unassigned); all or nothing. Returns how many moved.
