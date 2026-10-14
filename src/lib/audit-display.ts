@@ -21,8 +21,14 @@ const OBJECT_KEYS: Record<string, MessageKey> = {
   sso_connection: "audit.object.sso_connection",
   sync_account: "audit.object.sync_account",
   product: "audit.object.product",
+  email_template: "audit.object.email_template",
+  member: "audit.object.member",
+  account: "audit.object.account",
   settings: "nav.settings",
 };
+
+/** Every kind of record the log names, in the order a filter offers them. */
+export const AUDIT_OBJECTS = Object.keys(OBJECT_KEYS);
 
 const CRUD_KEYS: Record<string, MessageKey> = {
   created: "audit.verb.created",
@@ -32,6 +38,9 @@ const CRUD_KEYS: Record<string, MessageKey> = {
   restored: "audit.verb.restored",
   purged: "audit.verb.purged",
 };
+
+/** What can be done to any kind of record, for a filter. */
+export const AUDIT_VERBS = Object.keys(CRUD_KEYS);
 
 const ACTION_KEYS: Record<string, MessageKey> = {
   "contacts.imported": "audit.action.contacts.imported",
@@ -45,7 +54,13 @@ const ACTION_KEYS: Record<string, MessageKey> = {
   "member.2fa_disabled": "audit.action.member.2fa_disabled",
   "member.signed_out": "audit.action.member.signed_out",
   "email.sent": "audit.action.email.sent",
+  "deals.imported": "audit.action.deals.imported",
+  "target.set": "audit.action.target.set",
+  "contact.merged": "audit.action.contact.merged",
+  "company.merged": "audit.action.company.merged",
   "account.renamed": "audit.action.account.renamed",
+  "account.details_changed": "audit.action.account.details_changed",
+  "member.reactivated": "audit.action.member.reactivated",
   "account.password_changed": "audit.action.account.password_changed",
   "member.role_changed": "audit.action.member.role_changed",
   "member.removed": "audit.action.member.removed",

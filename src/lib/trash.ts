@@ -94,6 +94,8 @@ export async function trashRecord(kind: TrashKind, id: string, deletedBy: string
 
   await db.delete(table).where(eq(table.id, id));
   if (linkColumn) await db.delete(tables.dealContacts).where(eq(linkColumn, id));
+  // Quotes stay where they are: their numbers are never reused, and a restored
+  // deal finds them again. Purging the deal for good drops them (below).
   if (kind === "deal") await db.delete(tables.dealLines).where(eq(tables.dealLines.dealId, id));
   if (kind === "company") {
     await db.update(tables.contacts).set({ companyId: null }).where(eq(tables.contacts.companyId, id));
@@ -108,6 +110,12 @@ export async function trashRecord(kind: TrashKind, id: string, deletedBy: string
   return true;
 }
 
+/** A deal gone for good takes its quotes with it. */
+async function dropQuotesOf(items: { entityType: string; entityId: string }[]): Promise<void> {
+  const deals = items.filter((i) => i.entityType === "deal").map((i) => i.entityId);
+  if (deals.length) await db.delete(tables.quotes).where(inArray(tables.quotes.dealId, deals));
+}
+
 /**
  * Drop what has waited longer than 30 days. The worker runs it for every
  * workspace each minute, so a deleted record's copy does not outlive its 30
@@ -115,7 +123,11 @@ export async function trashRecord(kind: TrashKind, id: string, deletedBy: string
  * too, so nothing expired shows while the worker lags.
  */
 export async function purgeExpiredTrash(now = Date.now()): Promise<void> {
-  await db.delete(tables.trash).where(lt(tables.trash.deletedAt, now - TRASH_MS));
+  const gone = await db
+    .delete(tables.trash)
+    .where(lt(tables.trash.deletedAt, now - TRASH_MS))
+    .returning({ entityType: tables.trash.entityType, entityId: tables.trash.entityId });
+  await dropQuotesOf(gone);
 }
 
 /** What is in the Trash, most recently deleted first. */
@@ -224,6 +236,10 @@ async function placeForDeal(record: Row): Promise<Row> {
 
 /** Remove a trashed record for good. */
 export async function purgeTrash(trashId: string): Promise<boolean> {
-  const gone = await db.delete(tables.trash).where(eq(tables.trash.id, trashId)).returning({ id: tables.trash.id });
+  const gone = await db
+    .delete(tables.trash)
+    .where(eq(tables.trash.id, trashId))
+    .returning({ entityType: tables.trash.entityType, entityId: tables.trash.entityId });
+  await dropQuotesOf(gone);
   return gone.length > 0;
 }

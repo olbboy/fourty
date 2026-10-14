@@ -13,7 +13,8 @@ test("shows a write in the log and offers CSV export as a link", async ({ page }
   await expect(panel).toBeVisible();
 
   const csv = panel.getByRole("link", { name: "Export CSV" });
-  await expect(csv).toHaveAttribute("href", "/api/audit?format=csv");
+  // The download keeps the filters and takes up to 1,000 entries, not the 200 shown.
+  await expect(csv).toHaveAttribute("href", "/api/audit?format=csv&limit=1000");
 
   const keys = page.locator("[data-slot=card]", { has: page.getByRole("heading", { name: "API keys" }) });
   await keys.getByLabel("Name for the new API key").fill("E2E audit probe");

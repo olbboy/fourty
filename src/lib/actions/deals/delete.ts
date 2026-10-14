@@ -3,6 +3,7 @@ import { db, tables } from "@/db";
 import { defineAction } from "../define";
 import { deleteInput } from "../schemas";
 import { ActionError } from "../types";
+import { deleted, deletedEvents, nothingDeleted, type Deletion } from "../deletion";
 import { auditMeta } from "./shared";
 import { trashRecord } from "@/lib/trash";
 
@@ -23,24 +24,25 @@ export const dealsDelete = defineAction({
   description: "Delete a deal by id. Call with confirm=true to actually delete.",
   input: deleteInput,
   expose: { rest: true, graphql: true, mcp: true, ai: true },
-  run: async ({ id, confirm }, ctx): Promise<DeleteResult> => {
+  run: async ({ id, confirm }, ctx): Promise<Deletion<DeleteResult>> => {
     const existing = (await db.select().from(tables.deals).where(eq(tables.deals.id, id)).limit(1))[0];
     if (!existing) throw new ActionError("not_found", "Deal not found");
 
     if (confirm !== true) {
-      return {
+      return nothingDeleted<DeleteResult>({
         dryRun: true,
         wouldDelete: { type: "deal", id, name: existing.name, amount: existing.amount },
         hint: "Re-call with confirm=true to delete. It moves to the Trash with its notes and timeline for 30 days, where it can be restored.",
-      };
+      });
     }
     await trashRecord("deal", id, ctx.userId);
-    return { deleted: true, type: "deal", id };
+    return deleted<DeleteResult>({ deleted: true, type: "deal", id }, existing);
   },
   effects: {
     audit: (_i, out, ctx) =>
-      "dryRun" in out
+      "dryRun" in out.payload
         ? null
-        : { key: "deal.deleted", objectType: "deal", objectId: out.id, meta: auditMeta(ctx) },
+        : { key: "deal.deleted", objectType: "deal", objectId: out.payload.id, meta: auditMeta(ctx) },
+    events: (_i, out) => deletedEvents("deal", out),
   },
 });

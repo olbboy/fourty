@@ -21,6 +21,9 @@ an honest boundary at the network transport.
   3. `INSERT … ON CONFLICT DO NOTHING` dedup (idempotent — safe to re-run),
   4. logs an `email` / `meeting` activity on the linked contact and bumps
      `last_activity_at`, so synced items appear on the existing timeline.
+     Since batch 3 (D21) an email is also logged on every **open** deal the contact
+     is on (as primary contact or as a Deal contact), and both entries are placed
+     at the time the email was sent, not when it was pulled.
 - The **transport is the injectable edge**. `POST /api/sync/accounts/[id]/ingest`
   accepts raw messages/ICS (a mail webhook, the worker, or an IMAP poller pushes
   here). `POST …/run` pulls live: `ics` fetches the feed URL (SSRF-guarded); every

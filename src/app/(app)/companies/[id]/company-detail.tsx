@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useLocale, useT } from "@/lib/i18n/provider";
 import { useOwnerPeople } from "@/components/owner-controls";
+import { MergeDialog } from "@/components/merge-dialog";
 import { ownerOf } from "@/lib/owner-display";
 
 export function CompanyDetail({ id }: { id: string }) {
@@ -26,6 +27,7 @@ export function CompanyDetail({ id }: { id: string }) {
   const people = useOwnerPeople();
   const locale = useLocale();
   const [askConfirm, confirmDialog] = useConfirm();
+  const [merging, setMerging] = useState(false);
   const router = useRouter();
   const { defs, failed: fieldsFailed, retry: retryFields } = useCustomFields("company");
   const [company, setCompany] = useState<Company | null>(null);
@@ -171,6 +173,9 @@ export function CompanyDetail({ id }: { id: string }) {
         <div className="flex items-center gap-2">
           <Button onClick={() => setEditing(true)} variant="outline">
             <IconEdit width={15} height={15} /> {t("action.edit")}
+          </Button>
+          <Button onClick={() => setMerging(true)} variant="outline" aria-label={t("merge.openAria")}>
+            {t("merge.open")}
           </Button>
           {/* Icon-only, so the record has to be named in the label. */}
           <Button
@@ -327,6 +332,19 @@ export function CompanyDetail({ id }: { id: string }) {
         />
       </Modal>
       <p className="mt-6 text-xs text-ink-muted">{t("record.updated", { when: timeAgo(company.updatedAt, locale) })}</p>
+      {merging && (
+        <MergeDialog
+          kind="company"
+          keepId={id}
+          keepLabel={label}
+          open
+          onClose={() => setMerging(false)}
+          onMerged={() => {
+            setMerging(false);
+            bump();
+          }}
+        />
+      )}
       {confirmDialog}
     </div>
   );

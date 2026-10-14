@@ -122,6 +122,17 @@ and `POST /api/contacts/reassign` / `POST /api/companies/reassign` with `{ "ids"
 "ownerId": "…" | null }` (GraphQL `reassignContacts`, `reassignCompanies`; MCP
 `reassign_contacts`, `reassign_companies`).
 
+## Merging duplicates
+
+When the same person or company was entered twice, **Merge…** on the record that should stay
+(or **Merge here** next to a flagged duplicate on a contact page) folds the other one in. Its
+deals, roles on deals, tasks, notes, timeline and synced mail move over; fields that are empty
+on the record that stays take the duplicate's values (an email moves rather than repeats); and
+the duplicate goes to the [Trash](#trash). The timeline of the record that stays says *merged
+Lan Tran into this record*. Merging needs the right to delete; a field you may not write is not
+filled. Over the API: `POST /api/contacts/{id}/merge` or `POST /api/companies/{id}/merge` with
+`{ "duplicateId": "…" }`, where `id` is the record that stays.
+
 ## Trash
 
 Deleting a contact, company, deal or task moves it to **Settings → Trash** with its notes
@@ -140,7 +151,11 @@ the deal with an email address. The message leaves through this server's
 [outbound email](../self-hosting/configuration.md#outbound-email) under your name, and
 replies come straight to your own address. It is written on the contact's timeline, and on
 the deal's when sent from one, as *emailed Lan Trần: "subject"*, and counts as a touch for the
-lead score. Viewers and API keys cannot send. Each member can send 30 an hour. Without mail
+lead score. Viewers and API keys cannot send. Each member can send 30 an hour. **Use a template…** fills
+the subject and message from an email template, kept in **Settings → Email templates**, where
+`{{contact.firstName}}`, `{{contact.lastName}}`, `{{company.name}}`, `{{deal.name}}` and
+`{{sender.name}}` are filled for the contact you write to; you can still edit before sending
+(`/api/email-templates`, `POST /api/email-templates/{id}/render`). Without mail
 set up on the server, the dialog says so. Sending from your own Gmail or Microsoft mailbox
 is not offered yet.
 
@@ -158,7 +173,10 @@ Who can see and change a record is governed by:
   not per-field restricted this tier.
 
 Every write is recorded in the **immutable audit log**. Admins read it from
-**Settings → Audit log** (or `GET /api/audit`, including `?format=csv`).
+**Settings → Audit log** (or `GET /api/audit`, including `?format=csv`), and narrow
+it to one person, one kind of record (deals, members, API keys…), one kind of action
+(created, updated, deleted, restored, deleted for good) and a span of days. The CSV
+keeps those filters, holds up to 1,000 entries and names who acted by name and email.
 Entries cannot be edited or deleted.
 
 ## Related

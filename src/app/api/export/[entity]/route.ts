@@ -11,8 +11,10 @@ import {
   parseSelectedCompanyIds,
 } from "@/lib/company-query";
 import { canReadField, loadFieldPolicy, redact, type FieldPolicy } from "@/lib/field-permissions";
+import { localDay } from "@/lib/reminders";
+import { loadReminderSettings } from "@/lib/services/reminders";
 
-type ExportEntity = "contacts" | "companies" | "deals";
+type ExportEntity = "contacts" | "companies" | "deals" | "tasks" | "notes";
 type ExportScope = "all" | "filtered" | "selected";
 type HeaderFields = Record<string, string>;
 
@@ -71,7 +73,7 @@ async function customCsvExtra(
 }
 
 function isExportEntity(entity: string): entity is ExportEntity {
-  return entity === "contacts" || entity === "companies" || entity === "deals";
+  return ["contacts", "companies", "deals", "tasks", "notes"].includes(entity);
 }
 
 function isExportScope(scope: string): scope is ExportScope {
@@ -220,7 +222,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ entity: 
             ]),
           ),
         );
-      } else {
+      } else if (entity === "deals") {
         const headers = [
           "name",
           "amount",
@@ -272,6 +274,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ entity: 
             ]),
           ),
         );
+      } else {
+        csv = await taskOrNoteCsv(entity, policy);
       }
 
       return new Response(csv, {
@@ -286,4 +290,50 @@ export async function GET(req: Request, { params }: { params: Promise<{ entity: 
       return apiError("Export failed", 500);
     }
   });
+}
+
+/**
+ * Tasks or notes as CSV, each with the record it belongs to by kind and name
+ * (as far as the reader may see that name). Tasks list their owner by name.
+ * Days are the workspace's own, as the reminders count them.
+ */
+async function taskOrNoteCsv(entity: "tasks" | "notes", policy: FieldPolicy | null): Promise<string> {
+  const [contacts, companies, deals, settings] = await Promise.all([
+    db.select({ id: tables.contacts.id, firstName: tables.contacts.firstName, lastName: tables.contacts.lastName }).from(tables.contacts),
+    db.select({ id: tables.companies.id, name: tables.companies.name }).from(tables.companies),
+    db.select({ id: tables.deals.id, name: tables.deals.name }).from(tables.deals),
+    loadReminderSettings(),
+  ]);
+  const names = new Map<string, string>([
+    ...(canReadField(policy, "contacts", "firstName")
+      ? contacts.map((c) => [c.id, [c.firstName, c.lastName].filter(Boolean).join(" ")] as [string, string])
+      : []),
+    ...(canReadField(policy, "companies", "name") ? companies.map((c) => [c.id, c.name] as [string, string]) : []),
+    ...(canReadField(policy, "deals", "name") ? deals.map((d) => [d.id, d.name] as [string, string]) : []),
+  ]);
+  // users carries no row-level security: read only the people these rows name.
+  const peopleNamed = async (ids: (string | null)[]) => {
+    const wanted = [...new Set(ids.filter((id): id is string => !!id))];
+    const people = wanted.length
+      ? await db.select({ id: tables.users.id, name: tables.users.name }).from(tables.users).where(inArray(tables.users.id, wanted))
+      : [];
+    return new Map(people.map((p) => [p.id, p.name]));
+  };
+  const day = (ms: number | null) => (ms ? localDay(ms, settings.timeZone) : "");
+  const record = (id: string | null) => (id ? (names.get(id) ?? "") : "");
+
+  if (entity === "tasks") {
+    const rows = await db.select().from(tables.tasks).orderBy(asc(tables.tasks.createdAt));
+    const person = await peopleNamed(rows.map((r) => r.ownerId));
+    return toSpreadsheetCsv(
+      ["title", "description", "dueDate", "priority", "completedAt", "owner", "recordType", "record"],
+      rows.map((r) => [r.title, r.description ?? "", day(r.dueDate), r.priority, day(r.completedAt), r.ownerId ? (person.get(r.ownerId) ?? "") : "", r.entityType ?? "", record(r.entityId)]),
+    );
+  }
+  const rows = await db.select().from(tables.notes).orderBy(asc(tables.notes.createdAt));
+  const person = await peopleNamed(rows.map((r) => r.authorId));
+  return toSpreadsheetCsv(
+    ["recordType", "record", "body", "author", "createdAt"],
+    rows.map((r) => [r.entityType, record(r.entityId), r.body, r.authorId ? (person.get(r.authorId) ?? "") : "", day(r.createdAt)]),
+  );
 }

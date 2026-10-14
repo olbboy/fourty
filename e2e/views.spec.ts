@@ -31,7 +31,7 @@ const VIEWS = [
   ["reports", "/reports", "Reports"],
   ["workflows", "/workflows", "Workflows"],
   ["settings", "/settings", "Settings"],
-  ["import", "/settings/import", "Import contacts"],
+  ["import", "/settings/import", "Import from CSV"],
 ] as const;
 
 for (const [name, url, heading] of VIEWS) {

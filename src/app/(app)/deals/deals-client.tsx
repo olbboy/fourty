@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Company, Contact, Deal, Pipeline } from "@/lib/types";
+import { quarterChoices } from "@/lib/forecast";
 import { formatCompact, formatMoney, sumInReporting } from "@/lib/currency";
 import { useReporting } from "@/hooks/use-reporting";
 import { timeAgo, formatDate, displayName } from "@/lib/format";
@@ -50,14 +51,6 @@ import { quarterOf } from "@/lib/forecast";
 
 /** A single-choice custom field on deals, offered as a list filter. */
 type ChoiceField = { key: string; label: string; options: string[] };
-
-/** Quarters from last year to two years out, for the close-quarter filter. */
-function quarterChoices(now: number): string[] {
-  const year = new Date(now).getUTCFullYear();
-  const out: string[] = [];
-  for (let y = year - 1; y <= year + 2; y++) for (let q = 1; q <= 4; q++) out.push(`${y}-Q${q}`);
-  return out;
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;

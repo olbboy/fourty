@@ -20,6 +20,7 @@ import { formatMoney } from "@/lib/currency";
 import { readableInkPair } from "@/lib/contrast-color";
 import { Button } from "@/components/ui/button";
 import { EmailCompose } from "@/components/email-compose";
+import { MergeDialog } from "@/components/merge-dialog";
 import { Card } from "@/components/ui/card";
 import { useLocale, useT } from "@/lib/i18n/provider";
 import { useOwnerPeople } from "@/components/owner-controls";
@@ -30,6 +31,10 @@ export function ContactDetail({ id, mailReady = false }: { id: string; mailReady
   const people = useOwnerPeople();
   const locale = useLocale();
   const [askConfirm, confirmDialog] = useConfirm();
+  const [merging, setMerging] = useState<{ open: boolean; initial: { id: string; label: string; detail: string | null } | null }>({
+    open: false,
+    initial: null,
+  });
   const router = useRouter();
   const { defs, failed: fieldsFailed, retry: retryFields } = useCustomFields("contact");
   const [contact, setContact] = useState<Contact | null>(null);
@@ -189,6 +194,9 @@ export function ContactDetail({ id, mailReady = false }: { id: string; mailReady
           <Button onClick={() => setEditing(true)} disabled={lookupsFailed} variant="outline">
             <IconEdit width={15} height={15} /> {t("action.edit")}
           </Button>
+          <Button onClick={() => setMerging({ open: true, initial: null })} variant="outline" aria-label={t("merge.openAria")}>
+            {t("merge.open")}
+          </Button>
           {/* Icon-only, so the record has to be named in the label. */}
           <Button
             onClick={remove}
@@ -219,10 +227,23 @@ export function ContactDetail({ id, mailReady = false }: { id: string; mailReady
               </p>
               <ul className="mt-2 space-y-1">
                 {dupes.map((d) => (
-                  <li key={d.contact.id}>
-                    <Link href={`/contacts/${d.contact.id}`} className="text-sm text-accent-700 hover:underline dark:text-accent-400">
+                  <li key={d.contact.id} className="flex items-center gap-2">
+                    <Link href={`/contacts/${d.contact.id}`} className="min-w-0 flex-1 truncate text-sm text-accent-700 hover:underline dark:text-accent-400">
                       {displayName(d.contact.firstName, d.contact.lastName)}
                     </Link>
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      aria-label={t("merge.hereAria", { name: displayName(d.contact.firstName, d.contact.lastName) })}
+                      onClick={() =>
+                        setMerging({
+                          open: true,
+                          initial: { id: d.contact.id, label: displayName(d.contact.firstName, d.contact.lastName), detail: d.contact.email ?? null },
+                        })
+                      }
+                    >
+                      {t("merge.here")}
+                    </Button>
                   </li>
                 ))}
               </ul>
@@ -367,6 +388,20 @@ export function ContactDetail({ id, mailReady = false }: { id: string; mailReady
           updated: timeAgo(contact.updatedAt, locale),
         })}
       </p>
+      {merging.open && (
+        <MergeDialog
+          kind="contact"
+          keepId={id}
+          keepLabel={label}
+          open
+          initial={merging.initial}
+          onClose={() => setMerging({ open: false, initial: null })}
+          onMerged={() => {
+            setMerging({ open: false, initial: null });
+            bump();
+          }}
+        />
+      )}
       {confirmDialog}
     </div>
   );

@@ -166,11 +166,16 @@ export const dealsUpdate = defineAction({
       meta: auditMeta(ctx),
     }),
     events: (_i, out): EventContext[] => {
-      if (!out.stageChanged || !out.newStage) return [];
       const base = { entityType: "deal" as const, entityId: out.payload.id, snapshot: out.snapshot };
-      const events: EventContext[] = [{ event: "deal.stage_changed", ...base }];
-      if (out.newStage.type === "won") events.push({ event: "deal.won", ...base });
-      else if (out.newStage.type === "lost") events.push({ event: "deal.lost", ...base });
+      const events: EventContext[] = [];
+      if (out.stageChanged && out.newStage) {
+        events.push({ event: "deal.stage_changed", ...base });
+        if (out.newStage.type === "won") events.push({ event: "deal.won", ...base });
+        else if (out.newStage.type === "lost") events.push({ event: "deal.lost", ...base });
+      }
+      if (out.valueChanges.length) {
+        events.push({ event: "deal.value_changed", ...base, snapshot: { ...out.snapshot, changedValues: out.valueChanges.map((c) => c.field).join(",") } });
+      }
       return events;
     },
   },

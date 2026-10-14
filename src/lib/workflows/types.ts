@@ -6,7 +6,13 @@ export type WorkflowEvent =
   | "deal.stage_changed"
   | "deal.won"
   | "deal.lost"
-  | "task.completed";
+  | "task.completed"
+  // D20: a deal's Amount, Expected close date or Delivery date changed; and a
+  // record was deleted (it is in the Trash: only webhook and log act on it).
+  | "deal.value_changed"
+  | "contact.deleted"
+  | "company.deleted"
+  | "deal.deleted";
 
 export type ConditionOp =
   | "eq"

@@ -42,6 +42,9 @@ type Member = {
   lastLoginAt?: number | null;
   /** API keys and mailboxes this person set up here. */
   access?: { keys: number; mailboxes: number };
+  /** Written by the person themselves under My account (D19). */
+  title?: string | null;
+  phone?: string | null;
 };
 
 /** An invite nobody has used yet; resending replaces its link. */
@@ -203,6 +206,18 @@ export function MembersSection() {
     load();
   }
 
+  /** Bring a removed member back with the role they had (D19). */
+  async function reactivate(m: Member) {
+    setError(null);
+    const res = await fetch(`/api/members/${m.userId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ reactivate: true }),
+    }).catch(() => null);
+    if (!res?.ok) setError(t("settings.reactivateFailed", { name: m.name }));
+    await load();
+  }
+
   async function remove(m: Member) {
     const keys = m.access?.keys ?? 0;
     const mailboxes = m.access?.mailboxes ?? 0;
@@ -318,6 +333,8 @@ export function MembersSection() {
                   {m.name}
                 </p>
                 <p className="text-xs text-ink-muted">
+                  {[m.title, m.phone].filter(Boolean).join(" · ")}
+                  {(m.title || m.phone) && " · "}
                   {m.email} · {t("settings.inviteJoined", { when: timeAgo(m.createdAt, locale) })}
                   {" · "}
                   {m.lastLoginAt
@@ -326,6 +343,11 @@ export function MembersSection() {
                   {m.deactivatedAt && t("settings.inviteRemoved")}
                 </p>
               </div>
+              {m.deactivatedAt && (
+                <Button size="sm" variant="outline" aria-label={t("settings.reactivateAria", { name: m.name })} onClick={() => void reactivate(m)}>
+                  {t("settings.reactivate")}
+                </Button>
+              )}
               {!m.deactivatedAt && (
                 <>
                   {/* One control per row, so each needs the member's name in its

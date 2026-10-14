@@ -1,4 +1,4 @@
-import { eq, ilike, or, sql, type SQL } from "drizzle-orm";
+import { and, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { newId } from "@/lib/id";
 import { logActivity } from "@/lib/activity";
@@ -41,6 +41,21 @@ export async function matchContact(emails: string[]): Promise<string | null> {
   return row?.id ?? null;
 }
 
+/**
+ * The open deals a contact is on, as primary contact or as a Deal contact: a
+ * synced email shows on their timelines too (D21). Closed deals keep their
+ * history as it was.
+ */
+async function openDealsOf(contactId: string): Promise<string[]> {
+  const asRole = db.select({ id: tables.dealContacts.dealId }).from(tables.dealContacts).where(eq(tables.dealContacts.contactId, contactId));
+  const rows = await db
+    .select({ id: tables.deals.id })
+    .from(tables.deals)
+    .innerJoin(tables.stages, eq(tables.stages.id, tables.deals.stageId))
+    .where(and(eq(tables.stages.type, "open"), or(eq(tables.deals.contactId, contactId), inArray(tables.deals.id, asRole))));
+  return rows.map((r) => r.id);
+}
+
 async function touchContact(contactId: string, at: number | null): Promise<void> {
   await db
     .update(tables.contacts)
@@ -56,6 +71,8 @@ export async function ingestEmails(accountId: string, rawMessages: string[]): Pr
   // not merely the facts derived from it. Off means the four signature columns
   // are never written at all.
   const research = await isKeylessResearchEnabled();
+  // A batch often holds a thread with one contact: look up their deals once.
+  const dealsOf = new Map<string, string[]>();
   for (const raw of rawMessages) {
     const msg = parseEmail(raw);
     if (!msg.messageId) continue; // can't dedupe without an id — skip
@@ -94,12 +111,16 @@ export async function ingestEmails(accountId: string, rawMessages: string[]): Pr
     if (contactId) {
       result.linked += 1;
       touched.add(contactId);
-      await logActivity({
-        type: "email",
-        entityType: "contact",
-        entityId: contactId,
-        meta: { subject: msg.subject, from: msg.from, messageId: msg.messageId },
-      });
+      // On the timeline when it was sent (an old thread pulled today stays in
+      // its place), as a logged call is; never ahead of now.
+      const now = Date.now();
+      const at = msg.sentAt && msg.sentAt < now ? msg.sentAt : now;
+      const meta = { subject: msg.subject, from: msg.from, messageId: msg.messageId, ...(at !== now ? { loggedAt: now } : {}) };
+      await logActivity({ type: "email", entityType: "contact", entityId: contactId, meta, at });
+      if (!dealsOf.has(contactId)) dealsOf.set(contactId, await openDealsOf(contactId));
+      for (const dealId of dealsOf.get(contactId)!) {
+        await logActivity({ type: "email", entityType: "deal", entityId: dealId, meta: { ...meta, contactId }, at });
+      }
       await touchContact(contactId, msg.sentAt);
     }
   }

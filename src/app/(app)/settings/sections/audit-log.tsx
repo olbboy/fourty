@@ -1,14 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { timeAgo } from "@/lib/format";
 import { Spinner, LoadError } from "@/components/ui";
 import { IconDownload } from "@/components/icons";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 import { cn } from "@/lib/utils";
 import { useLocale, useT } from "@/lib/i18n/provider";
-import { auditActionLabel, auditActorLabel, auditObjectLabel, formatAuditVia } from "@/lib/audit-display";
+import { AUDIT_OBJECTS, AUDIT_VERBS, auditActionLabel, auditActorLabel, auditObjectLabel, formatAuditVia } from "@/lib/audit-display";
+import type { MessageKey } from "@/lib/i18n";
 
 type Entry = {
   id: string;
@@ -19,6 +22,7 @@ type Entry = {
   meta: Record<string, unknown>;
   createdAt: number;
 };
+
 
 // Admin-only (Gate B3). A non-admin gets a 403 from the list and sees nothing,
 // the same contract SSO and field permissions use — the API stays the source of
@@ -31,6 +35,23 @@ export function AuditLogSection() {
   const [actors, setActors] = useState<Record<string, string>>({});
   const [membersFailed, setMembersFailed] = useState(false);
   const [adminOnly, setAdminOnly] = useState(false);
+  // Filters (D18): one person, one kind of record ("deal."), one kind of
+  // action ("deleted"), a span of days.
+  const [actorId, setActorId] = useState("");
+  const [kind, setKind] = useState("");
+  const [verb, setVerb] = useState("");
+  const action = kind && verb ? `${kind}${verb}` : kind || (verb ? `.${verb}` : "");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const query = useMemo(() => {
+    const params = new URLSearchParams();
+    if (actorId) params.set("actorId", actorId);
+    if (action) params.set("action", action);
+    // Local days, from the start of the first to the end of the last.
+    if (from) params.set("from", String(new Date(`${from}T00:00:00`).getTime()));
+    if (to) params.set("to", String(new Date(`${to}T23:59:59.999`).getTime()));
+    return params.toString();
+  }, [actorId, action, from, to]);
 
   const loadMembers = useCallback(() => {
     setMembersFailed(false);
@@ -49,20 +70,25 @@ export function AuditLogSection() {
       .catch(() => setMembersFailed(true));
   }, []);
 
+  // Only the answer to the latest filters is shown, however the replies race.
+  const latest = useRef(0);
   const load = useCallback(async () => {
+    const mine = ++latest.current;
     setFailed(false);
     try {
-      const res = await fetch("/api/audit");
+      const res = await fetch(`/api/audit${query ? `?${query}` : ""}`);
+      if (mine !== latest.current) return;
       if (res.status === 403) {
         setAdminOnly(true);
         return;
       }
       if (!res.ok) throw new Error("audit");
-      setEntries((await res.json()).entries ?? []);
+      const body = await res.json();
+      if (mine === latest.current) setEntries(body.entries ?? []);
     } catch {
-      setFailed(true);
+      if (mine === latest.current) setFailed(true);
     }
-  }, []);
+  }, [query]);
 
   useEffect(() => {
     load();
@@ -84,11 +110,39 @@ export function AuditLogSection() {
           <p className="text-sm text-ink-muted">{t("settings.auditHint")}</p>
         </div>
         <a
-          href="/api/audit?format=csv"
+          href={`/api/audit?format=csv&limit=1000${query ? `&${query}` : ""}`}
           className={cn(buttonVariants({ variant: "outline", size: "sm" }), "text-xs")}
         >
           <IconDownload width={15} height={15} /> {t("page.contacts.exportTitle")}
         </a>
+      </div>
+      <div className="mb-3 flex flex-wrap gap-2">
+        <NativeSelect value={actorId} onChange={(e) => setActorId(e.target.value)} aria-label={t("auditFilter.personAria")} size="sm">
+          <option value="">{t("auditFilter.everyone")}</option>
+          {Object.entries(actors).map(([id, name]) => (
+            <option key={id} value={id}>
+              {name}
+            </option>
+          ))}
+        </NativeSelect>
+        <NativeSelect value={kind} onChange={(e) => setKind(e.target.value)} aria-label={t("auditFilter.actionAria")} size="sm">
+          <option value="">{t("auditFilter.everything")}</option>
+          {AUDIT_OBJECTS.map((object) => (
+            <option key={object} value={`${object}.`}>
+              {auditObjectLabel(object, t)}
+            </option>
+          ))}
+        </NativeSelect>
+        <NativeSelect value={verb} onChange={(e) => setVerb(e.target.value)} aria-label={t("auditFilter.verbAria")} size="sm">
+          <option value="">{t("auditFilter.anyVerb")}</option>
+          {AUDIT_VERBS.map((v) => (
+            <option key={v} value={v}>
+              {t(`auditFilter.verb.${v}` as MessageKey)}
+            </option>
+          ))}
+        </NativeSelect>
+        <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label={t("auditFilter.fromAria")} className="h-8 w-40" />
+        <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label={t("auditFilter.toAria")} className="h-8 w-40" />
       </div>
       {failed ? (
         <LoadError
@@ -107,7 +161,7 @@ export function AuditLogSection() {
           {entries.map((e) => {
             const via = viaOf(e.meta);
             return (
-              <div key={e.id} data-testid="audit-entry" data-action={e.action} className="py-2">
+              <div key={e.id} data-testid="audit-entry" data-action={e.action} data-actor={e.actorId ?? ""} className="py-2">
                 <p className="text-sm">{auditActionLabel(e.action, t)}</p>
                 <p className="text-xs text-ink-muted">
                   {timeAgo(e.createdAt, locale)} · {auditActorLabel(e.actorId, actors, t)}

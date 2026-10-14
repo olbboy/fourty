@@ -40,6 +40,8 @@ export const CRM_OBJECTS = [
   "trash",
   // The product catalogue (D5): members keep it, viewers read it.
   "products",
+  // Email templates (D15): members keep them, viewers read them.
+  "email-templates",
   "pipelines",
   "stages",
   "import",

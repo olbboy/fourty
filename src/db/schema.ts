@@ -109,6 +109,8 @@ export const users = pgTable("users", {
   backupCodes: text("backup_codes").notNull().default("[]"),
   createdAt: millis("created_at").notNull(),
   lastLoginAt: millis("last_login_at"), // set whenever a session starts
+  title: text("title"), // job title, written by the person themselves (0029)
+  phone: text("phone"),
 });
 
 export const sessions = pgTable("sessions", {
@@ -365,6 +367,60 @@ export const dealLines = pgTable(
     createdAt: millis("created_at").notNull(),
   },
   (t) => [index("deal_lines_deal_idx").on(t.workspaceId, t.dealId)],
+);
+
+/**
+ * Quotes (D16): a priced offer from a deal's line items, numbered per workspace
+ * and year, kept as a snapshot (`snapshot` JSON: buyer, seller, lines).
+ */
+export const quotes = pgTable(
+  "quotes",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    dealId: text("deal_id").notNull(),
+    number: text("number").notNull(),
+    issuedAt: millis("issued_at").notNull(),
+    validUntil: millis("valid_until").notNull(),
+    currency: text("currency").notNull(),
+    total: doublePrecision("total").notNull(),
+    snapshot: text("snapshot").notNull(),
+    terms: text("terms"),
+    createdBy: text("created_by"),
+    createdAt: millis("created_at").notNull(),
+  },
+  (t) => [uniqueIndex("quotes_ws_number_idx").on(t.workspaceId, t.number), index("quotes_deal_idx").on(t.workspaceId, t.dealId)],
+);
+
+/** Targets (D17): what a member is expected to win in a quarter, in the reporting currency. */
+export const targets = pgTable(
+  "targets",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    userId: text("user_id").notNull(),
+    period: text("period").notNull(), // "2026-Q4"
+    amount: doublePrecision("amount").notNull(),
+    updatedBy: text("updated_by"),
+    updatedAt: millis("updated_at").notNull(),
+  },
+  (t) => [uniqueIndex("targets_ws_user_period_idx").on(t.workspaceId, t.userId, t.period)],
+);
+
+/** Email templates (D15): a reusable subject and body with {{blanks}}. */
+export const emailTemplates = pgTable(
+  "email_templates",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    name: text("name").notNull(),
+    subject: text("subject").notNull(),
+    body: text("body").notNull(),
+    createdBy: text("created_by"),
+    createdAt: millis("created_at").notNull(),
+    updatedAt: millis("updated_at").notNull(),
+  },
+  (t) => [index("email_templates_ws_name_idx").on(t.workspaceId, t.name)],
 );
 
 // The Trash (0023): a deleted contact, company, deal or task with its notes,

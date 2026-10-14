@@ -57,6 +57,14 @@ export function quarterOf(ts: number): string {
   return `${at.getUTCFullYear()}-Q${Math.floor(at.getUTCMonth() / 3) + 1}`;
 }
 
+/** Quarters from last year to two years out, for choosing a quarter. */
+export function quarterChoices(now: number): string[] {
+  const year = new Date(now).getUTCFullYear();
+  const out: string[] = [];
+  for (let y = year - 1; y <= year + 2; y++) for (let q = 1; q <= 4; q++) out.push(`${y}-Q${q}`);
+  return out;
+}
+
 /** Start (inclusive) and end (exclusive) of a "2026-Q4" quarter, or null. */
 export function quarterRange(label: string): { start: number; end: number } | null {
   const m = /^(\d{4})-Q([1-4])$/.exec(label);

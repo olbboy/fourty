@@ -39,6 +39,9 @@ export function EmailCompose({
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<{ id: string; name: string }[]>([]);
+  // The template last used, filled again for a recipient chosen after it.
+  const [templateId, setTemplateId] = useState("");
 
   async function start() {
     setError(null);
@@ -47,6 +50,23 @@ export function EmailCompose({
     const reachable = list.filter((r) => r.email);
     setRecipients(reachable);
     setTo((current) => (reachable.some((r) => r.contactId === current) ? current : (reachable[0]?.contactId ?? "")));
+    const res = await fetch("/api/email-templates").catch(() => null);
+    if (res?.ok) setTemplates(((await res.json()) as { templates: { id: string; name: string }[] }).templates);
+  }
+
+  /** Fill subject and message from a template, for the contact chosen; still editable. */
+  async function applyTemplate(chosen: string, recipient = to) {
+    if (!chosen || !recipient) return;
+    setTemplateId(chosen);
+    const res = await fetch(`/api/email-templates/${chosen}/render`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ entityType, entityId, contactId: recipient }),
+    }).catch(() => null);
+    if (!res?.ok) return;
+    const filled = (await res.json()) as { subject: string; body: string };
+    setSubject(filled.subject);
+    setBody(filled.body);
   }
 
   async function send(e: React.FormEvent) {
@@ -90,7 +110,15 @@ export function EmailCompose({
           <form className="space-y-3" onSubmit={send}>
             <label className="block text-sm">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-muted">{t("email.to")}</span>
-              <NativeSelect value={to} onChange={(e) => setTo(e.target.value)} className="w-full" aria-label={t("email.to")}>
+              <NativeSelect
+                value={to}
+                onChange={(e) => {
+                  setTo(e.target.value);
+                  if (templateId) void applyTemplate(templateId, e.target.value);
+                }}
+                className="w-full"
+                aria-label={t("email.to")}
+              >
                 {recipients.map((r) => (
                   <option key={r.contactId} value={r.contactId}>
                     {r.name} &lt;{r.email}&gt;
@@ -98,6 +126,16 @@ export function EmailCompose({
                 ))}
               </NativeSelect>
             </label>
+            {templates.length > 0 && (
+              <NativeSelect value="" onChange={(e) => void applyTemplate(e.target.value)} aria-label={t("email.useTemplateAria")} className="w-full">
+                <option value="">{t("email.useTemplate")}</option>
+                {templates.map((tpl) => (
+                  <option key={tpl.id} value={tpl.id}>
+                    {tpl.name}
+                  </option>
+                ))}
+              </NativeSelect>
+            )}
             <Input value={subject} onChange={(e) => setSubject(e.target.value)} aria-label={t("email.subject")} placeholder={t("email.subject")} maxLength={200} />
             <Textarea
               value={body}

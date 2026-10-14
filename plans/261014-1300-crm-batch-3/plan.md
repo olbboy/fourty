@@ -27,7 +27,7 @@ Cách làm như đợt 2: mỗi phase viết test trước ở seam của nó, t
 | D11 | Trường chọn nhiều | Kiểu custom field mới "chọn nhiều" (nhãn) cho liên hệ, công ty, deal. Lọc theo một lựa chọn thì khớp bản ghi có lựa chọn đó. Trường tách cột của dự báo vẫn chỉ nhận trường chọn một | Mục c; trường tách cột cần mỗi deal đúng một cột |
 | D12 | Việc theo lịch | Trang Việc có thêm dạng lịch tháng: việc nằm ở ngày đến hạn, quá hạn tô đỏ, bấm mở việc; lọc theo owner và trạng thái như dạng danh sách | Mục h |
 | D13 | Gộp trùng | Gộp hai liên hệ, hoặc hai công ty: chọn bản giữ lại; deal, người liên hệ trên deal, việc, ghi chú, dòng thời gian và thư của bản kia chuyển sang; ô trống của bản giữ lại lấy giá trị bản kia; bản kia vào Thùng rác. Ghi một dòng "đã gộp" trên dòng thời gian | Mục 7 (4/5 nguồn); vào Thùng rác để gộp nhầm còn đường lui |
-| D14 | Nhập, xuất | Nhập deal từ CSV (tên, giá trị, tiền tệ, pipeline, stage theo tên, ngày dự kiến ký, owner theo email, công ty theo tên, liên hệ theo email, custom field theo nhãn), xem trước rồi mới ghi, tất cả hoặc không. Xuất CSV thêm việc và ghi chú | Mục 16; advisor phải nhập 11 deal bằng script |
+| D14 | Nhập, xuất | Nhập deal từ CSV (tên, giá trị, tiền tệ, pipeline, stage theo tên, ngày dự kiến ký, owner theo email hoặc tên, công ty theo tên, liên hệ theo email, custom field theo nhãn). Công ty chưa có thì tạo mới; ô owner trống thì deal thuộc người nhập. Xem trước rồi mới ghi, tất cả hoặc không. Xuất CSV thêm việc và ghi chú | Mục 16; advisor phải nhập 11 deal bằng script |
 | D15 | Mẫu email | Mẫu email của workspace (tên, tiêu đề, nội dung) với chỗ điền `{{contact.firstName}}`, `{{contact.lastName}}`, `{{company.name}}`, `{{deal.name}}`, `{{sender.name}}`. Chọn mẫu khi soạn thì điền sẵn tiêu đề và nội dung, vẫn sửa được trước khi gửi. Thành viên tạo và sửa mẫu | Mục f; gửi email đã có từ đợt 2 |
 | D16 | Báo giá | Từ deal có dòng sản phẩm, tạo báo giá: số báo giá tăng dần theo workspace (BG-2026-0001), ngày lập, hạn hiệu lực (mặc định 30 ngày), bên mua (công ty, liên hệ chính), các dòng, tổng, ghi chú điều khoản. Báo giá là bản chụp: đổi deal sau đó không đổi báo giá đã lập. Trang in được (lưu PDF bằng trình duyệt). Danh sách báo giá trên deal; dòng thời gian ghi "đã lập báo giá" | Mục j và danh sách "đợt sau"; bản chụp vì báo giá đã gửi khách không được tự đổi |
 | D17 | Chỉ tiêu theo người | Admin đặt chỉ tiêu theo quý cho từng thành viên, tính bằng tiền báo cáo. Báo cáo có bảng theo người cho một quý: chỉ tiêu, đã thắng (deal thắng có ngày đóng trong quý), dự báo có trọng số (deal mở có ngày dự kiến ký trong quý), % đạt; thêm thắng/thua theo người | Mục k, mục 19 (báo cáo theo người phụ trách) |
@@ -61,7 +61,7 @@ Cách làm như đợt 2: mỗi phase viết test trước ở seam của nó, t
 - **Phase 23 (D14)**: seam `POST /api/import/deals` (`dryRun`), `/api/export/tasks`, `/api/export/notes`. E2E: nhập một CSV hai deal.
 - **Phase 24 (D15)**: seam `/api/email-templates`, hàm điền mẫu. E2E: chọn mẫu khi soạn thư.
 - **Phase 25 (D16)**: seam `POST /api/deals/{id}/quotes`, `GET /api/quotes/{id}`. E2E: lập báo giá từ deal có dòng, mở trang in.
-- **Phase 26 (D17)**: seam `/api/targets`, `/api/stats/reports` (theo người). E2E: đặt chỉ tiêu, thấy % đạt.
+- **Phase 26 (D17)**: seam `PUT /api/targets`, `GET /api/stats/owners`. E2E: đặt chỉ tiêu, thấy % đạt.
 
 ## Lượt 3 — quản trị và tích hợp
 
@@ -99,3 +99,74 @@ Giữ nguyên, có lý do:
 - **Lọc theo lựa chọn chỉ có ở danh sách deal.** Liên hệ và công ty chưa bao giờ có bộ lọc theo custom field; D11 nói về bộ lọc đang có.
 - **`ActionDef<any, any>` trong `bulk.ts` và `reassign.ts`.** Một factory nhận action của nhiều đối tượng; tiền lệ có sẵn ở `reassign.ts`.
 - **N+1 khi chạy hàng loạt** (`loadFieldPolicy` mỗi bản ghi). Tối đa 500 bản ghi một lần, đội 5 người; đo trước khi tối ưu.
+
+## Review lượt 2 (14/10/2026)
+
+Hai chiều review chạy song song trên lượt 2 (Phase 22–26). Đã sửa:
+- **Gộp bản ghi (D13):**
+  - Khoá cả hai bản ghi theo thứ tự id, nên hai lần gộp cùng lúc phải chờ nhau.
+  - Tag của hai bên được nhập chung, không mất tag nào.
+  - Owner của bản ghi bị gộp chỉ được lấy khi người đó còn là thành viên.
+  - Hội thoại AI cũng chuyển sang bản ghi giữ lại.
+  - Liên hệ giữ lại vừa thành liên hệ chính của deal thì không còn nằm trong "người khác trên deal".
+  - Có test cho liên hệ chính và cho tag.
+- **Nhập deal (D14):**
+  - Bước xem trước kiểm từng dòng bằng đúng luật của `deals.create`, nên tệp xem trước sạch sẽ không dừng giữa chừng. Ví dụ: tên dài quá 240 ký tự bị báo ngay.
+  - Tìm pipeline, công ty, liên hệ, thành viên bằng bảng tra một lần.
+  - Công ty mới so tên theo cùng luật với bước xem trước ("Công ty A" và "Cong ty A" là một).
+  - Ô owner trống: bước xem trước hiện tên người nhập.
+  - Test: dòng sau bị từ chối (thành viên không được ghi giá trị) thì dòng trước và công ty mới cũng không còn.
+- **Xuất việc và ghi chú:** chỉ đọc những người các dòng nhắc tới; ngày theo múi giờ của workspace, như nhắc việc.
+- **Mẫu email (D15):** điền mẫu tôn trọng quyền theo trường (trường bị ẩn thì để trống). Đổi người nhận thì mẫu được điền lại.
+- **Báo giá (D16):**
+  - Số báo giá tính theo giá trị: BG-2026-10000 đứng sau BG-2026-9999.
+  - Deal vào thùng rác thì báo giá vẫn còn, nên số không bị dùng lại; báo giá chỉ mất khi deal bị xoá hẳn.
+  - Công ty, liên hệ, email người mua bị ẩn theo quyền trường thì báo giá cũng ẩn.
+- **Chỉ tiêu (D17):**
+  - Deal tạo thẳng ở stage thắng có ngày chốt.
+  - Deal thắng chưa có ngày chốt thì tính theo ngày dự kiến ký.
+  - Ô chỉ tiêu đọc "1.500.000.000" và "1500,5" như người gõ muốn.
+  - E2E thấy ô % đạt có số.
+
+Giữ nguyên, có lý do:
+- **Quý tính theo giờ UTC.** Giống cột dự báo đang có; hai bảng phải cùng cách chia quý.
+- **Khôi phục bản ghi đã gộp không tách lại các liên kết.** Việc, ghi chú, deal đã chuyển sang bản ghi giữ lại; tách lại phải đoán, nên để người dùng tự làm.
+- **Không có e2e gửi thư bằng mẫu.** Máy test không có hộp thư gửi đi; có test cho hàm điền mẫu và cho route.
+- **`dispatchEvent` chạy ngoài giao dịch.** Theo ADR-017: sự kiện chỉ đi khi dữ liệu đã ghi xong.
+
+## Review lượt 3 (14/10/2026)
+
+Hai chiều review chạy song song trên `8009952...f337f64` (Phase 27–30). Đã sửa:
+- **Nhật ký (D18):**
+  - Lọc theo tiền tố có dấu `_` (`api_key.`, `custom_field.`, `email_template.`) từng không bao giờ ra dòng nào. Giờ ký tự đặc biệt được giữ nguyên nghĩa chữ; có test.
+  - CSV dùng cách ghi an toàn cho bảng tính: một người tự đặt tên `=HYPERLINK(…)` không thành công thức trên máy admin; có test.
+  - Lọc theo loại hành động: ô mới "Làm gì" (tạo, sửa, xoá, khôi phục, xoá hẳn), API nhận `.deleted`. Ô "Trên cái gì" liệt kê mọi loại bản ghi nhật ký biết, thay vì 12 mục gõ tay.
+  - `contact.` và `deal.` gồm cả `contacts.imported`, `deals.imported`.
+  - `limit` quá lớn lấy 1.000 như trước; nút CSV lấy tối đa 1.000 dòng.
+  - Câu trả lời cũ không ghi đè kết quả lọc mới.
+  - E2E lọc theo người, rồi theo "deal được tạo".
+- **Thành viên (D19):**
+  - Comment sai ("phiên đăng nhập bắt đầu lại") đã sửa cho đúng việc code làm.
+  - Kích hoạt lại thất bại thì báo lỗi.
+  - Dùng chữ của từ điển: "account details", không "profile".
+  - Từ điển ghi admin kích hoạt lại được Member.
+- **Sự kiện (D20):**
+  - Gộp bản ghi phát `contact.deleted` / `company.deleted` cho bản bị gộp, kèm `mergedInto`; có test.
+  - Xoá hàng loạt phát một sự kiện cho mỗi bản ghi; có test.
+  - Danh sách việc còn chạy sau khi xoá đổi thành danh sách cho phép (webhook, log): loại việc mới thêm sau này mặc định không chạy trên bản ghi đã xoá.
+  - Ba action xoá dùng chung một chỗ tạo sự kiện xoá.
+- **Thư đồng bộ (D21):**
+  - Thư nằm trên dòng thời gian của liên hệ và deal theo giờ gửi, không theo giờ kéo về; có test.
+  - Deal đang mở của một liên hệ chỉ tra một lần cho cả lô thư.
+  - ADR-009 ghi thêm chuyện thư lên deal.
+- **Tài liệu:** nhật ký trong `records.md` và `rest.md`; nhập deal, xuất việc và ghi chú trong `import-export.md`; gộp bản ghi trong `workflows.md`.
+- Một e2e cũ (account-rescue) tìm nút "Save" không chính xác sau khi hộp thoại tài khoản có thêm nút "Save title and phone"; đã sửa locator.
+
+Giữ nguyên, có lý do:
+- **Sự kiện đi trước khi giao dịch commit (ADR-017).** Khi xoá hàng loạt hay nhập deal bị huỷ giữa chừng, webhook "đã xoá" hoặc "đã tạo" của những dòng trước vẫn có thể đã gửi. Sửa tận gốc phải đổi lõi action: gom sự kiện, chỉ gửi sau khi commit. Đã tách thành việc riêng; trường hợp này hiếm vì các thao tác hàng loạt kiểm tồn tại trước khi ghi.
+- **Việc, ghi chú, trường, nháp AI không chạy trên bản ghi đã xoá.** Chúng sẽ treo vào bản ghi trong Thùng rác. Nhắc owner thì dùng webhook.
+- **Phiên đăng nhập khi kích hoạt lại để nguyên.** Phiên là của người, dùng chung mọi workspace; ngắt nó sẽ đăng xuất họ ở workspace khác. Admin muốn họ đăng nhập lại thì bấm "đăng xuất mọi nơi".
+- **`/api/audit` trả 400 khi bộ lọc sai.** Bỏ qua bộ lọc sai sẽ cho ra cả nhật ký mà người xem tưởng đã lọc.
+- **Một thư chỉ gắn một liên hệ.** Có từ trước (ADR-009); D21 không đổi điều đó.
+- **Tên migration `0029_user_profile`.** Tên tệp, không phải chữ người dùng thấy; đổi journal rủi ro hơn lợi.
+

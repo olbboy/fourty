@@ -7,6 +7,8 @@ import { IconUpload } from "@/components/icons";
 import { Card } from "@/components/ui/card";
 import { useT } from "@/lib/i18n/provider";
 import { formatImportError } from "@/lib/import-display";
+import { DealImport } from "@/components/deal-import";
+import { Button } from "@/components/ui/button";
 
 type Result = { created: number; updated?: number; skipped: number; companiesCreated: number; total: number };
 
@@ -16,6 +18,7 @@ export function ImportClient() {
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [kind, setKind] = useState<"contacts" | "deals">("contacts");
 
   async function upload(file: File) {
     setBusy(true);
@@ -35,6 +38,17 @@ export function ImportClient() {
   return (
     <div className="animate-fade-up">
       <PageHeader title={t("page.import.title")} subtitle={t("page.import.subtitle")} />
+      <div role="group" aria-label={t("dealImport.kindAria")} className="mb-4 flex gap-1">
+        {(["contacts", "deals"] as const).map((k) => (
+          <Button key={k} size="sm" variant={kind === k ? "default" : "outline"} aria-pressed={kind === k} onClick={() => setKind(k)}>
+            {k === "contacts" ? t("nav.contacts") : t("nav.deals")}
+          </Button>
+        ))}
+      </div>
+      {kind === "deals" ? (
+        <DealImport />
+      ) : (
+      <>
 
       <Card
         size="flush"
@@ -102,6 +116,8 @@ Jane Doe,jane@acme.com,VP Sales,Acme Inc,qualified,referral
 John Smith,john@globex.io,CTO,Globex,lead,website`}
         </pre>
       </Card>
+      </>
+      )}
     </div>
   );
 }

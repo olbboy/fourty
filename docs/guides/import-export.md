@@ -22,14 +22,44 @@ The importer is built to handle messy real-world files:
 The parser is a dependency-free RFC-4180 implementation (`src/lib/csv.ts`), so quoted
 fields, embedded commas, and newlines are handled correctly.
 
+### Importing deals
+
+Switch **Settings → Import** to **Deals**, or POST the CSV to `/api/import/deals`.
+Each row is one deal:
+
+| Column (any of these headers) | Read as |
+|---|---|
+| Name, Deal, Tên deal | the deal's name (required) |
+| Amount, Value, Giá trị | `20.000.000.000`, `5,000` and `1500.5` all read as people write them |
+| Currency, Tiền tệ | VND, USD… (the workspace currency when blank) |
+| Pipeline, Stage, Giai đoạn | by name; the default pipeline and its first stage when blank |
+| Close date, Ngày dự kiến ký | `2026-12-15` or `15/12/2026` |
+| Owner, Người phụ trách | a member by email or by name; blank means whoever imports |
+| Company, Công ty | by name; a company that doesn't exist yet is created |
+| Contact, Liên hệ | an existing contact by email |
+| any deal custom field | by its label or key |
+
+Names are compared without case or Vietnamese marks, so `Công ty A` and `Cong ty A`
+are the same company.
+
+**Preview first.** The page (or `?dryRun=1`) shows every row as it would be stored,
+with what is wrong with each one, and writes nothing. **All or nothing.** While any
+row is wrong nothing is imported; and if a row is refused part-way (say, your role
+may not set a deal's amount), the rows before it and any companies it created are
+taken back too.
+
 ## Exporting CSV
 
 Export from the UI, or pull directly:
 
 ```bash
 curl -H "Authorization: Bearer frty_..." \
-  https://your-crm.example/api/export/contacts   # or /companies, /deals
+  https://your-crm.example/api/export/contacts   # or /companies, /deals, /tasks, /notes
 ```
+
+Tasks and notes name the record each belongs to (its kind and name) and, for tasks,
+the owner; dates are calendar days in the workspace's time zone. The **Data import**
+card in Settings has a button for each.
 
 Exports require both `export/read` and read permission for the requested object.
 Sessions and API keys are scoped to their current workspace. A permitted viewer

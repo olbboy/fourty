@@ -13,6 +13,7 @@ import { NotesPanel, TasksPanel, LogTouchpoint } from "@/components/record-panel
 import { RecordTabs } from "@/components/agent-panel/record-tabs";
 import { DealContactsPanel } from "@/components/deal-contacts-panel";
 import { DealLinesPanel } from "@/components/deal-lines-panel";
+import { DealQuotesPanel } from "@/components/deal-quotes-panel";
 import { EmailCompose, type Recipient } from "@/components/email-compose";
 import { CustomFieldsDisplay, useCustomFields } from "@/components/custom-fields";
 import { IconEdit, IconTrash } from "@/components/icons";
@@ -288,6 +289,12 @@ export function DealDetail({ id, mailReady = false }: { id: string; mailReady?: 
               onCount={setLineCount}
             />
           </Card>
+          {!access.hidden.has("amount") && (
+            <Card size="flush" className="p-4">
+              <h2 className="mb-3 text-sm font-semibold">{t("quote.title")}</h2>
+              <DealQuotesPanel dealId={id} hasLines={lineCount > 0} canCreate={canEditLines} onCreated={bump} />
+            </Card>
+          )}
           <Card size="flush" className="p-4">
             <h2 className="mb-3 text-sm font-semibold">{t("dealContacts.title")}</h2>
             <DealContactsPanel dealId={id} contacts={contacts} onChanged={bump} />
