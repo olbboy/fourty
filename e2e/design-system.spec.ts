@@ -241,6 +241,8 @@ test.describe("preview and settings semantics", () => {
     await expect(dialog).toBeVisible();
 
     const sections = dialog.locator("section[aria-labelledby]");
+    // The preview fills in after its request returns; count once it has.
+    await expect(sections.first()).toBeVisible();
     expect(await sections.count()).toBeGreaterThanOrEqual(2);
     for (let index = 0; index < (await sections.count()); index += 1) {
       const section = sections.nth(index);

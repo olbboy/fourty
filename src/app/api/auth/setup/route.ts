@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { json, apiError, parseBody } from "@/lib/api";
 import { withWorkspace } from "@/db";
-import { createSession, createUser, createWorkspace, isFreshInstall } from "@/lib/auth";
+import { createSession, createUser, createWorkspace, isFreshInstall, sessionClient } from "@/lib/auth";
 import { ensureDefaultPipeline, seedDemoData } from "@/db/seed";
 
 const schema = z.object({
@@ -23,6 +23,6 @@ export async function POST(req: Request) {
     await ensureDefaultPipeline();
     if (body.data.seedDemo) await seedDemoData();
   });
-  await createSession(userId, workspaceId);
+  await createSession(userId, workspaceId, sessionClient(req));
   return json({ ok: true });
 }

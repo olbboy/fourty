@@ -2,7 +2,7 @@ import { z } from "zod";
 import { and, eq } from "drizzle-orm";
 import { db, tables, withWorkspace } from "@/db";
 import { json, apiError, parseBody } from "@/lib/api";
-import { createSession, createUser, getSessionUser, roleInWorkspace, setSessionWorkspace } from "@/lib/auth";
+import { createSession, createUser, getSessionUser, roleInWorkspace, sessionClient, setSessionWorkspace } from "@/lib/auth";
 import { inviteState, parseInviteToken } from "@/lib/invites";
 import { newId } from "@/lib/id";
 import { audit } from "@/lib/audit";
@@ -67,7 +67,7 @@ export async function POST(req: Request) {
         return apiError("name and password are required to accept as a new user", 400);
       }
       userId = await createUser(invite.email, body.data.name, body.data.password, "member");
-      await createSession(userId, workspaceId);
+      await createSession(userId, workspaceId, sessionClient(req));
     }
 
     // Add or reactivate the membership at the invite's role.

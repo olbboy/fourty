@@ -11,6 +11,9 @@ import { readableOn } from "@/lib/contrast-color";
 import { Modal, Spinner, LoadError, Avatar, HealthBadge, useConfirm } from "@/components/ui";
 import { NotesPanel, TasksPanel, LogTouchpoint } from "@/components/record-panels";
 import { RecordTabs } from "@/components/agent-panel/record-tabs";
+import { DealContactsPanel } from "@/components/deal-contacts-panel";
+import { DealLinesPanel } from "@/components/deal-lines-panel";
+import { EmailCompose, type Recipient } from "@/components/email-compose";
 import { CustomFieldsDisplay, useCustomFields } from "@/components/custom-fields";
 import { IconEdit, IconTrash } from "@/components/icons";
 import { AgentQueue } from "@/components/agent-queue";
@@ -23,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useLocale, useT } from "@/lib/i18n/provider";
 
-export function DealDetail({ id }: { id: string }) {
+export function DealDetail({ id, mailReady = false }: { id: string; mailReady?: boolean }) {
   const t = useT();
   const locale = useLocale();
   const reporting = useReporting();
@@ -41,6 +44,7 @@ export function DealDetail({ id }: { id: string }) {
   const [failed, setFailed] = useState(false);
   const [lookupsFailed, setLookupsFailed] = useState(false);
   const [lookupRetry, setLookupRetry] = useState(0);
+  const [lineCount, setLineCount] = useState(0);
 
   const load = useCallback(async () => {
     setFailed(false);
@@ -123,6 +127,8 @@ export function DealDetail({ id }: { id: string }) {
       : null;
   const daysInStage = Math.floor((Date.now() - deal.stageEnteredAt) / 86400000);
   const canMoveStage = canEditField(access, "stageId");
+  // Lines set the Amount, so editing them needs both seeing and writing it.
+  const canEditLines = !access.hidden.has("amount") && canEditField(access, "amount");
   const showStepper = Boolean(pipeline && (canMoveStage || Object.hasOwn(deal, "stageId")));
 
   async function moveTo(stageId: string) {
@@ -135,10 +141,18 @@ export function DealDetail({ id }: { id: string }) {
     bump();
   }
 
+  /** The people on this deal, with the addresses the contacts list already holds. */
+  async function dealRecipients(): Promise<Recipient[]> {
+    const res = await fetch(`/api/deals/${id}/contacts`);
+    if (!res.ok) return [];
+    const people = ((await res.json()) as { contacts: { contactId: string; name: string }[] }).contacts;
+    return people.map((p) => ({ ...p, email: contacts.find((c) => c.id === p.contactId)?.email ?? null }));
+  }
+
   async function remove() {
     const ok = await askConfirm({
       title: t("record.deleteAria", { name: label }),
-      body: t("common.confirmDelete"),
+      body: t("common.confirmTrash"),
     });
     if (!ok) return;
     await fetch(`/api/deals/${id}`, { method: "DELETE" });
@@ -171,6 +185,7 @@ export function DealDetail({ id }: { id: string }) {
         </div>
         <div className="flex items-center gap-2">
           <HealthBadge score={deal.score} />
+          <EmailCompose entityType="deal" entityId={id} mailReady={mailReady} loadRecipients={dealRecipients} onSent={bump} />
           <Button onClick={() => setEditing(true)} disabled={lookupsFailed} variant="outline">
             <IconEdit width={15} height={15} /> {t("action.edit")}
           </Button>
@@ -264,6 +279,20 @@ export function DealDetail({ id }: { id: string }) {
             <CustomFieldsDisplay defs={defs} values={deal.custom} failed={fieldsFailed} onRetry={retryFields} />
           </Card>
           <Card size="flush" className="p-4">
+            <h2 className="mb-3 text-sm font-semibold">{t("dealLines.title")}</h2>
+            <DealLinesPanel
+              dealId={id}
+              currency={deal.currency ?? "USD"}
+              canEdit={canEditLines}
+              onChanged={bump}
+              onCount={setLineCount}
+            />
+          </Card>
+          <Card size="flush" className="p-4">
+            <h2 className="mb-3 text-sm font-semibold">{t("dealContacts.title")}</h2>
+            <DealContactsPanel dealId={id} contacts={contacts} onChanged={bump} />
+          </Card>
+          <Card size="flush" className="p-4">
             <h2 className="mb-3 text-sm font-semibold">{t("record.logTouchpoint")}</h2>
             <LogTouchpoint entityType="deal" entityId={id} onLogged={bump} />
           </Card>
@@ -295,6 +324,7 @@ export function DealDetail({ id }: { id: string }) {
           pipelines={pipelines}
           companies={companies}
           contacts={contacts}
+          amountFromLines={lineCount > 0}
           onSaved={() => {
             setEditing(false);
             bump();

@@ -148,6 +148,41 @@
       "when": 1784021000000,
       "tag": "0020_note_edited",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1784022000000,
+      "tag": "0021_session_devices",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1784023000000,
+      "tag": "0022_created_by",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1784024000000,
+      "tag": "0023_trash",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1784025000000,
+      "tag": "0024_deal_contacts",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1784026000000,
+      "tag": "0025_products_lines",
+      "breakpoints": true
     }
   ]
 }

@@ -42,8 +42,9 @@ export type JobPayloads = {
   "agent.dispatch": Record<string, never>;
   // Transactional email. The caller renders the message (it holds the request
   // origin and any one-time token); the handler only hands it to SMTP. No-ops
-  // when SMTP is unconfigured.
-  "mail.send": { to: string; subject: string; text: string; html?: string };
+  // when SMTP is unconfigured. A member's email to a contact carries their name
+  // and their address for replies.
+  "mail.send": { to: string; subject: string; text: string; html?: string; replyTo?: string; fromName?: string };
   // The morning task reminder tick (Phase 9). Carries nothing: the handler reads
   // the workspace's reminder settings and sends at most once a day. Self-managed
   // like the agent tick: a receipt per minute per workspace would be pure growth,

@@ -35,6 +35,11 @@ export const CRM_OBJECTS = [
   // surface today: work is booked by connecting a mailbox, not by asking.
   "agent-tasks",
   "saved-views",
+  // Deleted records waiting 30 days (D3): members see and restore; only an
+  // admin purges, checked against "settings" in the route.
+  "trash",
+  // The product catalogue (D5): members keep it, viewers read it.
+  "products",
   "pipelines",
   "stages",
   "import",

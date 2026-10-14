@@ -22,9 +22,12 @@ export function DealForm({
   defaultPipelineId,
   companies,
   contacts,
+  amountFromLines = false,
   onSaved,
 }: {
   deal?: Deal;
+  /** The deal has Line items: their sum is its Amount, changed on the deal page and not here. */
+  amountFromLines?: boolean;
   pipelines: Pipeline[];
   defaultPipelineId?: string;
   companies: Company[];
@@ -120,9 +123,9 @@ export function DealForm({
       const body: Record<string, unknown> = {};
 
       if (!deal || !access.hidden.has("name")) body.name = val("name") ?? "";
-      if (!access.hidden.has("amount"))
+      if (!access.hidden.has("amount") && !amountFromLines)
         body.amount = Number(val("amount") ?? 0) || 0;
-      if (!access.hidden.has("currency"))
+      if (!access.hidden.has("currency") && !amountFromLines)
         body.currency = val("currency") ?? "USD";
       if (!access.hidden.has("companyId")) body.companyId = val("companyId");
       if (!access.hidden.has("contactId")) body.contactId = val("contactId");
@@ -198,13 +201,13 @@ export function DealForm({
         </Field>
       )}
       {!access.hidden.has("amount") && (
-        <Field label={t("field.amount")}>
+        <Field label={t("field.amount")} hint={amountFromLines ? t("dealLines.formHint") : undefined}>
           <Input
             name="amount"
             type="number"
             min={0}
             step="0.01"
-            disabled={access.blockedWrites.has("amount")}
+            disabled={amountFromLines || access.blockedWrites.has("amount")}
             defaultValue={deal?.amount ?? ""}
           />
         </Field>
@@ -215,7 +218,7 @@ export function DealForm({
             name="currency"
             defaultValue={deal?.currency ?? "USD"}
             className="w-full"
-            disabled={access.blockedWrites.has("currency")}
+            disabled={amountFromLines || access.blockedWrites.has("currency")}
           >
             {SUPPORTED_CURRENCIES.map((currency) => (
               <option key={currency} value={currency}>

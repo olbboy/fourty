@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { withAuth, authorize, json } from "@/lib/api";
 import { isInstanceOwnerWorkspace } from "@/lib/instance-owner";
@@ -18,14 +18,27 @@ export async function GET(req: Request) {
         email: tables.users.email,
         name: tables.users.name,
         totpEnabled: tables.users.totpEnabled,
+        lastLoginAt: tables.users.lastLoginAt,
       })
       .from(tables.workspaceMembers)
       .innerJoin(tables.users, eq(tables.users.id, tables.workspaceMembers.userId))
       .where(eq(tables.workspaceMembers.workspaceId, auth.workspaceId));
+    // What each person set up here, so removing them can offer to take it back.
+    const keys = await db
+      .select({ createdBy: tables.apiKeys.createdBy })
+      .from(tables.apiKeys)
+      .where(and(eq(tables.apiKeys.workspaceId, auth.workspaceId), isNull(tables.apiKeys.revokedAt)));
+    const mailboxes = await db.select({ createdBy: tables.syncAccounts.createdBy }).from(tables.syncAccounts);
+    const count = (list: { createdBy: string | null }[], userId: string) =>
+      list.filter((row) => row.createdBy === userId).length;
     // canRescue: this caller may change a member's email, reset link and 2FA.
     const canRescue = !auth.viaApiKey && (await isInstanceOwnerWorkspace(auth.workspaceId));
     return json({
-      members: rows.map(({ totpEnabled, ...m }) => ({ ...m, twoFactor: totpEnabled === 1 })),
+      members: rows.map(({ totpEnabled, ...m }) => ({
+        ...m,
+        twoFactor: totpEnabled === 1,
+        access: { keys: count(keys, m.userId), mailboxes: count(mailboxes, m.userId) },
+      })),
       canRescue,
     });
   });

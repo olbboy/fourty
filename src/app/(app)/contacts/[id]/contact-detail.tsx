@@ -19,10 +19,11 @@ import { ContactForm } from "../contact-form";
 import { formatMoney } from "@/lib/currency";
 import { readableInkPair } from "@/lib/contrast-color";
 import { Button } from "@/components/ui/button";
+import { EmailCompose } from "@/components/email-compose";
 import { Card } from "@/components/ui/card";
 import { useLocale, useT } from "@/lib/i18n/provider";
 
-export function ContactDetail({ id }: { id: string }) {
+export function ContactDetail({ id, mailReady = false }: { id: string; mailReady?: boolean }) {
   const t = useT();
   const locale = useLocale();
   const [askConfirm, confirmDialog] = useConfirm();
@@ -143,7 +144,7 @@ export function ContactDetail({ id }: { id: string }) {
   async function remove() {
     const ok = await askConfirm({
       title: t("record.deleteAria", { name: label }),
-      body: t("common.confirmDelete"),
+      body: t("common.confirmTrash"),
     });
     if (!ok) return;
     await fetch(`/api/contacts/${id}`, { method: "DELETE" });
@@ -175,6 +176,13 @@ export function ContactDetail({ id }: { id: string }) {
         <div className="flex items-center gap-2">
           <StatusChip status={contact.status} />
           <ScoreBadge score={contact.score} />
+          <EmailCompose
+            entityType="contact"
+            entityId={id}
+            mailReady={mailReady}
+            loadRecipients={async () => [{ contactId: contact.id, name: label, email: contact.email ?? null }]}
+            onSent={bump}
+          />
           <Button onClick={() => setEditing(true)} disabled={lookupsFailed} variant="outline">
             <IconEdit width={15} height={15} /> {t("action.edit")}
           </Button>

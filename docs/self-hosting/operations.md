@@ -53,7 +53,13 @@ hands it over by chat or phone. The same menu changes a member's sign-in email a
 off two-factor sign-in for someone who lost both their phone and their backup codes.
 These three need a signed-in admin, not an API key, and each is written to the audit
 log. Anyone signed in can rename themselves and change their own password under **My
-account** in the account menu; changing it signs out their other devices.
+account** in the account menu; changing it signs out their other devices. **My account**
+also lists the devices you are signed in on, each with its browser, address and when it
+was last seen, and signs out any one of them or all the others at once.
+
+**Settings → Team members** shows when each member last signed in. The same admin can sign
+a member out on every device (**Account → Sign out everywhere**), and removing a member offers to revoke the API keys they made
+and disconnect the mailboxes they connected (ticked by default).
 
 When no admin can sign in either (the first account on a fresh install exists before
 mail does), reset from the server instead:

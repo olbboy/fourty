@@ -108,6 +108,7 @@ export const users = pgTable("users", {
   totpEnabled: integer("totp_enabled").notNull().default(0),
   backupCodes: text("backup_codes").notNull().default("[]"),
   createdAt: millis("created_at").notNull(),
+  lastLoginAt: millis("last_login_at"), // set whenever a session starts
 });
 
 export const sessions = pgTable("sessions", {
@@ -116,6 +117,9 @@ export const sessions = pgTable("sessions", {
   workspaceId: text("workspace_id"), // active workspace for this session (nullable pre-selection)
   expiresAt: millis("expires_at").notNull(),
   createdAt: millis("created_at").notNull(),
+  lastSeenAt: millis("last_seen_at"), // refreshed at most every SEEN_EVERY_MS
+  userAgent: text("user_agent"),
+  ip: text("ip"),
 });
 
 // Forgot-password tokens. Identity plane like users/sessions — a reset happens
@@ -308,6 +312,76 @@ export const notes = pgTable(
     editedAt: millis("edited_at"), // set when the author or an admin corrects it
   },
   (t) => [index("notes_ws_entity_idx").on(t.workspaceId, t.entityType, t.entityId)],
+);
+
+// Deal contacts (0024): people in a deal besides its primary contact
+// (deals.contact_id), each with the role they play. Order is the deal's own.
+export const dealContacts = pgTable(
+  "deal_contacts",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    dealId: text("deal_id").notNull(),
+    contactId: text("contact_id").notNull(),
+    role: text("role"),
+    position: integer("position").notNull().default(0),
+    createdAt: millis("created_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("deal_contacts_pair_idx").on(t.workspaceId, t.dealId, t.contactId),
+    index("deal_contacts_contact_idx").on(t.workspaceId, t.contactId),
+  ],
+);
+
+// Products and Line items (0025). A line keeps its own name and unit price
+// (in the deal's currency), so editing the catalogue never rewrites a deal.
+export const products = pgTable(
+  "products",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    name: text("name").notNull(),
+    code: text("code"),
+    unitPrice: doublePrecision("unit_price").notNull(),
+    currency: text("currency").notNull(),
+    active: integer("active").notNull().default(1),
+    createdAt: millis("created_at").notNull(),
+    updatedAt: millis("updated_at").notNull(),
+  },
+  (t) => [index("products_ws_name_idx").on(t.workspaceId, t.name)],
+);
+
+export const dealLines = pgTable(
+  "deal_lines",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    dealId: text("deal_id").notNull(),
+    productId: text("product_id"),
+    name: text("name").notNull(),
+    quantity: doublePrecision("quantity").notNull(),
+    unitPrice: doublePrecision("unit_price").notNull(),
+    position: integer("position").notNull().default(0),
+    createdAt: millis("created_at").notNull(),
+  },
+  (t) => [index("deal_lines_deal_idx").on(t.workspaceId, t.dealId)],
+);
+
+// The Trash (0023): a deleted contact, company, deal or task with its notes,
+// timeline and detached links, kept 30 days for restore. See src/lib/trash.ts.
+export const trash = pgTable(
+  "trash",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: workspaceId(),
+    entityType: text("entity_type").notNull(), // contact | company | deal | task
+    entityId: text("entity_id").notNull(),
+    label: text("label").notNull(),
+    payload: text("payload").notNull(), // JSON: record, notes, activities, detached links
+    deletedBy: text("deleted_by"),
+    deletedAt: millis("deleted_at").notNull(),
+  },
+  (t) => [index("trash_ws_deleted_idx").on(t.workspaceId, t.deletedAt)],
 );
 
 export const activities = pgTable(
@@ -506,6 +580,7 @@ export const apiKeys = pgTable("api_keys", {
   role: text("role").notNull().default("admin"), // RBAC role a key acts as (admin = back-compat)
   lastUsedAt: millis("last_used_at"),
   revokedAt: millis("revoked_at"),
+    createdBy: text("created_by"), // the person who made it; null for older keys
   createdAt: millis("created_at").notNull(),
 });
 
@@ -561,6 +636,7 @@ export const syncAccounts = pgTable(
     provider: text("provider").notNull(), // imap | google | microsoft | ics
     email: text("email").notNull(),
     label: text("label"),
+    createdBy: text("created_by"), // the person who connected it; null for older ones
     config: text("config").notNull().default("{}"), // provider connection details (JSON)
     status: text("status").notNull().default("active"), // active | paused | error
     lastSyncedAt: millis("last_synced_at"),

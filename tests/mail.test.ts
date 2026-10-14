@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mailEnabled, mailerFromEnv, __setMailer } from "@/lib/mail";
+import { fromHeader, mailEnabled, mailerFromEnv, __setMailer } from "@/lib/mail";
 
 /**
  * Transport selection and the Resend HTTP call. SMTP's own wire protocol is
@@ -120,5 +120,11 @@ describe("resend transport", () => {
     await expect(
       mailerFromEnv()!.send({ to: "a@b.test", subject: "s", text: "t" }),
     ).rejects.toThrow(/403.*not verified/s);
+  });
+
+  it("puts the writer's name on the configured From address, and nothing that could end the header", () => {
+    expect(fromHeader("Fourty CRM <crm@example.com>", "DVHai")).toBe('"DVHai" <crm@example.com>');
+    expect(fromHeader("crm@example.com", 'Evil"\r\nBcc: x@y.z')).toBe('"EvilBcc: x@y.z" <crm@example.com>');
+    expect(fromHeader("crm@example.com")).toBe("crm@example.com");
   });
 });

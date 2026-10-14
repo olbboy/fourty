@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { and, eq, isNull } from "drizzle-orm";
+import { disconnectSyncAccount } from "@/lib/sync/disconnect";
 import { db, tables } from "@/db";
 import { withAuth, authorize, json, apiError, parseBody } from "@/lib/api";
 import { audit } from "@/lib/audit";
@@ -83,7 +84,35 @@ export async function DELETE(req: Request, { params }: Params) {
       .update(tables.workspaceMembers)
       .set({ deactivatedAt: Date.now() })
       .where(eq(tables.workspaceMembers.id, member.id));
-    await audit(auth.user?.id, "member.removed", { objectType: "user", objectId: userId });
-    return json({ ok: true });
+
+    // ?revokeAccess=1: take back what they set up here, in the same step (D2).
+    let revokedKeys = 0;
+    let disconnectedMailboxes = 0;
+    if (new URL(req.url).searchParams.get("revokeAccess") === "1") {
+      const keys = await db
+        .update(tables.apiKeys)
+        .set({ revokedAt: Date.now() })
+        .where(
+          and(
+            eq(tables.apiKeys.workspaceId, auth.workspaceId),
+            eq(tables.apiKeys.createdBy, userId),
+            isNull(tables.apiKeys.revokedAt),
+          ),
+        )
+        .returning({ id: tables.apiKeys.id });
+      revokedKeys = keys.length;
+      const mailboxes = await db
+        .select({ id: tables.syncAccounts.id })
+        .from(tables.syncAccounts)
+        .where(eq(tables.syncAccounts.createdBy, userId));
+      for (const box of mailboxes) await disconnectSyncAccount(box.id);
+      disconnectedMailboxes = mailboxes.length;
+    }
+    await audit(auth.user?.id, "member.removed", {
+      objectType: "user",
+      objectId: userId,
+      meta: { revokedKeys, disconnectedMailboxes },
+    });
+    return json({ ok: true, revokedKeys, disconnectedMailboxes });
   });
 }

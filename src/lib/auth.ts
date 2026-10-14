@@ -1,8 +1,9 @@
 import { scryptSync, timingSafeEqual, randomBytes, createHash } from "node:crypto";
 import { cookies } from "next/headers";
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull, lt } from "drizzle-orm";
 import { db, tables } from "@/db";
 import { newId, newToken } from "./id";
+import { clientIp } from "./ratelimit";
 
 const SESSION_COOKIE = "fourty_session";
 const SESSION_TTL = 1000 * 60 * 60 * 24 * 30; // 30 days
@@ -34,16 +35,43 @@ export type SessionUser = {
   workspaceId: string | null;
 };
 
-export async function createSession(userId: string, workspaceId: string | null): Promise<string> {
+/** How often a session's "last seen" is written: not on every request. */
+export const SEEN_EVERY_MS = 5 * 60 * 1000;
+
+/** The device a request comes from, as a session records it. */
+export type SessionClient = { userAgent: string | null; ip: string | null };
+
+export function sessionClient(req: Request): SessionClient {
+  const userAgent = req.headers.get("user-agent");
+  const ip = clientIp(req);
+  return { userAgent: userAgent ? userAgent.slice(0, 300) : null, ip: ip === "unknown" ? null : ip };
+}
+
+/**
+ * Start a session: every sign-in path comes through here (password, SSO,
+ * accepting an invite, first setup, a password change). It records the
+ * device and the account's last sign-in, and drops that account's expired
+ * sessions so the table does not keep them for good.
+ */
+export async function createSession(
+  userId: string,
+  workspaceId: string | null,
+  client: SessionClient = { userAgent: null, ip: null },
+): Promise<string> {
   const token = newToken();
   const now = Date.now();
+  await db.delete(tables.sessions).where(and(eq(tables.sessions.userId, userId), lt(tables.sessions.expiresAt, now)));
   await db.insert(tables.sessions).values({
     id: sha256(token),
     userId,
     workspaceId,
     expiresAt: now + SESSION_TTL,
     createdAt: now,
+    lastSeenAt: now,
+    userAgent: client.userAgent,
+    ip: client.ip,
   });
+  await db.update(tables.users).set({ lastLoginAt: now }).where(eq(tables.users.id, userId));
   const jar = await cookies();
   jar.set(SESSION_COOKIE, token, {
     httpOnly: true,
@@ -64,6 +92,12 @@ export async function destroySession(): Promise<void> {
   jar.delete(SESSION_COOKIE);
 }
 
+/** The id of the session this request carries, or null. */
+export async function currentSessionId(): Promise<string | null> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  return token ? sha256(token) : null;
+}
+
 /** Point the current session at a workspace its user has just joined. */
 export async function setSessionWorkspace(workspaceId: string): Promise<void> {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
@@ -78,7 +112,11 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   const session = (
     await db.select().from(tables.sessions).where(eq(tables.sessions.id, sha256(token))).limit(1)
   )[0];
-  if (!session || session.expiresAt < Date.now()) return null;
+  const now = Date.now();
+  if (!session || session.expiresAt < now) return null;
+  if ((session.lastSeenAt ?? 0) < now - SEEN_EVERY_MS) {
+    await db.update(tables.sessions).set({ lastSeenAt: now }).where(eq(tables.sessions.id, session.id));
+  }
   const user = (
     await db.select().from(tables.users).where(eq(tables.users.id, session.userId)).limit(1)
   )[0];

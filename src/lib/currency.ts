@@ -116,6 +116,11 @@ export function toReporting(amount: number, from: string, reporting: ReportingRa
   return convert(amount, from || "USD", reporting.currency, ratesToUsd(reporting.perUsd));
 }
 
+/** `amount` of `from` in `to`, at the workspace's rates. */
+export function convertAt(amount: number, from: string, to: string, reporting: ReportingRates): number {
+  return convert(amount, from || "USD", to || "USD", ratesToUsd(reporting.perUsd));
+}
+
 /** `amount` of `from` in USD at the workspace's rates (for USD-labelled API fields). */
 export function toUsd(amount: number, from: string, reporting: ReportingRates): number {
   return convert(amount, from || "USD", "USD", ratesToUsd(reporting.perUsd));

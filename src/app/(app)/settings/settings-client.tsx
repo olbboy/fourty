@@ -16,6 +16,8 @@ import { PipelinesSection } from "./sections/pipelines";
 import { ReportingSection } from "./sections/reporting";
 import { LostReasonSection } from "./sections/lost-reason";
 import { RemindersSection } from "./sections/reminders";
+import { TrashSection } from "./sections/trash";
+import { ProductsSection } from "./sections/products";
 import { ApiKeysSection } from "./sections/api-keys";
 import { WebhooksSection } from "./sections/webhooks";
 import { DiagnosticsSection } from "./sections/diagnostics";
@@ -26,9 +28,11 @@ import { useT } from "@/lib/i18n/provider";
 
 export function SettingsClient({
   canManagePipelines = false,
+  canManageProducts = false,
   isAdmin = false,
 }: {
   canManagePipelines?: boolean;
+  canManageProducts?: boolean;
   isAdmin?: boolean;
 } = {}) {
   const t = useT();
@@ -39,9 +43,11 @@ export function SettingsClient({
       <SsoSection />
       <MailboxSection />
       <PipelinesSection canManagePipelines={canManagePipelines} />
+      <ProductsSection canEdit={canManageProducts} />
       {isAdmin && <LostReasonSection />}
       {isAdmin && <ReportingSection />}
       {isAdmin && <RemindersSection />}
+      <TrashSection isAdmin={isAdmin} />
       <LanguageSection />
       <SecuritySection />
       <FieldPermissionsSection />

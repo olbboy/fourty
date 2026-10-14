@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { useLocale, useT } from "@/lib/i18n/provider";
+import { useOwnerPeople } from "@/components/owner-controls";
+import { ownerLabel } from "@/lib/owner-display";
 
 type ApiKey = {
   id: string;
@@ -16,12 +18,14 @@ type ApiKey = {
   lastUsedAt: number | null;
   revokedAt: number | null;
   createdAt: number;
+  createdBy?: string | null;
 };
 
 export function ApiKeysSection() {
   const t = useT();
   const locale = useLocale();
   const [askConfirm, confirmDialog] = useConfirm();
+  const people = useOwnerPeople();
   const [keys, setKeys] = useState<ApiKey[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [newSecret, setNewSecret] = useState<string | null>(null);
@@ -128,6 +132,7 @@ export function ApiKeysSection() {
                 <p className="text-xs text-ink-muted">
                   {k.prefix}… · {t("settings.apiKeysCreated", { when: timeAgo(k.createdAt, locale) })}
                   {k.lastUsedAt && ` · ${t("settings.apiKeysLastUsed", { when: timeAgo(k.lastUsedAt, locale) })}`}
+                  {k.createdBy && ` · ${t("settings.createdBy", { name: ownerLabel(k.createdBy, people, t) })}`}
                   {k.revokedAt && ` · ${t("settings.apiKeysRevoked")}`}
                 </p>
               </div>

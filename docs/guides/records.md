@@ -97,6 +97,28 @@ until noon, and never twice. The email is written in the language picked next to
 switch (the admin's language when they first turn it on), and links to the address
 the app had when the settings were last saved.
 
+## Trash
+
+Deleting a contact, company, deal or task moves it to **Settings → Trash** with its notes
+and timeline, where it waits **30 days**. **Restore** puts it back as it was: a company
+re-links the contacts and deals that were under it (unless they have found another company
+meanwhile), and a deal returns to its stage, its line items and the people on it. A
+contact whose email another contact took meanwhile cannot be restored until one of them
+changes. Anyone who may create that kind of record can restore it; only an admin deletes
+for good. Over the API: `GET /api/trash`, `POST /api/trash/{id}/restore`,
+`DELETE /api/trash/{id}`.
+
+## Sending email
+
+**Send email** on a contact's page writes to that contact; on a deal's page, to anyone on
+the deal with an email address. The message leaves through this server's
+[outbound email](../self-hosting/configuration.md#outbound-email) under your name, and
+replies come straight to your own address. It is written on the contact's timeline, and on
+the deal's when sent from one, as *emailed Lan Trần: "subject"*, and counts as a touch for the
+lead score. Viewers and API keys cannot send. Each member can send 30 an hour. Without mail
+set up on the server, the dialog says so. Sending from your own Gmail or Microsoft mailbox
+is not offered yet.
+
 ## Permissions
 
 Who can see and change a record is governed by:

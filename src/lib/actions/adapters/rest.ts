@@ -7,6 +7,8 @@ const STATUS: Record<ActionError["kind"], number> = {
   forbidden: 403,
   invalid: 400,
   not_found: 404,
+  unavailable: 503,
+  rate_limited: 429,
 };
 
 type RouteParams = { params: Promise<Record<string, string>> };

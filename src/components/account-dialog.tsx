@@ -1,11 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal } from "@/components/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { translator, type Locale } from "@/lib/i18n";
+import { timeAgo } from "@/lib/format";
+import { deviceLabel } from "@/lib/device-label";
+
+type SessionView = { id: string; userAgent: string | null; ip: string | null; lastSeenAt: number; current: boolean };
 
 /**
  * "My account": change your own name and password (Phase 8). The name shows
@@ -30,6 +34,21 @@ export function AccountDialog({
   const [nextPassword, setNextPassword] = useState("");
   const [status, setStatus] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [sessions, setSessions] = useState<SessionView[] | null>(null);
+
+  const loadSessions = useCallback(async () => {
+    const res = await fetch("/api/me/sessions").catch(() => null);
+    if (res?.ok) setSessions(((await res.json()) as { sessions: SessionView[] }).sessions);
+  }, []);
+  useEffect(() => {
+    void loadSessions();
+  }, [loadSessions]);
+
+  async function endSession(url: string) {
+    const res = await fetch(url, { method: "DELETE" }).catch(() => null);
+    if (!res?.ok) setStatus({ kind: "error", text: t("account.failed") });
+    void loadSessions();
+  }
 
   async function send(url: string, method: "PATCH" | "POST", body: unknown, ok: string): Promise<boolean> {
     setBusy(true);
@@ -119,6 +138,44 @@ export function AccountDialog({
           {t("account.changePassword")}
         </Button>
       </form>
+
+      {sessions && (
+        <section className="mt-6 space-y-2" aria-labelledby="account-sessions">
+          <p id="account-sessions" className="text-sm font-medium">
+            {t("account.sessions")}
+          </p>
+          <ul className="divide-y divide-line/60 text-sm">
+            {sessions.map((s) => (
+              <li key={s.id} className="flex items-center gap-2 py-2">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate">
+                    {deviceLabel(s.userAgent) || t("account.unknownDevice")}
+                    {s.current && <span className="ml-2 text-xs text-feedback-ok">{t("account.thisDevice")}</span>}
+                  </p>
+                  <p className="text-xs text-ink-muted">
+                    {[s.ip, t("account.lastActive", { when: timeAgo(s.lastSeenAt, locale) })].filter(Boolean).join(" · ")}
+                  </p>
+                </div>
+                {!s.current && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    aria-label={t("account.signOutDeviceAria", { device: deviceLabel(s.userAgent) || t("account.unknownDevice") })}
+                    onClick={() => void endSession(`/api/me/sessions/${encodeURIComponent(s.id)}`)}
+                  >
+                    {t("account.signOutDevice")}
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+          {sessions.length > 1 && (
+            <Button size="sm" variant="outline" onClick={() => void endSession("/api/me/sessions")}>
+              {t("account.signOutOthers")}
+            </Button>
+          )}
+        </section>
+      )}
 
       {status && (
         <p role={status.kind === "error" ? "alert" : "status"} className={`mt-4 text-sm ${status.kind === "error" ? "text-feedback-error" : "text-feedback-ok"}`}>
