@@ -192,4 +192,7 @@ Giữ nguyên, có lý do:
 | Q96 | A | Kích hoạt lại thành viên không đụng phiên đăng nhập; admin dùng "đăng xuất mọi nơi" nếu cần. |
 | Q97 | A | Leo tự nhập 2 deal và 1 việc của LTHoa bằng màn hình nhập deal. |
 | Q98 | B | Claude đặt trên production, sau backup `fourty-2026-10-14-0944.dump`, ghi nhật ký với `via: claude`: bật nhắc việc (tiếng Việt, giờ Việt Nam, link `https://crm.example.com`); trường ngày giao `planned_ship_date`, trường chia cột `sales_motion`, trường lý do thua `loss_reason`; tắt workflow "Bổ sung lý do không tiếp tục". |
+| Q99 | A | Sau 8 giờ sáng 15/10 Leo nhắn "kiểm nhắc việc"; Claude đọc log worker và báo thư đã gửi cho ai. |
+| Q100 | A | Leo mời lại trước khi hết hạn: btduc@example.com (hết hạn 20/10 11:51), lthoa@example.com (21/10 16:03). |
+| Q101 | A | Dừng sau đợt 3; dùng thật một thời gian rồi mới chọn đợt tiếp theo. |
 
