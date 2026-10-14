@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { timeAgo } from "@/lib/format";
 import { Spinner, LoadError } from "@/components/ui";
 import { IconDownload } from "@/components/icons";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 import { cn } from "@/lib/utils";
 import { useLocale, useT } from "@/lib/i18n/provider";
 import { auditActionLabel, auditActorLabel, auditObjectLabel, formatAuditVia } from "@/lib/audit-display";
@@ -20,6 +22,9 @@ type Entry = {
   createdAt: number;
 };
 
+/** The kinds of record the log can be narrowed to, by the prefix of their actions. */
+const AUDIT_GROUPS = ["contact", "company", "deal", "task", "note", "member", "account", "api_key", "email_template", "product", "custom_field", "workflow"];
+
 // Admin-only (Gate B3). A non-admin gets a 403 from the list and sees nothing,
 // the same contract SSO and field permissions use — the API stays the source of
 // truth. The log is append-only; this panel never offers a write.
@@ -31,6 +36,20 @@ export function AuditLogSection() {
   const [actors, setActors] = useState<Record<string, string>>({});
   const [membersFailed, setMembersFailed] = useState(false);
   const [adminOnly, setAdminOnly] = useState(false);
+  // Filters (D18): one person, one kind of record, a span of days.
+  const [actorId, setActorId] = useState("");
+  const [action, setAction] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const query = useMemo(() => {
+    const params = new URLSearchParams();
+    if (actorId) params.set("actorId", actorId);
+    if (action) params.set("action", action);
+    // Local days, from the start of the first to the end of the last.
+    if (from) params.set("from", String(new Date(`${from}T00:00:00`).getTime()));
+    if (to) params.set("to", String(new Date(`${to}T23:59:59.999`).getTime()));
+    return params.toString();
+  }, [actorId, action, from, to]);
 
   const loadMembers = useCallback(() => {
     setMembersFailed(false);
@@ -52,7 +71,7 @@ export function AuditLogSection() {
   const load = useCallback(async () => {
     setFailed(false);
     try {
-      const res = await fetch("/api/audit");
+      const res = await fetch(`/api/audit${query ? `?${query}` : ""}`);
       if (res.status === 403) {
         setAdminOnly(true);
         return;
@@ -62,7 +81,7 @@ export function AuditLogSection() {
     } catch {
       setFailed(true);
     }
-  }, []);
+  }, [query]);
 
   useEffect(() => {
     load();
@@ -84,11 +103,31 @@ export function AuditLogSection() {
           <p className="text-sm text-ink-muted">{t("settings.auditHint")}</p>
         </div>
         <a
-          href="/api/audit?format=csv"
+          href={`/api/audit?format=csv${query ? `&${query}` : ""}`}
           className={cn(buttonVariants({ variant: "outline", size: "sm" }), "text-xs")}
         >
           <IconDownload width={15} height={15} /> {t("page.contacts.exportTitle")}
         </a>
+      </div>
+      <div className="mb-3 flex flex-wrap gap-2">
+        <NativeSelect value={actorId} onChange={(e) => setActorId(e.target.value)} aria-label={t("auditFilter.personAria")} size="sm">
+          <option value="">{t("auditFilter.everyone")}</option>
+          {Object.entries(actors).map(([id, name]) => (
+            <option key={id} value={id}>
+              {name}
+            </option>
+          ))}
+        </NativeSelect>
+        <NativeSelect value={action} onChange={(e) => setAction(e.target.value)} aria-label={t("auditFilter.actionAria")} size="sm">
+          <option value="">{t("auditFilter.everything")}</option>
+          {AUDIT_GROUPS.map((group) => (
+            <option key={group} value={`${group}.`}>
+              {auditObjectLabel(group, t)}
+            </option>
+          ))}
+        </NativeSelect>
+        <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label={t("auditFilter.fromAria")} className="h-8 w-40" />
+        <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label={t("auditFilter.toAria")} className="h-8 w-40" />
       </div>
       {failed ? (
         <LoadError

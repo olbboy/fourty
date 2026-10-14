@@ -22,6 +22,8 @@ const OBJECT_KEYS: Record<string, MessageKey> = {
   sync_account: "audit.object.sync_account",
   product: "audit.object.product",
   email_template: "audit.object.email_template",
+  member: "audit.object.member",
+  account: "audit.object.account",
   settings: "nav.settings",
 };
 

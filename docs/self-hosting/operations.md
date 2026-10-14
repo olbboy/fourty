@@ -57,6 +57,10 @@ account** in the account menu; changing it signs out their other devices. **My a
 also lists the devices you are signed in on, each with its browser, address and when it
 was last seen, and signs out any one of them or all the others at once.
 
+**Settings → Audit log** narrows to one person, one kind of record and a span of days, and
+its CSV names who acted by name and email (`GET /api/audit?actorId=…&action=deal.&from=…&to=…`,
+times in epoch ms, `action` exact or a prefix ending in `.`).
+
 **Settings → Team members** shows when each member last signed in. The same admin can sign
 a member out on every device (**Account → Sign out everywhere**), and removing a member offers to revoke the API keys they made
 and disconnect the mailboxes they connected (ticked by default).
