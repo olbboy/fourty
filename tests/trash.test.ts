@@ -89,6 +89,32 @@ describe("trash", () => {
     expect((await trash()).some((i) => i.id === item.id)).toBe(false);
   });
 
+  it("takes a record's open tasks with it, leaves its done ones, and brings them back on restore (Q113)", async () => {
+    const { contact } = await create("contacts", { firstName: "Test", lastName: "Lead" });
+    const due = Date.now() + 86_400_000;
+    const { task: open } = await create("tasks", { title: "Gọi lại lead Test", dueDate: due, entityType: "contact", entityId: contact.id });
+    const { task: done } = await create("tasks", { title: "Đã gửi catalogue", entityType: "contact", entityId: contact.id });
+    const taskRoute = await import("@/app/api/tasks/[id]/route");
+    await taskRoute.PATCH(req(ADMIN, `/api/tasks/${done.id}`, { method: "PATCH", body: JSON.stringify({ completed: true }) }), params({ id: done.id }));
+    const titles = async () => {
+      const route = await import("@/app/api/tasks/route");
+      return ((await (await route.GET(req(ADMIN, "/api/tasks?state=all"))).json()).tasks as { title: string; dueDate: number | null }[]).filter((t) =>
+        ["Gọi lại lead Test", "Đã gửi catalogue"].includes(t.title),
+      );
+    };
+
+    expect((await remove("contacts", contact.id)).status).toBe(200);
+    // No reminder tomorrow for a lead that is gone; the done work stays on record.
+    expect((await titles()).map((t) => t.title)).toEqual(["Đã gửi catalogue"]);
+
+    const item = (await trash()).find((i) => i.entityId === contact.id)!;
+    expect((await restore(item.id)).status).toBe(200);
+    const back = await titles();
+    expect(back.map((t) => t.title).sort()).toEqual(["Gọi lại lead Test", "Đã gửi catalogue"].sort());
+    expect(back.find((t) => t.title === "Gọi lại lead Test")?.dueDate).toBe(due);
+    void open;
+  });
+
   it("restores a deal in the stage it was in", async () => {
     const { deal } = await create("deals", { name: "Điện lực Vùng 1", amount: 5e9, currency: "VND" });
     expect((await remove("deals", deal.id)).status).toBe(200);

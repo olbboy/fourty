@@ -135,10 +135,12 @@ filled. Over the API: `POST /api/contacts/{id}/merge` or `POST /api/companies/{i
 
 ## Trash
 
-Deleting a contact, company, deal or task moves it to **Settings → Trash** with its notes
-and timeline, where it waits **30 days**. **Restore** puts it back as it was: a company
+Deleting a contact, company, deal or task moves it to **Settings → Trash** with its notes,
+its timeline and its tasks not yet done, where it waits **30 days**. Its open tasks leave
+the task list with it, so nobody is reminded to call a lead that was deleted; tasks already
+done stay as a record of the work. **Restore** puts it back as it was: a company
 re-links the contacts and deals that were under it (unless they have found another company
-meanwhile), and a deal returns to its stage, its line items and the people on it. A
+meanwhile), its open tasks come back with their owner and due date, and a deal returns to its stage, its line items and the people on it. A
 contact whose email another contact took meanwhile cannot be restored until one of them
 changes. Anyone who may create that kind of record can restore it; only an admin deletes
 for good. Over the API: `GET /api/trash`, `POST /api/trash/{id}/restore`,

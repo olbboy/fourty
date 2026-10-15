@@ -31,7 +31,7 @@ One device an Account is signed in on; signing out or changing the password ends
 _Avoid_: Login, token
 
 **Trash**:
-Where a deleted contact, company, Deal or task waits for 30 days, with its notes and timeline, until it is restored or purged.
+Where a deleted contact, company, Deal or task waits for 30 days, with its notes, timeline and tasks not yet done, until it is restored or purged.
 _Avoid_: Archive, recycle bin, soft delete
 
 ### Selling
