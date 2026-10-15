@@ -45,8 +45,8 @@ the app.
 A key is not a person, so who gets a lead sent without `ownerId`?
 
 - **Default lead owner.** An admin picks one member in **Settings → Default lead
-  owner**. Every contact an API key makes without naming an owner goes to them,
-  follow-up task included. If that member leaves, leads arrive unassigned
+  owner**. Every contact, company, deal or task an API key makes without naming
+  an owner goes to them, follow-up task included. If that member leaves, leads arrive unassigned
   rather than refused. Unset, leads arrive unassigned.
 - **Name the owner.** To give a lead to a particular salesperson, send their
   member id as `ownerId`; it wins over the default. `"ownerId": null` keeps the

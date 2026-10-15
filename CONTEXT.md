@@ -19,7 +19,7 @@ An Account's place in one Workspace, carrying a role (admin, member or viewer); 
 _Avoid_: User, teammate, seat
 
 **Default lead owner**:
-The Member who receives a contact that an API key makes without naming an owner; a request that names an owner, or none on purpose, is followed instead.
+The Member who receives a contact, company, Deal or task that an API key makes without naming an owner; a request that names an owner, or none on purpose, is followed instead.
 _Avoid_: Round robin, lead router
 
 **Invite**:

@@ -2,9 +2,10 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { resetDb, createWorkspace } from "./pg-setup";
 
 /**
- * Q107: the Default lead owner. A contact made by an API key (no person behind
- * the request) that names no owner goes to the member an admin chose, so its
- * follow-up task is someone's. Naming an owner, or `null` on purpose, wins.
+ * Q107, Q114: the Default lead owner. A contact, company, deal or task made by
+ * an API key (no person behind the request) that names no owner goes to the
+ * member an admin chose, so its follow-up is someone's. Naming an owner, or
+ * `null` on purpose, wins.
  */
 describe("default lead owner", () => {
   const ADMIN = "frty_leadowner_admin";
@@ -79,6 +80,20 @@ describe("default lead owner", () => {
   it("keeps the owner a lead names, and null when it says so", async () => {
     expect((await lead({ firstName: "Bốn", email: "bon@khach.test", ownerId: people.dai })).ownerId).toBe(people.dai);
     expect((await lead({ firstName: "Năm", email: "nam@khach.test", ownerId: null })).ownerId).toBeNull();
+  });
+
+  it("gives a company, deal or task a key makes without an owner to the default too (Q114)", async () => {
+    const made = async (path: string, body: Record<string, unknown>) => {
+      const route = (await import(`@/app/api/${path}/route`)) as { POST: (r: Request) => Promise<Response> };
+      const res = await route.POST(req(`/api/${path}`, MEMBER, { method: "POST", body: JSON.stringify(body) }));
+      expect(res.status).toBe(201);
+      return Object.values(await res.json())[0] as { ownerId: string | null };
+    };
+    expect((await made("companies", { name: "Fiesta Resort" })).ownerId).toBe(people.binh);
+    expect((await made("deals", { name: "Fiesta — điện mặt trời" })).ownerId).toBe(people.binh);
+    expect((await made("tasks", { title: "Gửi báo giá" })).ownerId).toBe(people.binh);
+    expect((await made("deals", { name: "Của Đại", ownerId: people.dai })).ownerId).toBe(people.dai);
+    expect((await made("tasks", { title: "Chưa giao", ownerId: null })).ownerId).toBeNull();
   });
 
   it("leaves a lead unassigned rather than refuse it once the default has left", async () => {

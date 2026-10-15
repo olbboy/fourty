@@ -1,5 +1,6 @@
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { db, tables } from "@/db";
+import { loadLeadSettings } from "@/lib/lead-settings";
 import { ActionError, type ActionContext } from "./types";
 
 /** A workspace member a task or deal can be owned by. */
@@ -68,15 +69,20 @@ async function accountName(id: string | null): Promise<string | null> {
 }
 
 /**
- * The owner a write should store. `undefined` keeps the caller as owner (API
- * keys have none). `null` is explicitly unassigned. Anyone else must be an
- * active member of this workspace.
+ * The owner a write should store. `undefined` keeps the caller as owner; an
+ * API key has no person behind it, so what it makes goes to the Default lead
+ * owner (Q107, Q114), or to no one if none is set or they have left. `null` is
+ * explicitly unassigned. Anyone else must be an active member of this workspace.
  */
 export async function resolveOwner(
   requested: string | null | undefined,
   ctx: ActionContext,
 ): Promise<string | null> {
-  if (requested === undefined) return ctx.userId;
+  if (requested === undefined) {
+    if (ctx.userId) return ctx.userId;
+    const { defaultOwnerId } = await loadLeadSettings();
+    return defaultOwnerId && (await getAssignee(defaultOwnerId)) ? defaultOwnerId : null;
+  }
   if (requested === null) return null;
   if (!(await getAssignee(requested))) throw new ActionError("invalid", "ownerId: not a workspace member");
   return requested;

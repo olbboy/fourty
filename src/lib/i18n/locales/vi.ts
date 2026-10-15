@@ -811,7 +811,7 @@ export const vi: Record<MessageKey, string> = {
   "settings.lostReasonNone": "Không bắt buộc",
   "settings.lostReasonFailed": "Không lưu được trường lý do thua.",
   "settings.leadOwner": "Người nhận lead mặc định",
-  "settings.leadOwnerHint": "Người nhận liên hệ do hệ thống khác gửi qua API mà không ghi người phụ trách, cùng việc gọi lại của nó.",
+  "settings.leadOwnerHint": "Người nhận liên hệ, công ty, cơ hội hoặc việc do hệ thống khác tạo qua API mà không ghi người phụ trách.",
   "settings.leadOwnerNone": "Không ai (để chưa giao)",
   "settings.leadOwnerFailed": "Không lưu được người nhận lead mặc định.",
   "settings.reportingFailed": "Không lưu được cài đặt báo cáo.",
