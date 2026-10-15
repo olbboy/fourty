@@ -17,6 +17,7 @@ feature is and why it matters, then how to use it in the app and over the API.
 
 ### Data & AI
 - **[Import & export](./import-export.md)** — CSV in and out.
+- **[Pushing leads from your own system](./lead-intake.md)** — one API call per lead, no duplicates.
 - **[Email & calendar](./email-calendar.md)** — mailbox OAuth and ICS feeds.
 - **[Suggestions & the evidence ledger](./suggestions.md)** — what a background pass believes about a record, and why.
 - **[Keyless research](./research.md)** — job titles and company links mined from your own mailbox, no API key.

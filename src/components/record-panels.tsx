@@ -19,6 +19,7 @@ type EntityRef = { entityType: string; entityId: string };
 type TFn = (key: MessageKey, vars?: Record<string, string | number>) => string;
 
 const ACTIVITY_KEYS: Record<string, MessageKey> = {
+  returned: "activity.returned",
   created: "activity.created",
   updated: "activity.updated",
   stage_changed: "activity.stageChanged",
@@ -81,6 +82,7 @@ function describe(a: Activity, t: TFn, locale: Locale): string {
     return t("activity.emailSent", { to: String(a.meta.toName ?? ""), subject: String(a.meta.subject) });
   }
   if (a.type === "merged" && a.meta.from) return t("activity.mergedFrom", { from: String(a.meta.from) });
+  if (a.type === "returned" && a.meta.source) return t("activity.returnedFrom", { source: String(a.meta.source) });
   if (a.type === "quote" && a.meta.number) return t("activity.quoteMade", { number: String(a.meta.number) });
   if (a.type === "task_completed" && a.meta.title) {
     return t("activity.taskCompletedTitle", { title: String(a.meta.title) });
