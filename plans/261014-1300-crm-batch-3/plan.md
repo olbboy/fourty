@@ -207,4 +207,8 @@ Giữ nguyên, có lý do:
 **Kết quả Q108 (15/10 11:16):** gửi "Test Lead" (test-lead@example.com, nguồn test) hai lần qua `https://crm.example.com/api/contacts?ifExists=fill` bằng khoá member "Lead intake". Lần 1 trả 201 (`existed: false`), lần 2 trả 200 (`existed: true`), cùng một liên hệ. Liên hệ ở trạng thái lead, người phụ trách Anh Lâm (người nhận mặc định). Workflow "Gọi lại lead mới" tạo đúng một việc "Gọi lại lead Test", ưu tiên cao, hạn 16/10. Dòng thời gian có "created" rồi "returned" (nguồn test). Nhật ký có `contact.created` và `contact.returned`.
 
 **Kết quả Q99 (15/10):** nhắc việc bật, worker kiểm đều mỗi phút. Sáng 15/10 không có email nhắc vì không có việc nào đang mở có hạn (chỉ 1 việc đang mở, không có hạn). Việc "Gọi lại lead Test" hạn 16/10 sẽ là email nhắc đầu tiên, cho Anh Lâm, sáng 16/10.
+| Q110 | B | Xoá lead thử ngay (Leo xoá liên hệ "Test Lead" và việc "Gọi lại lead Test"). |
+| Q111 | A | Leo thu hồi khoá "Lead intake" đã lộ trong chat, tạo khoá member mới dán thẳng vào hệ thống gửi lead. |
+| Q112 | A | Lead qua API chỉ là liên hệ; cơ hội do sales tạo khi đã xác nhận nhu cầu. Claude soạn bộ lệnh curl cho mọi đối tượng (lead, liên hệ, công ty, cơ hội, việc, ghi chú, cuộc gọi), chạy thử từng lệnh trước khi giao. |
+| Q113 | A | Xoá liên hệ, công ty hay cơ hội thì việc chưa xong của nó vào Thùng rác cùng, khôi phục thì về lại; việc đã xong ở lại. |
 

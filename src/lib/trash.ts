@@ -34,6 +34,8 @@ type Payload = {
   dealContacts?: Row[];
   /** A deal's Line items. */
   dealLines?: Row[];
+  /** Its tasks not yet done (Q113): no reminder for a record that is gone. Done ones stay as history. */
+  openTasks?: Row[];
   /** Ids this record was unhooked from on delete, re-hooked on restore when still free. */
   detached: { contacts?: string[]; deals?: string[] };
 };
@@ -61,8 +63,9 @@ function labelOf(kind: TrashKind, row: Row): string {
 
 /**
  * Delete a record by moving it to the Trash. Returns false when there is no
- * such record. Notes and timeline go with it; a company's contacts and deals
- * are detached (kept, with no company), remembered so a restore re-attaches them.
+ * such record. Notes, timeline and tasks not yet done go with it; a company's
+ * contacts and deals are detached (kept, with no company), remembered so a
+ * restore re-attaches them.
  */
 export async function trashRecord(kind: TrashKind, id: string, deletedBy: string | null): Promise<boolean> {
   const table = tableOf(kind);
@@ -75,13 +78,15 @@ export async function trashRecord(kind: TrashKind, id: string, deletedBy: string
   const linkColumn = kind === "deal" ? tables.dealContacts.dealId : kind === "contact" ? tables.dealContacts.contactId : null;
   const dealContacts = linkColumn ? await db.select().from(tables.dealContacts).where(eq(linkColumn, id)) : [];
   const dealLines = kind === "deal" ? await db.select().from(tables.dealLines).where(eq(tables.dealLines.dealId, id)) : [];
+  const openTaskWhere = and(eq(tables.tasks.entityType, kind), eq(tables.tasks.entityId, id), isNull(tables.tasks.completedAt));
+  const openTasks = hasTimeline ? await db.select().from(tables.tasks).where(openTaskWhere) : [];
   const detached: Payload["detached"] = {};
   if (kind === "company") {
     detached.contacts = (await db.select({ id: tables.contacts.id }).from(tables.contacts).where(eq(tables.contacts.companyId, id))).map((r) => r.id);
     detached.deals = (await db.select({ id: tables.deals.id }).from(tables.deals).where(eq(tables.deals.companyId, id))).map((r) => r.id);
   }
 
-  const payload: Payload = { record, notes, activities, dealContacts, dealLines, detached };
+  const payload: Payload = { record, notes, activities, dealContacts, dealLines, openTasks, detached };
   await db.insert(tables.trash).values({
     id: newId(),
     entityType: kind,
@@ -97,6 +102,7 @@ export async function trashRecord(kind: TrashKind, id: string, deletedBy: string
   // Quotes stay where they are: their numbers are never reused, and a restored
   // deal finds them again. Purging the deal for good drops them (below).
   if (kind === "deal") await db.delete(tables.dealLines).where(eq(tables.dealLines.dealId, id));
+  if (openTasks.length) await db.delete(tables.tasks).where(openTaskWhere);
   if (kind === "company") {
     await db.update(tables.contacts).set({ companyId: null }).where(eq(tables.contacts.companyId, id));
     await db.update(tables.deals).set({ companyId: null }).where(eq(tables.deals.companyId, id));
@@ -154,7 +160,7 @@ export type RestoreResult =
   | { ok: false; status: 404 | 409; error: string };
 
 /**
- * Put a trashed record back with its notes and timeline. A contact whose email
+ * Put a trashed record back with its notes, timeline and open tasks. A contact whose email
  * another contact took meanwhile is refused (409). A deal whose stage was
  * removed meanwhile lands in its pipeline's first open stage (or the default
  * pipeline's, if that is gone too).
@@ -179,6 +185,7 @@ export async function restoreTrash(trashId: string): Promise<RestoreResult> {
   if (payload.activities.length) await db.insert(tables.activities).values(payload.activities as never).onConflictDoNothing();
   await restoreDealContacts(payload.dealContacts ?? []);
   if (payload.dealLines?.length) await db.insert(tables.dealLines).values(payload.dealLines as never).onConflictDoNothing();
+  if (payload.openTasks?.length) await db.insert(tables.tasks).values(payload.openTasks as never).onConflictDoNothing();
   if (kind === "company") {
     const id = item.entityId;
     if (payload.detached.contacts?.length) {
