@@ -810,7 +810,7 @@ export const en = {
   "settings.lostReasonNone": "Not required",
   "settings.lostReasonFailed": "Could not save the lost reason field.",
   "settings.leadOwner": "Default lead owner",
-  "settings.leadOwnerHint": "Who receives a contact another system sends over the API without naming an owner, and its follow-up task.",
+  "settings.leadOwnerHint": "Who receives a contact, company, deal or task another system creates over the API without naming an owner.",
   "settings.leadOwnerNone": "No one (leave unassigned)",
   "settings.leadOwnerFailed": "Could not save the default lead owner.",
   "settings.reportingFailed": "Could not save the reporting settings.",

@@ -211,4 +211,7 @@ Giữ nguyên, có lý do:
 | Q111 | A | Leo thu hồi khoá "Lead intake" đã lộ trong chat, tạo khoá member mới dán thẳng vào hệ thống gửi lead. |
 | Q112 | A | Lead qua API chỉ là liên hệ; cơ hội do sales tạo khi đã xác nhận nhu cầu. Claude soạn bộ lệnh curl cho mọi đối tượng (lead, liên hệ, công ty, cơ hội, việc, ghi chú, cuộc gọi), chạy thử từng lệnh trước khi giao. |
 | Q113 | A | Xoá liên hệ, công ty hay cơ hội thì việc chưa xong của nó vào Thùng rác cùng, khôi phục thì về lại; việc đã xong ở lại. |
+| Q114 | A | Người nhận lead mặc định áp dụng cho cả công ty, cơ hội và việc do khoá API tạo mà không ghi `ownerId` (một quy tắc ở `resolveOwner`). Trang curl cho dev chỉ giữ nội dung API. |
+
+**Bộ curl (Q112), đã kiểm 15/10:** chạy đúng 15 khối lệnh của `plans/reports/guide-261015-1150-PilotCo-api-curl.md` trên một bản Fourty ở máy cấu hình giống production (pipeline, 8 stage, 9 trường, lý do thua, người nhận mặc định, workflow gọi lại); tất cả trả đúng như ghi. Phát hiện khi kiểm: `GET /api/contacts?q=` không tìm theo số điện thoại (dùng `/api/search`). Trên production mới thử bước tạo lead.
 
