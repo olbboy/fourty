@@ -23,7 +23,7 @@ type RouteParams = { params: Promise<Record<string, string>> };
  */
 export function toRouteHandler<I, O>(
   action: ActionDef<I, O>,
-  opts: { status?: number; body?: (out: unknown) => unknown } = {},
+  opts: { status?: number | ((out: unknown) => number); body?: (out: unknown) => unknown } = {},
 ) {
   recordBinding("rest", action.name);
   return (req: Request, route?: RouteParams): Promise<Response> =>
@@ -40,7 +40,8 @@ export function toRouteHandler<I, O>(
           role: auth.role,
           userId: auth.user?.id ?? null,
         });
-        return json(opts.body ? opts.body(out) : out, { status: opts.status ?? 200 });
+        const status = typeof opts.status === "function" ? opts.status(out) : (opts.status ?? 200);
+        return json(opts.body ? opts.body(out) : out, { status });
       } catch (err) {
         if (err instanceof ActionError) return apiError(err.message, STATUS[err.kind]);
         throw err;
