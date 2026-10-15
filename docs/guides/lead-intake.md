@@ -42,10 +42,16 @@ the app.
 
 ## 3. Give the lead to someone
 
-A key is not a person, so a lead sent without `ownerId` arrives unassigned. To
-give it to a salesperson, send their member id as `ownerId`.
-`GET /api/tasks/assignees` (readable with the member key) lists the active
-members as `{ id, name }`. Keep the ids your system uses in its own settings.
+A key is not a person, so who gets a lead sent without `ownerId`?
+
+- **Default lead owner.** An admin picks one member in **Settings → Default lead
+  owner**. Every contact an API key makes without naming an owner goes to them,
+  follow-up task included. If that member leaves, leads arrive unassigned
+  rather than refused. Unset, leads arrive unassigned.
+- **Name the owner.** To give a lead to a particular salesperson, send their
+  member id as `ownerId`; it wins over the default. `"ownerId": null` keeps the
+  lead unassigned on purpose. `GET /api/tasks/assignees` (readable with the
+  member key) lists the active members as `{ id, name }`.
 
 ## 4. Follow up automatically
 

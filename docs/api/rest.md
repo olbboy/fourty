@@ -29,6 +29,7 @@ error shapes.
 | Targets (admin) | `PUT /api/targets` (`{ userId, period, amount \| null }`) |
 | Reporting settings | `/api/settings/reporting` (GET for any member; PATCH `currency`, `perUsd`, `deliveryField`, `breakdownField`, `lostReasonField` for admins) |
 | Reminder settings | `/api/settings/reminders` (admins; GET, PATCH `enabled`, `timeZone`, `locale`) |
+| Lead settings | `/api/settings/leads` (admins; GET, PATCH `{ defaultOwnerId \| null }`: who receives a contact an API key makes without naming an owner) |
 | Custom fields | `/api/custom-fields` |
 | Custom object definitions | `/api/custom-objects` (+ `/fields`) |
 | Custom object records | `/api/objects/{apiName}` (`q`, `sort`, `limit`), `/api/objects/{apiName}/{id}` |
