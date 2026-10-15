@@ -200,4 +200,6 @@ Giữ nguyên, có lý do:
 | Q104 | A | `POST /api/contacts?ifExists=fill`: email mới thì tạo (201); email đã có thì chỉ điền ô trống, giữ tên, email, trạng thái, ghi "lead quay lại từ {nguồn}" (200, `existed: true`); không phát `contact.created` lần nữa. |
 | Q105 | A | Workflow "Gọi lại lead mới": khi `contact.created`, nếu trạng thái là lead, tạo việc "Gọi lại lead {{firstName}}" hạn 1 ngày cho người phụ trách liên hệ. |
 | Q106 | C | Hệ thống riêng của PilotCo gọi thẳng API; hướng dẫn ở `docs/guides/lead-intake.md`. |
+| Q107 | B | Cài đặt → "Người nhận lead mặc định": liên hệ do khoá API tạo mà không ghi người phụ trách thì về người này, kèm việc gọi lại; ghi `ownerId` (hoặc `null`) thì theo yêu cầu; người đó rời workspace thì lead để chưa giao chứ không bị từ chối. |
+| Q108 | A | Khi có khoá, bên phát triển gửi lead "Test Lead" nguồn "test"; Claude kiểm liên hệ, việc gọi lại, dòng thời gian trên production; Leo xoá lead thử. |
 

@@ -687,6 +687,7 @@ export const vi: Record<MessageKey, string> = {
   "audit.action.target.set": "Đã đặt chỉ tiêu",
   "audit.action.contact.merged": "Đã gộp liên hệ",
   "audit.action.contact.returned": "Lead quay lại",
+  "audit.action.lead_settings.updated": "Đổi người nhận lead mặc định",
   "audit.action.company.merged": "Đã gộp công ty",
   "audit.action.account.details_changed": "Đã đổi chức danh hoặc số điện thoại",
   "audit.action.member.reactivated": "Đã kích hoạt lại thành viên",
@@ -809,6 +810,10 @@ export const vi: Record<MessageKey, string> = {
   "settings.lostReasonHint": "Deal phải có giá trị ở trường này mới chuyển được sang stage thua. Kéo deal sang đó sẽ hỏi lý do.",
   "settings.lostReasonNone": "Không bắt buộc",
   "settings.lostReasonFailed": "Không lưu được trường lý do thua.",
+  "settings.leadOwner": "Người nhận lead mặc định",
+  "settings.leadOwnerHint": "Người nhận liên hệ do hệ thống khác gửi qua API mà không ghi người phụ trách, cùng việc gọi lại của nó.",
+  "settings.leadOwnerNone": "Không ai (để chưa giao)",
+  "settings.leadOwnerFailed": "Không lưu được người nhận lead mặc định.",
   "settings.reportingFailed": "Không lưu được cài đặt báo cáo.",
   "settings.webhooks": "Webhook",
   "settings.webhooksHint":

@@ -6,6 +6,7 @@ import { recomputeContactScore } from "@/lib/services/contact-score";
 import { defineAction } from "../define";
 import { resolveOwner } from "../assignees";
 import { encodeCustom } from "@/lib/custom-fields";
+import { defaultLeadOwner } from "@/lib/lead-settings";
 import { ActionError } from "../types";
 import { auditMeta, findContactIdByEmail, toContact, type Contact } from "./shared";
 
@@ -26,7 +27,9 @@ export const contactsCreate = defineAction({
     const now = Date.now();
     const id = newId();
     const { custom, ownerId: requestedOwner, ...fields } = data;
-    const ownerId = await resolveOwner(requestedOwner, ctx);
+    // A key has no person behind it: a contact it makes without naming an
+    // owner goes to the Default lead owner (Q107), so its follow-up is someone's.
+    const ownerId = requestedOwner === undefined && !ctx.userId ? await defaultLeadOwner() : await resolveOwner(requestedOwner, ctx);
     const blob = await encodeCustom("contact", custom ?? {});
     if (!blob.ok) throw new ActionError("invalid", blob.error);
     await db.insert(tables.contacts).values({

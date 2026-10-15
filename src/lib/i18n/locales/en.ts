@@ -686,6 +686,7 @@ export const en = {
   "audit.action.target.set": "Target set",
   "audit.action.contact.merged": "Contacts merged",
   "audit.action.contact.returned": "A lead came back",
+  "audit.action.lead_settings.updated": "Default lead owner changed",
   "audit.action.company.merged": "Companies merged",
   "audit.action.account.renamed": "Name changed",
   "audit.action.account.details_changed": "Title or phone changed",
@@ -808,6 +809,10 @@ export const en = {
   "settings.lostReasonHint": "A deal must have this field filled before it moves into a lost stage. Dragging it there asks for the reason.",
   "settings.lostReasonNone": "Not required",
   "settings.lostReasonFailed": "Could not save the lost reason field.",
+  "settings.leadOwner": "Default lead owner",
+  "settings.leadOwnerHint": "Who receives a contact another system sends over the API without naming an owner, and its follow-up task.",
+  "settings.leadOwnerNone": "No one (leave unassigned)",
+  "settings.leadOwnerFailed": "Could not save the default lead owner.",
   "settings.reportingFailed": "Could not save the reporting settings.",
   "settings.webhooks": "Webhooks",
   "settings.webhooksHint":

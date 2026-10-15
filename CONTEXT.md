@@ -18,6 +18,10 @@ _Avoid_: User, login, profile
 An Account's place in one Workspace, carrying a role (admin, member or viewer); removing a Member ends their access to that Workspace but keeps the Account and its history, and an admin can reactivate them with the role they had.
 _Avoid_: User, teammate, seat
 
+**Default lead owner**:
+The Member who receives a contact that an API key makes without naming an owner; a request that names an owner, or none on purpose, is followed instead.
+_Avoid_: Round robin, lead router
+
 **Invite**:
 A single-use link that lets whoever holds it join one Workspace as a Member with a set role; it lapses after seven days.
 _Avoid_: Invitation code, join link
