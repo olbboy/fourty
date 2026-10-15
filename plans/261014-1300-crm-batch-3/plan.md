@@ -202,4 +202,9 @@ Giữ nguyên, có lý do:
 | Q106 | C | Hệ thống riêng của PilotCo gọi thẳng API; hướng dẫn ở `docs/guides/lead-intake.md`. |
 | Q107 | B | Cài đặt → "Người nhận lead mặc định": liên hệ do khoá API tạo mà không ghi người phụ trách thì về người này, kèm việc gọi lại; ghi `ownerId` (hoặc `null`) thì theo yêu cầu; người đó rời workspace thì lead để chưa giao chứ không bị từ chối. |
 | Q108 | A | Khi có khoá, bên phát triển gửi lead "Test Lead" nguồn "test"; Claude kiểm liên hệ, việc gọi lại, dòng thời gian trên production; Leo xoá lead thử. |
+| Q109 | A | Người nhận lead mặc định trên production là Anh Lâm (đặt 15/10, backup `fourty-2026-10-15-0414.dump`, nhật ký `via: claude`). |
+
+**Kết quả Q108 (15/10 11:16):** gửi "Test Lead" (test-lead@example.com, nguồn test) hai lần qua `https://crm.example.com/api/contacts?ifExists=fill` bằng khoá member "Lead intake". Lần 1 trả 201 (`existed: false`), lần 2 trả 200 (`existed: true`), cùng một liên hệ. Liên hệ ở trạng thái lead, người phụ trách Anh Lâm (người nhận mặc định). Workflow "Gọi lại lead mới" tạo đúng một việc "Gọi lại lead Test", ưu tiên cao, hạn 16/10. Dòng thời gian có "created" rồi "returned" (nguồn test). Nhật ký có `contact.created` và `contact.returned`.
+
+**Kết quả Q99 (15/10):** nhắc việc bật, worker kiểm đều mỗi phút. Sáng 15/10 không có email nhắc vì không có việc nào đang mở có hạn (chỉ 1 việc đang mở, không có hạn). Việc "Gọi lại lead Test" hạn 16/10 sẽ là email nhắc đầu tiên, cho Anh Lâm, sáng 16/10.
 
