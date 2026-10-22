@@ -11,12 +11,12 @@ status: "Nghiên cứu xong, chỉ mô tả. Không có quyết định sản ph
 
 Câu hỏi: trong những thứ một CRM thường được kỳ vọng có, Fourty thiếu cái nào hoặc mới có một phần?
 
-Cách làm: (1) lập danh sách "cơ bản" từ trang tài liệu và bảng tính năng của chính nhà cung cấp, ở gói thấp nhất; (2) mở code, schema, migration, docs và e2e của Fourty để biết nó làm được gì; (3) đối chiếu từng năng lực, mỗi chỗ thiếu kèm một tình huống cụ thể của PilotCo.
+Cách làm: (1) lập danh sách "cơ bản" từ trang tài liệu và bảng tính năng của chính nhà cung cấp, ở gói thấp nhất; (2) mở code, schema, migration, docs và e2e của Fourty để biết nó làm được gì; (3) đối chiếu từng năng lực, mỗi chỗ thiếu kèm một tình huống cụ thể của khách hàng thử nghiệm.
 
 Giới hạn của báo cáo:
 
 - **Quản trị thành viên** (nhóm, vai trò, lời mời, vô hiệu hoá): xem báo cáo riêng. Báo cáo này chỉ nhắc quyền xem theo từng bản ghi ở §4 vì nó nằm trong danh sách năng lực cần kiểm.
-- **Không lặp lại** những gì `plans/reports/advisor-261013-0151-PilotCo-sales-pipeline-fit.md` đã chốt (một pipeline `Sales`, 8 stage, 9 custom field, 3 workflow, script nhập bằng REST). Báo cáo này chỉ trích dữ liệu PilotCo từ đó, ghi "advisor §n".
+- **Không lặp lại** những gì báo cáo tư vấn pipeline (đã chuyển sang kho tri thức của khách hàng thử nghiệm) đã chốt (một pipeline `Sales`, 8 stage, 9 custom field, 3 workflow, script nhập bằng REST). Báo cáo này chỉ trích dữ liệu khách hàng thử nghiệm từ đó, ghi "advisor §n".
 - Không truy cập production, không đọc `.env`, không sửa code. Mọi thứ về Fourty đọc từ worktree này.
 - Không khuyến nghị làm gì, không xếp thứ tự. Mỗi chỗ thiếu chỉ mô tả tác động.
 
@@ -149,13 +149,13 @@ Cách đọc các dấu cho từng hàng nằm ở §3.2. Nguồn cụ thể c�
 
 Quản trị thành viên (nhóm, vai trò, lời mời, vô hiệu hoá): xem báo cáo riêng.
 
-## 5. Chỗ thiếu và chỗ có một phần, kèm tình huống PilotCo
+## 5. Chỗ thiếu và chỗ có một phần, kèm tình huống khách hàng thử nghiệm
 
-Dữ liệu PilotCo lấy từ advisor: 11 cơ hội, 8 stage, pipeline duy nhất `Sales`, DVHai đứng tên 9/11 dòng (advisor §2). Tình huống ghi "minh hoạ" là tôi dựng để nhìn tác động, không phải dữ liệu thật.
+Dữ liệu khách hàng thử nghiệm lấy từ advisor: 11 cơ hội, 8 stage, pipeline duy nhất `Sales`, DVHai đứng tên 9/11 dòng (advisor §2). Tình huống ghi "minh hoạ" là tôi dựng để nhìn tác động, không phải dữ liệu thật.
 
 ### Thiếu (6 mục cơ bản + 11 mục ngoài ngưỡng)
 
-**A. Tệp đính kèm** (#6). Chỗ để cất hợp đồng, PO, bảng tải, ảnh khảo sát. Advisor §5 ghi khảo sát thực địa là mốc chốt uy tín của PilotCo và stage 3 là "Khảo sát & thiết kế giải pháp". Minh hoạ: LTHoa khảo sát Fiesta, có ảnh và bản vẽ. Trong Fourty không có chỗ gắn tệp vào deal; chỉ dán được một đường link vào một custom field kiểu link (`records.ts:9`) hoặc vào ghi chú.
+**A. Tệp đính kèm** (#6). Chỗ để cất hợp đồng, PO, bảng tải, ảnh khảo sát. Advisor §5 ghi khảo sát thực địa là mốc chốt uy tín của khách hàng thử nghiệm và stage 3 là "Khảo sát & thiết kế giải pháp". Minh hoạ: LTHoa khảo sát Fiesta, có ảnh và bản vẽ. Trong Fourty không có chỗ gắn tệp vào deal; chỉ dán được một đường link vào một custom field kiểu link (`records.ts:9`) hoặc vào ghi chú.
 
 **B. Gửi email và mẫu email** (#11, f). Advisor §12 có workflow "vào Đã gửi đề xuất / Báo giá thì tạo task follow-up hạn 7 ngày". Thư báo giá vẫn soạn và gửi ngoài Fourty. Nếu hộp thư đã kết nối, thư đến chỉ hiện trên liên hệ, không hiện trên deal, nên mở deal Điện lực sẽ không thấy thư qua lại.
 
@@ -165,7 +165,7 @@ Dữ liệu PilotCo lấy từ advisor: 11 cơ hội, 8 stage, pipeline duy nh�
 
 **E. Lý do thua** (a). Advisor §5 đặt stage 8 "Không tiếp tục" với điều kiện vào là "có lý do mất". Fourty không kiểm điều kiện đó: kéo deal sang stage mất là xong, không hỏi gì. Cách vòng advisor đã chọn: custom field `loss_reason` và một workflow tạo task bổ sung lý do hạn 1 ngày. Vậy lý do được điền sau, bằng việc nhắc, thay vì lúc đóng deal.
 
-**F. Dòng sản phẩm** (#8). Advisor §4 kịch bản C: Fiesta 20 tỷ có thể là giá trị cả dự án điện mặt trời, trong khi PilotCo là nhà phân phối pin Pytes. Deal chỉ có một con số `amount`; không có chỗ tách pin, thiết bị, dịch vụ. Phân biệt "phần PilotCo xuất hoá đơn" với "tổng dự án" hiện nhờ custom field `value_basis` (advisor §12).
+**F. Dòng sản phẩm** (#8). Advisor §4 kịch bản C: Fiesta 20 tỷ có thể là giá trị cả dự án điện mặt trời, trong khi khách hàng thử nghiệm là nhà phân phối pin Pytes. Deal chỉ có một con số `amount`; không có chỗ tách pin, thiết bị, dịch vụ. Phân biệt "phần khách hàng thử nghiệm xuất hoá đơn" với "tổng dự án" hiện nhờ custom field `value_basis` (advisor §12).
 
 **G. Báo cáo tự dựng, báo cáo theo người phụ trách, mục tiêu** (#19, k). Ban điều hành xem báo cáo trong Fourty (advisor §9, Q7 = A). Muốn xem "pipeline theo từng người phụ trách" thì không có, vì thống kê không có chiều owner. Bảng dự báo theo quý tách được theo `sales_motion` nhưng không theo owner. Cũng không có chỗ nhập chỉ tiêu quý của từng người để so với dự báo.
 
@@ -191,7 +191,7 @@ Dữ liệu PilotCo lấy từ advisor: 11 cơ hội, 8 stage, pipeline duy nh�
 
 **Ghi chú không sửa, không xoá** (#5). Minh hoạ: ghi nhầm "800 tỷ" thay vì "80 tỷ" vào một ghi chú; dòng đó ở trên dòng thời gian đến khi cả bản ghi bị xoá.
 
-**Đồng bộ email** (#10). Thư chỉ gắn vào liên hệ khớp theo địa chỉ email. Một liên hệ Điện lực có nhiều deal thì thư không biết thuộc deal nào, và bản thân deal không hiện thư. Tài liệu `docs/guides/email-calendar.md:14-15` ghi thư xếp lên dòng thời gian "của liên hệ và deal"; code chỉ ghi vào liên hệ (§7). Việc hộp thư của PilotCo đã được kết nối chưa: chưa kiểm (§8).
+**Đồng bộ email** (#10). Thư chỉ gắn vào liên hệ khớp theo địa chỉ email. Một liên hệ Điện lực có nhiều deal thì thư không biết thuộc deal nào, và bản thân deal không hiện thư. Tài liệu `docs/guides/email-calendar.md:14-15` ghi thư xếp lên dòng thời gian "của liên hệ và deal"; code chỉ ghi vào liên hệ (§7). Việc hộp thư của khách hàng thử nghiệm đã được kết nối chưa: chưa kiểm (§8).
 
 **Đồng bộ lịch** (#12). Lịch Google hay Outlook của DVHai chỉ vào được bằng đường link ICS của lịch; cuộc họp tạo trong CRM không đẩy ngược ra lịch.
 
@@ -235,7 +235,7 @@ Phần còn lại của docs đã đối chiếu (ghi chú chỉ thêm, nhập C
 
 **Về Fourty**
 
-- Hộp thư Gmail/Microsoft của PilotCo đã được kết nối trên `crm.example.com` chưa: không đọc `.env`, không vào production.
+- Hộp thư Gmail/Microsoft của khách hàng thử nghiệm đã được kết nối trên `crm.example.com` chưa: không đọc `.env`, không vào production.
 - Production đang chạy đúng commit nào: chưa kiểm.
 - Chất lượng bản dịch: chỉ so khoá giữa `en.ts` và `vi.ts` (1.053 và 1.052; 9 chuỗi trùng chữ Anh đều là chuỗi kỹ thuật). Chưa đọc từng câu tiếng Việt.
 - Số công cụ MCP: docs ghi 39; `src/mcp/tools.ts` tự khai báo 25 tên, phần còn lại đến từ action registry. Chưa đếm đủ.
@@ -247,11 +247,11 @@ Báo cáo này không khuyến nghị phương án nào.
 
 **Q1. Ngưỡng "cơ bản".** (A) Giữ 3/5 nguồn ở bậc nhập · (B) Siết 4/5 nguồn · (C) Chỉ tính Pipedrive và HubSpot, vì cùng loại CRM xoay quanh deal. Hệ quả: (B) bảng 4.1 chỉ còn các mục có ít nhất 4 dấu ✓ (mục 1, 3, 7, 12, 13, 15, 16, 17, 18, 19), 12 mục còn lại chuyển sang 4.2; (C) thêm lý do thua (a) và quyền theo bản ghi (e) vào bảng 4.1, vì cả Pipedrive lẫn HubSpot đều ✓.
 
-**Q2. Mốc so sánh.** (A) Bậc nhập của nhà cung cấp, như báo cáo này · (B) Gói trả phí tầm trung của từng nhà cung cấp (Growth, Professional, Pro Suite) · (C) Chỉ theo nhu cầu PilotCo (11 deal, 5 người), không theo nhà cung cấp.
+**Q2. Mốc so sánh.** (A) Bậc nhập của nhà cung cấp, như báo cáo này · (B) Gói trả phí tầm trung của từng nhà cung cấp (Growth, Professional, Pro Suite) · (C) Chỉ theo nhu cầu khách hàng thử nghiệm (11 deal, 5 người), không theo nhà cung cấp.
 
 **Q3. Các mục "chưa đủ nguồn"** (lý do thua, nhiều liên hệ, nhãn, xoá mềm, quyền theo bản ghi, mẫu email, đặt lịch họp, xem việc theo lịch, lịch sử giá trị). (A) Kiểm thêm bằng tài khoản dùng thử của từng nguồn · (B) Giữ nguyên trạng thái "chưa đủ nguồn".
 
-**Q4. Hộp thư của PilotCo.** Gmail/Microsoft đã kết nối trên `crm.example.com` chưa? (A) Đã kết nối · (B) Chưa · (C) Không rõ, cần người có quyền xem Settings → Mailboxes kiểm.
+**Q4. Hộp thư của khách hàng thử nghiệm.** Gmail/Microsoft đã kết nối trên `crm.example.com` chưa? (A) Đã kết nối · (B) Chưa · (C) Không rõ, cần người có quyền xem Settings → Mailboxes kiểm.
 
 **Q5. Chỗ tài liệu và code lệch (§7).** (A) Ghi nhận như một việc riêng, chưa quyết sửa bên nào · (B) Bỏ qua ở báo cáo này.
 
@@ -259,7 +259,7 @@ Báo cáo này không khuyến nghị phương án nào.
 
 | Câu | Chọn | Nghĩa |
 |---|---|---|
-| Q66 (Q1, Q2) | A | Giữ 22 mục (ít nhất 3/5 nguồn ở bậc nhập) làm danh sách kiểm; chọn việc làm trước theo nhu cầu bán hàng của PilotCo (hỏi ở vòng sau) |
-| Q67 (Q4) | A | Đã kiểm 13/10/2026 bằng `GET /api/sync/accounts` trên `crm.example.com` (chỉ đọc): **0** hộp thư hoặc lịch đã nối. Chỗ thiếu "thư chỉ gắn vào liên hệ" (#10) chưa ảnh hưởng PilotCo lúc này |
+| Q66 (Q1, Q2) | A | Giữ 22 mục (ít nhất 3/5 nguồn ở bậc nhập) làm danh sách kiểm; chọn việc làm trước theo nhu cầu bán hàng của khách hàng thử nghiệm (hỏi ở vòng sau) |
+| Q67 (Q4) | A | Đã kiểm 13/10/2026 bằng `GET /api/sync/accounts` trên `crm.example.com` (chỉ đọc): **0** hộp thư hoặc lịch đã nối. Chỗ thiếu "thư chỉ gắn vào liên hệ" (#10) chưa ảnh hưởng khách hàng thử nghiệm lúc này |
 | Q68 (Q5) | A | Sửa `docs/guides/email-calendar.md` cho khớp code: thư chỉ gắn vào liên hệ, không gắn vào deal |
 | Q3 | chưa hỏi | Các mục "chưa đủ nguồn" giữ nguyên trạng thái |

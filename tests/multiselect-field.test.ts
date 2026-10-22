@@ -39,7 +39,7 @@ describe("multi-select custom field", () => {
     });
     expect(field.status).toBe(201);
 
-    const res = await post("deals", { name: "Điện lực", custom: { tags: ["Đã khảo sát", "Chờ pháp lý"] } });
+    const res = await post("deals", { name: "EcoPower", custom: { tags: ["Đã khảo sát", "Chờ pháp lý"] } });
     expect(res.status).toBe(201);
     expect((await res.json()).deal.custom.tags).toEqual(["Đã khảo sát", "Chờ pháp lý"]);
 
@@ -54,7 +54,7 @@ describe("multi-select custom field", () => {
 
   it("finds every deal holding a choice when the list filters by it", async () => {
     await post("deals", { name: "Vạn Cát", custom: { tags: ["Ưu tiên", "Chờ pháp lý"] } });
-    expect(await dealsWith("Chờ pháp lý")).toEqual(["Điện lực", "Vạn Cát"]);
+    expect(await dealsWith("Chờ pháp lý")).toEqual(["EcoPower", "Vạn Cát"]);
     expect(await dealsWith("Ưu tiên")).toEqual(["Fiesta", "Vạn Cát"]);
   });
 
