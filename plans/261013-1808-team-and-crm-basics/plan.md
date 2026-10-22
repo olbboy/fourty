@@ -10,7 +10,7 @@ nguon:
 
 # Trang Thành viên và các tính năng CRM cơ bản còn thiếu
 
-Mục tiêu: admin của PilotCo tự quản lý được thành viên mà không cần ai vào máy chủ, và đội bán hàng có đủ những tính năng cơ bản mà công việc hằng ngày đang thiếu. File này chỉ chia việc và đặt tiêu chí xong; lý do nằm ở hai báo cáo nguồn.
+Mục tiêu: admin của khách hàng thử nghiệm tự quản lý được thành viên mà không cần ai vào máy chủ, và đội bán hàng có đủ những tính năng cơ bản mà công việc hằng ngày đang thiếu. File này chỉ chia việc và đặt tiêu chí xong; lý do nằm ở hai báo cáo nguồn.
 
 Từ ngữ theo `CONTEXT.md`: **Thành viên** (Member), **Tài khoản** (Account), **Lời mời** (Invite), **Owner**.
 
@@ -19,7 +19,7 @@ Từ ngữ theo `CONTEXT.md`: **Thành viên** (Member), **Tài khoản** (Accou
 - Mỗi phase một nhánh, một PR. Trước khi viết test, chốt với Leo chỗ đặt test (seam); viết test trước, đỏ rồi mới xanh.
 - Xong khi: `npx tsc --noEmit`, toàn bộ `npm test` và toàn bộ e2e đạt trên Postgres riêng của phiên; CI xanh; Leo nói "merge"; deploy theo runbook §6 (lệnh deploy luôn backup trước, phase nào có migration càng cần bước này); kiểm sau deploy như runbook.
 - Chữ trên giao diện có đủ tiếng Anh và tiếng Việt. Mọi thao tác quản trị ghi nhật ký kiểm toán.
-- Ranh giới giữ nguyên: hỏi Leo trước khi chạy lệnh trên máy chủ thật ngoài các bước đã duyệt, trước khi mở PR, trước khi commit trong kho tri thức PilotCo.
+- Ranh giới giữ nguyên: hỏi Leo trước khi chạy lệnh trên máy chủ thật ngoài các bước đã duyệt, trước khi mở PR, trước khi commit trong kho tri thức khách hàng thử nghiệm.
 
 ## Phase 0 — Cấu hình, không viết code (Q71 = A)
 
@@ -129,7 +129,7 @@ Kết quả Phase 9 (14/10/2026):
 |---|---|---|
 | Q73 | A | Mời lại một email đang có lời mời chờ thì link cũ tự bị thu hồi; "Gửi lại" đi đúng đường này |
 | Q74 | A | Mời một email đã là thành viên đang hoạt động thì bị từ chối ngay lúc mời |
-| Q75 | A | Admin chọn một custom field chọn một làm trường lý do thua (PilotCo: "Lý do không tiếp tục"); vào stage mất mà thiếu lý do thì bị từ chối; giao diện hỏi lý do khi kéo |
+| Q75 | A | Admin chọn một custom field chọn một làm trường lý do thua (khách hàng thử nghiệm: "Lý do không tiếp tục"); vào stage mất mà thiếu lý do thì bị từ chối; giao diện hỏi lý do khi kéo |
 | Q76 | A | Người viết và admin được sửa, xoá ghi chú |
 | Q77 | A | Sửa email, tạo link đặt lại mật khẩu, tắt 2FA của người khác: chỉ admin của workspace tạo đầu tiên, như SSO |
 | Q78 | A | Admin bật email nhắc trong Settings; gửi 8 giờ sáng theo múi giờ workspace (cài đặt mới, mặc định Asia/Ho_Chi_Minh) |

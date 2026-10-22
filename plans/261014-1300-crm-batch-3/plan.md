@@ -173,7 +173,7 @@ Giữ nguyên, có lý do:
 ## Đã deploy (14/10/2026)
 
 - Lượt 1: PR #39 (7106b7f). Lượt 2 và 3: PR #40 (7d0c485), deploy lúc 16:23.
-- Trước deploy: backup `fourty-2026-10-14-0923.dump` (296K).
+- Trước deploy: backup cơ sở dữ liệu.
 - Sau deploy:
   - 30 migration.
   - `email_templates`, `quotes`, `targets` bật RLS bắt buộc, mỗi bảng một policy.
@@ -185,33 +185,20 @@ Giữ nguyên, có lý do:
 
 ## Quyết định của Leo sau deploy (14/10/2026)
 
+Các quyết định vận hành riêng của khách hàng thử nghiệm (nhập dữ liệu, cài đặt workspace, lời mời, khoá API, lead thử) nằm trong kho tri thức của khách, không ở repo này.
+
 | # | Chọn | Việc đã làm |
 |---|---|---|
 | Q94 | A, làm ngay | Job sinh ra trong giao dịch (workflow, webhook, email) chờ giao dịch commit mới gửi; savepoint bị huỷ thì bỏ job của nó. Có test đầu-cuối: nhập deal hỏng ở dòng 2 không gửi webhook cho dòng 1. ADR-017 cập nhật. |
 | Q95 | A | Gộp bản ghi tiếp tục phát `contact.deleted` / `company.deleted` kèm `mergedInto`. |
 | Q96 | A | Kích hoạt lại thành viên không đụng phiên đăng nhập; admin dùng "đăng xuất mọi nơi" nếu cần. |
-| Q97 | A | Leo tự nhập 2 deal và 1 việc của LTHoa bằng màn hình nhập deal. |
-| Q98 | B | Claude đặt trên production, sau backup `fourty-2026-10-14-0944.dump`, ghi nhật ký với `via: claude`: bật nhắc việc (tiếng Việt, giờ Việt Nam, link `https://crm.example.com`); trường ngày giao `planned_ship_date`, trường chia cột `sales_motion`, trường lý do thua `loss_reason`; tắt workflow "Bổ sung lý do không tiếp tục". |
-| Q99 | A | Sau 8 giờ sáng 15/10 Leo nhắn "kiểm nhắc việc"; Claude đọc log worker và báo thư đã gửi cho ai. |
-| Q100 | A | Leo mời lại trước khi hết hạn: btduc@example.com (hết hạn 20/10 11:51), lthoa@example.com (21/10 16:03). |
 | Q101 | A | Dừng sau đợt 3; dùng thật một thời gian rồi mới chọn đợt tiếp theo. |
-| Q102 | A | Trang nhập ở chế độ Liên hệ nhận ra file deal (không có cột tên liên hệ, có cột tên deal hoặc giá trị), không nhập mà hỏi "Chuyển sang Cơ hội" hay "Vẫn nhập thành liên hệ"; chuyển thì file được xem trước ngay bên nhập deal. Lý do: 18:05 ngày 14/10 file 2 deal của LTHoa vào nhầm chế độ Liên hệ, bị bỏ qua cả 2 dòng mà trông như đã xong. |
-| Q103 | A | Leo tạo khoá API vai trò member tên "Lead intake" (Cài đặt → API keys), dán thẳng vào hệ thống gửi lead. |
+| Q102 | A | Trang nhập ở chế độ Liên hệ nhận ra file deal (không có cột tên liên hệ, có cột tên deal hoặc giá trị), không nhập mà hỏi "Chuyển sang Cơ hội" hay "Vẫn nhập thành liên hệ"; chuyển thì file được xem trước ngay bên nhập deal. Lý do: một file deal từng vào nhầm chế độ Liên hệ, bị bỏ qua mọi dòng mà trông như đã xong. |
 | Q104 | A | `POST /api/contacts?ifExists=fill`: email mới thì tạo (201); email đã có thì chỉ điền ô trống, giữ tên, email, trạng thái, ghi "lead quay lại từ {nguồn}" (200, `existed: true`); không phát `contact.created` lần nữa. |
 | Q105 | A | Workflow "Gọi lại lead mới": khi `contact.created`, nếu trạng thái là lead, tạo việc "Gọi lại lead {{firstName}}" hạn 1 ngày cho người phụ trách liên hệ. |
-| Q106 | C | Hệ thống riêng của PilotCo gọi thẳng API; hướng dẫn ở `docs/guides/lead-intake.md`. |
+| Q106 | C | Hệ thống riêng của khách hàng thử nghiệm gọi thẳng API; hướng dẫn ở `docs/guides/lead-intake.md`. |
 | Q107 | B | Cài đặt → "Người nhận lead mặc định": liên hệ do khoá API tạo mà không ghi người phụ trách thì về người này, kèm việc gọi lại; ghi `ownerId` (hoặc `null`) thì theo yêu cầu; người đó rời workspace thì lead để chưa giao chứ không bị từ chối. |
-| Q108 | A | Khi có khoá, bên phát triển gửi lead "Test Lead" nguồn "test"; Claude kiểm liên hệ, việc gọi lại, dòng thời gian trên production; Leo xoá lead thử. |
-| Q109 | A | Người nhận lead mặc định trên production là Anh Lâm (đặt 15/10, backup `fourty-2026-10-15-0414.dump`, nhật ký `via: claude`). |
-
-**Kết quả Q108 (15/10 11:16):** gửi "Test Lead" (test-lead@example.com, nguồn test) hai lần qua `https://crm.example.com/api/contacts?ifExists=fill` bằng khoá member "Lead intake". Lần 1 trả 201 (`existed: false`), lần 2 trả 200 (`existed: true`), cùng một liên hệ. Liên hệ ở trạng thái lead, người phụ trách Anh Lâm (người nhận mặc định). Workflow "Gọi lại lead mới" tạo đúng một việc "Gọi lại lead Test", ưu tiên cao, hạn 16/10. Dòng thời gian có "created" rồi "returned" (nguồn test). Nhật ký có `contact.created` và `contact.returned`.
-
-**Kết quả Q99 (15/10):** nhắc việc bật, worker kiểm đều mỗi phút. Sáng 15/10 không có email nhắc vì không có việc nào đang mở có hạn (chỉ 1 việc đang mở, không có hạn). Việc "Gọi lại lead Test" hạn 16/10 sẽ là email nhắc đầu tiên, cho Anh Lâm, sáng 16/10.
-| Q110 | B | Xoá lead thử ngay (Leo xoá liên hệ "Test Lead" và việc "Gọi lại lead Test"). |
-| Q111 | A | Leo thu hồi khoá "Lead intake" đã lộ trong chat, tạo khoá member mới dán thẳng vào hệ thống gửi lead. |
 | Q112 | A | Lead qua API chỉ là liên hệ; cơ hội do sales tạo khi đã xác nhận nhu cầu. Claude soạn bộ lệnh curl cho mọi đối tượng (lead, liên hệ, công ty, cơ hội, việc, ghi chú, cuộc gọi), chạy thử từng lệnh trước khi giao. |
 | Q113 | A | Xoá liên hệ, công ty hay cơ hội thì việc chưa xong của nó vào Thùng rác cùng, khôi phục thì về lại; việc đã xong ở lại. |
 | Q114 | A | Người nhận lead mặc định áp dụng cho cả công ty, cơ hội và việc do khoá API tạo mà không ghi `ownerId` (một quy tắc ở `resolveOwner`). Trang curl cho dev chỉ giữ nội dung API. |
-
-**Bộ curl (Q112), đã kiểm 15/10:** chạy đúng 15 khối lệnh của `plans/reports/guide-261015-1150-PilotCo-api-curl.md` trên một bản Fourty ở máy cấu hình giống production (pipeline, 8 stage, 9 trường, lý do thua, người nhận mặc định, workflow gọi lại); tất cả trả đúng như ghi. Phát hiện khi kiểm: `GET /api/contacts?q=` không tìm theo số điện thoại (dùng `/api/search`). Trên production mới thử bước tạo lead.
 

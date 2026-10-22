@@ -10,7 +10,7 @@ nguon_da_mo:
   - "src/app/(app)/settings/{page,settings-client}.tsx và sections/{members,security,audit-log,api-keys,sso}.tsx; tasks-client.tsx; deals/deal-form.tsx; src/components/{app-sidebar,record-panels}.tsx; src/app/{login,accept}"
   - "scripts/reset-password.ts, package.json, docs/self-hosting/{operations,configuration}.md, docs/reference/cli.md, docs/api/rest.md, docs/adr/{005,012,014}.md, docs/getting-started/glossary.md, CONTEXT.md, README.md"
   - "tests/{members,rbac-matrix,login-workspace,invite-accept,reset-password,password-reset-flow}.test.ts, e2e/{invite-accept,settings,two-factor,forgot-password}.spec.ts"
-  - "plans/reports/{audit-261013-1246-workspace-members-tenant-scoping,runbook-261013-0037-droplet-deploy-guide}.md, plans/261013-0909-PilotCo-sales-pipeline/plan.md"
+  - "plans/reports/audit-261013-1246-workspace-members-tenant-scoping.md; runbook deploy và kế hoạch pipeline của khách hàng thử nghiệm (đã chuyển sang kho tri thức của khách)"
 ---
 
 # Quản trị người dùng: hiện có gì, thiếu gì
@@ -19,7 +19,7 @@ nguon_da_mo:
 
 Leo nói: "không có chỗ nào để quản lý thông tin về tất cả người dùng". Đọc mã cho thấy câu đó đúng, với một chỉnh: có một chỗ, **Cài đặt → Team members**, nhưng nó quản lý *tư cách thành viên trong một workspace* chứ không quản lý *con người*. Ở đó admin làm được đúng bốn việc: xem danh sách, mời người, đổi vai trò, gỡ người. Mọi việc khác về một con người đều không có màn hình và không có API. Riêng đặt lại mật khẩu có một lệnh chạy trên máy chủ; phần còn lại chỉ làm được bằng cách sửa thẳng cơ sở dữ liệu.
 
-Những khoảng trống lớn nhất, theo thứ tự đau với PilotCo:
+Những khoảng trống lớn nhất, theo thứ tự đau với khách hàng thử nghiệm:
 
 1. **Bàn giao khi một người nghỉ.** Gỡ người không động đến deal, task, workflow, API key, hộp thư mà người đó để lại. Trang deal không hiện owner, danh sách deal không lọc được theo owner, task của người đã gỡ hiện thành "Unassigned".
 2. **Lời mời đang chờ vô hình.** Không có danh sách, không thu hồi, không gửi lại. Hai lời mời đang chờ hôm nay không có chỗ nào để nhìn.
@@ -37,7 +37,7 @@ Những khoảng trống lớn nhất, theo thứ tự đau với PilotCo:
 | Từ | Nghĩa trong Fourty | Bằng chứng |
 |---|---|---|
 | **Instance** | Một lần cài Fourty đang chạy. `crm.example.com` là một instance. | |
-| **Workspace** | Không gian dữ liệu của một đội; mọi bản ghi CRM thuộc đúng một workspace. PilotCo có một. Ứng dụng chỉ tạo workspace ở lần cài đầu; không màn hình nào tạo workspace thứ hai. | `glossary.md:5-9`; `src/app/api/auth/setup/route.ts:15-20`; `createWorkspace` chỉ được gọi ở đó và ở dữ liệu mẫu `src/db/seed.ts:258` |
+| **Workspace** | Không gian dữ liệu của một đội; mọi bản ghi CRM thuộc đúng một workspace. khách hàng thử nghiệm có một. Ứng dụng chỉ tạo workspace ở lần cài đầu; không màn hình nào tạo workspace thứ hai. | `glossary.md:5-9`; `src/app/api/auth/setup/route.ts:15-20`; `createWorkspace` chỉ được gọi ở đó và ở dữ liệu mẫu `src/db/seed.ts:258` |
 | **Tài khoản** (bảng `users`) | Một con người ở mức cả instance: email (duy nhất), tên, mật khẩu đã băm, cấu hình 2FA. Không thuộc workspace nào. | `src/db/schema.ts:95-110` |
 | **Thành viên** (bảng `workspace_members`) | Một dòng nối một tài khoản với một workspace, mang **vai trò** và dấu "đã gỡ". Một tài khoản có thể là thành viên của nhiều workspace, hoặc của không workspace nào. | `schema.ts:38-53`; `docs/adr/005-authz-model.md:7-10` (vai trò nằm trên tư cách thành viên, không nằm trên con người) |
 | **Vai trò** | admin (toàn quyền, gồm quản trị), member (đọc và ghi dữ liệu CRM, không quản trị), viewer (chỉ đọc). | `src/lib/permissions.ts:1-10,45,54-59` |
@@ -85,7 +85,7 @@ Cột "Ai được làm" ghi rõ từng việc. Phần quản trị thật (`mem
 | Gỡ thành viên | admin | Nút thùng rác; REST `DELETE /api/members/:userId` | `[userId]/route.ts:71-89`. Chặn gỡ admin cuối (:79-81). Chỉ điền `deactivated_at` (:82-85). Ghi `member.removed` (:86). Giao diện báo "They lose access immediately." (`en.ts:289`). Hiệu lực ngay ở API: mỗi request kiểm lại tư cách (`src/lib/api.ts:104-105`, `auth.ts:192-207`), và mọi route dữ liệu đi qua bước đó (route không dùng `withAuth` chỉ còn các route danh tính: 2fa, auth, locale, accept, metrics). Không có test nào kiểm "phiên của người đã gỡ bị từ chối" (tìm `Not a member` trong `tests/` và `e2e/`: không có; `tests/members.test.ts:158-163` chỉ kiểm trả 200) |
 | Đưa người đã gỡ quay lại | admin, gián tiếp | Tạo lời mời mới tới đúng email, người đó nhận | `accept/route.ts:79-83` đặt lại vai trò và xoá `deactivated_at`. `PATCH` không làm được. Xem ghi chú a và b |
 | Xem nhật ký | admin | Cài đặt → Audit log (200 dòng mới nhất, cuộn); REST `GET /api/audit?limit=` tối đa 1000; `format=csv` | `src/app/api/audit/route.ts:8-33`; `audit-log.tsx:55,106,126-128`. Ghi: `member.invited` / `role_changed` / `removed` / `joined` (`invite/route.ts:45`, `[userId]/route.ts:62,86`, `accept/route.ts:94`). Không lọc theo người, hành động, ngày; không phân trang |
-| Đặt lại mật khẩu của người khác, bằng lệnh | người vào được máy chủ | `docker compose exec app npm run reset-password -- <email>` | `scripts/reset-password.ts`; `package.json:26`; `operations.md:42-72`; runbook `plans/reports/runbook-261013-0037-droplet-deploy-guide.md:398`. Gõ mật khẩu mới ở dấu nhắc; xoá mọi phiên của người đó (`auth.ts:141-152`). Không ghi nhật ký (hai file này không gọi `audit`). Không có trong `docs/reference/cli.md` (bảng Operations chỉ có `backup-drill` và `rekey`, :67-68) |
+| Đặt lại mật khẩu của người khác, bằng lệnh | người vào được máy chủ | `docker compose exec app npm run reset-password -- <email>` | `scripts/reset-password.ts`; `package.json:26`; `operations.md:42-72`; runbook runbook deploy (kho tri thức của khách hàng thử nghiệm). Gõ mật khẩu mới ở dấu nhắc; xoá mọi phiên của người đó (`auth.ts:141-152`). Không ghi nhật ký (hai file này không gọi `audit`). Không có trong `docs/reference/cli.md` (bảng Operations chỉ có `backup-drill` và `rekey`, :67-68) |
 | Quản lý API key (tạo, thu hồi, xem lần dùng cuối) | admin | Cài đặt → API keys; REST `/api/api-keys` | `api-keys/route.ts:11-84`; `api-keys.tsx:125-131`. Key không gắn người |
 | Quản lý SSO | admin của workspace đầu tiên | Cài đặt → Single sign-on | `src/lib/sso/authorize.ts:17-25` |
 
@@ -113,7 +113,7 @@ Cột "Ai được làm" ghi rõ từng việc. Phần quản trị thật (`mem
 
 Cột cuối ghi cách tôi biết là *không có*: tôi đã tìm gì và không thấy gì.
 
-| # | Việc | Hệ quả cụ thể với PilotCo | Bằng chứng là không có |
+| # | Việc | Hệ quả cụ thể với khách hàng thử nghiệm | Bằng chứng là không có |
 |---|---|---|---|
 | T1 | Danh sách lời mời đang chờ; thu hồi; gửi lại | Hai lời mời đang chờ hôm nay không nhìn được ở đâu. Gõ nhầm email thì link vẫn dùng được tới 7 ngày, và người cầm link đang đăng nhập có thể nhận (đã ghi nhận F3 ở báo cáo trước, giữ nguyên). Muốn "gửi lại" phải tạo lời mời mới, các lời mời cũ vẫn sống. Link mất khỏi màn hình khi rời trang | `invite/route.ts` chỉ export `POST`; thư mục `src/app/api/members` chỉ có `[userId]`, `accept`, `invite`, `route.ts`; bảng `invites` chỉ được đọc ở `accept/route.ts:39` và `invites.ts:25-27`; `invites` không có cột thu hồi (`schema.ts:56-73`) |
 | T2 | Sửa tên và email (của người khác và của chính mình) | Tên sai chính tả hiện ở danh sách thành viên, ô chọn owner, nhật ký, lịch sử deal. Đổi email công ty cũng không làm được | Danh sách nơi ghi `users` ở bảng Tự phục vụ. SSO lần sau không cập nhật tên (`provision.ts:28-31` trả tài khoản cũ nguyên trạng) |
@@ -132,7 +132,7 @@ Cột cuối ghi cách tôi biết là *không có*: tôi đã tìm gì và khô
 
 ## Kịch bản cụ thể
 
-Tên người trong các kịch bản lấy từ yêu cầu nghiên cứu (BTDuc, haidv, longnv). Kho mã không chứa dữ liệu thật của họ; `plans/261013-0909-PilotCo-sales-pipeline/plan.md:46` nhắc tới ba thành viên khác tên viết (DVHai, LTHoa, NVLong). Số liệu production ("1 admin, 2 thành viên, 2 lời mời đang chờ") lấy từ yêu cầu, **chưa kiểm** vì không được chạm production.
+Tên người trong các kịch bản lấy từ yêu cầu nghiên cứu (BTDuc, haidv, longnv). Kho mã không chứa dữ liệu thật của họ; kế hoạch pipeline của khách hàng thử nghiệm nhắc tới ba thành viên khác tên viết (DVHai, LTHoa, NVLong). Số liệu production ("1 admin, 2 thành viên, 2 lời mời đang chờ") lấy từ yêu cầu, **chưa kiểm** vì không được chạm production.
 
 ### A. BTDuc nghỉ việc: admin làm được gì, từng bước
 
@@ -154,7 +154,7 @@ Tên người trong các kịch bản lấy từ yêu cầu nghiên cứu (BTDuc
 | API key BTDuc tạo | Vẫn hoạt động. Key tạo từ giao diện là quyền admin | Xem danh sách key (tên, tiền tố, ngày tạo, lần dùng cuối) rồi đoán theo tên. Truy ngược bằng nhật ký `api_key.created` có `actor_id` = BTDuc (`api-keys/route.ts:60-64`), nhưng giao diện chỉ hiện 200 dòng gần nhất, không lọc | `api-keys.tsx:51,125-131`; `api-keys/route.ts:43` |
 | Hộp thư BTDuc đã nối | Tiếp tục đồng bộ | Cài đặt → Mailboxes → ngắt kết nối thủ công (ghi `sync_account.deleted`) | `schema.ts:554-568` (không cột người); `sync/accounts/[id]/route.ts:78` |
 | Tài khoản | Còn nguyên; email vẫn bị chiếm (duy nhất); BTDuc vẫn đăng nhập được vào app nhưng không có workspace | Không vô hiệu được ở mức tài khoản | `schema.ts:99`; `login/route.ts:59-61`; `auth.ts:182-189` |
-| Nếu PilotCo dùng SSO | Danh tính công ty của BTDuc vẫn qua được IdP; vào app vẫn bị chặn vì dòng đã gỡ được coi là "đã tồn tại", không tạo lại | Không cần làm gì thêm. Có dùng SSO không: **chưa kiểm** | `provision.ts:56-62`; `api.ts:104-105` |
+| Nếu khách hàng thử nghiệm dùng SSO | Danh tính công ty của BTDuc vẫn qua được IdP; vào app vẫn bị chặn vì dòng đã gỡ được coi là "đã tồn tại", không tạo lại | Không cần làm gì thêm. Có dùng SSO không: **chưa kiểm** | `provision.ts:56-62`; `api.ts:104-105` |
 | Dữ liệu cá nhân trỏ về BTDuc | view đã lưu, hội thoại trợ lý AI, ghi chú, hoạt động vẫn trỏ về id của BTDuc | Không cần làm gì; tên vẫn hiện nhờ đọc từ `users` (ghi chú trong mã: "a departed owner keeps their name in history") | `schema.ts:305,319,526,652`; `deals/update.ts:150` |
 
 **Nếu BTDuc quay lại sau này:** admin tạo lời mời mới tới đúng email; BTDuc đăng nhập rồi nhận. Có thể rơi vào ghi chú (b): phiên không có workspace cho tới khi đăng nhập lại. Chưa chạy thử.
@@ -191,7 +191,7 @@ Admin muốn biết: gửi cho ai, hết hạn lúc nào, ai mời. Giao diện 
 
 - Số liệu production (1 admin, 2 thành viên, 2 lời mời đang chờ, một workspace): lấy từ yêu cầu, không đọc từ production.
 - Ghi chú a và b: suy ra từ đọc mã, chưa chạy test hay thử trên app. Chạy test cần Postgres và truncate DB test nên tôi không chạy.
-- PilotCo có dùng SSO không; haidv có bật 2FA không; hôm nay production có tài khoản nào không có dòng thành viên không.
+- khách hàng thử nghiệm có dùng SSO không; haidv có bật 2FA không; hôm nay production có tài khoản nào không có dòng thành viên không.
 - Còn chỗ nào đọc `owner_id` của contact và company ngoài điều kiện workflow (`engine.ts:131-132`) và quyền theo trường (`field-permissions.tsx`).
 - Mọi tên người (BTDuc, haidv, longnv) chỉ là ví dụ; không đối chiếu với danh sách thật.
 - Tôi đã kiểm bằng tìm kiếm văn bản rằng không có route, script hay tài liệu cho các việc ở bảng "Thiếu". Không bao giờ loại trừ được 100% một chức năng ẩn dưới tên khác, nhưng đã thử các từ khoá `last_login`, `lastSeen`, `avatar`, `bulk`, `reassign`, `offboard`, `sessions`, `totp`, và đã liệt kê toàn bộ nơi ghi vào `users`, `sessions`, `workspace_members`.
@@ -208,7 +208,7 @@ Báo cáo này không đề xuất, theo yêu cầu. Mỗi câu liệt kê phư�
 **U2. Bàn giao khi một người nghỉ.**
 - A. Bước gỡ thành viên hỏi luôn "chuyển deal và task của người này cho ai". Đổi: một thao tác, nhưng gỡ trở thành thao tác nặng hơn.
 - B. Giữ gỡ như hiện nay, thêm hiển thị owner và bộ lọc theo owner ở deal và task, đổi từng cái hoặc hàng loạt. Đổi: dùng được cả khi chuyển việc giữa hai người còn ở lại.
-- C. Chỉ thêm cột owner vào bảng deal và bộ lọc, đổi từng cái. Đổi: ít nhất; với khoảng 11 deal (theo kế hoạch PilotCo, chưa kiểm trên production) có thể đủ.
+- C. Chỉ thêm cột owner vào bảng deal và bộ lọc, đổi từng cái. Đổi: ít nhất; với khoảng 11 deal (theo kế hoạch khách hàng thử nghiệm, chưa kiểm trên production) có thể đủ.
 - D. Không đổi; ghi quy trình vào runbook (dùng REST để liệt kê rồi `PATCH`).
 
 **U3. Đặt lại mật khẩu cho người khác khi mail không dùng được.**
@@ -245,7 +245,7 @@ Báo cáo này không đề xuất, theo yêu cầu. Mỗi câu liệt kê phư�
 
 **U9. Rào "admin cuối cùng" qua đường lời mời (ghi chú a) và phiên không workspace sau khi mời lại (ghi chú b).** Hai điểm này là hành vi hiện tại có thể không đúng ý. Chọn: (A) coi là lỗi, sửa riêng; (B) để vào phạm vi quản trị người dùng ở trên; (C) chạy thử xác nhận trước khi quyết.
 
-**Câu hỏi về dữ kiện (ngoài lựa chọn sản phẩm):** PilotCo hiện dùng SSO hay chỉ mật khẩu? Người phụ trách vận hành (có SSH vào droplet) có luôn là admin trong Fourty không? Việc "đặt lại mật khẩu bằng lệnh" có chấp nhận được là quy trình thường trực của PilotCo hay chỉ là biện pháp khẩn?
+**Câu hỏi về dữ kiện (ngoài lựa chọn sản phẩm):** khách hàng thử nghiệm hiện dùng SSO hay chỉ mật khẩu? Người phụ trách vận hành (có SSH vào droplet) có luôn là admin trong Fourty không? Việc "đặt lại mật khẩu bằng lệnh" có chấp nhận được là quy trình thường trực của khách hàng thử nghiệm hay chỉ là biện pháp khẩn?
 
 ## Quyết định (13/10/2026, Leo)
 
